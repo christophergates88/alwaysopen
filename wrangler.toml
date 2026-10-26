@@ -25,6 +25,9 @@ database_id = "d1ca8165-65de-4bf3-97a3-899037682ff2"
 name = "EMAIL"
 destination_address = "christophergates.cg@gmail.com"
 
+[[send_email]]
+name = "SEND_MAIL"
+
 # Storm Desk: check National Weather Service warnings every 10 minutes (free).
 [triggers]
 crons = ["*/10 * * * *", "17 12 * * 1"]

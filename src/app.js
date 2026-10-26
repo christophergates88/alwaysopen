@@ -727,6 +727,12 @@ async function ntfy(env, title, body, priority, tags, click) {
 }
 // Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
 async function mailTo(env, to, subject, text, biz) {
+  if (env.SEND_MAIL) {
+    try {
+      await env.SEND_MAIL.send({ to, from: { email: 'reminders@alwaysopenoffice.com', name: ascii(biz || 'Always Open').replace(/"/g, '').slice(0, 60) }, subject: oneLine(subject).slice(0, 140), text });
+      return 'sent';
+    } catch (e) { /* fall through to the old path */ }
+  }
   if (!env.EMAIL || !env.MAIL_FROM) return 'off';
   const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
   const raw = [
