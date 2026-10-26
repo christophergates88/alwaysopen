@@ -1,5 +1,6 @@
 import { BIZ_JS } from './bizpage.js';
 import { PAST_JS } from './pastpage.js';
+import { RIVALS_JS } from './rivalspage.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -301,7 +302,7 @@ function vHome(){
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We\\u2019ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=monthBlock()+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
+  h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
   h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
   return h;
 }
@@ -431,8 +432,7 @@ function vReviews(){
   else h+='<div class="card score"><div class="big"><b>\\u2014</b><span class="who">Your star rating, and how it moves month to month, shows here once your Google profile is connected.</span></div></div>';
   h+='<h2>Latest reviews</h2>'+(rv.length?rv.map(revCard).join(''):'<div class="empty slim"><b>No reviews yet</b><span>New Google reviews land here with our reply, and every reply waits for your OK.</span></div>');
   if(f.qr&&S.client.qr)h+='<div class="feature"><h3>Your review QR code</h3><p>Show it at the counter or on a job. Ask every customer, not just the happy ones.</p><div class="acts"><button class="btn line" type="button" data-a="qr">Show the code</button></div></div>';
-  h+=f.competitors?'<div class="feature"><h3>Competitor watch</h3><p>We keep an eye on the top businesses like yours nearby: their rating, how fast they get reviews, and when one of them slips.</p><p class="fine"><span class="chip">Getting set up</span> Your first look shows here once your Google profile is connected.</p></div>':
-    '<div class="feature locked"><h3>Competitor watch</h3><p>See how the top businesses like yours nearby are doing on Google, and when one of them slips. Comes with Growth.</p><div class="acts"><button class="btn line" type="button" data-a="ask-growth">Ask about Growth</button></div></div>';
+  h+=rivalCard();
   var rs=(S.months||[]).filter(function(m){return m.record;});
   h+='<h2>Monthly records</h2><p class="note" style="margin:-4px 2px 10px">Every public review, reply and post for a month, with who approved it. Open one and tap Save as PDF to keep it.</p>';
   h+=rs.length?'<div class="recs">'+rs.map(function(m){return '<a class="rec" href="'+esc(BASE+'/record/'+m.month)+'"><div><b>'+esc(m.label)+'</b><span>Record of public communications</span></div>'+ICON.chev+'</a>';}).join('')+'</div>':'<div class="empty slim"><b>No records yet</b><span>Your first record is made in the first days of next month.</span></div>';
@@ -621,6 +621,7 @@ function shrink(file,cb){
 
 ${BIZ_JS}
 ${PAST_JS}
+${RIVALS_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go]');if(!t)return;
@@ -662,6 +663,7 @@ document.addEventListener('click',function(e){
   else if(a==='ask-max')askAbout('Max','I\u2019d like to add Max, the AI line, to answer my calls.');
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
+  else if(a&&a.indexOf('rv-')===0)rvAct(a,id,t);
   else if(a&&a.indexOf('bz-')===0)bizAct(a,id,t);
   else if(a&&a.indexOf('pc-')===0)pastAct(a,id,t);
 });

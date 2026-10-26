@@ -10,7 +10,7 @@ const PLACE_FIELDS = ['id', 'displayName', 'formattedAddress', 'rating', 'userRa
 const PUBLIC_PER_HOUR = 3;
 const PUBLIC_PER_DAY = 150;
 
-async function places(env, path, body, fields) {
+export async function places(env, path, body, fields) {
   const r = await fetch('https://places.googleapis.com/v1/' + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.PLACES_KEY, 'X-Goog-FieldMask': fields.map(f => 'places.' + f).join(',') },

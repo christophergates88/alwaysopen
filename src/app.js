@@ -9,6 +9,7 @@ import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
 import { apiImport, apiRevive, pastState } from './past.js';
+import { apiRivals, rivalsState } from './rivals.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES } from './biz.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
@@ -141,7 +142,7 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub.startsWith('/record/')) {
       if (meth === 'GET' || meth === 'HEAD') return await recordPage(env, c, sub.slice(8), base);
     } else if (sub === '/api/state' && meth === 'GET') {
-      return await apiState(env, c);
+      return await apiState(env, c, ctx);
     } else if (sub === '/api/decide' && meth === 'POST') {
       return await apiDecide(req, env, ctx, c);
     } else if (sub === '/api/message' && meth === 'POST') {
@@ -193,6 +194,8 @@ export async function handleApp(req, env, ctx, url) {
       return await apiImport(req, env, c);
     } else if (sub === '/api/revive' && meth === 'POST') {
       return await apiRevive(req, env, c);
+    } else if (sub === '/api/rivals' && meth === 'POST') {
+      return await apiRivals(req, env, c, ctx);
     }
   } catch (e) {
     return api ? aj({ ok: false, error: 'Something went wrong on our side. Please try again.' }, 500) : gone(500);
@@ -232,7 +235,7 @@ export async function apnsReach() {
 }
 
 // ---------- API ----------
-async function apiState(env, c) {
+async function apiState(env, c, ctx) {
   const cid = c.client_id;
   const f = features(c);
   const qs = [
@@ -281,6 +284,7 @@ async function apiState(env, c) {
   let biz = {};
   try { biz = await bizState(env, c); } catch (e) { biz = {}; }
   try { Object.assign(biz, await pastState(env, c)); } catch (e) { /* past customers are optional */ }
+  try { Object.assign(biz, await rivalsState(env, c, ctx)); } catch (e) { /* competitor watch is optional */ }
   if (results && biz.jobTotals && biz.jobTotals.count) { results.paidMonth = biz.jobTotals.paidMonth; results.booked = biz.jobTotals.booked; results.real = true; }
   const tech = c.role === 'tech';
   if (tech) results = results ? { calls: results.calls, requests: results.requests, reviews: results.reviews } : null;

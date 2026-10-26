@@ -1,6 +1,7 @@
 // Always Open on Cloudflare: serves the website (public/), and receives the website form.
 // Each request is checked for spam, saved to D1, pushed to Christopher's phone (ntfy) and emailed to him.
 // The Always Open check (scheduled task) reads new requests from that email, or from /leads with a key.
+import { rivalsWeekly } from './rivals.js';
 import { EmailMessage } from 'cloudflare:email';
 import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
@@ -59,7 +60,7 @@ export default {
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
-    if (event && event.cron === RADAR_CRON) ctx.waitUntil(radarWatch(env));
+    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(radarWatch(env)); ctx.waitUntil(rivalsWeekly(env).catch(() => {})); }
     else { ctx.waitUntil(stormWatch(env)); ctx.waitUntil(appCron(env)); ctx.waitUntil(invoiceCron(env)); ctx.waitUntil(bizCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(voiceCron(env)); }
   }
 };

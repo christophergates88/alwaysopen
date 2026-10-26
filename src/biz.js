@@ -3,6 +3,7 @@
 import { pushClient, sha256hex, mailTo } from './app.js';
 import { page, ensureInvoices, invOut, TEXTING_ON } from './extras.js';
 import { buildRevive } from './past.js';
+import { rivalLine } from './rivals.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -614,7 +615,7 @@ export function weeklyLine(n) {
   const pl = (x, a, b) => x + ' ' + (x === 1 ? a : b);
   const parts = [pl(n.calls, 'call', 'calls'), pl(n.bookings, 'booking', 'bookings'), pl(n.requests, 'request', 'requests'), pl(n.reviews, 'review', 'reviews')];
   const rv = n.revive && n.revive.count ? ' ' + n.revive.count + ' past ' + (n.revive.count === 1 ? 'customer looks' : 'customers look') + ' ready to hear from you' + (n.revive.value ? ' (about ' + money(n.revive.value) + ')' : '') + '.' : '';
-  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.') + rv;
+  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.') + rv + (n.rivals ? ' ' + n.rivals : '');
 }
 export async function bizCron(env, at) {
   at = at || Date.now();
@@ -631,6 +632,7 @@ export async function bizCron(env, at) {
         await env.DB.prepare("INSERT INTO biz_prefs (client_id, weekly_sent) VALUES (?1, ?2) ON CONFLICT(client_id) DO UPDATE SET weekly_sent = excluded.weekly_sent").bind(c.client_id, lp.day).run();
         const wn = await weeklyNumbers(env, c.client_id, at);
         try { wn.revive = await buildRevive(env, c.client_id, at); } catch (e) { /* the weekly note still goes */ }
+        try { const ac = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(c.client_id).first(); wn.rivals = await rivalLine(env, ac, at); } catch (e) { /* so does this */ }
         const line = weeklyLine(wn);
         await pushClient(env, c.client_id, { aps: { alert: { title: 'Your week at ' + (c.business || 'your business'), body: line }, sound: 'default', 'thread-id': 'weekly' }, screen: 'home' }).catch(() => {});
         if (c.email) await mailTo(env, c.email, 'Your week at ' + (c.business || 'your business'), (c.owner_first ? 'Hi ' + c.owner_first + ',\n\n' : '') + line + '\n\nOpen the Always Open app for the details.\n\nYou can turn this weekly note off in the app under Settings.', 'Always Open').catch(() => {});
