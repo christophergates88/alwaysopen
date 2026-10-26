@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Always Open</title><link rel="canonical" href="https://alwaysopenoffice.com/">
+<meta name="description" content="Always Open keeps businesses across the U.S. always open: missed calls get a text, reviews get answered, leads get followed up, and a monthly report shows what happened.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: dark hero with a glowing OPEN sign and a stack of live-looking notifications; a dark day-in-the-life band; four alternating product rows, each with a screen mock; sample audit, pricing, comparison, rules, FAQ, request form. */
+:root{
+  --paper:#F5F4F0; --card:#FFFFFF; --ink:#171B26; --slate:#586075; --line:#DCDAD3; --panel:#EAE8E1;
+  --sign:#D92D20; --on-sign:#FFFFFF; --sign-soft:#FBE9E7;
+  --ok:#1C6B54; --ok-soft:#E3F1EC;
+  --night:#0F131B; --night-2:#171D2C; --night-ink:#ECEEF3; --night-mute:#A3ACBF; --night-line:#262E40; --night-card:#171C27; --night-sign:#FF6A5E;
+  /* screen mocks are product UI, so they keep one fixed light look in both themes */
+  --m-bg:#FFFFFF; --m-ink:#171B26; --m-mute:#5B6475; --m-line:#E4E2DB; --m-soft:#F4F3EF;
+  --m-ok:#1C6B54; --m-ok-bg:#E3F1EC; --m-warn:#9A5A00; --m-warn-bg:#FDF0D5; --m-red:#C42A1E; --m-red-bg:#FBE9E7;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif; --body:"Instrument Sans",system-ui,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55}
+.band{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-stretch:92%;margin:0;text-wrap:balance;letter-spacing:-.012em}
+h1{font-weight:850;font-size:clamp(2.8rem,7vw,5.2rem);line-height:.97}
+h2{font-weight:800;font-size:clamp(1.9rem,4.4vw,2.9rem);line-height:1.03}
+h3{font-weight:750;font-size:1.2rem;line-height:1.15}
+p{margin:0}
+a{color:var(--ink)}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--slate)}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;font:700 16px var(--body);padding:14px 22px;border-radius:11px;border:2px solid transparent;text-decoration:none;cursor:pointer;text-align:center}
+.btn.primary{background:var(--sign);color:var(--on-sign)}
+.btn.line{border-color:var(--ink);color:var(--ink);background:transparent}
+.btn.small{padding:10px 16px;font-size:15px}
+.mark{width:34px;height:34px;flex:none}
+
+/* hero (always dark) */
+.hero{color:var(--night-ink);background:radial-gradient(820px 520px at 88% 10%,rgba(217,45,32,.26),transparent 62%),linear-gradient(165deg,var(--night-2) 0%,var(--night) 70%)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px}
+.wordmark{display:flex;align-items:center;gap:11px;font:850 1.4rem var(--display);font-stretch:90%;letter-spacing:-.01em;text-decoration:none;color:inherit}
+.top nav{display:flex;gap:24px;align-items:center;font-size:15px}
+.top nav a{text-decoration:none;color:var(--night-mute)}
+.top nav a:hover{color:var(--night-ink)}
+.top nav .btn{color:var(--on-sign)}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-block:34px 84px}
+.neon{display:inline-grid;gap:3px;justify-items:center;padding:10px 20px 8px;border:3px solid var(--night-sign);border-radius:14px;margin-bottom:26px;color:var(--night-sign);box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 24px rgba(255,90,77,.45),inset 0 0 16px rgba(255,90,77,.22)}
+.neon b{font:850 1.9rem/1 var(--display);letter-spacing:.16em;text-shadow:0 0 14px rgba(255,106,94,.85)}
+.neon span{font:500 11px var(--mono);letter-spacing:.2em;opacity:.9}
+.hero h1 em{font-style:normal;color:var(--night-sign)}
+.lede{font-size:1.22rem;color:var(--night-mute);max-width:32em;margin-top:22px}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.hero .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
+.fine{margin-top:18px;font:400 13px var(--mono);color:var(--night-mute);letter-spacing:.02em}
+.promise{margin-top:22px;display:flex;gap:10px;align-items:flex-start;font:700 1.08rem/1.35 var(--body);color:var(--night-ink);max-width:30em}
+.promise svg{width:22px;height:22px;flex:none;margin-top:1px;color:#5CC9A4}
+.promise + .fine{margin-top:10px}
+.promise.light{color:var(--ink);font-size:1.02rem;margin-top:16px}
+.promise.light svg{color:var(--ok)}
+.perday{margin:-8px 0 0;font:600 14px var(--body);color:var(--ok)}
+
+/* hero stack */
+.stack{position:relative;min-height:560px}
+.phone{position:absolute;left:0;top:6px;width:256px;background:#fff;border-radius:36px;padding:11px;box-shadow:0 34px 60px -26px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+.screen{background:var(--m-soft);border-radius:26px;padding:14px 12px 18px;display:grid;gap:9px;align-content:start;color:var(--m-ink)}
+.screen .who{text-align:center;font:600 12px var(--body);color:var(--m-mute);padding-bottom:7px;border-bottom:1px solid var(--m-line)}
+.screen .stamp{text-align:center;font:400 11px var(--mono);color:var(--m-mute)}
+.bub{max-width:86%;padding:9px 12px;border-radius:17px;font-size:14px;line-height:1.35}
+.bub.in{background:#fff;border:1px solid var(--m-line);border-bottom-left-radius:4px}
+.bub.out{justify-self:end;background:#171B26;color:#fff;border-bottom-right-radius:4px}
+.bub.sys{justify-self:center;max-width:100%;background:transparent;color:var(--m-mute);font:500 12px var(--mono);padding:2px 0}
+.notif{position:absolute;right:0;width:min(290px,55%);background:rgba(255,255,255,.96);color:var(--m-ink);border-radius:18px;padding:13px 14px;box-shadow:0 24px 44px -22px rgba(0,0,0,.65);display:grid;gap:5px}
+.notif .nh{display:flex;align-items:center;gap:8px;font:600 12px var(--body);color:var(--m-mute)}
+.notif .nh svg{width:18px;height:18px}
+.notif .nh time{margin-left:auto;font:400 11px var(--mono)}
+.notif b{font-size:14.5px;line-height:1.3}
+.notif p{font-size:13.5px;color:var(--m-mute);line-height:1.35}
+.notif .acts{display:flex;gap:8px;margin-top:4px}
+.pill-btn{font:700 12.5px var(--body);padding:6px 12px;border-radius:99px;background:#171B26;color:#fff}
+.pill-btn.alt{background:var(--m-soft);color:var(--m-ink);border:1px solid var(--m-line)}
+.n1{top:30px}.n2{top:210px}.n3{top:372px}
+.cap{position:absolute;left:0;bottom:-6px;font:400 12px var(--mono);color:var(--night-mute)}
+
+/* strip */
+.strip{background:var(--card);border-bottom:1px solid var(--line);padding-block:22px}
+.strip .inner{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.strip .lab{font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--slate);margin-right:6px}
+.chip{font:600 14px var(--body);padding:6px 13px;border:1px solid var(--line);border-radius:99px;color:var(--ink);background:var(--paper)}
+
+/* day band */
+.try{color:var(--night-ink);background:linear-gradient(180deg,var(--night) 0%,var(--night-2) 100%);padding-block:64px;border-top:1px solid var(--night-line)}
+.try .eyebrow{color:var(--night-mute)}
+.try-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center}
+.try h2{margin-top:10px;max-width:14em}
+.try .sub{color:var(--night-mute);margin-top:14px;max-width:34em}
+.neon-call{display:inline-grid;gap:5px;justify-items:center;margin-top:26px;padding:14px 26px 12px;border:3px solid var(--night-sign);border-radius:16px;color:var(--night-sign);text-decoration:none;box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 22px rgba(255,106,94,.45),inset 0 0 18px rgba(255,106,94,.22);transition:box-shadow .2s}
+.neon-call span{font:500 12px var(--mono);letter-spacing:.2em;text-transform:uppercase;opacity:.9}
+.neon-call b{font:850 clamp(1.6rem,6vw,2.3rem)/1 var(--display);letter-spacing:.04em;text-shadow:0 0 14px rgba(255,106,94,.85);white-space:nowrap}
+.neon-call:hover{box-shadow:0 0 0 1px rgba(255,106,94,.35),0 0 34px rgba(255,106,94,.65),inset 0 0 22px rgba(255,106,94,.3)}
+.neon-call:focus-visible{outline:3px solid var(--night-ink);outline-offset:4px}
+.try-ideas{color:var(--night-mute);font-size:15px;margin-top:16px}
+.keep{background:var(--night-card);border:1px solid var(--night-line);border-radius:18px;padding:24px;display:grid;gap:10px}
+.keep h3{font-size:1.35rem;line-height:1.15}
+.keep p:not(.eyebrow){color:var(--night-mute)}
+@media (max-width:860px){.try-grid{grid-template-columns:1fr;gap:30px}.try{padding-block:52px}}
+.ctas{align-items:center}
+.ctas .neon-call{margin-top:0}
+.hero-call{padding:10px 22px 9px;background:rgba(15,19,27,.35)}
+.hero-call b{font-size:clamp(1.45rem,4.4vw,1.85rem)}
+.top nav a.nav-call{color:var(--night-sign);text-shadow:0 0 10px rgba(255,106,94,.55)}
+.top nav a.nav-call:hover{color:#FF8A80}
+.call-float{position:fixed;z-index:40;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:10px;padding:10px 18px 10px 14px;border:2px solid var(--night-sign);border-radius:999px;background:rgba(15,19,27,.95);color:var(--night-sign);text-decoration:none;box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 20px rgba(255,90,77,.5),0 10px 26px rgba(0,0,0,.35);transition:opacity .2s ease,transform .2s ease}
+.call-float i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--night-sign);box-shadow:0 0 8px var(--night-sign)}
+.call-float span{font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--night-ink)}
+.call-float b{font:850 1.1rem/1 var(--display);letter-spacing:.03em;text-shadow:0 0 10px rgba(255,106,94,.8);white-space:nowrap}
+.call-float:hover{box-shadow:0 0 0 1px rgba(255,106,94,.4),0 0 30px rgba(255,90,77,.7),0 10px 26px rgba(0,0,0,.35)}
+.call-float:focus-visible{outline:3px solid var(--night-ink);outline-offset:3px}
+.call-float.off{opacity:0;transform:translateY(14px);pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.call-float i{animation:aoLive 1.8s ease-in-out infinite}}
+@keyframes aoLive{50%{opacity:.3}}
+@media (max-width:520px){.ctas>a{width:100%}.hero-call{justify-items:center}.call-float{padding:9px 16px 9px 12px;gap:9px}.call-float span{letter-spacing:.1em}}
+.day{background:var(--night);color:var(--night-ink);padding-block:80px}
+.day .eyebrow{color:var(--night-mute)}
+.day h2{margin-top:10px;max-width:15em}
+.day .sub{color:var(--night-mute);margin-top:12px;max-width:36em}
+.events{list-style:none;margin:38px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;position:relative}
+.events li{background:var(--night-card);border:1px solid var(--night-line);border-radius:14px;padding:18px;display:grid;gap:8px;align-content:start}
+.events time{font:500 13px var(--mono);color:var(--night-sign);letter-spacing:.04em}
+.events .what{font-weight:650}
+.events .then{color:var(--night-mute);font-size:.94rem}
+
+/* feature rows */
+.sec{padding-block:84px}
+.rows{display:grid;gap:84px}
+.row{display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
+.row.flip .copy{order:2}
+.copy{display:grid;gap:14px;align-content:start}
+.copy .lead{color:var(--slate);font-size:1.08rem;max-width:30em}
+.copy ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:9px}
+.copy li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:1rem}
+.copy li svg{width:22px;height:22px;color:var(--ok);margin-top:2px}
+.stage{background:var(--panel);border-radius:26px;padding:30px;display:grid;place-items:center;min-width:0}
+.mock{width:100%;max-width:420px;background:var(--m-bg);color:var(--m-ink);border-radius:18px;padding:18px;display:grid;gap:14px;box-shadow:0 22px 40px -26px rgba(15,19,27,.55);position:relative;min-width:0}
+.mtag{position:absolute;top:-11px;right:16px;font:500 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:var(--paper);padding:3px 9px;border-radius:99px}
+.mock small{font:400 12px var(--mono);color:var(--m-mute)}
+.pill{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:var(--m-ok-bg);color:var(--m-ok)}
+.pill.warn{background:var(--m-warn-bg);color:var(--m-warn)}
+.pill.red{background:var(--m-red-bg);color:var(--m-red)}
+/* mock A: profile */
+.p-head{display:flex;gap:12px;align-items:center}
+.p-av{width:46px;height:46px;border-radius:12px;background:#171B26;color:#fff;display:grid;place-items:center;font:800 16px var(--display);flex:none}
+.p-head b{display:block;font-size:16px}
+.p-head span{display:block;font-size:13px;color:var(--m-mute)}
+.stars{color:#B87500!important;font-weight:600}
+.p-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.p-actions span{text-align:center;font:600 12.5px var(--body);padding:8px 4px;border:1px solid var(--m-line);border-radius:10px}
+.p-hours{font-size:13.5px;color:var(--m-mute)}
+.p-hours b{color:var(--m-ok)}
+.p-post{background:var(--m-soft);border-radius:12px;padding:12px 14px;display:grid;gap:4px}
+.p-post p{font-size:14px}
+.p-checks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:13.5px}
+.p-checks li{display:flex;gap:7px;align-items:center}
+.p-checks li::before{content:"";width:16px;height:16px;border-radius:50%;background:var(--m-ok-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='%231C6B54' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat;flex:none}
+/* mock B: inbox */
+.mh{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.mh b{font-size:15px}
+.inbox{display:grid}
+.irow{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--m-line)}
+.irow:first-child{border-top:0}
+.irow i{width:10px;height:10px;border-radius:50%;background:var(--m-ok)}
+.irow i.w{background:#D98E04}.irow i.r{background:var(--m-red)}
+.irow b{display:block;font-size:14.5px;line-height:1.25}
+.irow span{font-size:13px;color:var(--m-mute)}
+/* mock C: money */
+.total{display:flex;justify-content:space-between;align-items:end;gap:12px}
+.total strong{font:850 2rem/1 var(--display);font-variant-numeric:tabular-nums}
+.inv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:11px 0;border-top:1px solid var(--m-line);font-size:14px;align-items:center}
+.inv span{font-size:12.5px;color:var(--m-mute)}
+.inv em{font:600 14px var(--body);font-style:normal;text-align:right;font-variant-numeric:tabular-nums;grid-row:span 2}
+.sms{background:var(--m-soft);border-radius:14px;padding:12px;display:grid;gap:8px}
+.sms .bub{max-width:100%;font-size:13.5px}
+.paylink{display:inline-block;background:#171B26;color:#fff;font:700 12.5px var(--body);padding:6px 12px;border-radius:99px;margin-top:6px}
+/* mock D: report */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tile{background:var(--m-soft);border-radius:12px;padding:12px 14px;display:grid;gap:2px}
+.tile b{font:850 1.7rem/1 var(--display);font-variant-numeric:tabular-nums}
+.tile span{font-size:12.5px;color:var(--m-mute)}
+.tile em{font:600 12px var(--body);font-style:normal;color:var(--m-ok)}
+.chart{width:100%;height:auto;display:block}
+.chart text{font:500 10px var(--mono);fill:#5B6475}
+.chart .v{fill:#171B26;font-weight:500}
+
+/* audit */
+.alt{background:var(--card);border-block:1px solid var(--line)}
+.audit-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:center}
+.audit-grid .copy p{color:var(--slate)}
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(0,9.5em) 1fr 5.8em;gap:10px;align-items:center;font-size:14px}
+.bar .track{height:10px;background:var(--m-line);border-radius:99px;overflow:hidden}
+.bar .fill{display:block;height:100%;background:#7A8397;border-radius:99px}
+.bar.you .fill{background:var(--m-red)}
+.bar b{font:500 13px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.finds{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:14.5px}
+.finds li{display:grid;grid-template-columns:18px 1fr;gap:10px}
+.finds li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--m-red);margin-top:7px}
+
+/* pricing */
+.head{display:grid;gap:10px;max-width:640px;margin-bottom:38px}
+.head p{color:var(--slate);font-size:1.08rem}
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:14px;align-content:start}
+.plan.feat{border:2px solid var(--sign);position:relative;box-shadow:0 24px 44px -30px var(--sign)}
+.plan.feat::before{content:"Most pick this";position:absolute;top:-13px;left:22px;background:var(--sign);color:var(--on-sign);font:600 12px var(--body);padding:3px 11px;border-radius:99px}
+.price{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.price b{font:850 2.9rem/1 var(--display)}
+.price span{color:var(--slate);font-size:.95rem}
+.plan .for{color:var(--slate);font-size:.98rem}
+.plan .plan-note{margin:0;color:var(--slate);font-size:.86rem;border-top:1px dashed var(--line);padding-top:10px}
+.plan ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:.96rem}
+.plan li{display:grid;grid-template-columns:18px 1fr;gap:8px}
+.plan li svg{width:18px;height:18px;color:var(--ok);margin-top:3px}
+.plan li.plus{font-weight:650;display:block}
+.setup{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:16px 18px;border:1px dashed var(--slate);border-radius:12px;font-size:.98rem}
+.setup b{font-family:var(--display);font-size:1.1rem}
+.addons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:22px}
+.addon{border:1px solid var(--line);border-radius:18px;padding:24px;display:grid;gap:10px;background:var(--card);align-content:start}
+.addon .price b{font-size:2.1rem}
+.addon p{color:var(--slate);font-size:.97rem}
+.addon p a,.callus a{color:var(--sign);font-weight:700;white-space:nowrap;text-underline-offset:3px}
+.avail{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+.guarantee{margin-top:26px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;background:var(--ok-soft);border-radius:14px;padding:18px 20px}
+.guarantee b{font:850 1.4rem var(--display);color:var(--ok)}
+.guarantee p{font-size:.98rem}
+
+/* worth it */
+.worth-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.calc{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:14px}
+.calc-q{font:800 1.3rem/1.15 var(--display);font-stretch:92%}
+.money{display:flex;align-items:center;gap:6px;border:2px solid var(--ink);border-radius:12px;background:var(--card);padding:2px 14px;max-width:260px}
+.money:focus-within{outline:3px solid var(--sign);outline-offset:2px}
+.money span{font:800 1.7rem var(--display)}
+.money input{border:0;background:transparent;font:800 2rem var(--display);padding:8px 0;width:100%;color:var(--ink);outline:none;-moz-appearance:textfield;appearance:textfield}
+.money input::-webkit-outer-spin-button,.money input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.calc .hint{color:var(--slate);font-size:.95rem}
+.be{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:8px}
+.be li{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.be li.feat{border:2px solid var(--sign)}
+.be li span{font-weight:650}
+.be li small{display:block;font:400 12.5px var(--mono);color:var(--slate);margin-top:2px;font-weight:400}
+.be li b{font:850 1.35rem var(--display);white-space:nowrap}
+.be-note{font-size:.88rem;color:var(--slate)}
+.facts{display:grid;gap:14px}
+.fact{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-items:start;border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--paper)}
+.fact b{font:850 2.4rem/1 var(--display);color:var(--sign);grid-row:span 2;min-width:2.6em}
+.fact p{font-size:.98rem}
+.fact small{font:400 12px var(--mono);color:var(--slate)}
+.fact small a{color:inherit;text-underline-offset:3px}
+.costs{margin-top:30px;display:grid;gap:10px}
+.costs h3{margin-bottom:4px}
+.cost{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:14px 18px;background:var(--paper)}
+.cost span{display:block;color:var(--slate);font-size:.95rem;margin-top:2px}
+.cost em{font:800 1.1rem var(--display);font-style:normal;white-space:nowrap;text-align:right}
+.cost.ours{background:var(--sign-soft);border-color:var(--sign)}
+.norisk{margin-top:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.norisk div{background:var(--ok-soft);border-radius:14px;padding:14px 16px;display:grid;gap:4px;align-content:start}
+.norisk b{color:var(--ok);font:800 1.05rem var(--display)}
+.norisk span{font-size:.95rem}
+@media (max-width:980px){.worth-grid{grid-template-columns:1fr}.norisk{grid-template-columns:1fr}}
+@media (max-width:520px){.cost{grid-template-columns:1fr}.cost em{text-align:left}.fact b{font-size:2rem}.calc{padding:20px}}
+
+/* compare */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:.98rem}
+th,td{text-align:left;padding:15px 18px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
+td:first-child{font-weight:650}
+.us{background:var(--sign-soft);font-weight:600}
+.note{margin-top:12px;font:400 12.5px var(--mono);color:var(--slate)}
+
+/* rules + faq + contact */
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.rule{border-top:3px solid var(--ink);padding-top:14px;display:grid;gap:6px;align-content:start}
+.rule p{color:var(--slate);font-size:.98rem}
+.faq{display:grid;gap:10px;max-width:780px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 18px}
+summary{cursor:pointer;font-weight:600;padding-block:15px}
+details p{padding-bottom:16px;color:var(--slate)}
+.contact-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:start}
+.who{display:grid;gap:14px}
+.who p{color:var(--slate)}
+.addr{font:500 15px var(--mono);overflow-wrap:anywhere;color:var(--ink)!important}
+.founding{background:var(--card);border:1px dashed var(--sign);border-radius:14px;padding:16px 18px}
+.founding b{font-family:var(--display);font-size:1.1rem}
+form.lead{display:grid;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{display:grid;gap:6px;font-weight:600;font-size:14px;min-width:0}
+input,select,textarea{font:16px var(--body);padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);width:100%}
+textarea{min-height:92px;resize:vertical}
+.optin{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;font-weight:500;font-size:13.5px;color:var(--slate)}
+.optin input{width:18px;height:18px;margin:2px 0 0;padding:0;accent-color:var(--sign)}
+.err{color:var(--sign);font-size:14px}
+.sent{display:grid;gap:12px;background:var(--card);border:2px solid var(--ok);border-radius:18px;padding:24px}
+.sent pre{white-space:pre-wrap;font:14px/1.5 var(--mono);background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:12px;margin:0;overflow-wrap:anywhere}
+.sent .btns{display:flex;flex-wrap:wrap;gap:10px}
+footer{background:var(--night);color:var(--night-mute);padding-block:30px;font-size:14px}
+footer .inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center}
+footer .wordmark{font-size:1.15rem;color:var(--night-ink)}
+footer .mark{width:28px;height:28px}
+footer .legal a{color:var(--night-ink);text-underline-offset:3px}
+footer .entity{flex-basis:100%;font-size:13px}
+footer .legal a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
+.fineprint{font-size:13px;color:var(--slate)}
+.hp{position:absolute!important;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+.fineprint a{color:inherit;text-underline-offset:3px}
+.regbox{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:clamp(22px,4vw,44px);display:grid;gap:30px}
+.regbox .head{margin-bottom:0}
+.regbox .rule{background:var(--paper)}
+.incl-wrap{display:grid;gap:14px}
+.incl-wrap h3{font-family:var(--display);font-size:1.25rem}
+.incl{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px}
+.incl li{display:grid;grid-template-columns:20px 1fr;gap:10px}
+.incl svg{width:20px;height:20px;color:var(--ok);margin-top:2px}
+@media (max-width:760px){.incl{grid-template-columns:1fr}}
+
+@media (max-width:980px){
+  .hero-grid,.audit-grid,.contact-grid,.row{grid-template-columns:1fr;gap:40px}
+  .row.flip .copy{order:0}
+  .events{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plans,.addons,.rules{grid-template-columns:1fr}
+  .top nav a:not(.btn){display:none}
+  .stack{min-height:0;display:grid;gap:14px;justify-items:center}
+  .phone,.notif,.cap{position:static}
+  .notif{width:min(360px,100%)}
+  .cap{text-align:center}
+}
+@media (max-width:520px){
+  .row2{grid-template-columns:1fr}
+  .sec{padding-block:56px}.rows{gap:60px}
+  .events{grid-template-columns:1fr}
+  .stage{padding:22px 14px}
+  .bar{grid-template-columns:minmax(0,7em) 1fr 5em}
+  .phone{width:min(290px,100%)}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+dialog.ask{border:0;border-radius:18px;padding:24px;width:min(440px,calc(100% - 32px));background:var(--card);color:var(--ink);box-shadow:0 30px 70px -20px rgba(0,0,0,.6)}
+dialog.ask::backdrop{background:rgba(10,12,18,.6)}
+.ask h3{font-family:var(--display);font-size:1.35rem}
+.ask p{color:var(--slate);margin-top:8px}
+.ask .opts{display:grid;gap:10px;margin-top:18px}
+.ask .opts button{font:600 16px var(--body);text-align:left;padding:13px 16px;border-radius:11px;border:2px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.ask .opts button:hover{border-color:var(--ink)}
+.ask .opts small{display:block;font-weight:400;font-size:13.5px;color:var(--slate);margin-top:2px}
+.ask .later{margin-top:14px;background:none;border:0;color:var(--slate);font:500 14px var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:4px 0}
+.txtnote{margin-top:4px;padding:12px 14px;border-radius:12px;background:var(--ok-soft);color:var(--ink);font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.txtnote button{background:none;border:0;padding:0;color:var(--ink);font:600 .95rem var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+a.chip{text-decoration:none}
+a.chip:hover{border-color:var(--ink)}
+.ind{background:var(--card);border-bottom:1px solid var(--line);padding-block:60px}
+.ind .sub{color:var(--slate);margin-top:10px;max-width:40em;font-size:1.08rem}
+.indtiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:28px}
+.indtile{position:relative;border:2px solid var(--line);background:var(--paper);border-radius:14px;padding:16px 14px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;display:grid;gap:4px;align-content:start;min-width:0}
+.indtile b{font:800 1.05rem/1.15 var(--display);font-stretch:92%}
+.indtile span{font-size:.86rem;color:var(--slate);line-height:1.35}
+.indtile:hover{border-color:var(--ink)}
+.indtile[aria-pressed="true"]{border-color:var(--sign);background:var(--sign-soft)}
+.indtile em{position:absolute;top:-10px;right:10px;font:700 10.5px var(--body);font-style:normal;background:var(--ok);color:var(--card);padding:2px 8px;border-radius:99px;letter-spacing:.02em}
+.indpanel{margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:clamp(20px,3vw,32px);display:grid;grid-template-columns:1.35fr .65fr;gap:20px 32px;align-items:center}
+.indpanel h3{font-size:1.45rem}
+.indpanel ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.indpanel li{display:grid;grid-template-columns:22px 1fr;gap:10px}
+.indpanel li svg{width:22px;height:22px;color:var(--ok);margin-top:2px}
+.indpanel .go{display:grid;gap:10px;justify-items:start}
+.indpanel .go p{color:var(--slate);font-size:.95rem}
+.allgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.allitem{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;align-content:start;min-width:0}
+.allitem b{font-size:1rem;line-height:1.3}
+.allitem p{color:var(--slate);font-size:.92rem;line-height:1.45}
+.tag{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;justify-self:start;background:var(--panel);color:var(--ink)}
+.tag.g{background:var(--sign-soft);color:var(--sign)}
+.tag.p{background:var(--ink);color:var(--paper)}
+.tag.a{background:var(--ok-soft);color:var(--ok)}
+.recbtn{justify-self:start;font:700 12.5px var(--body);padding:7px 13px;border-radius:99px;background:#171B26;color:#fff}
+@media (max-width:980px){.indtiles{grid-template-columns:repeat(3,minmax(0,1fr))}.indpanel{grid-template-columns:1fr}.allgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.indtiles{grid-template-columns:repeat(2,minmax(0,1fr))}.allgrid{grid-template-columns:1fr}.ind{padding-block:44px}}
+.check{display:grid;gap:10px;margin-top:22px;padding:18px;background:var(--card);border:1px solid var(--line);border-radius:16px}
+.check-h{margin:0;font-weight:700}
+.check-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px}
+.check input{font:inherit;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);min-width:0;width:100%}
+.check .btn{justify-self:start}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.check-out:empty{display:none}
+.check-out{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.check-score{display:flex;align-items:center;gap:14px}
+.check-score b{font:850 2.4rem/1 var(--display,inherit);color:var(--sign);border:3px solid var(--sign);border-radius:14px;padding:6px 12px;box-shadow:0 0 14px rgba(217,45,32,.25)}
+.check-out p{margin:0}.check-out .find{padding-left:12px;border-left:3px solid var(--sign)}
+.check-out .muted{color:var(--slate);font-size:.95rem}
+@media (max-width:560px){.check-row{grid-template-columns:1fr}}
+.soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
+</style>
+
+<meta property="og:title" content="Always Open: your business, always open">
+<meta property="og:description" content="Every review answered, missed calls handled, your Google profile kept current, anywhere in the U.S. Nobody likes talking to AI, so call ours anyway: (706) 460-2226.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Always Open">
+<meta property="og:url" content="https://alwaysopenoffice.com/">
+<meta property="og:image" content="https://alwaysopenoffice.com/og3.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="1200">
+<meta property="og:image:alt" content="Always Open: your business, always open. Nobody likes talking to AI. Call ours anyway: call Max at (706) 460-2226. A glowing OPEN 24 HOURS sign.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://alwaysopenoffice.com/og2.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="chk" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
+</svg>
+
+<header class="hero band">
+  <div class="inner">
+    <div class="top">
+      <a class="wordmark" href="#top" id="top"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+      <nav aria-label="Main"><a class="nav-call" href="#try">Call Max</a><a href="#industries">Your business</a><a href="#day">A day with us</a><a href="#pricing">Pricing</a><a href="#faq">Questions</a><a class="btn primary small" href="#contact">Free audit</a></nav>
+    </div>
+    <div class="hero-grid">
+      <div>
+        <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
+        <h1>Your business, <em>always</em> open.</h1>
+        <p class="lede">Missed calls get a text back. Reviews get answered. Quotes get followed up. Invoices get chased. You stay on the job, and we handle the rest.</p>
+        <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
+        <p class="promise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
+        <p class="fine">No setup fee · Month to month · Spanish replies included</p>
+      </div>
+      <div class="stack" role="img" aria-label="Example: a missed call at 2:14 AM gets an instant text, a 2-star review arrives with a drafted reply, and the monthly report is ready">
+        <div class="phone"><div class="screen">
+          <div class="who">(478) 555-0142</div>
+          <div class="stamp">Tue 2:14 AM</div>
+          <div class="bub sys">Missed call · Mike's Roofing</div>
+          <div class="bub out">Sorry we missed you! This is Mike's Roofing. What do you need help with?</div>
+          <div class="bub in">Water coming through the kitchen ceiling</div>
+          <div class="bub out">Got it. Mike will call you at 7:30 AM. Can you send a photo of the spot?</div>
+          <div class="bub in">Sending now</div>
+        </div></div>
+        <div class="notif n1"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>7:02 AM</time></div><b>New 2-star review from Dana R.</b><p>Reply drafted. Want to post it?</p><div class="acts"><span class="pill-btn">Post reply</span><span class="pill-btn alt">Edit</span></div></div>
+        <div class="notif n2"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>2:14 AM</time></div><b>Lead saved: roof leak</b><p>Text sent in 4 seconds. Photo requested.</p></div>
+        <div class="notif n3"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>Oct 31</time></div><b>Your October report is ready</b><p>Rating 4.1 to 4.6 · 14 new reviews</p></div>
+        <p class="cap">Examples for a made-up roofer.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="try band" id="try" aria-labelledby="try-h">
+  <div class="inner try-grid">
+    <div>
+      <p class="eyebrow">The dare</p>
+      <h2 id="try-h">Nobody likes talking to AI. Call ours anyway.</h2>
+      <p class="sub">Max answers our phone, and he's the same AI we set up for your business. No phone tree, no "press 1." He listens, answers real questions, takes down what you need and tells you up front that he's AI. He's also really good at his job. Go ahead, test him.</p>
+      <a class="neon-call" href="tel:+17064602226"><span>Call Max now</span><b>(706) 460-2226</b></a>
+      <p class="try-ideas">Things to try: ask what it costs, ask if he's a real person, or say nothing at all and see what he does.</p>
+    </div>
+    <div class="keep">
+      <p class="eyebrow">Your number stays yours</p>
+      <h3>Customers keep calling the number they already know.</h3>
+      <p>When you can't pick up, call forwarding sends the call to your own AI line, just like Max. It answers in your business's name and sends you the details in seconds, with a button to call them back.</p>
+      <p>We set up the forwarding with you. Most phone companies support it, and it only takes a few minutes.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ind band" id="industries"><div class="inner">
+  <p class="eyebrow">Pick your business</p>
+  <h2>We speak your business’s language.</h2>
+  <p class="sub">Every trade has its own busy season, its own customers and its own rules. Tap yours to see what Always Open does for a business like yours.</p>
+  <div class="indtiles" role="group" aria-label="Kinds of business"><button type="button" class="indtile" data-ind="trades" aria-pressed="false"><b>Contractors and home services</b><span>Roofing, HVAC, plumbing, lawn, pest</span></button><button type="button" class="indtile" data-ind="marine" aria-pressed="false"><b>Docks and marine</b><span>Dock builders, boat repair, marinas</span></button><button type="button" class="indtile" data-ind="salon" aria-pressed="false"><b>Salons and fitness</b><span>Hair, nails, spas, gyms, grooming</span></button><button type="button" class="indtile" data-ind="food" aria-pressed="false"><b>Restaurants and shops</b><span>Cafes, restaurants, boutiques, retail</span></button><button type="button" class="indtile" data-ind="insurance" aria-pressed="false"><b>Insurance agents</b><span>Independent and captive agencies</span><em>Compliance-ready</em></button><button type="button" class="indtile" data-ind="health" aria-pressed="false"><b>Medical, dental and legal</b><span>Practices that protect client privacy</span><em>Private by design</em></button></div>
+  <div class="indpanel" id="indpanel" aria-live="polite"></div>
+</div></section>
+
+<main>
+<section class="day band" id="day">
+  <div class="inner">
+    <p class="eyebrow">One ordinary day</p>
+    <h2>The work keeps moving while you're on a roof.</h2>
+    <p class="sub">Most small businesses lose jobs in the gaps: the call after hours, the review nobody answered, the quote nobody followed up. Here is what Always Open does in those gaps.</p>
+    <ul class="events">
+      <li><time>2:14 AM</time><span class="what">A customer calls after hours.</span><span class="then">Within seconds they get a text asking what they need. You wake up to a lead, not a voicemail.</span></li>
+      <li><time>7:02 AM</time><span class="what">A 2-star review is posted.</span><span class="then">Your phone buzzes with a drafted reply. Tap Approve in the Always Open app, or change the words first.</span></li>
+      <li><time>12:30 PM</time><span class="what">You text a photo of a finished job.</span><span class="then">It becomes a Facebook post and a Google update with a caption written for you.</span></li>
+      <li><time>4:45 PM</time><span class="what">Tuesday's quote still has no answer.</span><span class="then">A friendly follow-up goes to the customer, and again later if they stay quiet.</span></li>
+      <li><time>8:00 PM</time><span class="what">An invoice is two days late.</span><span class="then">A polite reminder goes out with a link to pay.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="sec band" id="what">
+  <div class="inner rows">
+
+    <div class="row">
+      <div class="copy">
+        <p class="eyebrow">Get found</p>
+        <h2>Look open, current and trusted when they search.</h2>
+        <p class="lead">Customers decide in seconds. We keep your Google profile, listings and social pages accurate and active, so the first thing they see is a business that's alive.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current: hours, photos, a weekly post</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Same name, address, phone and hours on Apple Maps, Bing, Facebook and Yelp</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts made from your job photos</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Review requests after every job, to every customer</li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample business profile showing current hours, a recent post and a checklist of kept-current items">
+        <span class="mtag">Sample</span>
+        <div class="p-head"><div class="p-av">MR</div><div><b>Mike's Roofing</b><span>Roofing contractor · Eatonton, GA</span><span class="stars">4.6 ★★★★★ <em style="font-style:normal;color:var(--m-mute);font-weight:400">(212 reviews)</em></span></div></div>
+        <div class="p-actions"><span>Call</span><span>Directions</span><span>Website</span><span>Book</span></div>
+        <p class="p-hours"><b>Open now</b> · Holiday hours already set for Nov 27</p>
+        <div class="p-post"><small>Post · this week</small><p>Fall roof inspections are booking now. Send a photo for a free quick look.</p></div>
+        <ul class="p-checks"><li>Hours</li><li>Photos</li><li>Weekly post</li><li>Q&amp;A answered</li></ul>
+      </div></div>
+    </div>
+
+    <div class="row flip">
+      <div class="copy">
+        <p class="eyebrow">Answer everyone</p>
+        <h2>Nobody waits for a reply.</h2>
+        <p class="lead">Calls, reviews, quote requests and bookings all land in one place, and each gets an answer fast, from your own number once texting is approved.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed call, instant text<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every review answered, bad ones flagged the same day</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Online booking and quote requests, any hour</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Appointment confirmations and reminders<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Spanish replies on every plan</li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample activity inbox: a missed call with text sent, a new quote request, a confirmed appointment and a review reply waiting for approval">
+        <span class="mtag">Sample</span>
+        <div class="mh"><b>Today · Mike's Roofing</b><small>4 handled</small></div>
+        <div class="inbox">
+          <div class="irow"><i></i><div><b>Missed call · (478) 555-0142</b><span>Text sent in 4 seconds</span></div><span class="pill ok">Lead saved</span></div>
+          <div class="irow"><i class="r"></i><div><b>Quote request · Kitchen ceiling leak</b><span>From your booking page, 6:51 AM</span></div><span class="pill red">New</span></div>
+          <div class="irow"><i></i><div><b>Appointment · Thu 9:00 AM</b><span>Confirmation sent, reminder queued</span></div><span class="pill ok">Confirmed</span></div>
+          <div class="irow"><i class="w"></i><div><b>2-star review · Dana R.</b><span>Reply drafted for your OK</span></div><span class="pill warn">Needs OK</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="row">
+      <div class="copy">
+        <p class="eyebrow">Get paid</p>
+        <h2>Quotes and invoices don't go quiet.</h2>
+        <p class="lead">Most unpaid money isn't refused, it's forgotten. We follow up politely, as many times as it takes, in your voice.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Invoice and payment reminders with a pay link<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote follow-up, so good leads don't fade</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Past-customer reminders and referral asks<span class="soon">Coming soon</span></li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample money-waiting list with three invoices and a payment reminder text">
+        <span class="mtag">Sample</span>
+        <div class="total"><div><small>Money waiting</small><br><strong>$3,240</strong></div><span class="pill ok">$450 paid this week</span></div>
+        <div>
+          <div class="inv"><b>#1042 · Dana R.</b><em>$1,850</em><span>Reminder 2 sent today</span></div>
+          <div class="inv"><b>#1049 · Hart Farms</b><em>$940</em><span>Due Friday</span></div>
+          <div class="inv"><b>#1038 · L. Moss</b><em>$450</em><span style="color:var(--m-ok)">Paid</span></div>
+        </div>
+        <div class="sms"><div class="bub in">Hi Dana, a friendly reminder that invoice #1042 ($1,850) was due Oct 20. Thank you for choosing Mike's Roofing.<br><span class="paylink">Pay invoice</span></div></div>
+      </div></div>
+    </div>
+
+    <div class="row flip">
+      <div class="copy">
+        <p class="eyebrow">Prove it works</p>
+        <h2>One page a month shows what changed.</h2>
+        <p class="lead">No dashboards to learn. You get a short report with calls, reviews, your rating and what we did, plus how you compare with the three businesses you compete with most.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A one-page monthly report</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead logged: who called, what they wanted, quoted, booked or lost</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch on rating and review count</li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample monthly report with calls, direction requests, new reviews, rating change and a bar chart of reviews per month rising from 2 in May to 14 in October">
+        <span class="mtag">Sample · made-up numbers</span>
+        <div class="mh"><b>October report</b><small>Mike's Roofing</small></div>
+        <div class="tiles">
+          <div class="tile"><b>41</b><span>Calls from Google</span><em>+12 vs Sept</em></div>
+          <div class="tile"><b>118</b><span>Direction requests</span><em>+9 vs Sept</em></div>
+          <div class="tile"><b>14</b><span>New reviews</span><em>+5 vs Sept</em></div>
+          <div class="tile"><b>4.6</b><span>Rating, up from 4.1</span><em>+0.5</em></div>
+        </div>
+        <div>
+          <small>New reviews per month</small>
+          <svg class="chart" viewBox="0 0 300 118" aria-hidden="true">
+            <line x1="6" y1="96" x2="294" y2="96" stroke="#E4E2DB" stroke-width="1"/>
+            <rect x="14" y="85" width="30" height="11" rx="3" fill="#B9BECB"/><text class="v" x="29" y="80" text-anchor="middle">2</text><text x="29" y="110" text-anchor="middle">May</text>
+            <rect x="62" y="79" width="30" height="17" rx="3" fill="#B9BECB"/><text class="v" x="77" y="74" text-anchor="middle">3</text><text x="77" y="110" text-anchor="middle">Jun</text>
+            <rect x="110" y="73" width="30" height="23" rx="3" fill="#B9BECB"/><text class="v" x="125" y="68" text-anchor="middle">4</text><text x="125" y="110" text-anchor="middle">Jul</text>
+            <rect x="158" y="62" width="30" height="34" rx="3" fill="#B9BECB"/><text class="v" x="173" y="57" text-anchor="middle">6</text><text x="173" y="110" text-anchor="middle">Aug</text>
+            <rect x="206" y="45" width="30" height="51" rx="3" fill="#B9BECB"/><text class="v" x="221" y="40" text-anchor="middle">9</text><text x="221" y="110" text-anchor="middle">Sep</text>
+            <rect x="254" y="16" width="30" height="80" rx="3" fill="#D92D20"/><text class="v" x="269" y="11" text-anchor="middle">14</text><text x="269" y="110" text-anchor="middle">Oct</text>
+          </svg>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="row">
+      <div class="copy">
+        <p class="eyebrow">Stay on the record</p>
+        <h2>Everything we do is written down.</h2>
+        <p class="lead">Every review reply, post, lead and text is saved with its date and who approved it. Once a month you get a record file to keep, hand to a compliance officer, or pull out when someone says nobody called them back.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every reply and post saved with its date and your approval</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead and missed-call text logged</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A monthly record file on every plan</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Nothing goes out in your name without your OK</li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample monthly record listing a posted review reply, a Google post, a missed-call text and a logged lead, each with its date">
+        <span class="mtag">Sample</span>
+        <div class="mh"><b>October record · Mike's Roofing</b><small>12 entries</small></div>
+        <div class="inbox">
+          <div class="irow"><i></i><div><b>Oct 4 · Reply posted to a 5-star review</b><span>Approved by Mike, Oct 4, 8:12 AM</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 7 · Google post: fall roof checks</b><span>Approved by Mike, Oct 6</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 9 · Missed call texted back</b><span>2:14 AM · reply in 4 seconds</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 12 · Lead logged: kitchen ceiling leak</b><span>Booked for Thu 9:00 AM</span></div><span class="pill ok">Saved</span></div>
+        </div>
+        <span class="recbtn">October record (PDF)</span>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<section class="sec band" id="all">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Everything we handle</p><h2>One team behind the scenes, not one more app.</h2><p>Reviews and texting are only the start. Here is everything Always Open can take off your plate, and the plan that includes it.</p></div>
+    <div class="allgrid"><div class="allitem"><span class="tag ">Starter</span><b>Every review answered</b><p>Google and Facebook, with bad reviews flagged the same day.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Google profile kept current</b><p>Hours, holiday hours, photos and a weekly post.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Monthly report and record</b><p>One page of results, plus a record of everything we did.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Spanish replies</b><p>For every customer who writes in Spanish.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Your own app</b><p>On your phone: approve replies and posts with one tap, see your month, keep your records, message us.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Review requests after every job</b><p>Every customer asked once, never only the happy ones.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Posts from your photos</b><p>Facebook and Instagram, captions written for you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Listings that match<span class="soon">Coming soon</span></b><p>Same details on Apple Maps, Bing, Facebook and Yelp.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Booking and quote requests</b><p>Taken any hour, sent straight to you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Competitor watch</b><p>How you stack up against the businesses near you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Storm Desk</b><p>When a weather warning hits your county, a storm-day post is ready for you to approve.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Replies in your voice</b><p>Written the way you talk, with three versions to pick from.</p></div><div class="allitem"><span class="tag g">Growth</span><b>What AI says about you</b><p>Each month we ask AI assistants what customers ask, and fix wrong hours or phone numbers.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Missed-call text-back<span class="soon">Coming soon</span></b><p>A text in seconds, from your own number.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Quote, invoice and appointment follow-up</b><p>Today: we remind you the day one is due, with the text written. Automatic texts are coming soon.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Seasonal and past-customer reminders<span class="soon">Coming soon</span></b><p>Tune-ups, openings and checkups, plus referral asks.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>After-hours AI line</b><p>Answers calls you miss and sends you a summary in seconds.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Google Ads management</b><p>Set up, run and reported every month.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>A new website</b><p>A fast, simple site with a request form that reaches you.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Website chat</b><p>Visitors ask a question, and you get it by text.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Help-wanted posts</b><p>Your job openings on Google, Indeed and Facebook.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Review alerts beyond Google</b><p>Facebook, Yelp, the BBB, Angi and Nextdoor.</p></div></div>
+    <div class="ctas"><a class="btn primary" href="#pricing">See the plans</a><a class="btn line" href="#contact">Get your free audit</a></div>
+  </div>
+</section>
+
+<section class="sec band alt" id="audit">
+  <div class="inner audit-grid">
+    <div class="copy">
+      <p class="eyebrow">Start here</p>
+      <h2>A free audit of how you look online.</h2>
+      <p class="lead">Send us your business name and town. Within two business days you get a one-page report: your rating next to your top competitors, reviews nobody answered, and details that don't match across the web.</p>
+      <p class="lead">It's yours to keep, even if you never hire us.</p>
+      <form class="check" id="check" novalidate>
+        <p class="check-h">Or check your business right now</p>
+        <div class="check-row"><label class="sr" for="c-q">Business name</label><input id="c-q" placeholder="Business name" autocomplete="organization" required>
+        <label class="sr" for="c-town">Town</label><input id="c-town" placeholder="Town, state"></div>
+        <button class="btn primary" type="submit">Check my score</button>
+        <div class="check-out" id="check-out" aria-live="polite"></div>
+      </form>
+      <div class="ctas"><a class="btn line" href="#contact">Request my full audit</a></div>
+      <p class="promise light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
+    </div>
+    <div class="stage" style="background:var(--panel)"><div class="mock" style="max-width:520px" role="img" aria-label="Sample audit report with made-up numbers: a roofing company at 4.1 stars with 38 reviews against competitors at 4.4 to 4.7 stars">
+      <span class="mtag">Sample · made-up numbers</span>
+      <div class="mh"><b>Sample Roofing Co.</b><small>Online audit</small></div>
+      <div class="bars">
+        <div class="bar you"><span>Sample Roofing</span><span class="track"><span class="fill" style="width:17%"></span></span><b>4.1 · 38</b></div>
+        <div class="bar"><span>Competitor A</span><span class="track"><span class="fill" style="width:100%"></span></span><b>4.7 · 212</b></div>
+        <div class="bar"><span>Competitor B</span><span class="track"><span class="fill" style="width:45%"></span></span><b>4.5 · 96</b></div>
+        <div class="bar"><span>Competitor C</span><span class="track"><span class="fill" style="width:30%"></span></span><b>4.4 · 64</b></div>
+      </div>
+      <small>Google rating · number of reviews. Bar length shows review count.</small>
+      <ul class="finds">
+        <li>9 reviews have no reply, 3 of them under 3 stars.</li>
+        <li>Google says closed Sundays. Facebook says open.</li>
+        <li>Last Google post was 14 months ago.</li>
+        <li>No way to request a quote online.</li>
+      </ul>
+    </div></div>
+  </div>
+</section>
+
+<section class="sec band" id="pricing">
+  <div class="inner">
+    <div class="head">
+      <p class="eyebrow">Pricing</p>
+      <h2>Try it for a month. If it’s not worth it, you don’t pay for it.</h2>
+      <p>No contract and no setup fee. Starter is about $5 a day. Cancel by text, and change plans any month. <a href="#worth" style="color:inherit;text-underline-offset:3px">Is it worth it? Do the math.</a></p>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <h3>Starter</h3>
+        <div class="price"><b>$149</b><span>/ month</span></div>
+        <p class="perday">About $5 a day</p>
+        <p class="for">Get your reputation under control.</p>
+        <ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>All reviews in one feed, every one answered</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Bad-review alerts the same day</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current, weekly post</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>One-page monthly report</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A monthly record of every reply and post</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Spanish replies</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Your own app: approve replies and posts with one tap, see your month, message us</li>
+        </ul>
+        <a class="btn line" href="/start?plan=Starter">Start with Starter</a>
+      </div>
+      <div class="plan feat">
+        <h3>Growth</h3>
+        <div class="price"><b>$299</b><span>/ month</span></div>
+        <p class="perday">About $10 a day</p>
+        <p class="for">Get found and get reviews on autopilot.</p>
+        <ul>
+          <li class="plus">Everything in Starter, plus:</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Review requests after every job</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts from your photos</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Same details on every listing<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Online booking and quote requests</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead logged</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Storm Desk: a storm-day post ready when a weather warning hits your county</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Review replies written in your voice</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>What AI says about you: a monthly check of what AI assistants tell customers, with anything wrong fixed</li>
+        </ul>
+        <a class="btn primary" href="/start?plan=Growth">Start with Growth</a>
+      </div>
+      <div class="plan">
+        <h3>Pro</h3>
+        <div class="price"><b>$499</b><span>/ month</span></div>
+        <p class="perday">About $16 a day</p>
+        <p class="for">Never lose a call, a quote or a payment.</p>
+        <ul>
+          <li class="plus">Everything in Growth, plus:</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Your own business number</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed-call text-back<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote and lead follow-up</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Appointment confirmations and reminders<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Invoice and payment reminders<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Seasonal and past-customer reminders, referral asks<span class="soon">Coming soon</span></li>
+        </ul>
+        <p class="plan-note">Items marked coming soon switch on as soon as they launch; texting also needs carriers to approve your business number, usually about two weeks.</p>
+        <a class="btn line" href="/start?plan=Pro">Start with Pro</a>
+      </div>
+    </div>
+    <div class="setup"><b>No setup fee</b><span>We clean up your Google profile and listings in your first week. It’s included in every plan.</span></div>
+
+    <div class="addons">
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>After-hours AI line</h3>
+        <div class="price"><b>$149</b><span>/ month, 300 minutes included</span></div>
+        <p>An assistant answers calls when you can't, takes the details and the time that works for them, and sends the summary to your phone in seconds, with a button to call them back. It tells every caller it's an AI and that the call may be recorded. 300 minutes is about 120 calls of two and a half minutes. Past that, it's 25¢ a minute. Hear it for yourself: call <a href="tel:+17064602226">(706) 460-2226</a>.</p>
+      </div>
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>Google Ads management</h3>
+        <div class="price"><b>$299</b><span>/ month, or 15% of ad spend if higher</span></div>
+        <p>We set up and manage your Google Ads and send the results in your monthly report. You pay Google for the ads directly, so your ad money never passes through us.</p>
+      </div>
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>A new website</h3>
+        <div class="price"><b>$799</b><span>one time, then $29 / month</span></div>
+        <p>A fast, simple website of up to five pages, built for phones, with a request form that reaches you right away. The $29 a month covers hosting and small updates. You own your domain.</p>
+      </div>
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>Website chat</h3>
+        <div class="price"><b>$49</b><span>/ month</span></div>
+        <p>A chat box on your website. When a visitor asks a question, you get it by text and can answer from your phone, day or night.</p>
+      </div>
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>Help-wanted posts</h3>
+        <div class="price"><b>$99</b><span>/ month</span></div>
+        <p>We write your job openings and post them on Google, Indeed and Facebook, up to two openings a month. Applicants go straight to you. If you choose paid job ads, you pay the job site directly.</p>
+      </div>
+      <div class="addon">
+        <span class="avail">Add-on · available on request</span>
+        <h3>Review alerts beyond Google</h3>
+        <div class="price"><b>$49</b><span>/ month</span></div>
+        <p>We watch Facebook, Yelp, the BBB, Angi and Nextdoor, alert you to every new review, and draft a reply for you to approve.</p>
+      </div>
+    </div>
+    <p class="fine" style="margin-top:14px;color:var(--slate)">Add-ons are set up per business. We confirm a start date with you first, and you pay nothing until they're running.</p>
+
+    <div class="guarantee"><b>30 days, no risk.</b><p>If the first month isn't worth it, tell us and we refund it. No forms, no argument. And there’s no setup fee.</p></div>
+  </div>
+</section>
+
+<section class="sec band alt" id="worth">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Is it worth it?</p><h2>One new customer can cover the whole month.</h2><p>Fair question. Here's the honest math, with your own numbers.</p></div>
+    <div class="worth-grid">
+      <div class="calc">
+        <label class="calc-q" for="w-job">What is one new customer worth to you?</label>
+        <div class="money"><span aria-hidden="true">$</span><input id="w-job" type="number" inputmode="numeric" min="1" step="1" value="300" aria-describedby="w-hint"></div>
+        <p class="hint" id="w-hint">Your average job or sale. If customers come back, count a year of their business.</p>
+        <ul class="be" aria-live="polite" aria-label="New customers a month to cover each plan">
+          <li><span>Starter<small>$149 a month</small></span><b id="be-s">1 customer</b></li>
+          <li class="feat"><span>Growth<small>$299 a month</small></span><b id="be-g">1 customer</b></li>
+          <li><span>Pro<small>$499 a month</small></span><b id="be-p">2 customers</b></li>
+        </ul>
+        <p class="be-note">New customers a month to cover the plan. There’s no setup fee. This is math, not a promise: your monthly report shows what really changed, and the first month is refundable.</p>
+      </div>
+      <div class="facts">
+        <div class="fact"><b>80%</b><p>of people say they're likely to use a business that answers all of its reviews. 42% say they're unlikely to use one that never replies.</p><small><a href="https://brightlocal.com/research/local-consumer-review-survey/" target="_blank" rel="noopener">BrightLocal, Local Consumer Review Survey 2026</a></small></div>
+        <div class="fact"><b>69%</b><p>of missed calls to businesses got no call back within 48 hours. With Pro, every missed call gets a text back in seconds.</p><small><a href="https://www.quo.com/blog/small-business-callback-statistics/" target="_blank" rel="noopener">Quo, 16.7 million missed calls, 2026</a></small></div>
+        <div class="fact"><b>70%</b><p>more likely to visit: that's what Google says about businesses with a complete Business Profile. We keep yours complete and current.</p><small><a href="https://support.google.com/business/answer/10515606?hl=en" target="_blank" rel="noopener">Google Business Profile Help</a></small></div>
+      </div>
+    </div>
+    <div class="costs">
+      <h3>What the same work costs other ways</h3>
+      <div class="cost"><div><b>Doing it yourself</b><span>Nights and weekends on reviews, posts and call-backs. When it slips, it costs jobs.</span></div><em>Your evenings</em></div>
+      <div class="cost"><div><b>Hiring part-time help</b><span>Office help in the U.S. averages $24.79 an hour. Twenty hours a week is about $2,150 a month before payroll taxes, and they go home at 5.</span></div><em>About $2,150 a month</em></div>
+      <div class="cost ours"><div><b>Always Open</b><span>Every day, weekends included. Software does the daily work, a real person checks it, and you approve what matters by text.</span></div><em>From $149 a month</em></div>
+      <p class="note">Wage: <a href="https://www.bls.gov/news.release/pdf/ocwage.pdf" target="_blank" rel="noopener" style="color:inherit;text-underline-offset:3px">U.S. Bureau of Labor Statistics, Occupational Employment and Wages, May 2025</a>, office and administrative support, national mean hourly wage.</p>
+    </div>
+    <div class="norisk">
+      <div><b>Free audit first</b><span>See what's costing you calls before you spend a dollar. It's yours to keep.</span></div>
+      <div><b>First month refundable</b><span>Not worth it? Tell us and we refund it. And there’s no setup fee.</span></div>
+      <div><b>No contract</b><span>Month to month. Cancel by text.</span></div>
+    </div>
+    <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="btn line" href="#pricing">See the plans</a></div>
+  </div>
+</section>
+
+<section class="sec band" id="compare">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Compared</p><h2>Software you run, or a team that runs it.</h2></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th class="us">Always Open</th><th>Review software</th><th>Marketing agency</th></tr></thead>
+        <tbody>
+          <tr><td>Who does the work</td><td class="us">We do, you approve by text</td><td>You or your staff</td><td>The agency</td></tr>
+          <tr><td>Monthly price</td><td class="us">$149 to $499</td><td>About $299 to $599 list price</td><td>Varies widely</td></tr>
+          <tr><td>Contract</td><td class="us">Month to month</td><td>Often a year or more</td><td>Varies</td></tr>
+          <tr><td>A real person to call</td><td class="us">Yes</td><td>Support queue</td><td>Sometimes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Review software prices are published list prices as of October 2026. Terms vary by vendor.</p>
+  </div>
+</section>
+
+<section class="sec band" id="rules">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">How we work</p><h2>Three rules we don't bend.</h2></div>
+    <div class="rules">
+      <div class="rule"><h3>No fake reviews</h3><p>Every review on your page comes from a real customer. We never write them, buy them or trade for them.</p></div>
+      <div class="rule"><h3>Every customer gets asked</h3><p>We ask everyone after a job, not just the ones who seem happy. It's the fair way, and it's what Google's rules require.</p></div>
+      <div class="rule"><h3>You approve what matters</h3><p>Anything sensitive, like a reply to an angry customer, comes to your phone first. Nothing goes out in your name that you wouldn't say yourself.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="regulated">
+  <div class="inner">
+    <div class="regbox">
+      <div class="head">
+        <p class="eyebrow">For regulated businesses</p>
+        <h2>Can't share your client list? You don't have to.</h2>
+        <p>Insurance agencies, medical and dental offices, law firms and financial advisors have rules about client information. Our Starter plan runs entirely on public information: your Google and Facebook pages, your reviews, and your competitors' public numbers. We never ask for, receive or store a client's name or number.</p>
+      </div>
+      <div class="rules">
+        <div class="rule"><h3>Nothing private comes in</h3><p>We work from your public pages. No client names, no policy or account details, no patient or case information.</p></div>
+        <div class="rule"><h3>Replies that say nothing private</h3><p>A reply never confirms that someone is a client or patient and never mentions details. Anything sensitive comes to you first.</p></div>
+        <div class="rule"><h3>Your rules come first</h3><p>Every industry has its own rules about advertising and review replies. You tell us what is allowed, and we follow it. If you need sign-off from a parent company, get it before we start.</p></div>
+      </div>
+      <div class="incl-wrap">
+        <h3>What you get for $149 a month (about $5 a day)</h3>
+        <ul class="incl">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every review answered with a safe, private reply</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Compliance Guard: every reply and post checked against your rules before you see it</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Bad-review alerts the same day</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current, with a weekly post you approve</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Calls, direction requests and website clicks from your Google profile, in a one-page monthly report</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch on rating and review count</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A review-request message drafted for you to send personally, so we never see who you send it to</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Your own app: every reply and post checked by Compliance Guard, approved with one tap</li>
+        </ul>
+        <div class="ctas"><a class="btn primary" href="#contact" data-plan="Starter">Request my free audit</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="sec band alt" id="faq">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Questions</p><h2>Things owners ask first.</h2></div>
+    <div class="faq">
+      <details><summary>Do I have to learn new software?</summary><p>No. Replies and posts come to your phone in the Always Open app; you tap Approve, or change the words first. Once a month you open a one-page report. That's the whole job on your side.</p></details>
+      <details><summary>What is the Always Open app?</summary><p>Your own private app, included with every plan. It shows the replies and posts waiting for your OK, your month in numbers, your monthly records, and a message box that reaches us directly. It opens from a private link, so there's no password to remember, and it's in the App Store for iPhone.</p></details>
+      <details><summary>Do you pay for referrals?</summary><p>No. If a client sends another owner our way, we say thank you and mean it, but there's no payment or discount for it. The same goes for reviews: we never offer anything for one.</p></details>
+      <details><summary>What do you need from me to start?</summary><p>Manager access to your Google Business Profile and Facebook page. You invite us, you stay the owner, and you can remove us any time. Setup takes about a week.</p></details>
+      <details><summary>Will this get me to number one on Google?</summary><p>We can't promise a ranking, and nobody honest can. Steady new reviews, answered reviews and accurate listings all help you show up, and you'll see your numbers move in the monthly report.</p></details>
+      <details><summary>Do you reply on Yelp?</summary><p>Replies on Google and Facebook are posted for you once you've approved how we write. Yelp doesn't let outside services post, so we send you the drafted reply and a one-tap link to post it yourself. Yelp also asks businesses not to request reviews, so we don't.</p></details>
+      <details><summary>How long until texting works from my business number?</summary><p>Carriers require every business that sends texts to register first, and approval usually takes about two weeks. We handle the paperwork. Until it's approved, the texting features wait. Everything else, from review replies to your Google profile and your monthly report, starts in the first week.</p></details>
+      <details><summary>We can't share our customer or client information. Can you still help?</summary><p>Yes. The Starter plan uses only public information, so we never receive a client's name, number or details. We reply to your reviews, keep your Google profile current, and report on how many people called, asked for directions or visited your site from Google. Your industry may have rules about advertising and review replies. Check them first and tell us what is allowed, and we will follow it.</p></details>
+      <details><summary>Why pay for this when I could do it myself?</summary><p>You can, and some owners do. Most mean to and don't, because the job comes first. The unanswered review and the call nobody returned are where it costs you. For about what six hours of office help costs, it gets done every day, and you just approve by text.</p></details>
+      <details><summary>What if it doesn't bring in new business?</summary><p>Then don't keep paying for it. The first month is refundable, there's no contract, and your monthly report shows calls, direction requests, website clicks and new reviews, so you can judge it on your own numbers.</p></details>
+      <details><summary>Is there a contract?</summary><p>No. It's month to month, the first month is refundable, and there's no setup fee.</p></details>
+      <details><summary>Who am I dealing with?</summary><p>A real person. Always Open works with businesses anywhere in the U.S., all online and by phone, with software assistants doing the daily work and a person checking it. You can reach us any time at (706) 460-2226 or hello@alwaysopenoffice.com.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="contact">
+  <div class="inner contact-grid">
+    <div class="who">
+      <p class="eyebrow">Get started</p>
+      <h2>Tell us about your business.</h2>
+      <p>Send the short form. We reply within one business day, and your free audit follows within two. No pressure, and no card needed.</p>
+      <p class="callus">Rather talk? Call <a href="tel:+17064602226">(706) 460-2226</a>. Max, our AI, answers any time, takes your details, and someone from our team calls you back within one business day.</p>
+      <div class="founding"><b>Try it for a month. If it’s not worth it, you don’t pay for it.</b><p style="margin-top:4px">No contract and no setup fee. Cancel by text.</p></div>
+      <p class="addr" id="contactLine"></p>
+    </div>
+    <div>
+      <form class="lead" id="lead" novalidate>
+        <div class="row2">
+          <label for="f-name">Your name<input id="f-name" name="name" autocomplete="name" required></label>
+          <label for="f-phone">Phone<input id="f-phone" name="phone" type="tel" autocomplete="tel"></label>
+        </div>
+        <label for="f-email">Email<input id="f-email" name="email" type="email" autocomplete="email" required></label>
+        <div class="row2">
+          <label for="f-biz">Business name<input id="f-biz" name="business" autocomplete="organization"></label>
+          <label for="f-town">Town<input id="f-town" name="town" placeholder="Eatonton, GA"></label>
+        </div>
+        <div class="row2">
+          <label for="f-type">What kind of business?<select id="f-type" name="type"><option>Contractor or trade</option><option>Dock, marine or outdoor</option><option>Salon, spa or fitness</option><option>Restaurant or shop</option><option>Medical, dental or vet</option><option>Insurance agency</option><option>Real estate or rentals</option><option>Other</option></select></label>
+          <label for="f-plan">Plan<select id="f-plan" name="plan"><option>Not sure yet</option><option>Starter ($149)</option><option>Growth ($299)</option><option>Pro ($499)</option></select></label>
+        </div>
+        <p class="txtnote" data-txtnote hidden></p>
+        <label for="f-link">Google listing or website (optional)<input id="f-link" name="link" placeholder="Paste a link if you have one"></label>
+        <label for="f-note">Anything else?<textarea id="f-note" name="notes" placeholder="After-hours calls, Google Ads, a problem you want fixed first"></textarea></label>
+        <label class="optin" for="f-sms"><input type="checkbox" id="f-sms" name="sms_ok" value="yes"><span>Text me about my request from Always Open. Message and data rates may apply. Message frequency varies. Reply STOP to opt out, HELP for help. Agreeing is not required to get your audit. <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and <a href="terms.html" target="_blank" rel="noopener">Terms</a>.</span></label>
+        <div class="hp" aria-hidden="true"><label for="f-hp">Leave this empty<input id="f-hp" name="company_site" tabindex="-1" autocomplete="off"></label></div>
+        <input type="hidden" name="t" id="f-t"><input type="hidden" name="ref" id="f-ref">
+        <p class="err" id="err" hidden></p>
+        <p class="fineprint">By sending this you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>. We only use your details to reply to you.</p>
+        <button class="btn primary" type="submit">Request my free audit</button>
+      </form>
+      <dialog class="ask" id="askTexting" aria-labelledby="askTitle">
+        <h3 id="askTitle">One quick question for insurance agents</h3>
+        <p>Does the insurance company you work with give you your text-messaging system? Your answer only tells us how to set things up. You still pick any plan.</p>
+        <div class="opts">
+          <button type="button" data-txt="company">Yes, my company provides it<small>We won't touch it. Anything we'd text, we prepare for you to send from your system.</small></button>
+          <button type="button" data-txt="own">No, we choose our own<small>We can text from your own number once it's registered.</small></button>
+          <button type="button" data-txt="none">We don't text clients<small>Every plan works without texting.</small></button>
+        </div>
+        <button type="button" class="later" data-txt="">Skip for now</button>
+      </dialog>
+      <div class="sent" id="sent" hidden>
+        <h3 id="sentTitle">One more step</h3>
+        <p id="sentText"></p>
+        <pre id="sentMsg"></pre>
+        <div class="btns"><button class="btn primary" type="button" id="copyMsg">Copy message</button><a class="btn line" id="mailMsg" href="#" target="_blank" rel="noopener">Open in email</a><button class="btn line" type="button" id="editMsg">Edit</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="band">
+  <div class="inner">
+    <a class="wordmark" href="#top"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+    <span>Keeping businesses always open · Anywhere in the U.S.</span>
+    <span class="legal tel"><a href="tel:+17064602226">(706) 460-2226</a></span>
+    <span class="legal"><a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
+    <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
+  </div>
+</footer>
+<a class="call-float off" id="callFloat" href="tel:+17064602226" aria-label="Call Max at (706) 460-2226" tabindex="-1" aria-hidden="true"><i aria-hidden="true"></i><span>Call Max</span><b>(706) 460-2226</b></a>
+<script>
+// The floating "Call Max" button shows once the hero has scrolled away, and steps aside wherever the page already
+// shows the number big (the dare section, the contact section, the footer).
+(function () {
+  var f = document.getElementById('callFloat');
+  if (!f || !('IntersectionObserver' in window)) return;
+  var seen = new Set();
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); });
+    var off = seen.size > 0;
+    f.classList.toggle('off', off);
+    f.setAttribute('aria-hidden', off ? 'true' : 'false');
+    f.tabIndex = off ? -1 : 0;
+  }, { threshold: 0.05 });
+  ['header.hero', '#try', '#contact', 'footer'].forEach(function (q) { var el = document.querySelector(q); if (el) io.observe(el); });
+})();
+</script>
+
+<script>
+(function(){
+  // Set these once the business email and phone exist.
+  // formUrl: the Always Open form receiver (Cloudflare). Empty means the form falls back to email.
+  var CONFIG={email:'hello@alwaysopenoffice.com',phone:'',formUrl:'/lead',inline:true};
+  try{document.getElementById('f-t').value=String(Date.now());}catch(x){}
+  var line=document.getElementById('contactLine'),bits=[];
+  if(CONFIG.email)bits.push(CONFIG.email);
+  if(CONFIG.phone)bits.push(CONFIG.phone);
+  line.textContent=bits.join(' · ');
+
+  document.querySelectorAll('[data-plan]').forEach(function(a){a.addEventListener('click',function(){
+    var sel=document.getElementById('f-plan');
+    for(var i=0;i<sel.options.length;i++){if(sel.options[i].text.indexOf(a.dataset.plan)===0){sel.selectedIndex=i;break;}}
+  });});
+
+  /* insurance agents: one question about who runs their texting */
+  var TXT={company:['Your company runs your texting','We won\u2019t touch it. Anything we\u2019d text, we prepare as drafts for you to send from your company\u2019s system.','Texting: our insurance company provides our system (drafts only)'],
+           own:['You choose your own texting','We can send texts from your own number once it\u2019s registered, usually about two weeks.','Texting: we choose our own (Always Open can run texting)'],
+           none:['You don\u2019t text clients','Every plan works without texting.','Texting: we do not text clients']};
+  var txt='',asked=false,dlgEl=document.getElementById('askTexting');
+  function drawTxt(){document.querySelectorAll('[data-txtnote]').forEach(function(n){
+    if(!txt){n.hidden=true;n.textContent='';return;}
+    n.innerHTML='';var b=document.createElement('b');b.textContent=TXT[txt][0]+'.';var sp=document.createElement('span');sp.textContent=TXT[txt][1];var ch=document.createElement('button');ch.type='button';ch.textContent='Change';ch.addEventListener('click',function(){openAsk(true);});
+    n.appendChild(b);n.appendChild(sp);n.appendChild(ch);n.hidden=false;});}
+  function openAsk(force){
+    if((asked&&!force)||!dlgEl)return;asked=true;
+    if(typeof dlgEl.showModal==='function'){try{dlgEl.showModal();return;}catch(x){}}
+    dlgEl.setAttribute('open','');
+  }
+  if(dlgEl){
+    dlgEl.addEventListener('click',function(e){var b=e.target.closest('[data-txt]');if(b){if(b.dataset.txt)txt=b.dataset.txt;drawTxt();if(dlgEl.close)dlgEl.close();else dlgEl.removeAttribute('open');}});
+  }
+  document.querySelectorAll('[data-ask-texting]').forEach(function(a){a.addEventListener('click',function(){var t=document.getElementById('f-type');if(t)for(var i=0;i<t.options.length;i++){if(t.options[i].text==='Insurance agency'){t.selectedIndex=i;break;}}openAsk(false);});});
+  document.getElementById('f-type').addEventListener('change',function(){if(this.value==='Insurance agency')openAsk(false);});
+  /* coming from the insurance page */
+  function startIns(){var t=document.getElementById('f-type'),p=document.getElementById('f-plan');if(t)for(var i=0;i<t.options.length;i++){if(t.options[i].text==='Insurance agency'){t.selectedIndex=i;break;}}if(p)for(var j=0;j<p.options.length;j++){if(p.options[j].text.indexOf('Starter')===0){p.selectedIndex=j;break;}}var c=document.getElementById('contact');if(c)c.scrollIntoView();openAsk(false);}
+  if(location.hash==='#start-insurance')setTimeout(startIns,60);
+  window.addEventListener('hashchange',function(){if(location.hash==='#start-insurance')startIns();});
+  /* pick your business */
+  var IND={
+    trades:['Contractors and home services','Contractor or trade',['A 2 AM leak call gets a text back in seconds and turns into a booked job.','Every finished job gets one review request, so new reviews keep coming.','Storm-season and seasonal posts made from your own job photos.','Quotes and invoices get a polite follow-up until they\u2019re answered.']],
+    marine:['Docks and marine','Dock, marine or outdoor',['Lake-house owners searching from out of town find current hours, photos and reviews.','Spring launch and dock-check reminders go out before the season starts.','Calls you miss on the water get a text back right away.','Reviews answered while you\u2019re out on a job.']],
+    salon:['Salons and fitness','Salon, spa or fitness',['Booking requests answered any hour, with reminders that cut no-shows.','Every client asked for a review after a visit.','Instagram and Facebook posts made from your photos.','Spanish replies on every plan.']],
+    food:['Restaurants and shops','Restaurant or shop',['Holiday hours set on every listing before every holiday.','Every review answered, and bad ones flagged the same day.','Weekly specials posted on Google and Facebook.','A monthly report on calls, direction requests and website clicks.']],
+    insurance:['Insurance agents','Insurance agency',['Review replies from wording your compliance contact approves once.','A monthly record of every public review, reply and post for your files.','A heads-up when reviews about rate increases start coming in.','Educational posts you approve before anything goes up.','Already texting through your insurance company? We work around it and never touch it.']],
+    health:['Medical, dental and legal','Medical, dental or vet',['We work only from public information: no patient or client names, ever.','Replies never confirm that someone is a patient or client.','A monthly record of every public reply and post.','Your Google profile kept current: hours, holidays and photos.']]
+  };
+  var indPanel=document.getElementById('indpanel');
+  function showInd(k){
+    var d=IND[k];if(!d||!indPanel)return;
+    document.querySelectorAll('.indtile').forEach(function(t){t.setAttribute('aria-pressed',String(t.dataset.ind===k));});
+    var ins=k==='insurance',reg=k==='health';
+    indPanel.innerHTML='<div><h3></h3><ul></ul></div><div class="go"><p></p><a class="btn primary" href="'+(ins?'insurance.html':'#contact')+'"></a>'+(reg?'<a class="btn line" href="#regulated">How we protect privacy</a>':'')+(k==='trades'?'<a class="btn line" href="builders.html">Builders and remodelers: see your page</a>':'')+'</div>';
+    indPanel.querySelector('h3').textContent='What Always Open does for '+d[0].toLowerCase();
+    var ul=indPanel.querySelector('ul');d[2].forEach(function(t){var li=document.createElement('li');li.innerHTML='<svg aria-hidden="true"><use href="#chk"/></svg>';var sp=document.createElement('span');sp.textContent=t;li.appendChild(sp);ul.appendChild(li);});
+    indPanel.querySelector('.go p').textContent=ins?'You still pick any plan. One quick question first tells us how to set up your texting.':'Pick any plan. Your free audit shows where to start.';
+    var go=indPanel.querySelector('.go a.btn.primary');go.textContent=ins?'I\u2019m an insurance agent: see my options':'This is me: get my free audit';
+    go.addEventListener('click',function(){var t=document.getElementById('f-type');if(ins)return;if(t)for(var i=0;i<t.options.length;i++){if(t.options[i].text===d[1]){t.selectedIndex=i;break;}}});
+  }
+  document.querySelectorAll('.indtile').forEach(function(t){t.addEventListener('click',function(){showInd(t.dataset.ind);});});
+  showInd('trades');
+  var form=document.getElementById('lead'),sent=document.getElementById('sent'),err=document.getElementById('err'),last='';
+  function v(id){return document.getElementById(id).value.trim();}
+  var submitBtn=form.querySelector('button[type=submit]');
+  function setMail(name){
+    var mail=document.getElementById('mailMsg');
+    if(CONFIG.email){mail.href='mailto:'+CONFIG.email+'?subject='+encodeURIComponent('Always Open request: '+(v('f-biz')||name))+'&body='+encodeURIComponent(last);mail.hidden=false;}
+    else{mail.hidden=true;}
+  }
+  function showSent(title,text,withCopy){
+    document.getElementById('sentTitle').textContent=title;
+    document.getElementById('sentText').textContent=text;
+    document.getElementById('sentMsg').hidden=!withCopy;
+    sent.querySelector('.btns').hidden=!withCopy;
+    form.hidden=true;sent.hidden=false;
+  }
+  function emailFallback(name,why){
+    setMail(name);
+    showSent('One more step',why+' '+(CONFIG.email?'Send it to '+CONFIG.email+' and we will reply within one business day. Your free audit follows within two.':'Copy your request below.'),true);
+  }
+  form.addEventListener('submit',function(e){
+    var name=v('f-name'),email=v('f-email'),problems=[];
+    if(!name)problems.push('your name');
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))problems.push('a valid email');
+    if(problems.length){e.preventDefault();err.textContent='Please add '+problems.join(' and ')+'.';err.hidden=false;return;}
+    err.hidden=true;
+    var nt=document.getElementById('f-note');nt.value=nt.value.replace(/\n?Texting: [^\n]*$/,'').trim();
+    if(txt&&v('f-type')==='Insurance agency')nt.value=(nt.value?nt.value+'\n':'')+TXT[txt][2];
+    last=['Always Open request','Name: '+name,'Email: '+email,'Phone: '+(v('f-phone')||'-'),'Business: '+(v('f-biz')||'-'),'Town: '+(v('f-town')||'-'),'Type: '+v('f-type'),'Plan: '+v('f-plan'),'Listing: '+(v('f-link')||'-'),'Notes: '+(v('f-note')||'-'),'OK to text: '+(document.getElementById('f-sms').checked?'yes':'no')].join('\n');
+    document.getElementById('sentMsg').textContent=last;
+    var first=name.split(/\s+/)[0];
+    if(CONFIG.formUrl&&CONFIG.inline&&window.fetch&&window.FormData){
+      // Same site as the receiver: send it here and confirm on the page.
+      e.preventDefault();
+      var label=submitBtn.textContent;submitBtn.disabled=true;submitBtn.textContent='Sending...';
+      var done=function(){submitBtn.disabled=false;submitBtn.textContent=label;};
+      fetch(CONFIG.formUrl,{method:'POST',body:new FormData(form),headers:{'Accept':'application/json'}})
+        .then(function(r){return r.json().catch(function(){return {ok:r.ok};}).then(function(j){j.status=r.status;return j;});})
+        .then(function(j){
+          done();
+          if(j.ok)showSent('Request sent','Got it'+(first?', '+first:'')+'. We\u2019ll reply within one business day, and your free audit follows within two.',false);
+          else if(j.status===400&&j.error){err.textContent=j.error;err.hidden=false;}
+          else emailFallback(name,'Our form had a hiccup, so your request was not sent.');
+        },function(){done();emailFallback(name,'Our form had a hiccup, so your request was not sent.');});
+      return;
+    }
+    if(CONFIG.formUrl){
+      // This copy of the page cannot call servers, so the request opens in a new tab.
+      form.action=CONFIG.formUrl;form.method='post';form.target='_blank';
+      setMail(name);
+      setTimeout(function(){showSent('Request sent','A confirmation opened in a new tab. We\u2019ll reply within one business day, and your free audit follows within two. If no tab opened, send the copy below by email instead.',true);},0);
+      return;
+    }
+    e.preventDefault();
+    emailFallback(name,'Your request is ready but not sent yet.');
+  });
+  document.getElementById('editMsg').addEventListener('click',function(){sent.hidden=true;form.hidden=false;document.getElementById('sentTitle').textContent='One more step';});
+  var copyBtn=document.getElementById('copyMsg');
+  function pick(){var r=document.createRange();r.selectNodeContents(document.getElementById('sentMsg'));var s=getSelection();s.removeAllRanges();s.addRange(r);copyBtn.textContent='Selected. Copy it now';}
+  copyBtn.addEventListener('click',function(){
+    try{navigator.clipboard.writeText(last).then(function(){copyBtn.textContent='Copied';},pick);}catch(x){pick();}
+  });
+})();
+</script>
+<script>
+(function(){
+  var inp=document.getElementById('w-job');if(!inp)return;
+  var P={s:149,g:299,p:499};
+  function upd(){
+    var v=parseFloat(String(inp.value).replace(/[^0-9.]/g,''));
+    ['s','g','p'].forEach(function(k){
+      var el=document.getElementById('be-'+k);if(!el)return;
+      if(!(v>0)){el.textContent='\u2014';return;}
+      var n=Math.max(1,Math.ceil(P[k]/v));
+      el.textContent=(n>99?'99+ customers':n+' customer'+(n===1?'':'s'));
+    });
+  }
+  inp.addEventListener('input',upd);upd();
+})();
+(function(){
+  var r='';try{var m=/[?&]ref=([A-Za-z0-9_-]{4,40})/.exec(location.search);r=m?m[1]:'';}catch(e){}
+  try{if(r)sessionStorage.setItem('ao_ref',r);else r=sessionStorage.getItem('ao_ref')||'';}catch(e){}
+  var el=document.getElementById('f-ref');if(el&&r)el.value=r;
+})();
+
+  /* instant score: a quick Google check, the full audit comes by request */
+  (function(){var f=document.getElementById('check');if(!f)return;var out=document.getElementById('check-out');
+  function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  f.addEventListener('submit',function(e){e.preventDefault();var q=document.getElementById('c-q').value.trim(),town=document.getElementById('c-town').value.trim();
+  if(q.length<2){out.innerHTML='<p class="muted">Type your business name first.</p>';return}
+  var b=f.querySelector('button');b.disabled=true;out.innerHTML='<p class="muted">Checking Google and your website...</p>';
+  fetch('/audit/score',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({q:q,town:town})}).then(function(r){return r.json()}).then(function(d){b.disabled=false;
+  if(!d.ok){out.innerHTML='<p class="muted">'+esc(d.error)+'</p>';return}
+  if(!d.found){out.innerHTML='<p class="muted">Google did not find that one. Try the exact name and town, or request the full audit and we will find it.</p>';return}
+  out.innerHTML='<div class="check-score"><b>'+d.score+'</b><div><strong>'+esc(d.name)+'</strong><br><span class="muted">'+esc(d.address)+'</span></div></div>'+
+  (d.top.length?'<p><strong>The biggest things to fix:</strong></p>'+d.top.map(function(t){return'<p class="find"><strong>'+esc(t.title)+'.</strong> '+esc(t.saw)+'</p>'}).join(''):'<p>Nothing major. You are in good shape.</p>')+
+  (d.more?'<p class="muted">Plus '+d.more+' more in the full audit, with how you compare to your top competitors.</p>':'')+
+  '<a class="btn primary" href="#contact" id="check-go">Send me the full audit</a>';
+  document.getElementById('check-go').addEventListener('click',function(){var bz=document.getElementById('f-biz'),tw=document.getElementById('f-town');if(bz&&!bz.value)bz.value=d.name;if(tw&&!tw.value)tw.value=town;});
+  }).catch(function(){b.disabled=false;out.innerHTML='<p class="muted">No connection. Try again, or request the full audit below.</p>'})})})();
+</script>
+</body>
+</html>

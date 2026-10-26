@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Insurance agencies · Always Open</title><link rel="canonical" href="https://alwaysopenoffice.com/insurance">
+<meta name="description" content="Always Open for insurance agencies: every review answered in wording your compliance contact approved, Compliance Guard on every reply, Rate-Shock Radar, an after-hours AI line that only takes messages, and a monthly record of everything posted in your name. We never see your client list.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* The insurance page: every section is anchored by a real piece of the work (a reply checked by Compliance Guard,
+   the Guard itself to try, the rate radar, a call Max took, the post calendar, the monthly record), marked as samples. */
+:root{
+  --paper:#F5F4F0; --card:#FFFFFF; --ink:#171B26; --slate:#586075; --line:#DCDAD3; --panel:#EAE8E1;
+  --sign:#D92D20; --on-sign:#FFFFFF; --sign-soft:#FBE9E7;
+  --ok:#1C6B54; --ok-soft:#E3F1EC; --flag:#C42A1E; --flag-soft:#FBE3E0;
+  --night:#0F131B; --night-2:#171D2C; --night-ink:#ECEEF3; --night-mute:#A3ACBF; --night-line:#262E40; --night-card:#171C27; --night-sign:#FF6A5E; --night-ok:#5CC9A4;
+  --m-bg:#FFFFFF; --m-ink:#171B26; --m-mute:#5B6475; --m-line:#E4E2DB; --m-soft:#F4F3EF;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif; --body:"Instrument Sans",system-ui,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; --flag:#FF8A7E; --flag-soft:#3A1F22; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; --flag:#FF8A7E; --flag-soft:#3A1F22; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55}
+.band{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-stretch:92%;margin:0;text-wrap:balance;letter-spacing:-.012em}
+h1{font-weight:850;font-size:clamp(2.7rem,6.6vw,5rem);line-height:.96}
+h2{font-weight:800;font-size:clamp(1.85rem,4.2vw,2.8rem);line-height:1.04}
+h3{font-weight:750;font-size:1.2rem;line-height:1.15}
+p{margin:0}
+a{color:var(--ink)}
+a:focus-visible,button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;font:700 16px var(--body);padding:14px 22px;border-radius:11px;border:2px solid transparent;text-decoration:none;cursor:pointer;text-align:center}
+.btn.primary{background:var(--sign);color:var(--on-sign)}
+.btn.line{border-color:var(--ink);color:var(--ink);background:transparent}
+.btn.small{padding:10px 16px;font-size:15px}
+.mark{width:34px;height:34px;flex:none}
+.sec{padding-block:88px}
+.lead{color:var(--slate);font-size:1.1rem;max-width:34em}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.sample{font:400 12px var(--mono);color:var(--slate)}
+.chk{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.chk li{display:grid;grid-template-columns:22px 1fr;gap:10px}
+.chk svg{width:22px;height:22px;color:var(--ok);margin-top:2px}
+
+/* ---------- hero ---------- */
+.hero{color:var(--night-ink);background:radial-gradient(760px 520px at 86% 8%,rgba(217,45,32,.24),transparent 62%),linear-gradient(165deg,var(--night-2) 0%,var(--night) 72%)}
+.everyone{font-size:14px;line-height:1.45;color:var(--night-mute);padding-block:10px;border-bottom:1px solid var(--night-line)}
+.everyone a{color:var(--night-ink);text-underline-offset:3px;white-space:nowrap}
+.everyone a:focus-visible{outline-color:var(--night-sign)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px}
+.wordmark{display:flex;align-items:center;gap:11px;font:850 1.4rem var(--display);font-stretch:90%;letter-spacing:-.01em;text-decoration:none;color:inherit}
+.top nav{display:flex;gap:22px;align-items:center;font-size:15px}
+.top nav a{text-decoration:none;color:var(--night-mute)}
+.top nav a:hover{color:var(--night-ink)}
+.top nav .btn{color:var(--on-sign)}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;padding-block:30px 88px}
+.for{font:600 15px var(--body);color:var(--night-sign);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.for::before{content:"";width:28px;height:2px;background:var(--night-sign);box-shadow:0 0 10px rgba(255,106,94,.8)}
+.hero h1 span{display:block;color:var(--night-mute)}
+.hero .lede{font-size:1.2rem;color:var(--night-mute);max-width:31em;margin-top:24px}
+.hero .lede b{color:var(--night-ink);font-weight:600}
+.hero .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
+.promise{margin-top:22px;display:flex;gap:10px;align-items:flex-start;font:600 1rem/1.4 var(--body);color:var(--night-ink);max-width:32em}
+.promise svg{width:22px;height:22px;flex:none;color:var(--night-ok)}
+.promise span small{display:block;font-weight:400;color:var(--night-mute);font-size:.93rem;margin-top:2px}
+
+/* the reply desk: one review, the first draft Compliance Guard stopped, the reply that went to the owner */
+.desk{display:grid;gap:12px;position:relative}
+.sheet{background:var(--m-bg);color:var(--m-ink);border-radius:16px;padding:16px 18px;box-shadow:0 26px 50px -28px rgba(0,0,0,.75);display:grid;gap:8px}
+.sheet .hd{display:flex;align-items:center;gap:10px;font:600 13px var(--body);color:var(--m-mute)}
+.sheet .hd .tag{margin-left:auto}
+.stars{color:#B87500;letter-spacing:1px;font-size:15px}
+.stars i{font-style:normal;color:#C9CDD6}
+.quote{font-size:15.5px;line-height:1.45}
+.tag{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;white-space:nowrap}
+.tag.flag{background:#FBE3E0;color:#B3261A}
+.tag.ok{background:#E3F1EC;color:#1C6B54}
+.draft{opacity:.92}
+.draft .quote{color:#3B4252}
+mark{background:transparent;color:inherit;border-radius:4px;padding:0 2px;box-shadow:inset 0 -2px 0 #C42A1E}
+.draft mark{background:#FBE3E0;color:#9E1F14;box-shadow:none;text-decoration:line-through;text-decoration-color:rgba(158,31,20,.6)}
+.whys{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:4px;font-size:13px;color:#5B6475}
+.whys li{display:flex;gap:8px;align-items:baseline}
+.whys b{font-weight:600;color:#9E1F14;white-space:nowrap}
+.sent{border:2px solid #1C6B54}
+.sent .acts{display:flex;align-items:center;gap:8px;margin-top:4px}
+.pill{font:700 12.5px var(--body);padding:7px 14px;border-radius:99px;background:#1C6B54;color:#fff}
+.pill.alt{background:#F4F3EF;color:#171B26;border:1px solid #E4E2DB}
+.sent .by{margin-left:auto;font:400 12px var(--mono);color:#5B6475}
+.desk .sample{color:var(--night-mute)}
+@media (prefers-reduced-motion:no-preference){
+  .desk .draft mark{animation:strike .5s ease-out both}
+  .desk .draft mark:nth-of-type(1){animation-delay:.5s}.desk .draft mark:nth-of-type(2){animation-delay:.75s}.desk .draft mark:nth-of-type(3){animation-delay:1s}.desk .draft mark:nth-of-type(4){animation-delay:1.25s}
+  .desk .whys,.desk .draft .tag{animation:show .4s ease-out 1.5s both}
+  .desk .sent{animation:rise .6s cubic-bezier(.2,.8,.2,1) 1.9s both}
+}
+@keyframes strike{from{background:transparent;color:inherit;text-decoration-color:transparent}}
+@keyframes show{from{opacity:0}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+
+/* ---------- Compliance Guard, live ---------- */
+.guard-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:52px;align-items:start}
+.rules{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:14px}
+.rules li{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:baseline}
+.rules li::before{content:"";grid-row:span 2;width:12px;height:12px;border-radius:3px;background:var(--flag);margin-top:6px}
+.rules b{font-weight:650}
+.rules span{color:var(--slate);font-size:.95rem;grid-column:2}
+.try{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;display:grid;gap:14px;box-shadow:0 30px 60px -44px rgba(15,19,27,.5)}
+.try label{font-weight:650;font-size:15px}
+.try textarea{width:100%;min-height:132px;resize:vertical;font:16px/1.5 var(--body);padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink)}
+.samples{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.samples span{font-size:14px;color:var(--slate);margin-right:2px}
+.samples button{font:600 14px var(--body);padding:7px 13px;border-radius:99px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.samples button:hover,.samples button[aria-pressed="true"]{border-color:var(--ink)}
+.verdict{border-radius:14px;padding:14px 16px;display:grid;gap:10px}
+.verdict.bad{background:var(--flag-soft)}
+.verdict.good{background:var(--ok-soft)}
+.verdict h3{font-size:1.15rem;display:flex;align-items:center;gap:8px}
+.verdict.bad h3{color:var(--flag)}
+.verdict.good h3{color:var(--ok)}
+.verdict h3 svg{width:22px;height:22px;flex:none}
+.verdict .preview{font-size:15px;line-height:1.55;overflow-wrap:anywhere}
+.verdict .preview mark{background:transparent;box-shadow:inset 0 -2.5px 0 var(--flag);padding:0 1px}
+.verdict ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14.5px}
+.verdict li{display:grid;grid-template-columns:minmax(0,auto) 1fr;gap:10px}
+.verdict li q{quotes:"\201C" "\201D";font-weight:650;color:var(--ink);overflow-wrap:anywhere}
+.verdict li span{color:var(--slate)}
+.try .note{font-size:13.5px;color:var(--slate)}
+
+/* ---------- Rate-Shock Radar ---------- */
+.dark{background:var(--night);color:var(--night-ink)}
+.dark .lead{color:var(--night-mute)}
+.radar-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:52px;align-items:center}
+.chart{background:var(--night-card);border:1px solid var(--night-line);border-radius:20px;padding:58px 22px 16px}
+.bars{position:relative;height:220px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;align-items:end;border-bottom:1px solid var(--night-line);
+  background:linear-gradient(var(--night-line),var(--night-line)) 0 30%/100% 1px no-repeat,linear-gradient(var(--night-line),var(--night-line)) 0 60%/100% 1px no-repeat}
+.bars i{display:block;height:var(--h);min-height:3px;background:#3A4458;border-radius:5px 5px 0 0}
+.bars i.hot{background:var(--night-sign)}
+.bars .when{position:absolute;left:50%;top:-40px;bottom:0;width:2px;margin-left:-1px;background:var(--night-sign)}
+.bars .when b{position:absolute;top:0;left:8px;white-space:nowrap;font:600 13px var(--body);color:#1A0605;background:var(--night-sign);border-radius:99px;padding:5px 12px}
+.xl{display:flex;justify-content:space-between;font:400 12px var(--mono);color:var(--night-mute);margin-top:8px}
+.chart .cap{font:400 12px var(--mono);color:var(--night-mute);margin-top:12px}
+.steps3{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:14px}
+.steps3 li{border-left:3px solid var(--night-line);padding-left:14px}
+.steps3 li.now{border-color:var(--night-sign)}
+.steps3 b{display:block;font-weight:650}
+.steps3 span{color:var(--night-mute);font-size:.96rem}
+
+/* ---------- Max ---------- */
+.max-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+.never{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;gap:6px}
+.never b{font-weight:650}
+.never p{color:var(--slate);font-size:.97rem}
+.neon-call{display:inline-grid;gap:5px;justify-items:center;margin-top:24px;padding:14px 26px 12px;border:3px solid var(--sign);border-radius:16px;color:var(--sign);text-decoration:none;box-shadow:0 0 0 1px rgba(217,45,32,.18),0 0 22px rgba(217,45,32,.25)}
+.neon-call span{font:600 13px var(--body)}
+.neon-call b{font:850 clamp(1.5rem,5vw,2.1rem)/1 var(--display);letter-spacing:.03em;white-space:nowrap}
+.neon-call:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
+.callnote{font-size:.9rem;color:var(--slate);margin-top:10px;max-width:30em}
+.phone{width:min(330px,100%);margin:0 auto;background:#0F131B;border-radius:40px;padding:12px;box-shadow:0 40px 70px -40px rgba(15,19,27,.8)}
+.phone .scr{background:#0F131B;border-radius:30px;padding:16px 14px 20px;color:#ECEEF3;display:grid;gap:10px;border:1px solid #262E40}
+.phone .bar{display:flex;justify-content:space-between;font:600 12px var(--body);color:#A3ACBF;padding:0 6px}
+.phone h4{margin:4px 6px 0;font:850 1.5rem/1 var(--display);font-stretch:92%}
+.phone .callcard{background:#171C27;border:2px solid #FF6A5E;border-radius:16px;padding:14px;display:grid;gap:8px}
+.phone .row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.phone .row1 b{font:800 1.12rem/1.1 var(--display);font-stretch:92%}
+.phone .row1 span{font:400 11.5px var(--mono);color:#A3ACBF;white-space:nowrap}
+.phone .chips{display:flex;gap:6px}
+.phone .chips em{font:700 11px var(--body);font-style:normal;background:#173229;color:#5CC9A4;border-radius:99px;padding:2px 9px}
+.phone .sum{font-size:14px;line-height:1.4}
+.phone .meta{font-size:12.5px;color:#A3ACBF;display:grid;gap:1px}
+.phone .meta b{color:#ECEEF3;font-weight:600}
+.phone .acts{display:flex;gap:8px}
+.phone .acts span{flex:1;text-align:center;font:700 13px var(--body);padding:9px 0;border-radius:10px;background:#5CC9A4;color:#06231A}
+.phone .acts span.alt{flex:none;padding:9px 14px;background:transparent;border:2px solid #ECEEF3;color:#ECEEF3}
+.phone .said{font-size:12.5px;color:#A3ACBF;border-top:1px solid #262E40;padding-top:8px}
+.phone + .sample{text-align:center;margin-top:12px}
+
+/* ---------- posts calendar ---------- */
+.alt{background:var(--card);border-block:1px solid var(--line)}
+.cal{margin-top:34px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--paper)}
+.ruler{list-style:none;margin:0;padding:14px 16px 0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px}
+.ruler li{font:500 12px var(--mono);color:var(--slate);border-top:3px solid var(--line);padding-top:6px;text-align:center}
+.ruler li.on{border-color:var(--sign);color:var(--ink)}
+.posts6{list-style:none;margin:0;padding:16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.posts6 li{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--sign);border-radius:12px;padding:12px 12px 14px;display:grid;gap:4px;align-content:start}
+.posts6 span{font:500 12px var(--mono);color:var(--slate)}
+.posts6 b{font-size:15px;line-height:1.25}
+.posts6 small{color:var(--slate);font-size:13px;line-height:1.35}
+.storm{border-top:1px solid var(--line);padding:14px 16px;display:flex;gap:12px;align-items:center;background:var(--card)}
+.storm i{flex:none;width:30px;height:30px;border-radius:8px;background:var(--sign-soft);display:grid;place-items:center;color:var(--sign);font-style:normal}
+.storm i svg{width:18px;height:18px}
+.storm p{font-size:.96rem}
+.storm p b{font-weight:650}
+.storm .tag{margin-left:auto;background:var(--sign-soft);color:var(--sign)}
+.check3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:34px}
+.check3 div{border-top:3px solid var(--ink);padding-top:12px;display:grid;gap:6px;align-content:start}
+.check3 p{color:var(--slate);font-size:.97rem}
+
+/* ---------- record ---------- */
+.rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:center}
+.paper{background:#FFFFFF;color:#171B26;border-radius:6px;padding:26px 26px 22px;box-shadow:0 1px 0 #E4E2DB,0 30px 50px -34px rgba(15,19,27,.55);display:grid;gap:12px;max-width:470px;justify-self:center;width:100%;position:relative}
+.paper::after{content:"";position:absolute;inset:8px -8px -8px 8px;background:#FFFFFF;border-radius:6px;z-index:-1;box-shadow:0 1px 0 #E4E2DB}
+.paper .ph{display:flex;justify-content:space-between;font:500 11px var(--mono);color:#5B6475;border-bottom:2px solid #171B26;padding-bottom:8px}
+.paper h4{margin:0;font:850 1.45rem/1.05 var(--display);font-stretch:92%}
+.paper .sub{font-size:13px;color:#5B6475;margin-top:-6px}
+.paper .it{border-top:1px solid #E4E2DB;padding-top:10px;display:grid;gap:3px}
+.paper .it b{font-size:14px}
+.paper .it p{font-size:13.5px;color:#3B4252}
+.paper .it small{font:400 11.5px var(--mono);color:#5B6475;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.paper .it small .tag{font-family:var(--body)}
+
+/* ---------- privacy, plans, questions ---------- */
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:34px}
+.three div{border-top:3px solid var(--ink);padding-top:14px;display:grid;gap:6px;align-content:start}
+.three p{color:var(--slate);font-size:.98rem}
+.plans{display:grid;grid-template-columns:1fr 1fr .9fr;gap:18px;align-items:start;margin-top:36px}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:14px;align-content:start}
+.plan.feat{border:2px solid var(--sign);box-shadow:0 24px 44px -30px var(--sign)}
+.plan.add{background:var(--paper);border-style:dashed}
+.price{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.price b{font:850 2.8rem/1 var(--display)}
+.price span{color:var(--slate);font-size:.95rem}
+.plan .who{color:var(--slate);font-size:.98rem}
+.plan .chk{font-size:.96rem;gap:8px}
+.plan .chk li{grid-template-columns:18px 1fr;gap:8px}
+.plan .chk svg{width:18px;height:18px;margin-top:3px}
+.plan .chk li.plus{display:block;font-weight:650}
+.plan .btn{justify-self:start}
+.guarantee{margin-top:22px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;background:var(--ok-soft);border-radius:14px;padding:18px 20px}
+.guarantee b{font:850 1.35rem var(--display);color:var(--ok)}
+.guarantee p{font-size:.98rem}
+.nopro{margin-top:14px;font-size:.95rem;color:var(--slate);max-width:52em}
+.faq{display:grid;gap:10px;max-width:800px;margin-top:30px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 18px}
+summary{cursor:pointer;font-weight:600;padding-block:15px}
+details p{padding-bottom:16px;color:var(--slate)}
+.final{text-align:center;padding-block:96px}
+.final h2{max-width:17em;margin:0 auto}
+.final .lead{margin:16px auto 0;color:var(--night-mute)}
+.final .ctas{justify-content:center}
+.final .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
+.neon{display:inline-grid;gap:3px;justify-items:center;padding:10px 20px 8px;border:3px solid var(--night-sign);border-radius:14px;margin-bottom:28px;color:var(--night-sign);box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 24px rgba(255,90,77,.45),inset 0 0 16px rgba(255,90,77,.22)}
+.neon b{font:850 1.9rem/1 var(--display);letter-spacing:.16em;margin-right:-.16em;text-shadow:0 0 14px rgba(255,106,94,.85)}
+.neon span{font:500 11px var(--mono);letter-spacing:.2em;margin-right:-.2em;opacity:.9}
+footer{background:var(--night);color:var(--night-mute);padding-block:30px;font-size:14px;border-top:1px solid var(--night-line)}
+footer .inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center}
+footer .wordmark{font-size:1.15rem;color:var(--night-ink)}
+footer .mark{width:28px;height:28px}
+footer .legal a{color:var(--night-ink);text-underline-offset:3px}
+footer .entity{flex-basis:100%;font-size:13px}
+footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
+
+@media (max-width:980px){
+  .hero-grid,.guard-grid,.radar-grid,.max-grid,.rec-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+  .top nav a:not(.btn){display:none}
+  .plans{grid-template-columns:1fr}
+  .posts6{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .three,.check3{grid-template-columns:1fr}
+  .max-grid .phone-wrap{order:2}
+}
+@media (max-width:560px){
+  .sec{padding-block:60px}
+  .hero-grid{padding-block:18px 64px}
+  .posts6{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px;gap:10px}
+  .ruler{padding:12px 12px 0;gap:3px}
+  .storm{flex-wrap:wrap}
+  .storm .tag{margin-left:0}
+  .verdict li{grid-template-columns:1fr;gap:0}
+  .sheet{padding:14px}
+  .guarantee{grid-template-columns:1fr;gap:6px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
+</style>
+
+<meta property="og:title" content="Always Open: your business, always open">
+<meta property="og:description" content="Reviews answered, calls picked up and your Google profile kept current, for any business, anywhere in the U.S. Insurance agencies get replies in wording their compliance contact approves.">
+<meta property="og:image:alt" content="Always Open: your business, always open. Nobody likes talking to AI. Call ours anyway: call Max at (706) 460-2226. A glowing OPEN 24 HOURS sign.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Always Open">
+<meta property="og:url" content="https://alwaysopenoffice.com/insurance">
+<meta property="og:image" content="https://alwaysopenoffice.com/og3.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="1200">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://alwaysopenoffice.com/og2.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="chk" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="flag" viewBox="0 0 24 24"><path d="M12 3.5l9 16H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
+</svg>
+
+<header class="hero band">
+  <div class="inner">
+    <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what’s different for insurance agencies. <a href="index.html">See everything we do</a></p>
+    <div class="top">
+      <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+      <nav aria-label="Main"><a href="#guard">Compliance Guard</a><a href="#radar">Rate-Shock Radar</a><a href="#max">After hours</a><a href="#plans">Plans</a><a href="#questions">Questions</a><a class="btn primary small" href="index.html#start-insurance">Free audit</a></nav>
+    </div>
+    <div class="hero-grid">
+      <div>
+        <p class="for">For insurance agencies</p>
+        <h1>Rates went up. <span>The reviews followed.</span></h1>
+        <p class="lede">Always Open answers every review for your agency in wording your compliance contact approved. Compliance Guard checks each reply before you see it, and <b>nothing posts until you tap Approve</b>. We never see your client list.</p>
+        <div class="ctas"><a class="btn primary" href="index.html#start-insurance">Request my free audit</a><a class="btn line" href="#guard">Try Compliance Guard</a></div>
+        <p class="promise"><svg aria-hidden="true"><use href="#shield"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.<small>No setup fee and no contract. Replies in English and Spanish.</small></span></p>
+      </div>
+      <div class="desk" role="img" aria-label="Sample: a one-star review about a 38 percent renewal increase. The first draft reply is stopped by Compliance Guard for four things: it confirms the reviewer is a client, it states a percentage, it promises an outcome and it talks about lower rates. The reply that reaches the agency owner says none of that and invites them to call the office, with Approve and Edit buttons.">
+        <div class="sheet">
+          <div class="hd"><span class="stars">★<i>★★★★</i></span><span>Mark T. on Google</span><span class="tag" style="background:#F4F3EF;color:#5B6475">2 days ago</span></div>
+          <p class="quote">My renewal went up 38% and nobody from the office called to explain it.</p>
+        </div>
+        <div class="sheet draft">
+          <div class="hd"><span>First draft</span><span class="tag flag">Stopped by Compliance Guard</span></div>
+          <p class="quote">Hi Mark, we’re sorry <mark>your policy</mark> renewed <mark>38%</mark> higher. We <mark>guarantee</mark> we can find you <mark>lower rates</mark>.</p>
+          <ul class="whys">
+            <li><b>your policy</b> confirms he is a client</li>
+            <li><b>38%, lower rates</b> talk about rates</li>
+            <li><b>guarantee</b> promises an outcome</li>
+          </ul>
+        </div>
+        <div class="sheet sent">
+          <div class="hd"><span>Sent to you for your OK</span><span class="tag ok">Checked by Compliance Guard</span></div>
+          <p class="quote">Thank you for telling us, and we’re sorry for the frustration. Changes at renewal can be hard to sort out alone. Please call our office at (555) 555-0100 so we can talk it through.</p>
+          <div class="acts"><span class="pill">Approve</span><span class="pill alt">Edit</span><span class="by">in your app</span></div>
+        </div>
+        <p class="sample">Sample: made-up agency and review.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="sec band" id="guard">
+  <div class="inner guard-grid">
+    <div>
+      <h2>Write a reply. See what Compliance Guard stops.</h2>
+      <p class="lead" style="margin-top:16px">Every reply we draft, and every edit you make in the app, goes through these checks before it can post. Your compliance contact can add words of their own.</p>
+      <ul class="rules">
+        <li><b>Confirms someone is a client</b><span>“your policy,” “your claim,” “as a valued client”</span></li>
+        <li><b>Mentions claim details</b><span>adjusters, settlements, payouts, deductibles</span></li>
+        <li><b>Talks about rates or prices</b><span>dollar amounts, percentages, “lower rates,” quotes, discounts</span></li>
+        <li><b>Promises an outcome</b><span>guarantees, “always covered,” “never denied”</span></li>
+        <li><b>Sounds like advice</b><span>“you should add,” “we recommend you”</span></li>
+        <li><b>Offers something for a review</b><span>gift cards, discounts, drawings. Google doesn’t allow it, and neither do we.</span></li>
+      </ul>
+    </div>
+    <div class="try">
+      <label for="g-text">Your reply to a review</label>
+      <textarea id="g-text" spellcheck="true"></textarea>
+      <div class="samples" role="group" aria-label="Sample replies"><span>Try:</span><button type="button" data-s="risky" aria-pressed="true">A risky reply</button><button type="button" data-s="safe" aria-pressed="false">A safe reply</button><button type="button" data-s="es" aria-pressed="false">En español</button><button type="button" data-s="perk" aria-pressed="false">A review perk</button></div>
+      <div class="verdict" id="g-out" aria-live="polite"></div>
+      <p class="note">Runs in your browser. Nothing you type here is sent anywhere.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec band dark" id="radar">
+  <div class="inner radar-grid">
+    <div>
+      <h2>Hear about a rate wave before it reaches your page.</h2>
+      <p class="lead" style="margin-top:16px">Every week we read new public reviews for the agencies in your town. When complaints about rate increases start climbing, you hear from us first, with a reply and a helpful post ready for your OK.</p>
+      <ul class="steps3">
+        <li class="now"><b>The week it starts</b><span>Rate complaints double across your town, and you get a heads-up the same day.</span></li>
+        <li><b>Ready to approve</b><span>A calm reply for rate reviews, already through Compliance Guard.</span></li>
+        <li><b>Ready to approve</b><span>An educational post on what moves rates and when to call your agent. No numbers, no quotes.</span></li>
+      </ul>
+      <p class="lead" style="margin-top:22px;font-size:.98rem">We never name other agencies, and we only ever reply on your own page.</p>
+    </div>
+    <div class="chart">
+      <div class="bars" id="rad-bars" role="img" aria-label="Sample chart: reviews mentioning rate increases across all agencies in a made-up town, by week. Weeks 1 through 6 have 0 to 2 each. Week 7 jumps to 4, the week the heads-up goes out, then 7, 9, 6, 4 and 3."><span class="when" aria-hidden="true"><b>You hear from us</b></span></div>
+      <div class="xl" aria-hidden="true"><span>Week 1</span><span>Week 12</span></div>
+      <p class="cap">Reviews mentioning rate increases, all agencies in a sample town. Made-up numbers.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="max">
+  <div class="inner max-grid">
+    <div>
+      <h2>After hours, Max takes the message.</h2>
+      <p class="lead" style="margin-top:16px">People shop for insurance after work. When you can’t pick up, Max answers in your agency’s name, takes their name, number, what they need and a good time to call back, and sends it to your phone in seconds.</p>
+      <div class="never">
+        <b>What Max never does</b>
+        <p>Discuss policies, coverage, claims, rates or quotes, or say whether someone is your client. He tells every caller he’s an AI and that the call may be recorded.</p>
+      </div>
+      <ul class="chk" style="margin-top:20px">
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Urgent calls can ring through to your cell</span></li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>English and Spanish</span></li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Change his hours and what he tells callers from the app</span></li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>$149 a month with 300 minutes, about 120 calls</span></li>
+      </ul>
+      <a class="neon-call" href="tel:+17064602226"><span>Hear him for yourself</span><b>(706) 460-2226</b></a>
+      <p class="callnote">That’s our own line, so Max talks about Always Open. On your line he answers for your agency.</p>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone" role="img" aria-label="Sample: the Max screen in the Always Open app showing a call from Dana Whitfield at 7:12 PM. She is adding her 16-year-old son as a driver and wants a call back tomorrow after 10. Buttons to call back or text.">
+        <div class="scr">
+          <div class="bar"><span>7:13</span><span>Always Open</span></div>
+          <h4>Max</h4>
+          <div class="callcard">
+            <div class="row1"><b>Dana Whitfield</b><span>478-555-0142 · 7:12 PM</span></div>
+            <div class="chips"><em>New</em></div>
+            <p class="sum">Dana is adding her 16-year-old son as a driver and would like someone to call her back.</p>
+            <div class="meta"><span><b>Wants:</b> a call about adding a new driver</span><span><b>When:</b> tomorrow after 10</span></div>
+            <div class="acts"><span>Call back</span><span class="alt">Text</span></div>
+            <p class="said">What was said: Max greeted her, said he’s an AI and the call may be recorded, and took the message.</p>
+          </div>
+        </div>
+      </div>
+      <p class="sample">Sample: made-up caller.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec band alt" id="posts">
+  <div class="inner">
+    <h2>Posts that teach, never sell.</h2>
+    <p class="lead" style="margin-top:16px">Your Google profile stays active with helpful posts from a calendar built for agencies. No rates, no quotes, no promises, and each one waits for your OK.</p>
+    <div class="cal">
+      <ol class="ruler" aria-hidden="true"><li class="on">J</li><li>F</li><li>M</li><li class="on">A</li><li>M</li><li class="on">J</li><li class="on">J</li><li>A</li><li>S</li><li class="on">O</li><li>N</li><li class="on">D</li></ol>
+      <ul class="posts6" aria-label="A sample year of posts">
+        <li><span>January</span><b>Frozen pipes</b><small>What to do before a hard freeze</small></li>
+        <li><span>April</span><b>Teen drivers</b><small>Prom season and summer driving</small></li>
+        <li><span>June</span><b>Hurricane season</b><small>Photos and a plan, before a storm</small></li>
+        <li><span>July</span><b>Umbrella coverage</b><small>Pools, boats and guests</small></li>
+        <li><span>October</span><b>Open enrollment</b><small>The dates to know</small></li>
+        <li><span>December</span><b>Renewal check-in</b><small>When to review coverage with your agent</small></li>
+      </ul>
+      <div class="storm"><i><svg aria-hidden="true"><use href="#bolt"/></svg></i><p><b>Storm Desk:</b> when the National Weather Service issues a warning for your county, a storm-day post with what to photograph and how to reach you is ready for your OK.</p><span class="tag">On Growth</span></div>
+    </div>
+    <div class="check3">
+      <div><h3>Your profile, checked</h3><p>The companies you represent, your license number, required notices, and the same details on Google, Facebook and your website.</p></div>
+      <div><h3>Your team, ready to ask</h3><p>A review-request kit: what to say, QR cards to hand out and an email signature line. You ask your own clients, so we never see who.</p></div>
+      <div><h3>Your month, on one page</h3><p>Calls, direction requests and website clicks from Google, and how your rating and reviews compare with nearby agencies.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="record">
+  <div class="inner rec-grid">
+    <div>
+      <h2>Every public word, on file.</h2>
+      <p class="lead" style="margin-top:16px">Once a month you get a record of every review, reply and post, with the date and who approved it. Keep it with your files, or hand it to compliance when they ask.</p>
+      <ul class="chk" style="margin-top:22px">
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Who approved each reply, and when</span></li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>The Compliance Guard result on every item</span></li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Saved as a PDF from your app in one tap</span></li>
+      </ul>
+    </div>
+    <div class="paper" role="img" aria-label="Sample monthly record for a made-up agency listing a reply to a one-star review approved by Dana on October 4, a teen drivers post approved on October 9, and a reply to a five-star review approved on October 15, each checked by Compliance Guard.">
+      <div class="ph"><span>Always Open</span><span>Record of public communications</span></div>
+      <h4>Sample Agency</h4>
+      <p class="sub">October 2026</p>
+      <div class="it"><b>Oct 4 · Reply to a 1-star review</b><p>“Thank you for telling us, and we’re sorry for the frustration…”</p><small>Approved by Dana, 8:12 AM <span class="tag ok">Checked by Compliance Guard</span></small></div>
+      <div class="it"><b>Oct 9 · Google post: Teen drivers</b><p>“Prom season is here. A few things every new driver’s family should talk about…”</p><small>Approved by Dana, Oct 8 <span class="tag ok">Checked by Compliance Guard</span></small></div>
+      <div class="it"><b>Oct 15 · Reply to a 5-star review</b><p>“Thank you for the kind words. It was a pleasure to help.”</p><small>Approved by Ray, 4:40 PM <span class="tag ok">Checked by Compliance Guard</span></small></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band alt" id="privacy">
+  <div class="inner">
+    <h2>We never see your client list.</h2>
+    <p class="lead" style="margin-top:16px">Always Open works only from public pages: your Google and Facebook profiles, your reviews, and other agencies’ public ratings.</p>
+    <div class="three">
+      <div><h3>Nothing private comes in</h3><p>No client names, no policy or account details, and no access to your agency system. We never ask for them.</p></div>
+      <div><h3>Replies say nothing private</h3><p>A reply never confirms that someone is a client and never mentions details. Anything sensitive comes to you first.</p></div>
+      <div><h3>Your rules come first</h3><p>Your compliance contact approves our reply wording once, and you tell us what else is off limits. Captive agents: get your company’s OK before we start.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="plans">
+  <div class="inner">
+    <h2>Plans for agencies</h2>
+    <p class="lead" style="margin-top:14px">Month to month, with no setup fee. If the first month isn’t worth it, tell us and we refund it.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>Starter</h3>
+        <div class="price"><b>$149</b><span>/ month, about $5 a day</span></div>
+        <p class="who">Every review answered, the way compliance wants it.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Replies from your approved wording, in English and Spanish</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Compliance Guard on every reply and post</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Same-day alerts for bad reviews</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Rate-Shock Radar</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Educational posts from the agency calendar</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Profile check, review-request kit and a one-page monthly report</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>A monthly record of every review, reply and post</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Your own app: approve with one tap, message us any time</span></li>
+        </ul>
+        <a class="btn line" href="index.html#start-insurance">Choose Starter</a>
+      </div>
+      <div class="plan feat">
+        <h3>Growth</h3>
+        <div class="price"><b>$299</b><span>/ month, about $10 a day</span></div>
+        <p class="who">For agencies that want to be the one people find first.</p>
+        <ul class="chk">
+          <li class="plus">Everything in Starter, plus:</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Storm Desk: a storm-day post ready when a warning hits your county</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Replies in your agency’s voice, with three versions to pick from</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>What AI says about you: a monthly check of what AI assistants tell people, with wrong details fixed</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>The same details on Apple Maps, Bing, Facebook and Yelp<span class="soon">Coming soon</span></span></li>
+        </ul>
+        <a class="btn primary" href="index.html#start-insurance">Choose Growth</a>
+      </div>
+      <div class="plan add">
+        <h3>Max, after hours</h3>
+        <div class="price"><b>$149</b><span>/ month, add to any plan</span></div>
+        <p class="who">300 minutes included, about 120 calls. After that, 25¢ a minute.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Takes messages only, and never talks coverage, claims, rates or quotes</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Says he’s an AI and that calls may be recorded</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every call on your phone in seconds</span></li>
+        </ul>
+        <a class="btn line" href="tel:+17064602226">Call Max first</a>
+      </div>
+    </div>
+    <p class="nopro">There’s a Pro plan too, but its texting runs on a business’s customer list, so agencies don’t need it. If your company already gives you a texting system, we never touch it.</p>
+    <div class="guarantee"><b>30 days, no risk.</b><p>If the first month isn’t worth it, tell us and we refund it. No forms, no argument.</p></div>
+  </div>
+</section>
+
+<section class="sec band alt" id="questions">
+  <div class="inner">
+    <h2>What agency owners ask first</h2>
+    <div class="faq">
+      <details><summary>Will a reply ever confirm that someone is our client?</summary><p>No. Compliance Guard stops phrases like “your policy” or “your claim” before a reply reaches you, and every reply waits for your approval. If you edit a reply in the app, the edit is checked again.</p></details>
+      <details><summary>Do you need our client list or access to our agency system?</summary><p>No. We work only from public pages: your Google and Facebook profiles, your reviews, and other agencies’ public ratings. We never ask for, receive or store a client’s name or number.</p></details>
+      <details><summary>Who approves the wording?</summary><p>Your compliance contact approves our reply library once. After that, each reply comes to your phone in the Always Open app, and you tap Approve or change the words first. Nothing posts in your agency’s name without your OK.</p></details>
+      <details><summary>We’re captive agents. Can we use this?</summary><p>Yes, with your company’s OK. Get it before we start, and tell us your company’s rules for reviews and social media so we can follow them. If your company gives you a texting system, we never touch it.</p></details>
+      <details><summary>What does Max say when someone calls about a claim?</summary><p>Max takes a message only: their name, number, what they need and a good time to call back. He never discusses policies, coverage, claims, rates or quotes, and he tells every caller he’s an AI and that the call may be recorded. If you choose, urgent calls ring through to your cell.</p></details>
+      <details><summary>Does Rate-Shock Radar name other agencies?</summary><p>Never. We count public reviews about rate increases across the agencies in your town, and you only see the trend and what’s ready for you to approve.</p></details>
+      <details><summary>Do you reply in Spanish?</summary><p>Yes. Spanish reviews get Spanish replies from the same approved library, checked by the same Compliance Guard, and Max speaks Spanish too.</p></details>
+      <details><summary>What do you need from us to start?</summary><p>Manager access to your Google Business Profile, your compliance contact’s OK on the reply library, your license number and any required notices, and any words you never want used. Setup takes about a week.</p></details>
+      <details><summary>Is there a contract?</summary><p>No. It’s month to month, there’s no setup fee, and the first month is refundable.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="band dark final" id="next">
+  <div class="inner">
+    <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
+    <h2>See how your agency looks next to the agencies near you.</h2>
+    <p class="lead">Ask for a free audit: your rating and reviews next to the top agencies in your town, the reviews nobody answered, and the details that don’t match across the web. It’s yours to keep.</p>
+    <div class="ctas"><a class="btn primary" href="index.html#start-insurance">Request my free audit</a><a class="btn line" href="index.html">Back to Always Open</a></div>
+  </div>
+</section>
+</main>
+
+<footer class="band">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+    <span>Keeping businesses always open · Anywhere in the U.S.</span>
+    <span class="legal"><a href="tel:+17064602226">(706) 460-2226</a></span>
+    <span class="legal"><a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
+    <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Rate-Shock Radar sample bars
+  var weeks = [1, 0, 2, 1, 1, 2, 4, 7, 9, 6, 4, 3], g = document.getElementById('rad-bars');
+  if (g) weeks.forEach(function (n, i) {
+    var bar = document.createElement('i');
+    bar.style.setProperty('--h', (n * 10) + '%');
+    if (i >= 6) bar.className = 'hot';
+    g.appendChild(bar);
+  });
+
+  // Compliance Guard: the same checks Always Open runs on every reply (reply rules plus the review-perk rule).
+  var RULES = [
+    { why: 'Promises an outcome', re: /\b(guarantee[sd]?|guaranteed|promise[sd]?|100 ?%|always covered|never (be )?denied|risk[- ]free)\b|garantiz\w*/gi },
+    { why: 'Talks about rates or prices', re: /\$\s?\d[\d,.]*|\b\d+(\.\d+)?\s?%|\b(lowest|cheapest|best|great|low|lower|competitive|affordable) (rates?|prices?|premiums?)\b|\bsave (money|you|up to|big)\b|\bdiscounts?\b|\bquotes?\b|\bdescuentos?\b|\bahorr\w+/gi },
+    { why: 'Confirms they are a client', re: /\byour (policy|policies|claim|account|coverage|premium|renewal|agent|deductible|plan|bill)\b|\bas (our|a valued) (client|customer|policyholder|patient)\b|\bthank(s| you) for being (a|our) (loyal |valued )?(client|customer|policyholder|patient)\b|\bwe insure you\b|\bsu (p[oó]liza|reclamo|reclamaci[oó]n|cuenta|cobertura|prima|agente)\b/gi },
+    { why: 'Mentions claim details', re: /\bclaim (number|#|was|has been|is|got)\b|\badjuster\b|\bsettlement\b|\bpayout\b|\bwe paid\b|\bdenied\b|\bdeductible\b/gi },
+    { why: 'Sounds like advice', re: /\byou should (buy|get|add|switch|increase|raise|drop|carry)\b|\byou need (to (buy|add|switch|increase|carry)|more coverage|umbrella)\b|\b(we|i) recommend (you|that you)\b/gi }
+  ];
+  var ASK = /\b(leave|write|post|give|drop)\s+(us\s+|me\s+)?(a\s+|an\s+|your\s+)?([\w-]+\s+){0,2}reviews?\b|\breview us\b|\bd[eé]j[a-z]*\s+(una\s+|su\s+)?rese[ñn]a/i;
+  var FOR = /\bfor\s+(a\s+|an\s+|your\s+|the\s+)?([\w-]+\s+){0,2}reviews?\b|\bpor\s+(su\s+|una\s+)?rese[ñn]a/i;
+  var PERK = /(\b(discount|percent off|free|gift ?card|coupon|giveaway|raffle|prize|drawing|entered|entry|reward|credit|gratis|descuento|regalo)\b|\d+\s?%\s?off\b)/i;
+  var PERK2 = /(\b(discount|percent off|gift ?card|coupon|giveaway|raffle|prize|drawing|entered|entry|reward|credit|descuento|regalo)\b|\d+\s?%\s?off\b)/i;
+  var SAMPLES = {
+    risky: 'Hi Mark, we’re sorry your policy renewed 38% higher. Your claim was handled by our best adjuster, and we guarantee we can find you lower rates.',
+    safe: 'Thank you for telling us, and we’re sorry for the frustration. Changes at renewal can be hard to sort out alone. Please call our office at (555) 555-0100 so we can talk it through.',
+    es: 'Gracias por su reseña. Lamentamos lo de su póliza y le garantizamos el mejor precio.',
+    perk: 'Thanks so much! Leave us a 5-star review and get a $10 gift card.'
+  };
+  function check(t) {
+    var hits = [];
+    RULES.forEach(function (r) { r.re.lastIndex = 0; var m; while ((m = r.re.exec(t))) { hits.push({ s: m.index, e: m.index + m[0].length, w: m[0], why: r.why }); if (!m[0].length) r.re.lastIndex++; } });
+    var pos = 0, parts = t.split(/([.!?\n])/);
+    for (var i = 0; i < parts.length; i += 2) {
+      var s = parts[i] + (parts[i + 1] || ''), p = (ASK.test(s) && s.match(PERK)) || (FOR.test(s) && s.match(PERK2));
+      if (p) { var at = pos + s.indexOf(p[0]); hits.push({ s: at, e: at + p[0].length, w: p[0], why: 'Offers something for a review' }); break; }
+      pos += s.length;
+    }
+    hits.sort(function (a, b) { return a.s - b.s || b.e - a.e; });
+    var out = [], end = -1;
+    hits.forEach(function (h) { if (h.s >= end) { out.push(h); end = h.e; } });
+    return out;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var ta = document.getElementById('g-text'), out = document.getElementById('g-out');
+  var OK = '<svg aria-hidden="true"><use href="#shield"/></svg>', BAD = '<svg aria-hidden="true"><use href="#flag"/></svg>';
+  function draw() {
+    var t = ta.value, hits = check(t);
+    if (!t.trim()) { out.className = 'verdict'; out.innerHTML = ''; return; }
+    if (!hits.length) { out.className = 'verdict good'; out.innerHTML = '<h3>' + OK + 'Nothing to change. Ready for your OK.</h3>'; return; }
+    var html = '', at = 0;
+    hits.forEach(function (h) { html += esc(t.slice(at, h.s)) + '<mark>' + esc(t.slice(h.s, h.e)) + '</mark>'; at = h.e; });
+    html += esc(t.slice(at));
+    out.className = 'verdict bad';
+    out.innerHTML = '<h3>' + BAD + (hits.length === 1 ? '1 thing to change' : hits.length + ' things to change') + '</h3><p class="preview">' + html + '</p><ul>' +
+      hits.map(function (h) { return '<li><q>' + esc(h.w) + '</q><span>' + esc(h.why) + '</span></li>'; }).join('') + '</ul>';
+  }
+  var btns = document.querySelectorAll('[data-s]');
+  function use(k) { ta.value = SAMPLES[k]; btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.s === k)); }); draw(); }
+  btns.forEach(function (b) { b.addEventListener('click', function () { use(b.dataset.s); }); });
+  var timer; ta.addEventListener('input', function () { btns.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); }); clearTimeout(timer); timer = setTimeout(draw, 120); });
+  use('risky');
+})();
+</script>
+</body>
+</html>

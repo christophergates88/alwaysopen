@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Always Open Job Done</title>
+<meta name="description" content="Finished a job? Add the customer here and we ask them for a Google review.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* One narrow column, built for a phone in a truck. Big tap targets, 16px inputs so iOS never zooms. */
+:root{
+  --paper:#F5F4F0; --card:#FFFFFF; --ink:#171B26; --slate:#586075; --line:#DCDAD3; --soft:#EFEDE7;
+  --sign:#D92D20; --on-sign:#FFFFFF; --ok:#1C6B54; --bad:#C42A1E;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif; --body:"Instrument Sans",system-ui,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --soft:#222938;
+  --sign:#FF5A4D; --on-sign:#1A0605; --ok:#5CC9A4; --bad:#FF7A6E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --soft:#222938;
+  --sign:#FF5A4D; --on-sign:#1A0605; --ok:#5CC9A4; --bad:#FF7A6E; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.band{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:560px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-stretch:92%;margin:0;letter-spacing:-.01em;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+button,a.btn{cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font:700 16px var(--body);padding:13px 18px;min-height:48px;border-radius:12px;border:2px solid transparent;background:transparent;text-decoration:none;text-align:center}
+.btn.primary{background:var(--sign);color:var(--on-sign)}
+.btn.line{border-color:var(--line);color:var(--ink);background:var(--card)}
+.btn.block{width:100%}
+.btn[aria-disabled="true"],.btn:disabled{opacity:.45;pointer-events:none}
+.bar{background:var(--card);border-bottom:1px solid var(--line)}
+.bar .inner{display:flex;align-items:center;gap:10px;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;font:850 1.15rem var(--display);font-stretch:90%}
+.brand svg{width:30px;height:30px}
+.brand small{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--slate)}
+main{padding-block:24px 80px}
+.top h1{font-weight:850;font-size:clamp(1.7rem,7vw,2.2rem);line-height:1.05}
+.top p{color:var(--slate);margin-top:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:18px;display:grid;gap:14px}
+.card h2{font:500 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
+label{display:grid;gap:5px;font-weight:600;font-size:14.5px;min-width:0}
+input[type=text],input[type=tel]{font:16px var(--body);padding:12px 13px;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);width:100%;min-width:0}
+.hint{color:var(--slate);font-size:13.5px;font-weight:400}
+.check{display:flex;gap:12px;align-items:flex-start;font-weight:500;font-size:15px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);cursor:pointer}
+.check input{width:24px;height:24px;margin:1px 0 0;flex:none;accent-color:var(--sign)}
+.list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.job{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.job b{font-weight:700;overflow-wrap:anywhere}
+.job span{color:var(--slate);font-size:14px;grid-column:1;overflow-wrap:anywhere}
+.job .x{grid-column:2;grid-row:1 / span 2;border:0;background:transparent;color:var(--slate);font-size:15px;font-weight:600;padding:10px;min-height:44px;border-radius:8px;text-decoration:underline}
+.empty{color:var(--slate);text-align:center;padding:14px 8px;border:1.5px dashed var(--line);border-radius:12px}
+.actions{display:grid;gap:10px}
+.fine{color:var(--slate);font-size:13px;margin-top:16px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:99px;font-weight:600;font-size:14.5px;z-index:60;max-width:calc(100% - 32px);text-align:center}
+.err{color:var(--bad);font-weight:600;font-size:14px}
+</style>
+
+<meta name="robots" content="noindex">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol></svg>
+
+<div class="bar band"><div class="inner"><div class="brand"><svg aria-hidden="true"><use href="#logo"/></svg>Always Open <small>Job done</small></div></div></div>
+
+<main class="band"><div class="inner">
+  <div class="top">
+    <h1>Finished a job? Tell us in ten seconds.</h1>
+    <p>Add the customer and what you did. We send them one friendly text asking for a Google review. Steady new reviews help more people find and trust you.</p>
+  </div>
+
+  <form class="card" id="form" autocomplete="off" onsubmit="return false" novalidate>
+    <h2>Add a customer</h2>
+    <label>Your business name<input type="text" id="biz" autocomplete="organization" placeholder="Smith Plumbing"><span class="hint" id="bizhint">We remember this on your phone.</span></label>
+    <label>Customer's first name<input type="text" id="name" autocomplete="off" placeholder="Maria"></label>
+    <label>Customer's mobile number<input type="tel" id="phone" inputmode="tel" autocomplete="off" placeholder="478-555-0123"></label>
+    <label><span>What you did <span class="hint">(a few words)</span></span><input type="text" id="job" autocomplete="off" placeholder="Replaced the water heater"></label>
+    <label class="check" for="ok"><input type="checkbox" id="ok"><span>This customer said it's okay to text them.</span></label>
+    <p class="err" id="err" role="alert" hidden></p>
+    <button type="submit" class="btn primary block" id="add">Add to my list</button>
+    <p class="hint">Add every customer who agreed, not just the happy ones. Everyone gets the same message.</p>
+  </form>
+
+  <section class="card" aria-labelledby="lh">
+    <h2 id="lh">Your list <span id="count"></span></h2>
+    <ul class="list" id="list"></ul>
+    <p class="empty" id="empty">No one yet. Add your first customer above.</p>
+    <div class="actions" id="actions" hidden>
+      <a class="btn primary block" id="mail" href="#">Email the list to Always Open</a>
+      <a class="btn primary block" id="sms" href="#" hidden>Text the list to Always Open</a>
+      <button class="btn line block" id="copy" type="button">Copy the list instead</button>
+      <button class="btn line block" id="clear" type="button">I sent it, start a new list</button>
+    </div>
+  </section>
+
+  <p class="fine">We use a customer's number only to send that one review request. They can reply STOP at any time and we never text them again. We never share or sell numbers. Questions? Email <a id="helpmail" href="#"></a>.</p>
+</div></main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+  // Where the list goes. SMS stays hidden until Always Open has a texting number.
+  var CONFIG={email:'hello@alwaysopenoffice.com',sms:''};
+  var $=function(id){return document.getElementById(id)};
+  var jobs=[];
+  var armed=false;
+  function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function toast(m){var t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){t.hidden=true},2400)}
+  function normPhone(s){var d=String(s||'').replace(/\D/g,'');if(d.length===11&&d.charAt(0)==='1')d=d.slice(1);return d.length===10?d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6):''}
+  function when(){
+    var d=new Date();
+    try{return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}catch(e){return d.toISOString()}
+  }
+  function build(){
+    var biz=$('biz').value.trim();
+    var L=['Always Open: jobs done','Business: '+biz,''];
+    jobs.forEach(function(j){
+      L.push('Customer: '+j.name,'Phone: '+j.phone);
+      if(j.job)L.push('Job: '+j.job);
+      L.push('When: '+j.when,'OK to text: yes','');
+    });
+    return L.join('\n').replace(/\s+$/,'')+'\n';
+  }
+  function subject(){return 'Jobs done: '+$('biz').value.trim()+' ('+jobs.length+')'}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function render(){
+    var ul=$('list');ul.innerHTML='';
+    jobs.forEach(function(j,i){
+      var li=document.createElement('li');li.className='job';
+      li.innerHTML='<b>'+esc(j.name)+'</b><button type="button" class="x" data-i="'+i+'" aria-label="Remove '+esc(j.name)+'">Remove</button><span>'+esc(j.phone)+(j.job?' · '+esc(j.job):'')+'</span>';
+      ul.appendChild(li);
+    });
+    $('count').textContent=jobs.length?'('+jobs.length+')':'';
+    $('empty').hidden=jobs.length>0;
+    $('actions').hidden=jobs.length===0;
+    armed=false;$('clear').textContent='I sent it, start a new list';
+    var body=build(),subj=subject();
+    var m=$('mail');m.href='mailto:'+CONFIG.email+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+    var s=$('sms');
+    if(CONFIG.sms){s.hidden=false;s.href='sms:'+CONFIG.sms+'?&body='+encodeURIComponent(body)}else{s.hidden=true}
+    var bizOk=!!$('biz').value.trim();
+    [m,s].forEach(function(a){a.setAttribute('aria-disabled',bizOk?'false':'true')});
+    store('ao_jobs',JSON.stringify(jobs));
+  }
+  function showErr(m){var e=$('err');e.textContent=m;e.hidden=!m}
+  function add(){
+    var biz=$('biz').value.trim(),name=$('name').value.trim(),phone=normPhone($('phone').value),job=$('job').value.trim();
+    if(!biz){showErr('Add your business name first.');$('biz').focus();return}
+    if(!name){showErr('Add the customer’s first name.');$('name').focus();return}
+    if(!phone){showErr('That number needs 10 digits, like 478-555-0123.');$('phone').focus();return}
+    if(!$('ok').checked){showErr('Only add customers who said it’s okay to text them.');return}
+    if(jobs.some(function(j){return j.phone===phone})){showErr('That number is already on your list.');return}
+    showErr('');
+    store('ao_biz',biz);
+    jobs.push({name:name,phone:phone,job:job,when:when()});
+    $('name').value='';$('phone').value='';$('job').value='';$('ok').checked=false;
+    render();toast(name+' added');$('name').focus();
+  }
+  $('form').addEventListener('submit',add);
+  $('add').addEventListener('click',function(e){e.preventDefault();add()});
+  $('list').addEventListener('click',function(e){
+    var b=e.target.closest('[data-i]');if(!b)return;
+    jobs.splice(+b.getAttribute('data-i'),1);render();
+  });
+  $('biz').addEventListener('input',function(){store('ao_biz',$('biz').value.trim());render()});
+  ['mail','sms'].forEach(function(id){$(id).addEventListener('click',function(e){
+    if(this.getAttribute('aria-disabled')==='true'){e.preventDefault();showErr('Add your business name first.');$('biz').focus()}
+  })});
+  $('copy').addEventListener('click',function(){
+    if(!$('biz').value.trim()){showErr('Add your business name first.');$('biz').focus();return}
+    var text=build();
+    function done(){toast('Copied. Paste it in a text or email.')}
+    function fallback(){
+      var t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();
+      try{document.execCommand('copy');done()}catch(e){toast('Could not copy. Use the email button.')}
+      document.body.removeChild(t);
+    }
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,fallback)}else{fallback()}
+  });
+  $('clear').addEventListener('click',function(){
+    if(!armed){armed=true;this.textContent='Tap again to clear the list';return}
+    jobs=[];render();toast('Starting fresh');
+  });
+  var h=$('helpmail');h.textContent=CONFIG.email;h.href='mailto:'+CONFIG.email;
+  var b=load('ao_biz');if(b){$('biz').value=b}
+  try{var saved=JSON.parse(load('ao_jobs')||'[]');if(Array.isArray(saved))jobs=saved.filter(function(j){return j&&j.name&&j.phone})}catch(e){}
+  render();
+})();
+</script>
+</body>
+</html>

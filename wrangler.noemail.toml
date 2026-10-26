@@ -1,0 +1,50 @@
+# Always Open: the public website, the Job Done page and the website form, on Cloudflare.
+name = "alwaysopen"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+routes = [
+  { pattern = "alwaysopenoffice.com", custom_domain = true },
+  { pattern = "www.alwaysopenoffice.com", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "alwaysopen"
+database_id = "d1ca8165-65de-4bf3-97a3-899037682ff2"
+
+# Emails each website request to Christopher (Cloudflare Email Routing, verified address).
+[triggers]
+crons = ["*/10 * * * *", "17 12 * * 1"]
+
+[vars]
+RADAR_TOWNS = "Eatonton, GA|Madison, GA|Greensboro, GA|Milledgeville, GA|Monticello, GA|Gray, GA|Sparta, GA|Macon, GA"
+STORM_COUNTIES = "237:Putnam,009:Baldwin,211:Morgan,133:Greene,141:Hancock,159:Jasper,169:Jones,319:Wilkinson,303:Washington,021:Bibb,289:Twiggs,207:Monroe,217:Newton,297:Walton,219:Oconee,059:Clarke,035:Butts,153:Houston,225:Peach,175:Laurens,167:Johnson,301:Warren,265:Taliaferro,221:Oglethorpe,125:Glascock"
+MAIL_FROM = "forms@lakecountryfoamparty.com"
+MAIL_TO = "christophergates.cg@gmail.com"
+
+# Secrets, set by the deploy script and never stored here:
+#   NTFY_URL   phone-push topic from Gates HQ config.json
+#   IP_SALT    random value for the per-sender spam limit
+#   LEADS_KEY  lets the Always Open check read new requests
+#   VOICE_KEY  the private part of the AI phone line webhook addresses (Twilio)
+#   APNS_KEY, APNS_KEY_ID  iPhone notifications for the client app
+
+# The AI phone line: one CallRoom (a Durable Object) per live call, and Workers AI for the AI when no Claude key is set.
+[ai]
+binding = "AI"
+
+[[durable_objects.bindings]]
+name = "CALLROOM"
+class_name = "CallRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CallRoom"]

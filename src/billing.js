@@ -1,0 +1,312 @@
+// Self-serve signup and billing with Stripe (no SDK: plain HTTPS calls).
+//   GET  /start                 pick a plan and fill in the business
+//   POST /billing/checkout      -> Stripe Checkout (monthly subscription)
+//   GET  /welcome?s=...         after paying: the private app link and next steps (creates the client if the webhook hasn't yet)
+//   POST /billing/webhook       Stripe events: new signups, failed and paid invoices, pauses, plan changes, cancellations
+//   POST /billing/setup         (x-key: LEADS_KEY) one-time: creates the Stripe webhook and the customer portal settings
+// The client's own billing page (plan, card, pause, change, cancel with offers) lives at /app/<code>/billing (see billingPage).
+
+const SITE = 'https://alwaysopenoffice.com';
+export const PLANS = {
+  Starter: { cents: 14900, blurb: 'Every review answered, your Google profile kept current, a monthly report and your own app.' },
+  Growth: { cents: 29900, blurb: 'Starter, plus review requests after every job, posts from your photos, competitor watch and Storm Desk.' },
+  Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and, once texting launches, missed-call text-back from your own number.' }
+};
+const MAX = { cents: 14900, blurb: 'Max, the AI line: answers the calls you miss, says he is an AI, and sends you every caller in the app.' };
+const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
+const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
+const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted'];
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = c => '$' + (c / 100).toFixed(0);
+
+// ---------- Stripe ----------
+function form(obj, prefix, out) {
+  out = out || [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? prefix + '[' + k + ']' : k;
+    if (Array.isArray(v)) v.forEach((x, i) => typeof x === 'object' ? form(x, key + '[' + i + ']', out) : out.push(encodeURIComponent(key + '[' + i + ']') + '=' + encodeURIComponent(x)));
+    else if (typeof v === 'object') form(v, key, out);
+    else out.push(encodeURIComponent(key) + '=' + encodeURIComponent(v));
+  }
+  return out.join('&');
+}
+export async function stripe(env, method, path, body) {
+  const r = await fetch('https://api.stripe.com/v1/' + path, {
+    method, headers: { Authorization: 'Bearer ' + env.STRIPE_KEY, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' },
+    body: body ? form(body) : undefined
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j.error && j.error.message) || ('Stripe ' + r.status));
+  return j;
+}
+async function hmacHex(secret, msg) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)))].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+export async function verifyStripe(secret, header, body, now) {
+  const parts = Object.fromEntries(String(header || '').split(',').map(x => x.split('=')).filter(x => x.length === 2).map(([a, b]) => [a.trim(), b.trim()]));
+  const sigs = String(header || '').split(',').filter(x => x.trim().startsWith('v1=')).map(x => x.trim().slice(3));
+  const t = +parts.t;
+  if (!t || !sigs.length || Math.abs((now || Date.now()) / 1000 - t) > 300) return false;
+  const want = await hmacHex(secret, t + '.' + body);
+  return sigs.some(s => s.length === want.length && [...s].reduce((d, ch, i) => d | (ch.charCodeAt(0) ^ want.charCodeAt(i)), 0) === 0);
+}
+
+// ---------- storage ----------
+export async function ensureBilling(env) {
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS billing (client_id TEXT PRIMARY KEY, session_id TEXT UNIQUE, customer TEXT, sub TEXT, plan TEXT, max INTEGER DEFAULT 0, status TEXT, business TEXT, owner TEXT, email TEXT, phone TEXT, town TEXT, type TEXT, code TEXT, ref TEXT, created TEXT, updated TEXT, paused_until TEXT, hq_synced INTEGER DEFAULT 0)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS billing_config (k TEXT PRIMARY KEY, v TEXT)')
+  ]);
+}
+const rnd = (n, abc) => { abc = abc || 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; const b = crypto.getRandomValues(new Uint8Array(n * 2)); let o = ''; for (const x of b) { if (x < abc.length * Math.floor(256 / abc.length)) o += abc[x % abc.length]; if (o.length === n) break; } return o.length === n ? o : o + rnd(n - o.length, abc); };
+const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 14).replace(/-+$/, '') || 'client';
+async function sha256hex(s) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join(''); }
+
+// A paid checkout becomes a client with a private app link, right away. Safe to call twice (webhook and welcome page).
+export async function createFromSession(env, s, h) {
+  await ensureBilling(env);
+  const have = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  if (have) return have;
+  const m = s.metadata || {};
+  const plan = PLANS[m.plan] ? m.plan : 'Starter';
+  const cid = 'c-' + rnd(10, 'abcdefghjkmnpqrstuvwxyz23456789');
+  const code = rnd(32), ref = slug(m.business) + '-' + rnd(4, 'abcdefghjkmnpqrstuvwxyz23456789');
+  const now = new Date().toISOString();
+  const reg = REGULATED.indexOf(m.type) > -1 ? 1 : 0;
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
+      .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', s.customer_email || (s.customer_details && s.customer_details.email) || '', m.phone || '', m.town || '', m.type || '', code, ref, now),
+    env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
+      .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, m.max === '1' ? 'calls' : '')
+  ]);
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + Max' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live; open HQ to set them up.');
+  return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+}
+
+// ---------- pages ----------
+function page(title, inner, status) {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · Always Open</title><meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;600;700&family=DM+Mono:wght@500&display=swap">
+<style>:root{--paper:#F5F4F0;--card:#fff;--ink:#171B26;--slate:#586075;--line:#DCDAD3;--red:#D92D20;--ok:#1C6B54;--night:#0F131B;--night2:#171D2C;--display:"Archivo","Arial Narrow",Arial,sans-serif;--body:"Instrument Sans",system-ui,sans-serif;--mono:"DM Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root{--paper:#12151D;--card:#1A1F2B;--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--ok:#5CC9A4}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--body)}
+.top{background:radial-gradient(600px 300px at 90% 0,rgba(217,45,32,.3),transparent 60%),linear-gradient(165deg,var(--night2),var(--night));color:#ECEEF3;padding:16px}
+.top a{color:inherit;text-decoration:none;font:850 1.3rem var(--display);font-stretch:90%;display:inline-flex;gap:10px;align-items:center}
+main{max-width:640px;margin:0 auto;padding:24px 16px 60px;display:grid;gap:18px}
+h1{font:850 clamp(2rem,6vw,2.6rem)/1 var(--display);font-stretch:92%;margin:0}h2{font:800 1.25rem var(--display);margin:0}
+p{margin:0}.sub{color:var(--slate)}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:12px}
+label{display:grid;gap:6px;font-weight:600}input,select{font:inherit;padding:12px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);width:100%;min-width:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}@media (max-width:560px){.row{grid-template-columns:1fr}}
+.plans{display:grid;gap:10px}.plan{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:14px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;font-weight:500}
+.plan:has(input:checked){border-color:var(--red);box-shadow:0 0 0 3px rgba(217,45,32,.15)}.plan input{width:18px;height:18px;margin:3px 0 0;accent-color:var(--red)}.plan b{font:800 1.1rem var(--display)}.plan .p{font:850 1.2rem var(--display)}
+.opt{display:grid;grid-template-columns:22px 1fr;gap:10px;font-weight:500}.opt input{width:18px;height:18px;margin:3px 0 0;accent-color:var(--red)}
+.btn{display:inline-flex;justify-content:center;align-items:center;font:700 16px var(--body);padding:14px 20px;border-radius:11px;border:2px solid var(--red);background:var(--red);color:#fff;text-decoration:none;cursor:pointer;box-shadow:0 0 16px rgba(217,45,32,.35)}
+.btn.line{background:transparent;color:var(--ink);border-color:var(--ink);box-shadow:none}.btn.quiet{background:transparent;color:var(--slate);border-color:var(--line);box-shadow:none}
+.mono{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--slate)}.err{color:var(--red);font-weight:600}.ok{color:var(--ok);font-weight:600}
+.link{font:500 14px var(--mono);word-break:break-all;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--paper)}
+ol{margin:0;padding-left:1.2em;display:grid;gap:8px}.fine{font-size:13px;color:var(--slate)}.acts{display:flex;flex-wrap:wrap;gap:10px}
+</style></head><body><div class="top"><a href="/"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>Always Open</a></div><main>${inner}</main></body></html>`;
+  return new Response(html, { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' } });
+}
+
+function startPage(v, err) {
+  v = v || {};
+  const plan = PLANS[v.plan] ? v.plan : 'Growth';
+  return page('Start', `<div><p class="mono">Sign up</p><h1>Start Always Open today.</h1></div>
+<p class="sub">Month to month, no setup fee, cancel any time. If the first month isn't worth it, tell us within 30 days and we refund it.</p>
+${err ? '<p class="err">' + esc(err) + '</p>' : ''}
+<form method="post" action="/billing/checkout" class="card">
+<h2>Your plan</h2><div class="plans">${Object.entries(PLANS).map(([k, p]) => `<label class="plan"><input type="radio" name="plan" value="${k}"${k === plan ? ' checked' : ''}><span><b>${k}</b><br><span class="sub">${esc(p.blurb)}</span></span><span class="p">${money(p.cents)}<span class="sub">/mo</span></span></label>`).join('')}</div>
+<label class="opt"><input type="checkbox" name="max" value="1"${v.max === '1' ? ' checked' : ''}><span><b>Add Max, the AI line, ${money(MAX.cents)}/mo.</b> <span class="sub">${esc(MAX.blurb)} 300 minutes a month included.</span></span></label>
+<h2>Your business</h2>
+<label>Business name<input name="business" required maxlength="120" autocomplete="organization" value="${esc(v.business)}"></label>
+<div class="row"><label>Your name<input name="owner" required maxlength="80" autocomplete="name" value="${esc(v.owner)}"></label><label>Mobile phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel" value="${esc(v.phone)}"></label></div>
+<div class="row"><label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(v.email)}"></label><label>Town and state<input name="town" required maxlength="80" placeholder="Eatonton, GA" value="${esc(v.town)}"></label></div>
+<label>Kind of business<select name="type">${TYPES.map(t => `<option${t === v.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+<label class="opt"><input type="checkbox" name="agree" value="1" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and authorize monthly charges until I cancel.</span></label>
+<button class="btn" type="submit">Continue to secure payment</button>
+<p class="fine">Payment is handled by Stripe. We never see your card number.</p></form>`);
+}
+
+async function checkout(req, env) {
+  const f = await req.formData();
+  const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
+  if (!PLANS[v.plan]) v.plan = 'Growth';
+  if (TYPES.indexOf(v.type) < 0) v.type = 'Other';
+  if (!v.business || !v.owner || v.phone.replace(/\D/g, '').length < 10 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) || !v.town) return startPage(v, 'Please fill in every box.');
+  if (v.agree !== '1') return startPage(v, 'Please check the box to agree to the terms.');
+  if (!env.STRIPE_KEY) return startPage(v, 'Online signup is not open yet. Call (706) 460-2226 or request the free audit, and we will set you up.');
+  const items = [{ price_data: { currency: 'usd', unit_amount: PLANS[v.plan].cents, recurring: { interval: 'month' }, product_data: { name: 'Always Open ' + v.plan } }, quantity: 1 }];
+  if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'Max, the AI line' } }, quantity: 1 });
+  const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type };
+  try {
+    const s = await stripe(env, 'POST', 'checkout/sessions', {
+      mode: 'subscription', line_items: items, customer_email: v.email, metadata: meta, subscription_data: { metadata: meta },
+      allow_promotion_codes: 'true', billing_address_collection: 'auto',
+      success_url: SITE + '/welcome?s={CHECKOUT_SESSION_ID}', cancel_url: SITE + '/start?plan=' + v.plan
+    });
+    return Response.redirect(s.url, 303);
+  } catch (e) { return startPage(v, 'Payment could not start: ' + String(e.message || e).slice(0, 160)); }
+}
+
+async function welcome(env, url, h) {
+  const id = url.searchParams.get('s') || '';
+  if (!/^cs_[A-Za-z0-9_]{10,200}$/.test(id) || !env.STRIPE_KEY) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404);
+  let s;
+  try { s = await stripe(env, 'GET', 'checkout/sessions/' + id); } catch (e) { return page('Welcome', '<h1>Almost there.</h1><p class="sub">We could not confirm the payment yet. Refresh this page in a minute.</p>', 502); }
+  if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
+  const b = await createFromSession(env, s, h);
+  const link = SITE + '/app/' + b.code;
+  return page('Welcome', `<div><p class="mono">You're in</p><h1>Welcome to Always Open, ${esc(String(b.owner || '').split(' ')[0] || 'friend')}.</h1></div>
+<p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with Max' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
+<div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
+<div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
+<div class="card"><h2>2. Give us access to your Google profile</h2><ol>
+<li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
+<li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>
+<li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol></div>
+${b.max ? '<div class="card"><h2>3. Max</h2><p>We set up your AI line within two business days and send you the number and how to forward your calls to it.</p></div>' : ''}
+<div class="card"><h2>What happens next</h2><p>Within two business days you get your first review replies to approve in the app. Questions? Message us from Ask us in the app.</p></div>`);
+}
+
+// ---------- client billing page (from the app) ----------
+export async function billingPage(env, c, base, req, url, h) {
+  await ensureBilling(env);
+  const b = await env.DB.prepare('SELECT * FROM billing WHERE client_id = ?1').bind(c.client_id).first();
+  if (!b || !b.sub) return page('Your plan', '<h1>Your plan</h1><p class="sub">Your billing is handled directly with us. To change or cancel, message us in Ask us or email hello@alwaysopenoffice.com.</p><div class="acts"><a class="btn line" href="' + esc(base) + '">Back to the app</a></div>');
+  const step = url.searchParams.get('step') || '';
+  let note = url.searchParams.get('done') ? '<p class="ok">' + esc({ paused: 'Paused. Your next month is free and nothing else changes.', resumed: 'Welcome back. Billing picks up on your next date.', changed: 'Done. Your new plan starts now; the difference is prorated.', canceled: 'Your plan ends at the end of this billing month. You can undo that here until then.', undone: 'Cancellation undone. Nothing changes.' }[url.searchParams.get('done')] || '') + '</p>' : '';
+  if (req.method === 'POST') {
+    const f = await req.formData(), a = String(f.get('a') || '');
+    try {
+      if (a === 'card') {
+        const cfg = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'portal_id'").first();
+        const ps = await stripe(env, 'POST', 'billing_portal/sessions', { customer: b.customer, return_url: SITE + base + '/billing', configuration: cfg ? cfg.v : undefined });
+        return Response.redirect(ps.url, 303);
+      }
+      if (a === 'pause') {
+        const until = Math.floor(Date.now() / 1000) + 31 * 86400;
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { pause_collection: { behavior: 'void', resumes_at: until } });
+        await env.DB.prepare("UPDATE billing SET status = 'paused', paused_until = ?1, updated = ?2 WHERE client_id = ?3").bind(new Date(until * 1000).toISOString(), new Date().toISOString(), c.client_id).run();
+        if (h && h.notify) await h.notify((c.business || 'A client') + ' paused for a month', 'From the cancel screen. Billing resumes ' + new Date(until * 1000).toDateString() + '.');
+        return Response.redirect(SITE + base + '/billing?done=paused', 303);
+      }
+      if (a === 'resume') {
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { pause_collection: '' });
+        await env.DB.prepare("UPDATE billing SET status = 'active', paused_until = NULL, updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
+        return Response.redirect(SITE + base + '/billing?done=resumed', 303);
+      }
+      if (a === 'plan') {
+        const plan = String(f.get('plan') || '');
+        if (!PLANS[plan] || plan === b.plan) return Response.redirect(SITE + base + '/billing', 303);
+        const sub = await stripe(env, 'GET', 'subscriptions/' + b.sub + '?expand[]=items.data.price.product');
+        const item = (sub.items.data || []).find(i => !/Max/.test((i.price && i.price.product && i.price.product.name) || '')) || sub.items.data[0];
+        const prod = await stripe(env, 'POST', 'products', { name: 'Always Open ' + plan });
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { items: [{ id: item.id, price_data: { currency: 'usd', unit_amount: PLANS[plan].cents, recurring: { interval: 'month' }, product: prod.id } }], proration_behavior: 'create_prorations', cancel_at_period_end: 'false' });
+        await env.DB.batch([
+          env.DB.prepare('UPDATE billing SET plan = ?1, updated = ?2 WHERE client_id = ?3').bind(plan, new Date().toISOString(), c.client_id),
+          env.DB.prepare('UPDATE app_clients SET tier = ?1 WHERE client_id = ?2').bind(plan, c.client_id)
+        ]);
+        if (h && h.notify) await h.notify((c.business || 'A client') + ' changed plan', b.plan + ' to ' + plan + ' (in the app).');
+        return Response.redirect(SITE + base + '/billing?done=changed', 303);
+      }
+      if (a === 'cancel') {
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'true' });
+        await env.DB.prepare("UPDATE billing SET status = 'canceling', updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
+        if (h && h.notify) await h.notify((c.business || 'A client') + ' canceled', 'Ends at the end of their billing month. Reason: ' + String(f.get('why') || 'not given').slice(0, 300), 'high');
+        return Response.redirect(SITE + base + '/billing?done=canceled', 303);
+      }
+      if (a === 'undo') {
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'false' });
+        await env.DB.prepare("UPDATE billing SET status = 'active', updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
+        return Response.redirect(SITE + base + '/billing?done=undone', 303);
+      }
+    } catch (e) { note = '<p class="err">That did not go through: ' + esc(String(e.message || e).slice(0, 160)) + '. Try again, or message us.</p>'; }
+  }
+  const status = { active: 'Active', past_due: 'Payment failed: please update your card', paused: 'Paused until ' + (b.paused_until ? new Date(b.paused_until).toDateString() : 'next month'), canceling: 'Ends at the end of this billing month', canceled: 'Canceled' }[b.status] || b.status;
+  const btn = (a, label, cls, extra) => `<form method="post" style="display:inline">${extra || ''}<input type="hidden" name="a" value="${a}"><button class="btn ${cls || ''}" type="submit">${label}</button></form>`;
+  if (step === 'cancel' && b.status !== 'canceling') {
+    const lower = b.plan === 'Pro' ? 'Growth' : (b.plan === 'Growth' ? 'Starter' : '');
+    return page('Before you go', `<h1>Before you go.</h1><p class="sub">Most people who cancel just need a break or a smaller plan. Either is one tap.</p>
+<div class="card"><h2>Take a month off, free</h2><p>Pause billing for one month. Your reviews, records and app stay put, and everything picks up after.</p><div class="acts">${btn('pause', 'Pause for a month', '')}</div></div>
+${lower ? `<div class="card"><h2>Switch to ${lower}, ${money(PLANS[lower].cents)}/mo</h2><p>${esc(PLANS[lower].blurb)}</p><div class="acts">${btn('plan', 'Switch to ' + lower, 'line', '<input type="hidden" name="plan" value="' + lower + '">')}</div></div>` : ''}
+<div class="card"><h2>Still want to cancel?</h2><form method="post" style="display:grid;gap:10px"><input type="hidden" name="a" value="cancel"><label>What could we have done better? (optional)<input name="why" maxlength="300"></label><button class="btn quiet" type="submit">Cancel at the end of this month</button></form><p class="fine">No fee. You keep everything through the end of the month you paid for. Your Google profile, reviews and phone numbers stay yours.</p></div>
+<div class="acts"><a class="btn line" href="${esc(base)}/billing">Keep my plan</a></div>`);
+  }
+  return page('Your plan', `<div><p class="mono">${esc(c.business || '')}</p><h1>Your plan</h1></div>${note}
+<div class="card"><h2>${esc(b.plan)}${b.max ? ' + Max' : ''}</h2><p class="sub">${esc(status)}</p><p>${esc((PLANS[b.plan] || {}).blurb || '')}</p>
+<div class="acts">${btn('card', 'Update card or see invoices', 'line')}${b.status === 'paused' ? btn('resume', 'Resume now', '') : ''}${b.status === 'canceling' ? btn('undo', 'Undo cancellation', '') : ''}</div></div>
+<div class="card"><h2>Change plan</h2><div class="acts">${Object.keys(PLANS).filter(k => k !== b.plan).map(k => btn('plan', k + ' · ' + money(PLANS[k].cents) + '/mo', 'line', '<input type="hidden" name="plan" value="' + k + '">')).join('')}</div><p class="fine">Changes start now; the difference is prorated on your next bill.</p></div>
+${b.status !== 'canceling' && b.status !== 'canceled' ? `<p><a href="${esc(base)}/billing?step=cancel" class="sub">Cancel my plan</a></p>` : ''}
+<div class="acts"><a class="btn quiet" href="${esc(base)}">Back to the app</a></div>`);
+}
+
+// ---------- router ----------
+export async function handleBilling(req, env, url, h) {
+  const path = url.pathname;
+  if (path === '/start') {
+    if (env.STRIPE_KEY) {
+      try { await ensureBilling(env); const w = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first(); if (!w) await setupStripe(env); } catch (e) { /* the page still works; setup retries next load */ }
+    }
+    return startPage({ plan: url.searchParams.get('plan') || '' });
+  }
+  if (path === '/welcome') return welcome(env, url, h);
+  if (req.method !== 'POST') return new Response('Not found', { status: 404 });
+  if (path === '/billing/checkout') return checkout(req, env);
+  if (path === '/billing/webhook') {
+    await ensureBilling(env);
+    const body = await req.text();
+    const row = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_secret'").first();
+    if (!row || !(await verifyStripe(row.v, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
+    const ev = JSON.parse(body), o = ev.data && ev.data.object || {};
+    const bySub = async (sub, set, msg) => {
+      const b = await env.DB.prepare('SELECT client_id, business FROM billing WHERE sub = ?1').bind(sub).first();
+      if (!b) return;
+      await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(set, new Date().toISOString(), b.client_id).run();
+      if (set === 'canceled') await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run();
+      if (msg && h.notify) await h.notify((b.business || 'A client') + ': ' + msg, 'Stripe event ' + ev.type + '.', set === 'past_due' ? 'high' : 'default');
+    };
+    if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') await createFromSession(env, o, h);
+    else if (ev.type === 'invoice.payment_failed') await bySub(o.subscription, 'past_due', 'payment failed. Stripe retries automatically and emails them.');
+    else if (ev.type === 'invoice.paid' && o.billing_reason !== 'subscription_create') await bySub(o.subscription, 'active', '');
+    else if (ev.type === 'customer.subscription.deleted') await bySub(o.id, 'canceled', 'subscription ended. Their app is off.');
+    return new Response('ok');
+  }
+  if (path === '/billing/setup') {
+    if (!env.LEADS_KEY || !(await h.sameKey(req.headers.get('x-key') || '', env.LEADS_KEY))) return h.json({ ok: false, error: 'Wrong key.' }, 403);
+    if (!env.STRIPE_KEY) return h.json({ ok: false, error: 'No Stripe key yet.' }, 400);
+    return h.json(await setupStripe(env), 200);
+  }
+  return new Response('Not found', { status: 404 });
+}
+
+// One-time Stripe setup (webhook + portal settings). Runs by itself the first time the signup page loads.
+export async function setupStripe(env) {
+    await ensureBilling(env);
+    const out = {};
+    const have = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first();
+    if (!have) {
+      const w = await stripe(env, 'POST', 'webhook_endpoints', { url: SITE + '/billing/webhook', enabled_events: EVENTS, description: 'Always Open billing' });
+      await env.DB.batch([
+        env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_id', ?1)").bind(w.id),
+        env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_secret', ?1)").bind(w.secret)
+      ]);
+      out.webhook = 'created';
+    } else out.webhook = 'already set up';
+    try {
+      const pc = await stripe(env, 'POST', 'billing_portal/configurations', {
+        business_profile: { headline: 'Always Open billing', privacy_policy_url: SITE + '/privacy', terms_of_service_url: SITE + '/terms' },
+        features: { invoice_history: { enabled: 'true' }, payment_method_update: { enabled: 'true' }, customer_update: { enabled: 'true', allowed_updates: ['email', 'address'] }, subscription_cancel: { enabled: 'false' } },
+        default_return_url: SITE
+      });
+      await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('portal_id', ?1)").bind(pc.id).run();
+      out.portal = 'set up';
+    } catch (e) { out.portal = 'error: ' + e.message; }
+    const acct = await stripe(env, 'GET', 'account').catch(() => ({}));
+    out.account = acct.settings && acct.settings.dashboard && acct.settings.dashboard.display_name || acct.business_profile && acct.business_profile.name || '';
+    out.live = /^sk_live_|^rk_live_/.test(env.STRIPE_KEY);
+    return { ok: true, ...out };
+}
