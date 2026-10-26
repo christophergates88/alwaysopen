@@ -299,7 +299,7 @@ function vHome(){
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We\\u2019ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=monthBlock()+fuBlock();
+  h+=monthBlock()+invBlock()+fuBlock()+linkBlock()+metaBlock();
   h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
   return h;
 }
@@ -370,6 +370,37 @@ function fuSheet(){
     needName(function(by){body.by=by;b.disabled=true;post('followup',body).then(function(res){b.disabled=false;if(res.j.ok){close();S.followups=[res.j.followup].concat(S.followups||[]);toast('Added. We\\u2019ll remind you on the day.');render();}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
   };
 }
+function money(n){return '$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:2});}
+function invBlock(){
+  var inv=S.invoices||[],open=inv.filter(function(x){return x.status==='open';});
+  var h='<h2>Money waiting</h2>';
+  if(open.length)h+='<p class="note" style="margin:-4px 2px 10px">'+money(S.unpaid)+' unpaid across '+open.length+(open.length===1?' invoice':' invoices')+'</p>';
+  h+='<div class="list">'+inv.map(function(x){return '<article class="card"><b>'+esc(x.name)+(x.number?' \\u00b7 #'+esc(x.number):'')+'</b><p class="note" style="margin:4px 0">'+esc(x.amountText)+(x.status==='paid'?' \\u00b7 Paid':' \\u00b7 due '+esc(x.due))+'</p><div class="acts">'+
+    (x.status==='paid'?'<button class="btn ghost sm" type="button" data-a="inv-open" data-id="'+x.id+'">Not paid</button>':'<button class="btn ok sm" type="button" data-a="inv-paid" data-id="'+x.id+'">Mark paid</button><button class="btn line sm" type="button" data-a="inv-copy" data-id="'+x.id+'">Copy invoice link</button>')+'</div></article>';}).join('')+'</div>';
+  if(!inv.length)h+='<div class="empty slim"><b>No open invoices</b><span>Add one and we\\u2019ll draft a reminder 3 and 7 days after it\\u2019s due. Nothing goes out until you approve it.</span></div>';
+  return h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="inv-add">Add an invoice</button></div>';
+}
+function linkBlock(){
+  if(!S.bookLink&&!S.quoteLink)return '';
+  return '<h2>Your customer links</h2><div class="card"><p class="note" style="margin:0 0 8px">'+(S.calendar&&S.calendar.connected?'Customers pick an open time and it lands on your calendar.':'Customers send a request. Connect Google Calendar and they can pick a time themselves.')+'</p><div class="acts">'+
+    (S.bookLink?'<button class="btn line sm" type="button" data-a="copy-link" data-u="'+esc(S.bookLink)+'">Copy booking link</button>':'')+(S.quoteLink?'<button class="btn ghost sm" type="button" data-a="copy-link" data-u="'+esc(S.quoteLink)+'">Copy request link</button>':'')+'</div></div>';
+}
+function metaBlock(){
+  var m=S.meta;if(!m||S.client.regulated)return '';
+  if(!m.available)return '<div class="feature locked"><h3>Facebook and Instagram</h3><p>Your approved posts go to your Facebook Page and Instagram. Coming soon.</p></div>';
+  return '<div class="feature"><h3>Facebook and Instagram</h3><p>'+(m.connected?'Connected to '+esc(m.page)+(m.instagram?' and Instagram':'')+'. Posts go out only after you approve them.':'Connect your Page and every post you approve goes to Facebook'+' and Instagram too.')+'</p><div class="acts">'+
+    (m.connected?'<button class="btn ghost sm" type="button" data-a="meta-off">Disconnect</button>':'<a class="btn red sm" href="/meta/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Facebook</a>')+'</div></div>';
+}
+function invSheet(){
+  sheet('<h2>Add an invoice</h2><label>Customer\\u2019s name<input type="text" id="in" maxlength="80" autocomplete="off"></label><label>Amount<input type="text" id="ia" maxlength="20" inputmode="decimal" placeholder="$1,250"></label><label>Invoice number (optional)<input type="text" id="inr" maxlength="30"></label><label>Due date<input type="date" id="idue" value="'+localDay(0)+'"></label><label>Their email<input type="email" id="ie" maxlength="120" autocomplete="off"></label><label>Their cell (optional)<input type="tel" id="ip" maxlength="20" inputmode="tel" autocomplete="off"></label><label class="opt"><input type="checkbox" id="ic"><span>They agreed to get texts from us about this invoice</span></label><label>Your pay link<input type="url" id="il" maxlength="500" placeholder="https://"></label><p class="fine">Your own Stripe, Square or PayPal link. Money goes straight to you.</p><div class="acts"><button class="btn red" type="button" id="go">Add invoice</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  setTimeout(function(){var i=$('#in');if(i)i.focus();},60);
+  $('#go').onclick=function(){
+    var b=this,body={action:'add',name:$('#in').value,amount:$('#ia').value,number:$('#inr').value,due:$('#idue').value,email:$('#ie').value,phone:$('#ip').value,consent:$('#ic').checked,payLink:$('#il').value};
+    b.disabled=true;post('invoice',body).then(function(res){b.disabled=false;if(res.j.ok){close();S.invoices=[res.j.invoice].concat(S.invoices||[]);S.unpaid=(+S.unpaid||0)+res.j.invoice.amount;toast('Added. We\\u2019ll draft reminders if it runs late.');render();}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});
+  };
+}
+function invMark(id,paid){post('invoice',{action:paid?'paid':'open',id:+id}).then(function(res){if(res.j.ok){(S.invoices||[]).forEach(function(x){if(String(x.id)===String(id)){x.status=paid?'paid':'open';S.unpaid=(+S.unpaid||0)+(paid?-x.amount:x.amount);}});render();toast(paid?'Marked paid. Reminders stop.':'Moved back to unpaid.');}else toast('Could not save. Try again.');}).catch(function(){toast('No connection. Try again.');});}
+function copyText(u,msg){try{navigator.clipboard.writeText(u).then(function(){toast(msg);},function(){prompt('Copy this link',u);});}catch(e){prompt('Copy this link',u);}}
 function fuMark(id,action){
   needName(function(by){post('followup',{id:id,action:action,by:by}).then(function(res){if(res.j.ok){(S.followups||[]).forEach(function(x){if(String(x.id)===String(id)){x.status=res.j.status==='open'?'open':'done';x.doneAt=res.j.at;}});render();toast(action==='done'?'Marked done.':'Moved back.');}else toast(res.j.error||'Could not save. Try again.');}).catch(function(){toast('No connection. Try again.');});});
 }
@@ -610,6 +641,12 @@ document.addEventListener('click',function(e){
   else if(a==='photo')photoSheet();
   else if(a==='send'){var m=$('#msg'),txt=m?m.value.trim():'';if(!txt){toast('Type a message first.');return;}send('note',txt,function(){m.value='';});}
   else if(a==='fu-add')fuSheet();
+  else if(a==='inv-add')invSheet();
+  else if(a==='inv-paid')invMark(id,true);
+  else if(a==='inv-open')invMark(id,false);
+  else if(a==='inv-copy'){var iv=(S.invoices||[]).filter(function(x){return String(x.id)===String(id);})[0];if(iv)copyText(iv.link,'Invoice link copied.');}
+  else if(a==='copy-link')copyText(t.dataset.u,'Link copied.');
+  else if(a==='meta-off'){fetch('/meta/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.meta.connected=false;render();toast('Facebook disconnected.');});}
   else if(a==='fu-done')fuMark(id,'done');
   else if(a==='fu-copy'){var fx=(S.followups||[]).filter(function(x){return String(x.id)===String(id);})[0];if(fx){var tx2=fuText(fx);try{navigator.clipboard.writeText(tx2).then(function(){toast('Text copied. Paste it in a message.');},function(){toast(tx2);});}catch(x2){toast(tx2);}}}
   else if(a==='line-toggle')lineToggle();

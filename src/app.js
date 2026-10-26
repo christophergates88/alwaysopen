@@ -7,6 +7,7 @@ import { EmailMessage } from 'cloudflare:email';
 import { billingPage } from './billing.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
+import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -147,6 +148,8 @@ export async function handleApp(req, env, ctx, url) {
       const id = +b.id || 0, done = b.action !== 'open';
       const r = await env.DB.prepare('UPDATE app_leads SET status = ?1, done_at = ?2 WHERE id = ?3 AND client_id = ?4').bind(done ? 'done' : 'new', done ? new Date().toISOString() : null, id, c.client_id).run();
       return aj({ ok: changed(r) }, changed(r) ? 200 : 404);
+    } else if (sub === '/api/invoice' && meth === 'POST') {
+      return await apiInvoice(req, env, c);
     } else if (sub === '/api/followup' && meth === 'POST') {
       return await apiFollowup(req, env, ctx, c);
     }
@@ -199,7 +202,7 @@ async function apiState(env, c) {
     env.DB.prepare('SELECT COUNT(*) AS n FROM app_photos WHERE client_id = ?1 AND at > ?2').bind(cid, monthStart())
   ];
   qs.push(env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid));
-  qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind != 'post' ORDER BY created DESC LIMIT 60").bind(cid));
+  qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') ORDER BY created DESC LIMIT 60").bind(cid));
   qs.push(env.DB.prepare("SELECT id, kind, name, phone, amount, due, note, status, created, by, done_at FROM app_followups WHERE client_id = ?1 AND (status = 'open' OR (status = 'done' AND done_at > ?2)) ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, CASE WHEN due = '' THEN 1 ELSE 0 END, due, created DESC LIMIT 60").bind(cid, new Date(Date.now() - 30 * 86400000).toISOString()));
   if (f.calls) qs.push(env.DB.prepare("SELECT id, at, caller, caller_name, reason, details, wants, callback, urgency, summary, transcript, outcome, status, handled_by, handled_at FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 ORDER BY at DESC LIMIT 40").bind(cid, new Date(Date.now() - 60 * 86400000).toISOString()));
   const res = await env.DB.batch(qs);
@@ -217,12 +220,14 @@ async function apiState(env, c) {
     const rr = await env.DB.batch([
       env.DB.prepare("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND at >= ?2 AND outcome NOT IN ('live', 'spam') AND test = 0").bind(cid, ms),
       env.DB.prepare('SELECT COUNT(*) AS n FROM app_leads WHERE client_id = ?1 AND at >= ?2').bind(cid, ms),
-      env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind != 'post' AND created >= ?2").bind(cid, ms),
+      env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') AND created >= ?2").bind(cid, ms),
       env.DB.prepare('SELECT avg_job, win_rate FROM app_settings WHERE client_id = ?1').bind(cid)
     ]);
     const n = i => ((rr[i].results || [])[0] || {}).n || 0, st = (rr[3].results || [])[0] || {};
     results = { calls: n(0), requests: n(1), reviews: n(2), avgJob: +st.avg_job || 0, winRate: st.win_rate == null ? 30 : +st.win_rate };
   } catch (e) { results = null; }
+  const inv = await invoicesFor(env, cid);
+  if (results) results.unpaid = inv.unpaid;
   let bill = null;
   try { bill = await env.DB.prepare('SELECT plan, status, max, paused_until FROM billing WHERE client_id = ?1').bind(cid).first(); } catch (e) { bill = null; }
   const line = rows(6)[0] || null;
@@ -254,6 +259,10 @@ async function apiState(env, c) {
     locations: c.locations || [],
     calendar: c.staff ? null : await gcalStatus(env, c.client_id),
     quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '',
+    bookLink: c.ref ? SITE + '/b/' + encodeURIComponent(c.ref) : '',
+    invoices: inv.invoices,
+    unpaid: inv.unpaid,
+    meta: c.staff ? null : await metaStatus(env, cid),
     calls: f.calls ? rows(9).map(callOut) : []
   });
 }
@@ -441,6 +450,8 @@ async function apiDecide(req, env, ctx, c) {
     .bind(finalText, now, by, +c.regulated ? 1 : 0, id, c.client_id).run();
   if (!changed(r)) return aj({ ok: false, error: 'Already handled.' }, 409);
   ctx.waitUntil(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));
+  if (it.kind === 'invoice') ctx.waitUntil(sendInvoiceReminder(env, c, it, finalText, (to, s, x) => mailTo(env, to, s, x, c.business)).catch(() => {}));
+  if (it.kind === 'post' && /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(it.photo || '')) ctx.waitUntil(metaPublish(env, c.client_id, finalText, it.photo).catch(() => {}));
   return aj({ ok: true, status: 'approved', at: now, edited: finalText !== String(it.text || '').trim() });
 }
 
@@ -592,7 +603,7 @@ export async function appCron(env, at) {
           const notes = [];
           // Up to 3 waiting items each get their own notification with an Approve button; more than that, one summary.
           if (g.items.length >= 1 && g.items.length <= 3) for (const it of g.items) {
-            notes.push({ aps: { alert: { title: it.kind === 'post' ? 'A post is ready for your OK' : 'A review reply is ready for your OK', body: ((it.title ? it.title + '\n' : '') + (it.kind === 'post' ? '' : 'Our reply: ') + String(it.text || '')).slice(0, 900) }, sound: 'default', category: 'APPROVE', 'thread-id': 'approve' }, item: it.id, kind: it.kind });
+            notes.push({ aps: { alert: { title: it.kind === 'post' ? 'A post is ready for your OK' : (it.kind === 'invoice' ? 'An invoice reminder is ready for your OK' : 'A review reply is ready for your OK'), body: ((it.title ? it.title + '\n' : '') + (it.kind === 'review' || !it.kind ? 'Our reply: ' : '') + String(it.text || '')).slice(0, 900) }, sound: 'default', category: 'APPROVE', 'thread-id': 'approve' }, item: it.id, kind: it.kind });
           } else if (g.items.length > 1) {
             notes.push({ aps: { alert: { title: g.items.length + ' things are ready for your OK', body: 'Review replies and posts from Always Open. Open the app to approve.' }, sound: 'default', 'thread-id': 'approve' } });
           }
@@ -713,6 +724,17 @@ async function ntfy(env, title, body, priority, tags, click) {
   const headers = { Title: ascii(title), Priority: priority || 'default', Tags: tags || 'bell' };
   if (click) headers.Click = click;
   try { await fetch(env.NTFY_URL, { method: 'POST', headers, body: String(body || '').slice(0, 3000) }); } catch (e) { /* email still goes */ }
+}
+// Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
+async function mailTo(env, to, subject, text, biz) {
+  if (!env.EMAIL || !env.MAIL_FROM) return 'off';
+  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
+  const raw = [
+    'From: "' + ascii(biz || 'Always Open').replace(/"/g, '') + '" <' + env.MAIL_FROM + '>', 'To: <' + to + '>', 'Subject: ' + encodeHeader(oneLine(subject).slice(0, 140)),
+    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'
+  ].join('\r\n') + '\r\n\r\n' + text;
+  try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, to, raw)); return 'sent'; } catch (e) { return 'failed'; }
 }
 async function mail(env, subject, text) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return;
