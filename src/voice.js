@@ -45,6 +45,7 @@ const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // Always Open's own number. Its callers are business owners asking about Always Open, so each call reaches Chris the way a
 // website lead does (a phone push, and an email the daily check turns into a Pipeline prospect), not a client's app.
 export const OWN_ID = 'always-open';
+import { openSlots, bookSlot } from './gcal.js';
 
 // ---------- HTTP: Twilio webhooks and the relay socket ----------
 export async function handleVoice(req, env, ctx, url) {
@@ -271,6 +272,9 @@ export class CallRoom extends DurableObject {
       more: greetingMore(line), moreDone: 0, quiet: quietText(line)
     };
     if (s.more) s.last += speakMs(s.more);
+    if (!s.line.regulated && call.client_id !== OWN_ID) {
+      try { const o = await openSlots(this.env, call.client_id, now, 6); if (o && o.slots.length) s.line.slots = o.slots; } catch (e) { /* no calendar: take a message */ }
+    }
     this.t0 = now; this.testCall = !!s.test; this.tl = [];
     await this.keep(s);
     await this.ctx.storage.setAlarm(now + TICK_MS);
@@ -547,6 +551,15 @@ export class CallRoom extends DurableObject {
     const text = ((mine.lead ? mine.lead + ' ' : '') + spoken).trim();
     if (text) cur.msgs.push({ r: 'a', t: text, lead: mine.lead || undefined });
     cur.last = Date.now() + speakMs(spoken);
+    if (sp.flags.book && !cur.booked && cur.line.slots) {
+      const sl = cur.line.slots[sp.flags.book.n - 1];
+      if (sl) {
+        let ok = false;
+        try { ok = await bookSlot(this.env, cur.cid, sl, { name: sp.flags.book.name, phone: cur.caller, reason: sp.flags.book.reason }); } catch (e) { /* noted below */ }
+        cur.booked = { at: sl.say, ok };
+        await vlog(this.env, 'book', (ok ? 'booked ' : 'FAILED ') + cur.cid + ' ' + sl.say);
+      }
+    }
     if (sp.flags.transfer && cur.line.canTransfer) { cur.transfer = true; cur.endAt = Date.now() + speakMs(spoken) + 400; }
     else if (sp.flags.end || sp.flags.transfer) cur.endAt = Date.now() + speakMs(spoken) + 700;
     await this.keep(cur);
@@ -692,6 +705,7 @@ async function writeUp(env, sid, s, why) {
     try { const r = await summarize(env, line, msgs, call.caller); if (r) { note = r.note; aiIn += r.inTok; aiOut += r.outTok; model = model || r.model; } } catch (e) { note = null; }
     if (!note) note = { name: '', callback: '', reason: 'Left a message', details: msgs.filter(x => x.r === 'u').map(x => x.t).join(' ').slice(0, 300), when: '', urgent: false, spam: false, summary: 'They left a message. Read what they said below.' };
   }
+  if (note && s && s.booked) note.when = (s.booked.ok ? 'Booked on your Google Calendar: ' : 'Tried to book (did not save, please confirm): ') + s.booked.at;
   // 'transferred' is only set by afterDial, once the owner actually picked up.
   let outcome = call.outcome === 'transferred' ? 'transferred' : (heard ? 'done' : (why === 'failed' ? 'failed' : 'hangup'));
   if (note && note.spam) outcome = 'spam';
@@ -844,7 +858,9 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     L.goal ? '1. ' + L.goal : '1. Find out what they need.',
     (L.goal ? '2. Once they want a call back or are clearly interested, and not before, get their name and the best number.' : '2. Get their name and the best number for a callback.') + (callerSaid ? ' They are calling from ' + callerSaid + '. Ask if that is the best number; if not, get the right one and read it back.' : ' Read the number back to check it.'),
     '3. Get the details the team needs' + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '.',
-    '4. If they want an appointment or a visit, ask what day and time work best and say the team will confirm the time. Never say a time is booked.',
+    L.slots && L.slots.length
+      ? '4. If they want an appointment or a visit, offer one or two of these open times (numbered): ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Once they clearly pick one and you have their name, read the day and time back, and when they say yes, end that reply with [BOOK n | their name | short reason], where n is the number of the time. Then tell them it is on the calendar and they will get a call if anything changes. Book only once, and only one of these times; if none work, take their preferred time and say the team will confirm.'
+      : '4. If they want an appointment or a visit, ask what day and time work best and say the team will confirm the time. Never say a time is booked.',
     '5. Tell them what happens next: ' + (L.next || 'someone from the team will call them back soon.') + ' Then thank them and say goodbye.',
     '',
     'What you know about ' + L.business + ' (use only this; if something is not here, say the team will answer it on the callback):',
@@ -1007,7 +1023,7 @@ async function sse(body, onData) {
 // Turns the AI's text stream into what Twilio speaks: strips the [END]/[TRANSFER] controls and anything
 // that should not be read aloud, and marks the last piece of each reply.
 export class Speaker {
-  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false }; this.stopped = false; }
+  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null }; this.stopped = false; }
   push(tok) {
     if (this.stopped) return;
     this.buf += String(tok || '');
@@ -1016,10 +1032,11 @@ export class Speaker {
       if (i < 0) { this.emit(this.buf); this.buf = ''; return; }
       if (i > 0) { this.emit(this.buf.slice(0, i)); this.buf = this.buf.slice(i); }
       const j = this.buf.indexOf(']');
-      if (j < 0) { if (this.buf.length > 16) { this.emit(this.buf); this.buf = ''; } return; }
+      if (j < 0) { if (this.buf.length > (/^\[\s*B/i.test(this.buf) ? 300 : 16)) { this.emit(this.buf); this.buf = ''; } return; }
       const tag = this.buf.slice(1, j).trim().toUpperCase();
       if (tag === 'END') this.flags.end = true;
       else if (tag === 'TRANSFER') this.flags.transfer = true;
+      else if (tag.startsWith('BOOK')) { const raw = this.buf.slice(1, j).trim().slice(4).split('|').map(x => x.trim()); const n = parseInt(raw[0], 10); if (n > 0) this.flags.book = { n, name: (raw[1] || '').slice(0, 60), reason: (raw[2] || '').slice(0, 200) }; }
       this.buf = this.buf.slice(j + 1);
     }
   }

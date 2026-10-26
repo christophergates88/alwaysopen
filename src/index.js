@@ -6,6 +6,7 @@ import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations } from
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
 import { handleAudit } from './audit.js';
 import { handleBilling } from './billing.js';
+import { handleGoogle } from './gcal.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
 export { CallRoom };
@@ -34,6 +35,7 @@ export default {
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
     if (path === '/locations') { const k = req.headers.get('x-key') || ''; return handleLocations(req, env, !!env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)); }
+    if (path.startsWith('/google/')) return handleGoogle(req, env, url);
     if (path === '/app' || path.startsWith('/app/')) return handleApp(req, env, ctx, url);
     if (path.startsWith('/p/')) return photoGet(env, url);
     if (path.startsWith('/q/')) return handleQuote(req, env, ctx, url);

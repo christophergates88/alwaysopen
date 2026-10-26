@@ -6,6 +6,7 @@
 import { EmailMessage } from 'cloudflare:email';
 import { billingPage } from './billing.js';
 import { appHtml } from './apppage.js';
+import { gcalStatus } from './gcal.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -251,6 +252,7 @@ async function apiState(env, c) {
     results,
     billing: bill && !c.staff ? { plan: bill.plan || '', status: bill.status || '', max: !!+bill.max, pausedUntil: bill.paused_until || '' } : null,
     locations: c.locations || [],
+    calendar: c.staff ? null : await gcalStatus(env, c.client_id),
     quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '',
     calls: f.calls ? rows(9).map(callOut) : []
   });
