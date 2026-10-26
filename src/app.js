@@ -8,6 +8,7 @@ import { billingPage } from './billing.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
+import { apiImport, apiRevive, pastState } from './past.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES } from './biz.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
@@ -188,6 +189,10 @@ export async function handleApp(req, env, ctx, url) {
       return await apiTeam(req, env, c);
     } else if (sub === '/api/prefs' && meth === 'POST') {
       return await apiPrefs(req, env, c);
+    } else if (sub === '/api/import' && meth === 'POST') {
+      return await apiImport(req, env, c);
+    } else if (sub === '/api/revive' && meth === 'POST') {
+      return await apiRevive(req, env, c);
     }
   } catch (e) {
     return api ? aj({ ok: false, error: 'Something went wrong on our side. Please try again.' }, 500) : gone(500);
@@ -275,6 +280,7 @@ async function apiState(env, c) {
   // Jobs, estimates, payments, insights, team and onboarding (biz.js). Results money uses real job totals once there are jobs.
   let biz = {};
   try { biz = await bizState(env, c); } catch (e) { biz = {}; }
+  try { Object.assign(biz, await pastState(env, c)); } catch (e) { /* past customers are optional */ }
   if (results && biz.jobTotals && biz.jobTotals.count) { results.paidMonth = biz.jobTotals.paidMonth; results.booked = biz.jobTotals.booked; results.real = true; }
   const tech = c.role === 'tech';
   if (tech) results = results ? { calls: results.calls, requests: results.requests, reviews: results.reviews } : null;
@@ -780,12 +786,16 @@ async function ntfy(env, title, body, priority, tags, click) {
   try { await fetch(env.NTFY_URL, { method: 'POST', headers, body: String(body || '').slice(0, 3000) }); } catch (e) { /* email still goes */ }
 }
 // Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
-export async function mailTo(env, to, subject, text, biz) {
+export async function mailTo(env, to, subject, text, biz, opts) {
   if (env.SEND_MAIL) {
+    const msg = { to, from: { email: 'reminders@alwaysopenoffice.com', name: ascii(biz || 'Always Open').replace(/"/g, '').slice(0, 60) }, subject: oneLine(subject).slice(0, 140), text };
+    const rt = opts && /^[^\s@<>"]+@[^\s@<>"]+\.[A-Za-z]{2,}$/.test(opts.replyTo || '') ? opts.replyTo : '';
     try {
-      await env.SEND_MAIL.send({ to, from: { email: 'reminders@alwaysopenoffice.com', name: ascii(biz || 'Always Open').replace(/"/g, '').slice(0, 60) }, subject: oneLine(subject).slice(0, 140), text });
+      await env.SEND_MAIL.send(rt ? Object.assign({ replyTo: rt }, msg) : msg);
       return 'sent';
-    } catch (e) { /* fall through to the old path */ }
+    } catch (e) {
+      if (rt) { try { await env.SEND_MAIL.send(msg); return 'sent'; } catch (e2) { /* fall through to the old path */ } }
+    }
   }
   if (!env.EMAIL || !env.MAIL_FROM) return 'off';
   const domain = env.MAIL_FROM.split('@')[1] || 'localhost';

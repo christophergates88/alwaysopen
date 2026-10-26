@@ -8,6 +8,7 @@ import { handleAudit } from './audit.js';
 import { handleBilling } from './billing.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron } from './extras.js';
+import { handleOptOut } from './past.js';
 import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
@@ -45,6 +46,7 @@ export default {
     if (/^\/i\/[A-Za-z0-9]{24}\/pay$/.test(path)) return handleInvoicePay(req, env, url);
     if (path.startsWith('/i/')) return handleInvoicePage(req, env, url);
     if (path.startsWith('/e/')) return handleEstimate(req, env, ctx, url);
+    if (path.startsWith('/u/')) return handleOptOut(req, env, url);
     if (path.startsWith('/stripe/')) return handleStripe(req, env, ctx, url);
     if (path === '/meta/webhook') return metaWebhook(req, env, ctx, url);
     if (path.startsWith('/meta/')) return handleMeta(req, env, url);

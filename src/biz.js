@@ -2,6 +2,7 @@
 // Tables create themselves on first use. Nothing is sent to a customer or posted without the owner (or their team) tapping it.
 import { pushClient, sha256hex, mailTo } from './app.js';
 import { page, ensureInvoices, invOut, TEXTING_ON } from './extras.js';
+import { buildRevive } from './past.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -102,12 +103,14 @@ const ACT = {
   '/api/line': b => 'Changed Max settings',
   '/api/team': b => 'Changed a team role',
   '/api/prefs': b => 'Changed settings',
-  '/api/stripe': b => 'Started Stripe setup'
+  '/api/stripe': b => 'Started Stripe setup',
+  '/api/revive': b => b.action === 'refresh' ? '' : (b.action === 'approve' ? '' : (b.action === 'skip' ? 'Skipped a past-customer message' : (b.action === 'agree' ? 'Marked a customer OK to contact' : ''))),
+  '/api/import': b => b.action === 'agree' ? 'Changed who is OK to contact' : (b.action === 'forget' ? 'Removed a customer' : (b.action === 'wipe' ? 'Removed all imported customers' : ''))
 };
 export function actText(sub, b) { const f = ACT[sub]; return f ? f(b || {}) : ''; }
 
 // Roles: owner (their own link), manager, tech. Techs never see money or billing.
-export const MONEY_ROUTES = ['/api/invoice', '/api/quote', '/api/stripe', '/api/results', '/api/team', '/api/prefs'];
+export const MONEY_ROUTES = ['/api/invoice', '/api/quote', '/api/stripe', '/api/results', '/api/team', '/api/prefs', '/api/import', '/api/revive'];
 export async function staffRole(env, codeHash) {
   try { await ensureBiz(env); const r = await env.DB.prepare('SELECT role FROM app_staff WHERE code_hash = ?1').bind(codeHash).first(); const x = r && r.role; return x === 'tech' || x === 'owner' ? x : 'manager'; } catch (e) { return 'manager'; }
 }
@@ -549,9 +552,9 @@ export async function bizState(env, c, base) {
   const cid = c.client_id, money = c.role !== 'tech', owner = !c.staff;
   try { await ensureBiz(env); } catch (e) { return {}; }
   await syncJobs(env, cid).catch(() => {});
-  const jobs = ((await env.DB.prepare("SELECT * FROM biz_jobs WHERE client_id = ?1 AND (stage != 'paid' OR updated > ?2) ORDER BY CASE stage WHEN 'new' THEN 0 WHEN 'quoted' THEN 1 WHEN 'booked' THEN 2 WHEN 'done' THEN 3 ELSE 4 END, updated DESC LIMIT 80").bind(cid, new Date(Date.now() - 30 * 864e5).toISOString()).all()).results) || [];
+  const jobs = ((await env.DB.prepare("SELECT * FROM biz_jobs WHERE client_id = ?1 AND source != 'import' AND (stage != 'paid' OR updated > ?2) ORDER BY CASE stage WHEN 'new' THEN 0 WHEN 'quoted' THEN 1 WHEN 'booked' THEN 2 WHEN 'done' THEN 3 ELSE 4 END, updated DESC LIMIT 80").bind(cid, new Date(Date.now() - 30 * 864e5).toISOString()).all()).results) || [];
   const ms = monthStart();
-  const tot = await env.DB.prepare("SELECT SUM(CASE WHEN stage = 'paid' AND updated >= ?2 THEN amount ELSE 0 END) AS paid, SUM(CASE WHEN stage IN ('booked', 'done') THEN amount ELSE 0 END) AS booked, COUNT(*) AS n FROM biz_jobs WHERE client_id = ?1").bind(cid, ms).first();
+  const tot = await env.DB.prepare("SELECT SUM(CASE WHEN stage = 'paid' AND updated >= ?2 THEN amount ELSE 0 END) AS paid, SUM(CASE WHEN stage IN ('booked', 'done') THEN amount ELSE 0 END) AS booked, COUNT(*) AS n FROM biz_jobs WHERE client_id = ?1 AND source != 'import'").bind(cid, ms).first();
   const quotes = money ? (((await env.DB.prepare("SELECT * FROM biz_quotes WHERE client_id = ?1 AND (status = 'open' OR created > ?2) ORDER BY created DESC LIMIT 40").bind(cid, new Date(Date.now() - 45 * 864e5).toISOString()).all()).results) || []).map(quoteOut) : [];
   const p = await prefs(env, cid);
   const st = await stripeStatus(env, cid, true);
@@ -610,7 +613,8 @@ export async function weeklyNumbers(env, cid, at) {
 export function weeklyLine(n) {
   const pl = (x, a, b) => x + ' ' + (x === 1 ? a : b);
   const parts = [pl(n.calls, 'call', 'calls'), pl(n.bookings, 'booking', 'bookings'), pl(n.requests, 'request', 'requests'), pl(n.reviews, 'review', 'reviews')];
-  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.');
+  const rv = n.revive && n.revive.count ? ' ' + n.revive.count + ' past ' + (n.revive.count === 1 ? 'customer looks' : 'customers look') + ' ready to hear from you' + (n.revive.value ? ' (about ' + money(n.revive.value) + ')' : '') + '.' : '';
+  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.') + rv;
 }
 export async function bizCron(env, at) {
   at = at || Date.now();
@@ -625,7 +629,9 @@ export async function bizCron(env, at) {
       const p = await prefs(env, c.client_id);
       if (!p.weeklyOff && p.weeklySent !== lp.day) {
         await env.DB.prepare("INSERT INTO biz_prefs (client_id, weekly_sent) VALUES (?1, ?2) ON CONFLICT(client_id) DO UPDATE SET weekly_sent = excluded.weekly_sent").bind(c.client_id, lp.day).run();
-        const line = weeklyLine(await weeklyNumbers(env, c.client_id, at));
+        const wn = await weeklyNumbers(env, c.client_id, at);
+        try { wn.revive = await buildRevive(env, c.client_id, at); } catch (e) { /* the weekly note still goes */ }
+        const line = weeklyLine(wn);
         await pushClient(env, c.client_id, { aps: { alert: { title: 'Your week at ' + (c.business || 'your business'), body: line }, sound: 'default', 'thread-id': 'weekly' }, screen: 'home' }).catch(() => {});
         if (c.email) await mailTo(env, c.email, 'Your week at ' + (c.business || 'your business'), (c.owner_first ? 'Hi ' + c.owner_first + ',\n\n' : '') + line + '\n\nOpen the Always Open app for the details.\n\nYou can turn this weekly note off in the app under Settings.', 'Always Open').catch(() => {});
         // A text version goes out only once texting is approved and switched on.
