@@ -1,3 +1,4 @@
+import { BIZ_JS } from './bizpage.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -291,7 +292,7 @@ function vHome(){
   var f=S.features||{},first=S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here\\u2019s '+esc(S.client.business||'your business')+' today.</p>'+install()+heroCard();
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here\\u2019s '+esc(S.client.business||'your business')+' today.</p>'+install()+bizTop()+heroCard();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -299,7 +300,7 @@ function vHome(){
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We\\u2019ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=monthBlock()+invBlock()+fuBlock()+linkBlock()+metaBlock();
+  h+=monthBlock()+(isTech()?'':invBlock())+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
   h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
   return h;
 }
@@ -617,6 +618,7 @@ function shrink(file,cb){
   img.src=url;
 }
 
+${BIZ_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go]');if(!t)return;
@@ -658,6 +660,7 @@ document.addEventListener('click',function(e){
   else if(a==='ask-max')askAbout('Max','I\u2019d like to add Max, the AI line, to answer my calls.');
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
+  else if(a&&a.indexOf('bz-')===0)bizAct(a,id,t);
 });
 document.addEventListener('input',function(e){var t=e.target;if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;if(t&&t.id==='lw')DIRTY=true;});

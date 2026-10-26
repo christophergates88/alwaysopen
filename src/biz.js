@@ -229,7 +229,10 @@ export async function apiQuote(req, env, c) {
     const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? b.due : new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
     const pay = cl(b.payLink, 500), st = await stripeStatus(env, c.client_id);
     if (!st.ready && !/^https:\/\/[^\s]+\.[^\s]+/.test(pay)) return aj({ ok: false, error: 'Add your pay link (it starts with https://), or connect Stripe to take cards.' }, 400);
-    if (!q.phone && !q.email) return aj({ ok: false, error: 'This estimate has no phone or email for reminders. Add the invoice by hand instead.' }, 400);
+    const em = cl(b.email, 120), ph = cl(b.phone, 30).replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    if (em && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) q.email = em;
+    if (/^\d{10}$/.test(ph)) q.phone = ph;
+    if (!q.phone && !q.email) return aj({ ok: false, error: 'Add their email or cell so reminders can reach them.' }, 400);
     const tk = token(24);
     const ins = await env.DB.prepare('INSERT INTO app_invoices (client_id, token, number, name, phone, email, amount, due, pay_link, sms_ok, created) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)')
       .bind(c.client_id, tk, q.number || '', q.name, q.phone || '', q.email || '', +q.total, due, pay, b.consent === true && q.phone ? 1 : 0, ts).run();
