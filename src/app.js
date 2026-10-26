@@ -8,6 +8,7 @@ import { billingPage } from './billing.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
+import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES } from './biz.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -82,7 +83,7 @@ export async function handleApp(req, env, ctx, url) {
     if (!c) {
       try {
         const st = await env.DB.prepare('SELECT client_id, name FROM app_staff WHERE code_hash = ?1').bind(h).first();
-        if (st) { c = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1 AND active = 1').bind(st.client_id).first(); if (c) c.staff = st.name || 'Staff'; }
+        if (st) { c = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1 AND active = 1').bind(st.client_id).first(); if (c) { c.staff = st.name || 'Staff'; c.role = await staffRole(env, h); } }
       } catch (e) { c = null; }
     }
   }
@@ -109,6 +110,25 @@ export async function handleApp(req, env, ctx, url) {
   c.locations = locations.map(x => ({ id: x.client_id, name: x.label || x.business || '', current: x.client_id === c.client_id }));
   const base = '/app/' + code;
   const meth = req.method;
+  if (!c.staff) c.role = 'owner';
+  // Team roles: techs never see money or billing. Every change records who made it (staff links can't pick another name).
+  if (api && c.role === 'tech' && MONEY_ROUTES.indexOf(sub) > -1) return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
+  let body = null;
+  if (api && meth === 'POST' && /json/i.test(req.headers.get('content-type') || '') && +(req.headers.get('content-length') || 0) <= 20000) {
+    const raw = await req.text();
+    try { body = JSON.parse(raw); } catch (e) { body = null; }
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+      if (c.staff) body.by = c.staff;
+      c.whoName = c.staff || oneLine(String(body.by || '')).slice(0, 40) || c.owner_first || 'Owner';
+    } else body = null;
+    const hh = new Headers(req.headers); hh.delete('content-length');
+    req = new Request(req.url, { method: 'POST', headers: hh, body: body ? JSON.stringify(body) : raw });
+  }
+  if (api && meth === 'POST' && sub === '/api/photo' && c.staff) url.searchParams.set('by', c.staff);
+  const res = await route();
+  if (body && res.status === 200 && actText(sub, body)) ctx.waitUntil(logAct(env, c, actText(sub, body)));
+  return res;
+  async function route() {
   try {
     if (sub === '') {
       if (meth === 'GET' || meth === 'HEAD') return new Response(appHtml({ base, business: c.business || '' }), { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
@@ -152,11 +172,28 @@ export async function handleApp(req, env, ctx, url) {
       return await apiInvoice(req, env, c);
     } else if (sub === '/api/followup' && meth === 'POST') {
       return await apiFollowup(req, env, ctx, c);
+    } else if (sub === '/api/work' && meth === 'POST') {
+      return await apiWork(req, env, c);
+    } else if (sub === '/api/quote' && meth === 'POST') {
+      return await apiQuote(req, env, c);
+    } else if (sub === '/api/stripe' && meth === 'POST') {
+      return await apiStripe(req, env, c);
+    } else if (sub === '/api/inbox' && meth === 'GET') {
+      return await inboxApi(env, c);
+    } else if (sub === '/api/inbox' && meth === 'POST') {
+      return await apiInbox(req, env, c);
+    } else if (sub === '/api/insights' && meth === 'POST') {
+      return await insightsApi(req, env, c);
+    } else if (sub === '/api/team' && meth === 'POST') {
+      return await apiTeam(req, env, c);
+    } else if (sub === '/api/prefs' && meth === 'POST') {
+      return await apiPrefs(req, env, c);
     }
   } catch (e) {
     return api ? aj({ ok: false, error: 'Something went wrong on our side. Please try again.' }, 500) : gone(500);
   }
   return api ? aj({ ok: false, error: 'Not found' }, 404) : gone(404);
+  }
 }
 
 // Universal links: a tap on an /app/ link opens the iPhone app when it's installed.
@@ -235,7 +272,15 @@ async function apiState(env, c) {
     const d = parse(r.data) || {};
     return { month: r.month, label: d.label || r.month, stats: d.stats || {}, prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)) };
   });
-  return aj({
+  // Jobs, estimates, payments, insights, team and onboarding (biz.js). Results money uses real job totals once there are jobs.
+  let biz = {};
+  try { biz = await bizState(env, c); } catch (e) { biz = {}; }
+  if (results && biz.jobTotals && biz.jobTotals.count) { results.paidMonth = biz.jobTotals.paidMonth; results.booked = biz.jobTotals.booked; results.real = true; }
+  const tech = c.role === 'tech';
+  if (tech) results = results ? { calls: results.calls, requests: results.requests, reviews: results.reviews } : null;
+  let called = false;
+  try { called = !!(await env.DB.prepare('SELECT id FROM app_calls WHERE client_id = ?1 LIMIT 1').bind(cid).first()); } catch (e) {}
+  const out = {
     ok: true,
     now: new Date().toISOString(),
     client: {
@@ -264,7 +309,13 @@ async function apiState(env, c) {
     unpaid: inv.unpaid,
     meta: c.staff ? null : await metaStatus(env, cid),
     calls: f.calls ? rows(9).map(callOut) : []
-  });
+  };
+  const bprefs = biz.prefs; delete biz.prefs;
+  Object.assign(out, biz);
+  if (tech) { out.invoices = []; out.unpaid = 0; out.billing = null; out.quotes = []; }
+  out.me = { name: c.staff || c.owner_first || 'Owner', role: c.role || 'owner' };
+  out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
+  return aj(out);
 }
 
 // One AI-answered call as the client's app shows it. Numbers go out as +1XXXXXXXXXX (for tel: links) and 478-555-0142.
@@ -310,6 +361,8 @@ export function withOwner(row) {
   f.greeting = pick('greeting', String(f.greeting || ''));
   if (typeof o.owner === 'string') f.owner = o.owner;
   const out = Object.assign({}, row, { facts: JSON.stringify(f) });
+  // Spanish: the owner can switch it on or off from the app (spanish_owner wins over HQ's setting).
+  if (typeof o.spanish === 'boolean') out.spanish = o.spanish ? 1 : 0;
   out.transfer_to = pick('transferTo', row.transfer_to || '');
   out.transfer_when = pick('transferWhen', row.transfer_when || 'never');
   if (!/^\+1\d{10}$/.test(out.transfer_to || '')) { out.transfer_to = ''; out.transfer_when = 'never'; }
@@ -326,7 +379,7 @@ function lineOut(raw, c) {
   const biz = l.business || (c && c.business) || 'us';
   return {
     number: l.number, numberText: fmtNum(l.number), onAir: !!l.on_air, paused: !l.hq_on, name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30) || 'Max',
-    hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')),
+    hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')), spanish: !!+l.spanish,
     defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m the AI assistant here, and this call may be recorded. What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop()
@@ -344,6 +397,7 @@ async function apiLine(req, env, ctx, c) {
   const l = withOwner(raw), f = parse(l.facts) || {}, hq = parse(raw.facts) || {}, o = parse(raw.owner_set) || {};
   const changes = [];
   let tTo = l.transfer_to, tWhen = l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never';
+  if (typeof b.spanish === 'boolean' && (b.spanish ? 1 : 0) !== (+l.spanish ? 1 : 0)) { o.spanish = b.spanish; changes.push(b.spanish ? 'Answers Spanish-speaking callers in Spanish' : 'English only'); }
   if (typeof b.onAir === 'boolean' && (b.onAir ? 1 : 0) !== l.on_air) {
     if (b.onAir && !l.hq_on) return aj({ ok: false, error: 'Your line is paused on our side. Message us in Ask us to turn it back on.' }, 409);
     if (b.onAir) delete o.off; else o.off = true;
@@ -726,7 +780,7 @@ async function ntfy(env, title, body, priority, tags, click) {
   try { await fetch(env.NTFY_URL, { method: 'POST', headers, body: String(body || '').slice(0, 3000) }); } catch (e) { /* email still goes */ }
 }
 // Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
-async function mailTo(env, to, subject, text, biz) {
+export async function mailTo(env, to, subject, text, biz) {
   if (env.SEND_MAIL) {
     try {
       await env.SEND_MAIL.send({ to, from: { email: 'reminders@alwaysopenoffice.com', name: ascii(biz || 'Always Open').replace(/"/g, '').slice(0, 60) }, subject: oneLine(subject).slice(0, 140), text });
@@ -825,38 +879,40 @@ async function ipKey(req, env) {
 export async function handleQuote(req, env, ctx, url) {
   const ref = decodeURIComponent(url.pathname.slice(3)).replace(/\/+$/, '');
   const c = /^[a-z0-9-]{3,40}$/.test(ref) ? await env.DB.prepare('SELECT client_id, business, ref, regulated FROM app_clients WHERE ref = ?1 AND active = 1').bind(ref).first() : null;
-  if (!c) return quotePage(404, 'Not found', '<p>This request page is not available.</p>');
+  const lang = langOf(req, url), T = (k, v) => tr(lang, k, v);
+  if (!c) return quotePage(404, T('notFound'), '<p>' + T('notAvail') + '</p>', lang);
   await ensureLeads(env);
-  if (req.method === 'GET') return quoteForm(c, '');
+  if (req.method === 'GET') return quoteForm(c, '', null, lang, url);
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
   const form = await req.formData();
   const val = (k, n) => String(form.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, n);
   const name = val('name', 80), phone = val('phone', 30), need = val('need', 1200), smsOk = form.get('sms_ok') === 'yes' ? 1 : 0;
   const t = +form.get('t') || 0, bot = val('website', 100);
-  if (bot || (t && Date.now() - t < 2500)) return quotePage(200, 'Thank you', '<p>Your request was sent.</p>');
-  if (!name || phone.replace(/\D/g, '').length < 10 || need.length < 3) return quoteForm(c, 'Please add your name, a phone number and what you need.', { name, phone, need });
+  if (bot || (t && Date.now() - t < 2500)) return quotePage(200, T('thanks'), '<p>' + T('gotIt') + '</p>', lang);
+  if (!name || phone.replace(/\D/g, '').length < 10 || need.length < 3) return quoteForm(c, T('errReq'), { name, phone, need }, lang, url);
   const ip = await ipKey(req, env), hour = new Date(Date.now() - 3600000).toISOString();
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_leads WHERE ip_hash = ?1 AND at > ?2').bind(ip, hour).first();
-  if (n && n.n >= 5) return quotePage(429, 'Thank you', '<p>We already have your request. ' + esc(c.business) + ' will be in touch.</p>');
+  if (n && n.n >= 5) return quotePage(429, T('thanks'), '<p>' + esc(T('already', { b: c.business })) + '</p>', lang);
   const at = new Date().toISOString();
   await env.DB.prepare("INSERT INTO app_leads (client_id, at, name, phone, need, sms_ok, status, ip_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)").bind(c.client_id, at, name, phone, need, smsOk, ip).run();
   ctx.waitUntil(pushClient(env, c.client_id, { aps: { alert: { title: 'New request from ' + name, body: need.slice(0, 300) }, sound: 'default', 'thread-id': 'leads' }, screen: 'home' }).catch(() => {}));
-  return quotePage(200, 'Request sent', '<p>Thank you, ' + esc(name.split(' ')[0]) + '. ' + esc(c.business) + ' has your request and will call you back' + (smsOk ? ' or text you' : '') + '.</p>');
+  return quotePage(200, T('sent'), '<p>' + esc(T('sentLine', { n: name.split(' ')[0], b: c.business, t: smsOk ? T('orText') : '' })) + '</p>', lang);
 }
-function quoteForm(c, err, v) {
-  v = v || {};
-  return quotePage(err ? 400 : 200, 'Request from ' + c.business,
-    '<p class="sub">Tell ' + esc(c.business) + ' what you need. They get it on their phone right away.</p>' + (err ? '<p class="err">' + esc(err) + '</p>' : '') +
+function quoteForm(c, err, v, lang, url) {
+  v = v || {}; lang = lang || 'en';
+  const T = (k, x) => tr(lang, k, x);
+  return quotePage(err ? 400 : 200, T('reqTitle', { b: c.business }), (url ? langBar(url, lang) : '') +
+    '<p class="sub">' + esc(T('reqSub', { b: c.business })) + '</p>' + (err ? '<p class="err">' + esc(err) + '</p>' : '') +
     '<form method="post"><input type="hidden" name="t" value="' + Date.now() + '"><input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
-    '<label>Your name<input name="name" autocomplete="name" required value="' + esc(v.name || '') + '"></label>' +
-    '<label>Phone<input name="phone" type="tel" autocomplete="tel" required value="' + esc(v.phone || '') + '"></label>' +
-    '<label>What do you need?<textarea name="need" rows="4" required>' + esc(v.need || '') + '</textarea></label>' +
-    '<label class="opt"><input type="checkbox" name="sms_ok" value="yes"><span>OK to text me about this request. Reply STOP to opt out.</span></label>' +
-    '<button>Send my request</button></form>' +
-    '<p class="fine">Your details go only to ' + esc(c.business) + '. Request form by Always Open.</p>');
+    '<label>' + T('name') + '<input name="name" autocomplete="name" required value="' + esc(v.name || '') + '"></label>' +
+    '<label>' + T('phone') + '<input name="phone" type="tel" autocomplete="tel" required value="' + esc(v.phone || '') + '"></label>' +
+    '<label>' + T('need') + '<textarea name="need" rows="4" required>' + esc(v.need || '') + '</textarea></label>' +
+    '<label class="opt"><input type="checkbox" name="sms_ok" value="yes"><span>' + T('smsReq') + '</span></label>' +
+    '<button>' + T('sendReq') + '</button></form>' +
+    '<p class="fine">' + esc(T('fineReq', { b: c.business })) + '</p>', lang);
 }
-function quotePage(status, title, inner) {
-  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(title) + '</title><meta name="robots" content="noindex">' +
+function quotePage(status, title, inner, lang) {
+  const html = '<!doctype html><html lang="' + (lang === 'es' ? 'es' : 'en') + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(title) + '</title><meta name="robots" content="noindex">' +
     '<style>:root{--paper:#F5F4F0;--card:#fff;--ink:#171B26;--slate:#586075;--line:#DCDAD3;--red:#D92D20}@media (prefers-color-scheme:dark){:root{--paper:#12151D;--card:#1A1F2B;--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243}}' +
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,-apple-system,sans-serif;padding:24px 16px}main{max-width:480px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;display:grid;gap:14px}' +
     'h1{margin:0;font-size:1.6rem;line-height:1.15}.sub,.fine{color:var(--slate);margin:0}.fine{font-size:13px}.err{color:var(--red);margin:0;font-weight:600}form{display:grid;gap:12px}label{display:grid;gap:6px;font-weight:600}' +

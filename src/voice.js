@@ -416,6 +416,12 @@ export class CallRoom extends DurableObject {
   async onPrompt(s, said, opts) {
     said = said.trim();
     if (!said) return;
+    // A caller who speaks Spanish gets Spanish from here on (when the line answers in Spanish).
+    if (s.lang === 'en-US' && s.line && s.line.spanish && looksSpanish(said)) {
+      s.lang = 'es-US';
+      this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
+      this.mark('ES', 'auto');
+    }
     // The AI may already be writing the answer to these exact words (started from the partial prompts).
     let spec = this.spec;
     if (spec && spec.norm === qNorm(said) && spec.n === s.msgs.length) said = spec.text;
@@ -498,7 +504,9 @@ export class CallRoom extends DurableObject {
       this.mark('B', b);
       this.out(textMsg(b, true, s.lang));
     }, FILLER_MS);
-    const sys = systemPrompt(s.line, s.caller, s.lang, elapsed > WRAP_MS);
+    let sys = systemPrompt(s.line, s.caller, s.lang, elapsed > WRAP_MS);
+    // The first Spanish answer says, in Spanish, that this is the AI assistant and the call may be recorded.
+    if (s.lang === 'es-US' && !s.esTold) { sys += '\n\n' + ES_DISCLOSE; s.esTold = true; }
     const chat = toChat(s.msgs);
     // The AI is told which reaction was just said, in its instructions (never as the caller's words).
     const extra = turnNote(heardNow, s.msgs);
@@ -591,7 +599,8 @@ export class CallRoom extends DurableObject {
     if (d === '2' && s.line.spanish && s.lang === 'en-US') {
       s.lang = 'es-US';
       this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
-      return this.say(s, 'Claro. ¿En qué le puedo ayudar?');
+      s.esTold = true;
+      return this.say(s, 'Claro. Soy el asistente de inteligencia artificial y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
     }
     if (d === '0') {
       if (s.line.canTransfer) { s.transfer = true; await this.say(s, s.lang === 'es-US' ? 'Un momento, voy a intentar comunicarle.' : 'One moment, let me try to reach someone for you.'); const c = await this.load(); c.transfer = true; c.endAt = Date.now() + 2500; await this.keep(c); return; }
@@ -1306,6 +1315,16 @@ function turnNote(heard, msgs) {
 }
 function justSaid(text) {
   return 'You just said "' + text + '" out loud, the instant the caller stopped talking. Your reply is spoken right after it, so go straight to the point: do not say it again, and do not open with another reaction. One or two short sentences, like a person on the phone.';
+}
+const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are the business\'s AI assistant (asistente de inteligencia artificial) and that this call may be recorded (esta llamada puede ser grabada), then answer what they said.';
+const ES_WORDS = new Set(('hola buenos buenas dias días tardes noches necesito quiero quisiera por favor gracias habla hablo español espanol usted ustedes tengo tiene mi mis casa ayuda ayudar puede pueden cuanto cuánto cuesta precio ' +
+  'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí').split(' '));
+export function looksSpanish(said) {
+  const w = String(said || '').toLowerCase().replace(/[^a-záéíóúñü\s]/g, ' ').split(/\s+/).filter(Boolean);
+  if (!w.length) return false;
+  if (w.includes('español') || w.includes('espanol')) return true;
+  const hits = w.filter(x => ES_WORDS.has(x)).length;
+  return hits >= 3 || (hits >= 2 && hits / w.length >= 0.34);
 }
 function textMsg(token, last, lang) { const o = { type: 'text', token, last }; if (lang && lang !== 'en-US') o.lang = lang; return o; }
 

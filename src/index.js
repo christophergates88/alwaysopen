@@ -8,6 +8,7 @@ import { handleAudit } from './audit.js';
 import { handleBilling } from './billing.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron } from './extras.js';
+import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
 export { CallRoom };
@@ -41,7 +42,11 @@ export default {
     if (path.startsWith('/p/')) return photoGet(env, url);
     if (path.startsWith('/q/')) return handleQuote(req, env, ctx, url);
     if (path.startsWith('/b/')) return handleBooking(req, env, ctx, url);
+    if (/^\/i\/[A-Za-z0-9]{24}\/pay$/.test(path)) return handleInvoicePay(req, env, url);
     if (path.startsWith('/i/')) return handleInvoicePage(req, env, url);
+    if (path.startsWith('/e/')) return handleEstimate(req, env, ctx, url);
+    if (path.startsWith('/stripe/')) return handleStripe(req, env, ctx, url);
+    if (path === '/meta/webhook') return metaWebhook(req, env, ctx, url);
     if (path.startsWith('/meta/')) return handleMeta(req, env, url);
     if (path.startsWith('/voice/')) return handleVoice(req, env, ctx, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -53,7 +58,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) ctx.waitUntil(radarWatch(env));
-    else { ctx.waitUntil(stormWatch(env)); ctx.waitUntil(appCron(env)); ctx.waitUntil(invoiceCron(env)); if (env.CALLROOM) ctx.waitUntil(voiceCron(env)); }
+    else { ctx.waitUntil(stormWatch(env)); ctx.waitUntil(appCron(env)); ctx.waitUntil(invoiceCron(env)); ctx.waitUntil(bizCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(voiceCron(env)); }
   }
 };
 

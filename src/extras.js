@@ -2,11 +2,12 @@
 // Tables create themselves on first use. Nothing posts or sends without the owner's approval in the app.
 import { openSlots, bookSlot, gcalStatus } from './gcal.js';
 import { pushClient, sha256hex } from './app.js';
+import { langOf, langBar, t as tr } from './biz.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const META_REDIRECT = SITE + '/meta/callback';
-const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management';
+const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,instagram_basic,instagram_content_publish,business_management';
 export const TEXTING_ON = false;   // flips on when the Twilio campaign is approved
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -14,8 +15,8 @@ const val = (f, k, n) => String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g
 const aj = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 function token(n) { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(n)); return [...r].map(x => a[x % a.length]).join(''); }
 
-export function page(status, title, inner) {
-  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(title) + '</title><meta name="robots" content="noindex">' +
+export function page(status, title, inner, lang) {
+  const html = '<!doctype html><html lang="' + (lang === 'es' ? 'es' : 'en') + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(title) + '</title><meta name="robots" content="noindex">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&display=swap" rel="stylesheet">' +
     '<style>:root{--bg:#07080c;--card:#10131b;--ink:#f3f4f7;--slate:#9aa3b5;--line:#262c3a;--red:#ff3b30;--glow:rgba(255,59,48,.45)}*{box-sizing:border-box}' +
     'body{margin:0;background:radial-gradient(600px 300px at 50% -80px,rgba(255,59,48,.22),transparent),var(--bg);color:var(--ink);font:16px/1.55 Archivo,system-ui,sans-serif;padding:24px 16px}' +
@@ -26,7 +27,7 @@ export function page(status, title, inner) {
     '.slot span{display:block;padding:10px;border:1.5px solid var(--line);border-radius:10px;text-align:center;font-size:14px;cursor:pointer}.slot input:checked+span{border-color:var(--red);box-shadow:0 0 12px var(--glow)}.slot input:focus-visible+span{outline:2px solid #fff}' +
     '.opt{display:grid;grid-template-columns:22px 1fr;gap:10px;font-weight:500;font-size:14px;color:var(--slate)}.opt input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--red)}' +
     '.hp{position:absolute;left:-9999px;width:1px;height:1px}button,.btn{display:block;text-align:center;text-decoration:none;font:700 16px Archivo,system-ui;padding:14px;border:0;border-radius:11px;background:var(--red);color:#fff;cursor:pointer;box-shadow:0 0 18px var(--glow)}' +
-    '.ghost{background:transparent;border:1.5px solid var(--line);box-shadow:none;color:var(--ink)}dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}dt{color:var(--slate)}dd{margin:0;font-weight:700}.big{font:900 2.2rem Archivo,system-ui}</style></head><body><main><h1>' + esc(title) + '</h1>' + inner + '</main></body></html>';
+    '.ghost{background:transparent;border:1.5px solid var(--line);box-shadow:none;color:var(--ink)}dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}dt{color:var(--slate)}dd{margin:0;font-weight:700}.big{font:900 2.2rem Archivo,system-ui}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px 4px;border-bottom:1px solid var(--line)}th{color:var(--slate);font-weight:500}.n{text-align:right;white-space:nowrap}tfoot td{border:0}</style></head><body><main><h1>' + esc(title) + '</h1>' + inner + '</main></body></html>';
   return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex' } });
 }
 
@@ -34,46 +35,48 @@ export function page(status, title, inner) {
 export async function handleBooking(req, env, ctx, url) {
   const ref = decodeURIComponent(url.pathname.slice(3)).replace(/\/+$/, '');
   const c = /^[a-z0-9-]{3,40}$/.test(ref) ? await env.DB.prepare('SELECT client_id, business, ref FROM app_clients WHERE ref = ?1 AND active = 1').bind(ref).first() : null;
-  if (!c) return page(404, 'Not found', '<p>This booking page is not available.</p>');
-  if (!(await gcalStatus(env, c.client_id)).connected) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref), 302);
+  const lang = langOf(req, url), T = (k, v) => tr(lang, k, v), lq = lang === 'es' ? '?lang=es' : '';
+  if (!c) return page(404, T('notFound'), '<p>' + T('notAvail') + '</p>', lang);
+  if (!(await gcalStatus(env, c.client_id)).connected) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref) + lq, 302);
   const open = await openSlots(env, c.client_id, Date.now(), 12).catch(() => null);
-  if (!open) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref), 302);
-  if (req.method === 'GET') return bookForm(c, open, '');
+  if (!open) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref) + lq, 302);
+  if (req.method === 'GET') return bookForm(c, open, '', null, lang, url);
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
   const f = await req.formData();
   const name = val(f, 'name', 80), phone = val(f, 'phone', 30), email = val(f, 'email', 120), reason = val(f, 'reason', 600), start = +f.get('slot') || 0;
   const smsOk = f.get('sms_ok') === 'yes' ? 1 : 0, t = +f.get('t') || 0;
-  if (val(f, 'website', 100) || (t && Date.now() - t < 2500)) return page(200, 'Thank you', '<p>Your request was sent.</p>');
+  if (val(f, 'website', 100) || (t && Date.now() - t < 2500)) return page(200, T('thanks'), '<p>' + T('gotIt') + '</p>', lang);
   const v = { name, phone, email, reason, start };
-  if (!name || phone.replace(/\D/g, '').length < 10) return bookForm(c, open, 'Please add your name and a phone number.', v);
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bookForm(c, open, 'That email does not look right.', v);
+  if (!name || phone.replace(/\D/g, '').length < 10) return bookForm(c, open, T('errBook'), v, lang, url);
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bookForm(c, open, T('badEmail'), v, lang, url);
   const slot = open.slots.find(s => s.start === start);
-  if (!slot) return bookForm(c, open, 'That time was just taken. Please pick another.', v);
+  if (!slot) return bookForm(c, open, T('taken'), v, lang, url);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, at TEXT, name TEXT, phone TEXT, need TEXT, sms_ok INTEGER DEFAULT 0, status TEXT DEFAULT 'new', done_at TEXT, ip_hash TEXT)").run();
   const ip = (await sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_leads WHERE ip_hash = ?1 AND at > ?2').bind(ip, new Date(Date.now() - 3600e3).toISOString()).first();
-  if (n && n.n >= 5) return page(429, 'Thank you', '<p>We already have your booking. ' + esc(c.business) + ' will be in touch.</p>');
+  if (n && n.n >= 5) return page(429, T('thanks'), '<p>' + esc(T('alreadyBook', { b: c.business })) + '</p>', lang);
   const ok = await bookSlot(env, c.client_id, slot, { name, phone, reason: reason + (email ? '\nEmail: ' + email : ''), via: 'the online booking page' });
-  if (!ok) return bookForm(c, open, 'We could not book that time. Please try another or try again.', v);
+  if (!ok) return bookForm(c, open, T('cantBook'), v, lang, url);
   const need = 'Booked ' + slot.say + (reason ? ': ' + reason : '') + (email ? ' (' + email + ')' : '');
   await env.DB.prepare("INSERT INTO app_leads (client_id, at, name, phone, need, sms_ok, status, ip_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)").bind(c.client_id, new Date().toISOString(), name, phone, need, smsOk, ip).run();
   ctx.waitUntil(pushClient(env, c.client_id, { aps: { alert: { title: 'New booking: ' + name, body: need.slice(0, 300) }, sound: 'default', 'thread-id': 'leads' }, screen: 'home' }).catch(() => {}));
-  return page(200, 'You’re booked', '<p>Thank you, ' + esc(name.split(' ')[0]) + '. ' + esc(c.business) + ' has you down for <b>' + esc(slot.say) + '</b>. They’ll reach out if anything changes.</p>');
+  return page(200, T('booked'), '<p>' + esc(T('bookedLine', { n: name.split(' ')[0], b: c.business, s: slot.say })) + '</p>', lang);
 }
-function bookForm(c, open, err, v) {
-  v = v || {};
-  const slots = open.slots.length ? '<fieldset class="slots"><legend>Pick a time</legend>' + open.slots.map((s, i) => '<label class="slot"><input type="radio" name="slot" value="' + s.start + '"' + ((v.start ? v.start === s.start : i === 0) ? ' checked' : '') + ' required><span>' + esc(s.say) + '</span></label>').join('') + '</fieldset>'
-    : '<p class="err">No open times this week. <a style="color:#fff" href="/q/' + esc(c.ref) + '">Send a request instead</a>.</p>';
-  return page(err ? 400 : 200, 'Book with ' + c.business,
-    '<p class="sub">Pick a time that works. ' + esc(c.business) + ' gets it on their calendar right away.</p>' + (err ? '<p class="err">' + esc(err) + '</p>' : '') +
+function bookForm(c, open, err, v, lang, url) {
+  v = v || {}; lang = lang || 'en';
+  const T = (k, x) => tr(lang, k, x);
+  const slots = open.slots.length ? '<fieldset class="slots"><legend>' + T('pick') + '</legend>' + open.slots.map((s, i) => '<label class="slot"><input type="radio" name="slot" value="' + s.start + '"' + ((v.start ? v.start === s.start : i === 0) ? ' checked' : '') + ' required><span>' + esc(s.say) + '</span></label>').join('') + '</fieldset>'
+    : '<p class="err">' + T('noSlots') + ' <a style="color:#fff" href="/q/' + esc(c.ref) + (lang === 'es' ? '?lang=es' : '') + '">' + T('sendInstead') + '</a>.</p>';
+  return page(err ? 400 : 200, T('bookTitle', { b: c.business }), (url ? langBar(url, lang) : '') +
+    '<p class="sub">' + esc(T('bookSub', { b: c.business })) + '</p>' + (err ? '<p class="err">' + esc(err) + '</p>' : '') +
     '<form method="post"><input type="hidden" name="t" value="' + Date.now() + '"><input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' + slots +
-    '<label>Your name<input name="name" autocomplete="name" required value="' + esc(v.name || '') + '"></label>' +
-    '<label>Phone<input name="phone" type="tel" autocomplete="tel" required value="' + esc(v.phone || '') + '"></label>' +
-    '<label>Email (optional)<input name="email" type="email" autocomplete="email" value="' + esc(v.email || '') + '"></label>' +
-    '<label>What is it for?<textarea name="reason" rows="3">' + esc(v.reason || '') + '</textarea></label>' +
-    '<label class="opt"><input type="checkbox" name="sms_ok" value="yes"><span>OK to text me about this appointment. Reply STOP to opt out.</span></label>' +
-    (open.slots.length ? '<button>Book this time</button>' : '') + '</form>' +
-    '<p class="fine">Your details go only to ' + esc(c.business) + '. Booking page by Always Open.</p>');
+    '<label>' + T('name') + '<input name="name" autocomplete="name" required value="' + esc(v.name || '') + '"></label>' +
+    '<label>' + T('phone') + '<input name="phone" type="tel" autocomplete="tel" required value="' + esc(v.phone || '') + '"></label>' +
+    '<label>' + T('email') + '<input name="email" type="email" autocomplete="email" value="' + esc(v.email || '') + '"></label>' +
+    '<label>' + T('reason') + '<textarea name="reason" rows="3">' + esc(v.reason || '') + '</textarea></label>' +
+    '<label class="opt"><input type="checkbox" name="sms_ok" value="yes"><span>' + T('smsBook') + '</span></label>' +
+    (open.slots.length ? '<button>' + T('bookBtn') + '</button>' : '') + '</form>' +
+    '<p class="fine">' + esc(T('fineBook', { b: c.business })) + '</p>', lang);
 }
 
 // ---------------- invoices ----------------
@@ -103,7 +106,9 @@ export async function apiInvoice(req, env, c) {
     if (!name) return aj({ ok: false, error: 'Add the customer’s name.' }, 400);
     if (!(cents > 0 && cents < 1e9)) return aj({ ok: false, error: 'Add the amount.' }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return aj({ ok: false, error: 'Add the due date.' }, 400);
-    if (!/^https:\/\/[^\s]+\.[^\s]+/.test(pay)) return aj({ ok: false, error: 'Add your pay link (it starts with https://).' }, 400);
+    let card = false; try { card = !!(await env.DB.prepare('SELECT ready FROM biz_stripe WHERE client_id = ?1 AND ready = 1').bind(c.client_id).first()); } catch (e) {}
+    if (!card && !/^https:\/\/[^\s]+\.[^\s]+/.test(pay)) return aj({ ok: false, error: 'Add your pay link (it starts with https://), or connect Stripe to take cards.' }, 400);
+    if (pay && !/^https:\/\/[^\s]+\.[^\s]+/.test(pay)) return aj({ ok: false, error: 'Your pay link should start with https://.' }, 400);
     if (phone && !/^\d{10}$/.test(phone)) return aj({ ok: false, error: 'Add a 10-digit number, or leave it blank.' }, 400);
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return aj({ ok: false, error: 'That email does not look right.' }, 400);
     if (!phone && !email) return aj({ ok: false, error: 'Add a phone number or email so reminders can reach them.' }, 400);
@@ -118,6 +123,7 @@ export async function apiInvoice(req, env, c) {
   const paid = b.action === 'paid';
   const r = await env.DB.prepare('UPDATE app_invoices SET status = ?1, paid_at = ?2 WHERE id = ?3 AND client_id = ?4').bind(paid ? 'paid' : 'open', paid ? new Date().toISOString() : '', id, c.client_id).run();
   if (paid) await env.DB.prepare("UPDATE app_items SET status = 'closed', updated = ?1 WHERE client_id = ?2 AND kind = 'invoice' AND status = 'pending' AND id LIKE ?3").bind(new Date().toISOString(), c.client_id, 'inv-' + id + '-%').run();
+  try { await env.DB.prepare("UPDATE biz_jobs SET stage = ?1, updated = ?2 WHERE client_id = ?3 AND invoice_id = ?4").bind(paid ? 'paid' : 'done', new Date().toISOString(), c.client_id, id).run(); } catch (e) { /* no jobs yet */ }
   return aj({ ok: !!r.meta.changes });
 }
 // Public invoice page. "Mark paid" here only works for the owner (?code=...); customers just see Pay invoice.
@@ -125,23 +131,27 @@ export async function handleInvoicePage(req, env, url) {
   await ensureInvoices(env);
   const tk = url.pathname.slice(3).replace(/\/+$/, '');
   const inv = /^[A-Za-z0-9]{24}$/.test(tk) ? await env.DB.prepare('SELECT i.*, c.business FROM app_invoices i JOIN app_clients c ON c.client_id = i.client_id WHERE i.token = ?1').bind(tk).first() : null;
-  if (!inv) return page(404, 'Not found', '<p>This invoice link is not available.</p>');
+  const lang = langOf(req, url), T = (k, v) => tr(lang, k, v);
+  if (!inv) return page(404, T('notFound'), '<p>' + T('invGone') + '</p>', lang);
   if (req.method === 'POST') {
     const f = await req.formData();
     const code = String(f.get('code') || '');
     const own = code.length >= 24 && await env.DB.prepare('SELECT client_id FROM app_clients WHERE code_hash = ?1 AND client_id = ?2').bind(await sha256hex(code), inv.client_id).first();
-    if (!own) return page(403, 'Not allowed', '<p>Only ' + esc(inv.business) + ' can mark this paid.</p>');
+    if (!own) return page(403, T('notAllowed'), '<p>' + esc(T('onlyOwner', { b: inv.business })) + '</p>', lang);
     await env.DB.prepare("UPDATE app_invoices SET status = 'paid', paid_at = ?1 WHERE id = ?2").bind(new Date().toISOString(), inv.id).run();
     await env.DB.prepare("UPDATE app_items SET status = 'closed', updated = ?1 WHERE client_id = ?2 AND kind = 'invoice' AND status = 'pending' AND id LIKE ?3").bind(new Date().toISOString(), inv.client_id, 'inv-' + inv.id + '-%').run();
+    try { await env.DB.prepare("UPDATE biz_jobs SET stage = 'paid', updated = ?1 WHERE client_id = ?2 AND invoice_id = ?3").bind(new Date().toISOString(), inv.client_id, inv.id).run(); } catch (e) {}
     inv.status = 'paid';
   }
   const paid = inv.status === 'paid';
   const owner = url.searchParams.get('code') || '';
-  return page(200, (inv.number ? 'Invoice ' + inv.number : 'Invoice') + ' from ' + inv.business,
-    '<p class="big">' + money(+inv.amount) + '</p><dl><dt>For</dt><dd>' + esc(inv.name) + '</dd><dt>Due</dt><dd>' + esc(inv.due) + '</dd><dt>Status</dt><dd>' + (paid ? 'Paid. Thank you!' : 'Open') + '</dd></dl>' +
-    (paid ? '' : '<a class="btn" href="' + esc(inv.pay_link) + '" rel="noopener noreferrer">Pay invoice</a>') +
-    (!paid && owner ? '<form method="post"><input type="hidden" name="code" value="' + esc(owner) + '"><button class="ghost">Mark paid</button></form>' : '') +
-    '<p class="fine">Payment goes straight to ' + esc(inv.business) + ' through their own pay link. Questions? Contact ' + esc(inv.business) + ' directly.</p>');
+  let card = false; try { card = !!(await env.DB.prepare('SELECT ready FROM biz_stripe WHERE client_id = ?1 AND ready = 1').bind(inv.client_id).first()); } catch (e) {}
+  const just = url.searchParams.get('paid') === '1' && !paid;
+  return page(200, T('invoice') + (inv.number ? ' ' + inv.number : '') + ' ' + T('from') + ' ' + inv.business, langBar(url, lang) +
+    '<p class="big">' + money(+inv.amount) + '</p><dl><dt>' + T('for') + '</dt><dd>' + esc(inv.name) + '</dd><dt>' + T('due') + '</dt><dd>' + esc(inv.due) + '</dd><dt>' + T('status') + '</dt><dd>' + (paid ? T('paidThanks') : (just ? T('payDone') : T('open'))) + '</dd></dl>' +
+    (paid || just ? '' : (card ? '<form method="post" action="/i/' + esc(inv.token) + '/pay"><button>' + T('payCard') + '</button></form>' : '') + (inv.pay_link ? '<a class="btn' + (card ? ' ghost' : '') + '" href="' + esc(inv.pay_link) + '" rel="noopener noreferrer">' + T('payInv') + '</a>' : '')) +
+    (!paid && owner ? '<form method="post"><input type="hidden" name="code" value="' + esc(owner) + '"><button class="ghost">' + T('markPaid') + '</button></form>' : '') +
+    '<p class="fine">' + esc(T(card ? 'fineInvStripe' : 'fineInv', { b: inv.business })) + '</p>', lang);
 }
 export function reminderText(inv, biz, days) {
   return 'Hi ' + String(inv.name || '').split(' ')[0] + ', a friendly reminder from ' + biz + ' that invoice' + (inv.number ? ' #' + inv.number : '') + ' (' + money(+inv.amount) + ') was due ' + inv.due + '. You can see it and pay here: ' + SITE + '/i/' + inv.token + (days >= 7 ? ' If you already paid, thank you, and please ignore this.' : '');
@@ -216,6 +226,8 @@ export async function handleMeta(req, env, url) {
     if (!pg) return msg('No page found', 'We could not find a Facebook Page on that account. Make sure you picked your business Page, then try again.', 400);
     await env.DB.prepare('INSERT OR REPLACE INTO meta_pages (client_id, page_id, page_name, page_token, ig_id, connected_at) VALUES (?1,?2,?3,?4,?5,?6)')
       .bind(st[0], pg.id, pg.name || '', pg.access_token, (pg.instagram_business_account || {}).id || '', new Date().toISOString()).run();
+    // Page messages come to the shared inbox in the app (replies only when someone taps Send).
+    await fetch(GRAPH + '/' + pg.id + '/subscribed_apps', { method: 'POST', body: new URLSearchParams({ subscribed_fields: 'messages', access_token: pg.access_token }) }).catch(() => {});
     return msg('Facebook connected', 'Approved posts will now go to ' + esc(pg.name || 'your Page') + ((pg.instagram_business_account) ? ' and your Instagram' : '') + '. Nothing posts until you approve it in the app.');
   }
   if (p === '/meta/disconnect' && req.method === 'POST') {
