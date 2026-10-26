@@ -90,6 +90,21 @@ export async function handleApp(req, env, ctx, url) {
       .catch(() => {}));
     return api ? aj({ ok: false, error: 'This link is not working any more. Ask Always Open for a new one.' }, 404) : gone(404);
   }
+  // Multi-location: an owner's link can open any location linked to the same group (?loc=<client_id>). Staff stay on their own location.
+  let locations = [];
+  try {
+    await ensureLocations(env);
+    const g = await env.DB.prepare('SELECT group_id FROM app_locations WHERE client_id = ?1').bind(c.client_id).first();
+    if (g && !c.staff) {
+      locations = ((await env.DB.prepare('SELECT l.client_id, c.business, l.label FROM app_locations l JOIN app_clients c ON c.client_id = l.client_id WHERE l.group_id = ?1 AND c.active = 1 ORDER BY l.sort, c.business').bind(g.group_id).all()).results || []);
+      const want = url.searchParams.get('loc') || req.headers.get('x-loc') || '';
+      if (want && want !== c.client_id && locations.some(x => x.client_id === want)) {
+        const o = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1 AND active = 1').bind(want).first();
+        if (o) c = o;
+      }
+    }
+  } catch (e) { locations = []; }
+  c.locations = locations.map(x => ({ id: x.client_id, name: x.label || x.business || '', current: x.client_id === c.client_id }));
   const base = '/app/' + code;
   const meth = req.method;
   try {
@@ -235,6 +250,7 @@ async function apiState(env, c) {
     leads: leads.map(r => ({ id: r.id, at: r.at || '', name: r.name || '', phone: r.phone || '', need: r.need || '', text: !!+r.sms_ok, status: r.status === 'new' ? 'new' : 'done' })),
     results,
     billing: bill && !c.staff ? { plan: bill.plan || '', status: bill.status || '', max: !!+bill.max, pausedUntil: bill.paused_until || '' } : null,
+    locations: c.locations || [],
     quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '',
     calls: f.calls ? rows(9).map(callOut) : []
   });
@@ -821,6 +837,26 @@ function quotePage(status, title, inner) {
 
 async function ensureLeads(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, at TEXT, name TEXT, phone TEXT, need TEXT, sms_ok INTEGER DEFAULT 0, status TEXT DEFAULT 'new', done_at TEXT, ip_hash TEXT)").run();
+}
+
+async function ensureLocations(env) {
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_locations (client_id TEXT PRIMARY KEY, group_id TEXT NOT NULL, label TEXT, sort INTEGER DEFAULT 0)').run();
+}
+
+// HQ links or unlinks locations: POST {group, client_id, label, sort} or {client_id, remove: true}, x-key = LEADS_KEY.
+export async function handleLocations(req, env, keyOk) {
+  if (!keyOk) return aj({ ok: false, error: 'not allowed' }, 403);
+  await ensureLocations(env);
+  if (req.method === 'GET') return aj({ ok: true, locations: (await env.DB.prepare('SELECT * FROM app_locations ORDER BY group_id, sort').all()).results || [] });
+  let b = {}; try { b = await req.json(); } catch (e) {}
+  const cid = String(b.client_id || '').slice(0, 80);
+  if (!cid) return aj({ ok: false, error: 'client_id needed' }, 400);
+  if (b.remove) { await env.DB.prepare('DELETE FROM app_locations WHERE client_id = ?1').bind(cid).run(); return aj({ ok: true, removed: cid }); }
+  const grp = String(b.group || '').slice(0, 80);
+  if (!grp) return aj({ ok: false, error: 'group needed' }, 400);
+  await env.DB.prepare('INSERT INTO app_locations (client_id, group_id, label, sort) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(client_id) DO UPDATE SET group_id = excluded.group_id, label = excluded.label, sort = excluded.sort')
+    .bind(cid, grp, String(b.label || '').slice(0, 80), Math.round(+b.sort || 0)).run();
+  return aj({ ok: true, client_id: cid, group: grp });
 }
 
 async function ensureSettings(env) {
