@@ -1,4 +1,5 @@
 import { BIZ_JS } from './bizpage.js';
+import { PAST_JS } from './pastpage.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -300,7 +301,7 @@ function vHome(){
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We\\u2019ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=monthBlock()+(isTech()?'':invBlock())+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
+  h+=monthBlock()+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
   h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
   return h;
 }
@@ -619,6 +620,7 @@ function shrink(file,cb){
 }
 
 ${BIZ_JS}
+${PAST_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go]');if(!t)return;
@@ -661,6 +663,7 @@ document.addEventListener('click',function(e){
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
   else if(a&&a.indexOf('bz-')===0)bizAct(a,id,t);
+  else if(a&&a.indexOf('pc-')===0)pastAct(a,id,t);
 });
 document.addEventListener('input',function(e){var t=e.target;if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;if(t&&t.id==='lw')DIRTY=true;});
