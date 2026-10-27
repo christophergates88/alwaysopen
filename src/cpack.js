@@ -1,6 +1,6 @@
 // One-page PDF of every Compliance Guard rule for regulated clients, with sample replies that pass and are flagged,
 // so a compliance reviewer can sign off. Built from the live rules, so it cannot drift. No client data.
-import { guard, CG_RULES } from './app.js';
+import { guard, CG_RULES, CG_ALL } from './app.js';
 
 const FAKE = { regulated: 1, banned: '' };
 const PASS = [
@@ -48,7 +48,7 @@ export function buildPack(date) {
   add('What it is. Before any reply or post for a regulated client (insurance, medical, legal and similar) reaches the owner for approval, Compliance Guard checks the text against the rules below. Anything flagged is held with the reason shown; the owner can edit it. Nothing is posted without the owner approving it. The guard is a safeguard, not legal advice.', 9, false, 0, 6);
   add('The rules (regulated clients)', 11, true, 0, 6);
   d.rules.forEach((r, i) => { add((i + 1) + '. ' + r.why + ' (' + r.where + '). Example it catches: "' + r.example + '"', 9, false, 8, 2); });
-  add('Also: the owner\'s do-not-use word list, and for every client (regulated or not): no offer of anything in return for a review, because Google does not allow it. Example: "' + FLAG[3][1] + '"', 9, false, 8, 2);
+  add('Baseline for every client (regulated or not): ' + CG_ALL.map(r => r.why.toLowerCase()).join('; ') + '; no offer of anything in return for a review, because Google does not allow it (example: "' + FLAG[3][1] + '"); and the owner\'s own do-not-use word list.', 9, false, 8, 2);
   add('Samples that pass', 11, true, 0, 8);
   d.passed.forEach(s => add('PASSED (' + s.kind + '): "' + s.text + '"' + (s.hits.length ? '  [UNEXPECTED FLAG: ' + s.hits.join(', ') + ']' : ''), 9, false, 8, 2));
   add('Samples that are flagged', 11, true, 0, 8);

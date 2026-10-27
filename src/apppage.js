@@ -75,7 +75,7 @@ blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--line);color:va
 .lbl{font:500 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin-bottom:-6px}
 textarea{width:100%;min-height:140px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px;line-height:1.45;resize:vertical}
 input[type=text],input[type=tel],input[type=date]{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px}
-.cg{display:inline-flex;align-items:center;gap:6px;font:600 13px var(--body);color:var(--ok);background:var(--ok-soft);border-radius:99px;padding:4px 10px;justify-self:start}
+.gcard{margin:18px 0 0;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.gcard .gh{display:flex;gap:12px;align-items:flex-start}.gcard .gh svg{width:22px;height:22px;color:var(--ok);flex:none;margin-top:2px}.gcard .gh b{display:block}.gcard .gh span{display:block;color:var(--slate);font-size:14px}.gcard details{margin-top:10px}.gcard summary{cursor:pointer;font-weight:600;font-size:14px}.gcard ul{margin:8px 0 6px;padding-left:18px;font-size:14px}.cg{display:inline-flex;align-items:center;gap:6px;font:600 13px var(--body);color:var(--ok);background:var(--ok-soft);border-radius:99px;padding:4px 10px;justify-self:start}
 .cg svg{width:15px;height:15px}
 .hits{background:var(--sign-soft);border-radius:12px;padding:10px 12px;font-size:14.5px}
 .hits b{display:block;margin-bottom:4px}
@@ -306,8 +306,15 @@ function vHome(){
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
+  h+=guardCard();
   h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
   return h;
+}
+function guardCard(){
+  var g=S.complianceGuard;if(!g)return '';
+  var li=function(a){return a.map(function(x){return '<li>'+esc(x)+'</li>';}).join('');};
+  return '<div class="gcard"><div class="gh">'+ICON.shield+'<div><b>Compliance Guard is on</b><span>Every reply and post is checked before it reaches you, and nothing goes out until you approve it.</span></div></div>'+
+    '<details><summary>What it checks</summary><ul>'+li(g.base)+(g.strict&&g.strict.length?li(g.strict):'')+'</ul>'+(g.regulated?'<p class="fine">Extra rules apply because you work in a regulated field.</p>':'')+'<p class="fine">'+esc(g.note||'')+'</p></details></div>';
 }
 function offText(L){return L.transferTo?'calls ring through to '+L.transferText:'callers hear a short message';}
 function heroCard(){
@@ -499,7 +506,7 @@ function card(it){
   var vs=VERS[it.id];
   if(vs&&vs.length)body+='<div class="vers">'+vs.map(function(v,i){return '<div class="ver"><div class="lbl">'+esc(v.label)+'</div><div class="draft">'+esc(v.text)+'</div><button class="btn line" type="button" data-a="usever" data-id="'+esc(it.id)+'" data-i="'+i+'">Use this one</button></div>';}).join('')+'</div>';
   else if(vs==='loading')body+='<p class="fine">Writing two more versions\u2026</p>';
-  var cg=reg&&it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
+  var cg=it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
   var acts=ed!=null?'<button class="btn ok" type="button" data-a="save" data-id="'+esc(it.id)+'">Save and approve</button><button class="btn ghost" type="button" data-a="cancel" data-id="'+esc(it.id)+'">Cancel</button>':
     '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
   return '<article class="card" id="c-'+esc(it.id)+'">'+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';

@@ -43,6 +43,11 @@ export const CG_RULES = [
   { why: 'Sounds like advice', kinds: 'all', re: /\byou should (buy|get|add|switch|increase|raise|drop|carry)\b|\byou need (to (buy|add|switch|increase|carry)|more coverage|umbrella)\b|\b(we|i) recommend (you|that you)\b/i },
   { why: 'Testimonial about an outcome', kinds: 'post', re: /\bsaved (me|us|them)\b|\bgot (me|us) a better\b|\bcut (my|our) (bill|premium)\b/i }
 ];
+// For every business (not only regulated ones): the baseline Compliance Guard.
+export const CG_ALL = [
+  { why: 'Promises a ranking or "the best" (nobody can promise that)', kinds: 'all', re: /(#\s?1\b(?!\s*(priority|concern|goal|focus))|\bnumber (one|1)\b|\bno\.? ?1\b|\btop[- ]ranked\b|\b(first|top) (place|page|spot|result) on google\b|\branks? (first|#1|number one) on google\b|\bbest in (town|the (city|county|state|area|country|business))\b)/i },
+  { why: 'Sounds hostile or accuses the reviewer', kinds: 'reply', re: /\b(liar|liars|lying|fake review|scam(mer)?|idiot|stupid|ridiculous|you people|shut up|get lost)\b/i }
+];
 // For every client: Google doesn't allow offering anything in return for a review, and neither do we.
 const ASK_RE = /\b(leave|write|post|give|drop)\s+(us\s+|me\s+)?(a\s+|an\s+|your\s+)?([\w-]+\s+){0,2}reviews?\b|\breview us\b|\bd[eé]j[a-z]*\s+(una\s+|su\s+)?rese[ñn]a/i;
 const FOR_RE = /\bfor\s+(a\s+|an\s+|your\s+|the\s+)?([\w-]+\s+){0,2}reviews?\b|\bpor\s+(su\s+|una\s+)?rese[ñn]a/i;
@@ -51,21 +56,29 @@ const PERK_STRONG = /(\b(discount|percent off|gift ?card|coupon|giveaway|raffle|
 
 export function guard(text, c, kind) {
   const t = String(text || ''), hits = [];
-  if (c && +c.regulated) {
-    for (const r of CG_RULES) {
-      if (r.kinds !== 'all' && r.kinds !== kind) continue;
-      const m = t.match(r.re);
-      if (m) hits.push({ w: m[0], why: r.why });
-    }
-    String(c.banned || '').split(/\n/).map(x => x.trim()).filter(Boolean).forEach(b => {
-      if (t.toLowerCase().indexOf(b.toLowerCase()) > -1) hits.push({ w: b, why: 'On your do-not-use list' });
-    });
-  }
+  const run = list => { for (const r of list) {
+    if (r.kinds !== 'all' && r.kinds !== kind) continue;
+    const m = t.match(r.re);
+    if (m) hits.push({ w: m[0], why: r.why });
+  } };
+  run(CG_ALL);
+  if (c && +c.regulated) run(CG_RULES);
+  String(c && c.banned || '').split(/\n/).map(x => x.trim()).filter(Boolean).forEach(b => {
+    if (t.toLowerCase().indexOf(b.toLowerCase()) > -1) hits.push({ w: b, why: 'On your do-not-use list' });
+  });
   for (const s of t.split(/(?<=[.!?\n])/)) {
     const perk = (ASK_RE.test(s) && s.match(PERK_RE)) || (FOR_RE.test(s) && s.match(PERK_STRONG));
     if (perk) { hits.push({ w: perk[0], why: 'Offers something for a review (Google does not allow it)' }); break; }
   }
   return hits;
+}
+
+// What Compliance Guard checks for this client, in plain words (shown in the app).
+export function guardSummary(c) {
+  const reg = !!(c && +c.regulated);
+  const base = ['No offer of anything in return for a review (Google does not allow it)', 'No promise of a ranking or of being “the best”', 'No hostile words aimed at a reviewer', 'Your own do-not-use list'];
+  const strict = ['No promised outcomes', 'No rates or prices', 'No confirming someone is a client or patient', 'No claim details', 'No advice', 'No testimonials about outcomes'];
+  return { regulated: reg, base, strict: reg ? strict : [], note: 'Everything is a draft until you approve it. Compliance Guard is a safeguard, not legal advice.' };
 }
 
 // ---------- entry points ----------
@@ -308,7 +321,7 @@ async function apiState(env, c, ctx) {
     line: lineOut(line, c),
     reviews: rows(7).map(r => ({ id: r.id, name: r.title || '', stars: +r.stars || 0, review: r.context || '', reply: r.decided_text || r.text || '', status: r.status, at: r.created || '', decidedAt: r.decided_at || '' })),
     followups: f.followups ? rows(8).map(fuOut) : [],
-    items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked, photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
+    items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
     done: rows(1).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', status: r.status, text: r.decided_text || r.text || '', at: r.decided_at || r.updated || '', by: r.decided_by || '' })),
     months,
     messages: rows(3).reverse().map(r => ({ id: r.id, at: r.at, by: r.by || '', text: r.text || '', dir: r.dir === 'out' ? 'out' : 'in' })),
@@ -329,6 +342,7 @@ async function apiState(env, c, ctx) {
   Object.assign(out, biz);
   if (tech) { out.invoices = []; out.unpaid = 0; out.billing = null; out.quotes = []; }
   out.me = { name: c.staff || c.owner_first || 'Owner', role: c.role || 'owner' };
+  out.complianceGuard = guardSummary(c);
   if (cid === 'demo-plumbing') {
     out.sample = true;
     try { out.sampleWeekly = weeklyLine(await weeklyNumbers(env, cid, Date.now())); } catch (e) { out.sampleWeekly = ''; }
@@ -523,7 +537,7 @@ async function apiDecide(req, env, ctx, c) {
   const hits = guard(finalText, c, it.kind);
   if (hits.length) return aj({ ok: false, error: 'Please change the flagged words first.', hits }, 422);
   const r = await env.DB.prepare("UPDATE app_items SET status = 'approved', decided_text = ?1, decided_at = ?2, decided_by = ?3, hq_synced = 0, checked = ?4, updated = ?2 WHERE id = ?5 AND client_id = ?6 AND status = 'pending'")
-    .bind(finalText, now, by, +c.regulated ? 1 : 0, id, c.client_id).run();
+    .bind(finalText, now, by, 1, id, c.client_id).run();
   if (!changed(r)) return aj({ ok: false, error: 'Already handled.' }, 409);
   ctx.waitUntil(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));
   if (it.kind === 'reviewreq') ctx.waitUntil(sendReviewRequest(env, c, it, finalText).catch(() => {}));
