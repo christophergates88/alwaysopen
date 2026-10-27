@@ -4,6 +4,7 @@
 import { rivalsWeekly, ensureRivals, isoWeek as rivalWeek } from './rivals.js';
 import { ensureReviews } from './reviews.js';
 import { seedDemo } from './demo.js';
+import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
 import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
@@ -36,6 +37,7 @@ export default {
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
       return new Response('ok', { headers: { 'cache-control': 'no-store' } });
     }
+    if (path === '/ops' || path === '/ops/done') return handleOpsBoard(req, env, url);
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
@@ -85,7 +87,7 @@ export default {
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
-    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); }
+    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); }
     else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
