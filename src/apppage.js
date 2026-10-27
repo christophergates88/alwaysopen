@@ -207,6 +207,7 @@ a.btn{color:inherit}
 .switch[disabled]{opacity:.45;cursor:default}
 .form label{display:grid;gap:6px;font-weight:600;font-size:14.5px}
 .form textarea{min-height:110px}
+.vers{margin-top:10px;display:grid;gap:10px}.ver{border:1px dashed var(--line);border-radius:12px;padding:10px}.ver .btn{margin-top:8px}
 select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px;color:var(--ink)}
 .form details summary{cursor:pointer;font-weight:600;color:var(--slate);min-height:32px;display:flex;align-items:center}
 .score .big{display:grid;justify-items:start;gap:2px}
@@ -227,7 +228,7 @@ select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:v
 const JS = `
 (function(){
 'use strict';
-var S=null,TAB='home',EDIT={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
+var S=null,TAB='home',EDIT={},VERS={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
 var $=function(s){return document.querySelector(s);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function store(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}}
@@ -487,14 +488,18 @@ function install(){
 }
 function card(it){
   var reg=S.client.regulated,ed=EDIT[it.id];
-  var kind=it.kind==='post'?'Google post':'Review reply';
+  var kind=it.kind==='post'?'Google post':(it.kind==='reviewreq'?'Review request':'Review reply');
   var head='<div class="ch"><span class="chip'+(/storm/i.test(it.context)&&it.kind==='post'?' storm':'')+'">'+kind+'</span>'+(it.kind!=='post'&&it.stars?'<span class="stars" aria-label="'+it.stars+' stars">'+stars(it.stars)+'</span>':'')+(it.title?'<span class="who">'+esc(it.title)+'</span>':'')+'</div>';
-  var ctx=it.kind!=='post'?(it.context?'<div class="lbl">Their review</div><blockquote>'+esc(it.context)+'</blockquote>':'<blockquote>Rating only, no written review.</blockquote>'):(it.context?'<div class="lbl">'+esc(it.context)+'</div>':'');
+  var ctx=it.kind==='reviewreq'?(it.context?'<div class="lbl">'+esc(it.context)+'</div>':''):it.kind!=='post'?(it.context?'<div class="lbl">Their review</div><blockquote>'+esc(it.context)+'</blockquote>':'<blockquote>Rating only, no written review.</blockquote>'):(it.context?'<div class="lbl">'+esc(it.context)+'</div>':'');
   var pic=it.photo?'<img class="pic" src="'+esc(it.photo)+'" alt="Your photo for this post" loading="lazy">':'';
-  var body=pic+(ed!=null?'<div class="lbl">'+(it.kind==='post'?'Your post':'Your reply')+'</div><textarea data-ed="'+esc(it.id)+'" aria-label="Edit the text">'+esc(ed)+'</textarea>':'<div class="lbl">'+(it.kind==='post'?'The post':'Our reply for you')+'</div><div class="draft">'+esc(it.text)+'</div>');
+  var lblA=it.kind==='post'?'Your post':(it.kind==='reviewreq'?'The email':'Your reply'),lblB=it.kind==='post'?'The post':(it.kind==='reviewreq'?'The email they get':'Our reply for you');
+  var body=pic+(ed!=null?'<div class="lbl">'+lblA+'</div><textarea data-ed="'+esc(it.id)+'" aria-label="Edit the text">'+esc(ed)+'</textarea>':'<div class="lbl">'+lblB+'</div><div class="draft">'+esc(it.text)+'</div>');
+  var vs=VERS[it.id];
+  if(vs&&vs.length)body+='<div class="vers">'+vs.map(function(v,i){return '<div class="ver"><div class="lbl">'+esc(v.label)+'</div><div class="draft">'+esc(v.text)+'</div><button class="btn line" type="button" data-a="usever" data-id="'+esc(it.id)+'" data-i="'+i+'">Use this one</button></div>';}).join('')+'</div>';
+  else if(vs==='loading')body+='<p class="fine">Writing two more versions\u2026</p>';
   var cg=reg&&it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
   var acts=ed!=null?'<button class="btn ok" type="button" data-a="save" data-id="'+esc(it.id)+'">Save and approve</button><button class="btn ghost" type="button" data-a="cancel" data-id="'+esc(it.id)+'">Cancel</button>':
-    '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button><button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
+    '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
   return '<article class="card" id="c-'+esc(it.id)+'">'+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
 }
 function vApprove(){
@@ -594,11 +599,11 @@ function hoursSheet(){
   $('#go').onclick=function(){var d=$('#hd').value.trim(),t=$('#hh').value.trim();if(!d||!t){toast('Add the days and the hours.');return;}send('hours',d+': '+t+'.',close);};
 }
 function jobSheet(){
-  sheet('<h2>Finished a job</h2><p class="fine">They get one text asking for a Google review. Add every customer, not just the happy ones.</p><label>Customer\\u2019s first name<input type="text" id="jf" maxlength="40" autocomplete="off"></label><label>Their cell number<input type="tel" id="jp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>What was the job? (optional)<input type="text" id="jj" maxlength="80"></label><label class="check"><input type="checkbox" id="jc"><span>They agreed to get one text from us.</span></label><div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  sheet('<h2>Finished a job</h2><p class="fine">They get one note asking for a Google review: a text once texting is on, or an email you approve first. Add every customer, not just the happy ones.</p><label>Customer\\u2019s first name<input type="text" id="jf" maxlength="40" autocomplete="off"></label><label>Their cell number<input type="tel" id="jp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>Or their email<input type="email" id="je" maxlength="120" inputmode="email" autocomplete="off" placeholder="name@example.com"></label><label>What was the job? (optional)<input type="text" id="jj" maxlength="80"></label><label class="check"><input type="checkbox" id="jc"><span>They agreed to hear from us once, by text or email.</span></label><div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
   setTimeout(function(){$('#jf').focus();},60);
   $('#go').onclick=function(){
-    var b=this;if(!$('#jc').checked){toast('Only add people who agreed to a text.');return;}
-    needName(function(by){b.disabled=true;post('job',{first:$('#jf').value,phone:$('#jp').value,job:$('#jj').value,consent:true,by:by}).then(function(res){b.disabled=false;if(res.j.ok){close();toast(res.j.duplicate?res.j.message:'Added. Their review request goes out soon.');}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
+    var b=this;if(!$('#jc').checked){toast('Only add people who agreed to hear from you.');return;}
+    needName(function(by){b.disabled=true;post('job',{first:$('#jf').value,phone:$('#jp').value,email:$('#je').value,job:$('#jj').value,consent:true,by:by}).then(function(res){b.disabled=false;if(res.j.ok){close();toast(res.j.duplicate?res.j.message:(res.j.draft?res.j.message:'Added. Their review request goes out soon.'));}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
   };
 }
 function photoSheet(){
@@ -632,6 +637,8 @@ document.addEventListener('click',function(e){
   if(a==='approve')decide(id,'approve','');
   else if(a==='edit'){var it=(S.items||[]).filter(function(x){return x.id===id;})[0];if(it){EDIT[id]=it.text;render();var ta=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}}}
   else if(a==='cancel'){delete EDIT[id];render();}
+  else if(a==='versions'){VERS[id]='loading';render();post('versions',{id:id}).then(function(res){if(res.j.ok){VERS[id]=res.j.versions;}else{delete VERS[id];toast(res.j.error||'Not available right now.');}render();}).catch(function(){delete VERS[id];render();toast('No connection. Try again.');});}
+  else if(a==='usever'){var vv=(VERS[id]||[])[+t.dataset.i];if(vv){EDIT[id]=vv.text;delete VERS[id];render();var ta2=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta2)ta2.focus();}}
   else if(a==='save'){var tx=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');var v=tx?tx.value.trim():'';if(!v){toast('The text is empty.');return;}EDIT[id]=v;decide(id,'approve',v);}
   else if(a==='skip'){if(t.classList.contains('sure'))decide(id,'skip','');else{t.classList.add('sure');t.textContent='Tap again to skip';setTimeout(function(){if(t.isConnected){t.classList.remove('sure');t.textContent='Skip';}},4000);}}
   else if(a==='inst-x'){store('ao_inst_x','1');render();}

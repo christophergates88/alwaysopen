@@ -423,7 +423,7 @@ export async function inbox(env, c) {
     out.push({ id: 'msg-' + last.channel + '-' + last.thread, channel: last.channel === 'facebook' ? 'facebook' : 'text', at: last.at, name: (lastIn && lastIn.name) || last.name || '', text: last.text || '', open: last.dir === 'in' && last.status === 'new',
       canReply: last.channel === 'facebook' && !!lastIn && Date.now() - Date.parse(lastIn.at) < 24 * 3600e3, thread: list.slice(0, 12).reverse().map(x => ({ dir: x.dir, text: x.text, at: x.at, by: x.by || '' })) });
   }
-  for (const r of await q("SELECT id, title, context, stars, status, created FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') AND created > ?2 ORDER BY created DESC LIMIT 30", cid, since))
+  for (const r of await q("SELECT id, title, context, stars, status, created FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created > ?2 ORDER BY created DESC LIMIT 30", cid, since))
     out.push({ id: 'rev-' + r.id, channel: 'google', at: r.created, name: r.title || '', text: (r.stars ? r.stars + '★ ' : '') + (r.context || ''), open: r.status === 'pending', canReply: false });
   out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return out.slice(0, 100);
@@ -497,7 +497,7 @@ export async function buildInsights(env, cid, month, force) {
   await ensureBiz(env);
   month = month || new Date().toISOString().slice(0, 7);
   const start = month + '-01T00:00:00.000Z', end = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 1)).toISOString();
-  const revs = ((await env.DB.prepare("SELECT stars, context FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') AND created >= ?2 AND created < ?3 AND context != '' LIMIT 80").bind(cid, start, end).all()).results) || [];
+  const revs = ((await env.DB.prepare("SELECT stars, context FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created >= ?2 AND created < ?3 AND context != '' LIMIT 80").bind(cid, start, end).all()).results) || [];
   const have = await env.DB.prepare('SELECT * FROM biz_insights WHERE client_id = ?1 AND month = ?2').bind(cid, month).first();
   if (!force && have && (+have.reviews === revs.length || Date.now() - Date.parse(have.at) < 20 * 3600e3)) return have;
   if (revs.length < 2) return have || null;
@@ -606,7 +606,7 @@ export async function weeklyNumbers(env, cid, at) {
   const calls = await one("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND at > ?2 AND test = 0 AND outcome NOT IN ('live', 'spam')", cid, since);
   const books = await one("SELECT COUNT(*) AS n FROM app_leads WHERE client_id = ?1 AND at > ?2 AND need LIKE 'Booked %'", cid, since);
   const reqs = await one("SELECT COUNT(*) AS n FROM app_leads WHERE client_id = ?1 AND at > ?2 AND need NOT LIKE 'Booked %'", cid, since);
-  const revs = await one("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') AND created > ?2", cid, since);
+  const revs = await one("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created > ?2", cid, since);
   const unpaid = await one("SELECT SUM(amount) AS s FROM app_invoices WHERE client_id = ?1 AND status = 'open'", cid);
   const paid = await one("SELECT SUM(amount) AS s FROM app_invoices WHERE client_id = ?1 AND status = 'paid' AND paid_at > ?2", cid, since);
   return { calls: +calls.n || 0, bookings: +books.n || 0, requests: +reqs.n || 0, reviews: +revs.n || 0, unpaid: +unpaid.s || 0, paid: +paid.s || 0 };

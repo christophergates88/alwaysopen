@@ -4,6 +4,7 @@
 // and reads back approvals, messages, finished jobs and photos. Approvals ping Christopher's phone right away (ntfy).
 // Every 10 minutes the cron sends iPhone notifications for new drafts and new replies from Always Open (when APNs is set up).
 import { EmailMessage } from 'cloudflare:email';
+import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
@@ -194,6 +195,8 @@ export async function handleApp(req, env, ctx, url) {
       return await apiImport(req, env, c);
     } else if (sub === '/api/revive' && meth === 'POST') {
       return await apiRevive(req, env, c);
+    } else if (sub === '/api/versions' && meth === 'POST') {
+      return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
     }
@@ -247,7 +250,7 @@ async function apiState(env, c, ctx) {
     env.DB.prepare('SELECT COUNT(*) AS n FROM app_photos WHERE client_id = ?1 AND at > ?2').bind(cid, monthStart())
   ];
   qs.push(env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid));
-  qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') ORDER BY created DESC LIMIT 60").bind(cid));
+  qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') ORDER BY created DESC LIMIT 60").bind(cid));
   qs.push(env.DB.prepare("SELECT id, kind, name, phone, amount, due, note, status, created, by, done_at FROM app_followups WHERE client_id = ?1 AND (status = 'open' OR (status = 'done' AND done_at > ?2)) ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, CASE WHEN due = '' THEN 1 ELSE 0 END, due, created DESC LIMIT 60").bind(cid, new Date(Date.now() - 30 * 86400000).toISOString()));
   if (f.calls) qs.push(env.DB.prepare("SELECT id, at, caller, caller_name, reason, details, wants, callback, urgency, summary, transcript, outcome, status, handled_by, handled_at FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 ORDER BY at DESC LIMIT 40").bind(cid, new Date(Date.now() - 60 * 86400000).toISOString()));
   const res = await env.DB.batch(qs);
@@ -265,12 +268,13 @@ async function apiState(env, c, ctx) {
     const rr = await env.DB.batch([
       env.DB.prepare("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND at >= ?2 AND outcome NOT IN ('live', 'spam') AND test = 0").bind(cid, ms),
       env.DB.prepare('SELECT COUNT(*) AS n FROM app_leads WHERE client_id = ?1 AND at >= ?2').bind(cid, ms),
-      env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice') AND created >= ?2").bind(cid, ms),
+      env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created >= ?2").bind(cid, ms),
       env.DB.prepare('SELECT avg_job, win_rate FROM app_settings WHERE client_id = ?1').bind(cid)
     ]);
     const n = i => ((rr[i].results || [])[0] || {}).n || 0, st = (rr[3].results || [])[0] || {};
     results = { calls: n(0), requests: n(1), reviews: n(2), avgJob: +st.avg_job || 0, winRate: st.win_rate == null ? 30 : +st.win_rate };
   } catch (e) { results = null; }
+  const versions = versionsOn(env);
   const inv = await invoicesFor(env, cid);
   if (results) results.unpaid = inv.unpaid;
   let bill = null;
@@ -299,7 +303,7 @@ async function apiState(env, c, ctx) {
       refLink: c.ref ? SITE + '/?ref=' + encodeURIComponent(c.ref) + '#contact' : SITE + '/#contact',
       qr: qrOut(c.qr)
     },
-    features: Object.assign({}, f, { line: !!line }),
+    features: Object.assign({}, f, { line: !!line, versions }),
     line: lineOut(line, c),
     reviews: rows(7).map(r => ({ id: r.id, name: r.title || '', stars: +r.stars || 0, review: r.context || '', reply: r.decided_text || r.text || '', status: r.status, at: r.created || '', decidedAt: r.decided_at || '' })),
     followups: f.followups ? rows(8).map(fuOut) : [],
@@ -514,6 +518,7 @@ async function apiDecide(req, env, ctx, c) {
     .bind(finalText, now, by, +c.regulated ? 1 : 0, id, c.client_id).run();
   if (!changed(r)) return aj({ ok: false, error: 'Already handled.' }, 409);
   ctx.waitUntil(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));
+  if (it.kind === 'reviewreq') ctx.waitUntil(sendReviewRequest(env, c, it, finalText).catch(() => {}));
   if (it.kind === 'invoice') ctx.waitUntil(sendInvoiceReminder(env, c, it, finalText, (to, s, x) => mailTo(env, to, s, x, c.business)).catch(() => {}));
   if (it.kind === 'post' && /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(it.photo || '')) ctx.waitUntil(metaPublish(env, c.client_id, finalText, it.photo).catch(() => {}));
   return aj({ ok: true, status: 'approved', at: now, edited: finalText !== String(it.text || '').trim() });
@@ -551,8 +556,18 @@ async function apiJob(req, env, ctx, c) {
   const job = oneLine(clean(b.job, 80));
   const by = oneLine(clean(b.by, 40)) || 'Owner';
   if (!first) return aj({ ok: false, error: "Add the customer's first name." }, 400);
-  if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(phone)) return aj({ ok: false, error: 'Add a 10-digit cell number.' }, 400);
-  if (b.consent !== true) return aj({ ok: false, error: 'Check the box only if they agreed to get a text. Without it we can’t send one.' }, 400);
+  const email = oneLine(clean(b.email, 120)).toLowerCase();
+  if (email && !reviewReqValid(email)) return aj({ ok: false, error: 'That email does not look right.' }, 400);
+  if (!phone && !email) return aj({ ok: false, error: 'Add a 10-digit cell number or an email.' }, 400);
+  if (phone && !/^[2-9]\d{2}[2-9]\d{6}$/.test(phone)) return aj({ ok: false, error: 'Add a 10-digit cell number.' }, 400);
+  if (b.consent !== true) return aj({ ok: false, error: 'Check the box only if they agreed to hear from you. Without it we can’t send anything.' }, 400);
+  if (email && !phone) {
+    const q = await queueReviewRequest(env, c, first, email, job, by);
+    if (!q.ok) return aj(q, 400);
+    if (q.duplicate) return aj(q);
+    return aj({ ok: true, at: new Date().toISOString(), draft: true, message: 'The email is drafted. Approve it in Approve and it goes out.' });
+  }
+  if (email) ctx.waitUntil(queueReviewRequest(env, c, first, email, job, by).catch(() => {}));
   const day = new Date(Date.now() - 86400000).toISOString();
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_jobs WHERE client_id = ?1 AND at > ?2').bind(c.client_id, day).first();
   if (n && n.n >= JOBS_PER_DAY) return aj({ ok: false, error: 'That is the most for one day. Send the rest tomorrow.' }, 429);
@@ -667,7 +682,7 @@ export async function appCron(env, at) {
           const notes = [];
           // Up to 3 waiting items each get their own notification with an Approve button; more than that, one summary.
           if (g.items.length >= 1 && g.items.length <= 3) for (const it of g.items) {
-            notes.push({ aps: { alert: { title: it.kind === 'post' ? 'A post is ready for your OK' : (it.kind === 'invoice' ? 'An invoice reminder is ready for your OK' : 'A review reply is ready for your OK'), body: ((it.title ? it.title + '\n' : '') + (it.kind === 'review' || !it.kind ? 'Our reply: ' : '') + String(it.text || '')).slice(0, 900) }, sound: 'default', category: 'APPROVE', 'thread-id': 'approve' }, item: it.id, kind: it.kind });
+            notes.push({ aps: { alert: { title: it.kind === 'post' ? 'A post is ready for your OK' : (it.kind === 'invoice' ? 'An invoice reminder is ready for your OK' : (it.kind === 'reviewreq' ? 'A review request is ready for your OK' : 'A review reply is ready for your OK')), body: ((it.title ? it.title + '\n' : '') + (it.kind === 'review' || !it.kind ? 'Our reply: ' : '') + String(it.text || '')).slice(0, 900) }, sound: 'default', category: 'APPROVE', 'thread-id': 'approve' }, item: it.id, kind: it.kind });
           } else if (g.items.length > 1) {
             notes.push({ aps: { alert: { title: g.items.length + ' things are ready for your OK', body: 'Review replies and posts from Always Open. Open the app to approve.' }, sound: 'default', 'thread-id': 'approve' } });
           }
