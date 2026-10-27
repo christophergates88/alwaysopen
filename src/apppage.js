@@ -572,7 +572,7 @@ function fmt(k,v){if(v==null||v==='')return '\\u2014';v=+v;if(isNaN(v))return '\
 function showQr(){
   var q=S.client.qr;if(!q)return;
   var svg='<svg viewBox="0 0 '+(q.n+8)+' '+(q.n+8)+'" role="img" aria-label="QR code for your Google review page" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="'+esc(q.d)+'" fill="#000"/></svg>';
-  sheet('<h2>Scan to review '+esc(S.client.business)+'</h2><div class="qrbox">'+svg+'</div><p class="fine">Opens your Google review page. Ask everyone, never offer anything for a review.</p><div class="acts"><button class="btn ok" type="button" data-close="1">Done</button></div>');
+  sheet('<h2>Scan to review '+esc(S.client.business)+'</h2><div class="qrbox">'+svg+'</div><p class="fine">Opens your Google review page. Ask everyone, never offer anything for a review.</p><div class="acts"><a class="btn line" href="'+esc(BASE+'/help/qr')+'">Print a card</a><button class="btn ok" type="button" data-close="1">Done</button></div>');
 }
 function refer(){
   var url=S.client.refLink,text='I use Always Open for our reviews and Google profile. They\\u2019ll do a free audit of your business too:';

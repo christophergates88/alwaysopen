@@ -164,11 +164,12 @@ async function welcome(env, url, h) {
 <p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with 300 more Max minutes' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
 <div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
-<div class="card"><h2>2. Give us access to your Google profile</h2><ol>
+<div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
+<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. We set up his line within two business days and send you the number and how to forward your calls to it. The steps also show up in your app, under Your first hour.</p></div>
+<div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
 <li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>
-<li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol></div>
-<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. We set up his line within two business days and send you the number and how to forward your calls to it.</p></div>
+<li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol><p class="fine">Everything above works without this. Once you invite us, we can answer your reviews and keep your profile current.</p></div>
 <div class="card"><h2>What happens next</h2><p>Within two business days you get your first review replies to approve in the app. Questions? Message us from Ask us in the app.</p></div>`);
 }
 

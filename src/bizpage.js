@@ -2,7 +2,7 @@
 // This text is placed inside the app page's script (apppage.js), so it can use S, esc, post, api, sheet, close, toast, render, copyText.
 export const BIZ_JS = String.raw`
 /* ---------- jobs, estimates, inbox, team (biz) ---------- */
-(function(){var st=document.createElement('style');st.textContent='.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}.chip{font:600 13px var(--body,inherit);padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:inherit;cursor:pointer}.chip[aria-pressed=true]{border-color:var(--sign);box-shadow:var(--glow)}.ob li{display:flex;gap:10px;align-items:center;padding:6px 0;list-style:none}.ob ul{padding:0;margin:8px 0}.ob .tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:inline-grid;place-items:center;font-size:13px;flex:none}.ob .obd .tick{background:var(--sign);border-color:var(--sign);color:#fff}.ob .obd span{text-decoration:line-through;opacity:.7}.qline{display:grid;grid-template-columns:1fr 64px 96px;gap:6px}.inb{white-space:pre-wrap}.tag{font:600 12px var(--mono,monospace);opacity:.75}.bar{height:8px;border-radius:4px;background:var(--sign);opacity:.8}';document.head.appendChild(st);})();
+(function(){var st=document.createElement('style');st.textContent='.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}.chip{font:600 13px var(--body,inherit);padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:inherit;cursor:pointer}.chip[aria-pressed=true]{border-color:var(--sign);box-shadow:var(--glow)}.ob li{display:flex;gap:10px;align-items:center;padding:6px 0;list-style:none}.ob ul{padding:0;margin:8px 0}.ob .obt{display:flex;flex-direction:column;gap:2px;min-width:0}.ob .obt small{font-size:13px;line-height:1.35;opacity:.75}.ob .tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:inline-grid;place-items:center;font-size:13px;flex:none}.ob .obd .tick{background:var(--sign);border-color:var(--sign);color:#fff}.ob .obd span{text-decoration:line-through;opacity:.7}.qline{display:grid;grid-template-columns:1fr 64px 96px;gap:6px}.inb{white-space:pre-wrap}.tag{font:600 12px var(--mono,monospace);opacity:.75}.bar{height:8px;border-radius:4px;background:var(--sign);opacity:.8}';document.head.appendChild(st);})();
 var STG=[['new','New'],['quoted','Quoted'],['booked','Booked'],['done','Done'],['paid','Paid']];
 var CH={request:'Request',booking:'Booking',call:'Call',facebook:'Facebook',text:'Text',google:'Google review'};
 function isTech(){return !!(S&&S.me&&S.me.role==='tech');}
@@ -10,9 +10,9 @@ function isOwner(){return !!(S&&S.me&&S.me.role==='owner');}
 function m2(n){return n==null?'':'$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:2});}
 function bizTop(){
   var o=S.onboarding;if(!o||!o.show)return '';
-  return '<div class="card ob"><b>Get set up</b><p class="note" style="margin:4px 0 0">'+o.left+(o.left===1?' step':' steps')+' left. Each one ticks itself when it’s done.</p><ul>'+o.steps.map(function(s){
-    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',share:'bz-ob-share'}[s.key]||'';
-    return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><span>'+esc(s.label)+'</span>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'" style="margin-left:auto">Do it</button>')+'</li>';}).join('')+'</ul><div class="acts"><button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
+  return '<div class="card ob"><b>Your first hour</b><p class="note" style="margin:4px 0 0">'+o.left+(o.left===1?' step':' steps')+' left. Each one ticks itself when it’s done.</p><ul>'+o.steps.map(function(s){
+    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',share:'bz-ob-share'}[s.key]||(s.help?'bz-ob-help':'');
+    return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><div class="obt"><span>'+esc(s.label)+'</span>'+(s.hint&&!s.done?'<small>'+esc(s.hint)+'</small>':'')+'</div>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'"'+(s.help?' data-id="'+esc(s.help)+'"':'')+' style="margin-left:auto">'+(s.help?'Open':'Do it')+'</button>')+'</li>';}).join('')+'</ul><div class="acts"><button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
 }
 function bizBlocks(){
   var h='';
@@ -123,6 +123,7 @@ function bizAct(a,id,t){
   else if(a==='bz-act')actSheet();
   else if(a==='bz-ob-hide')post('prefs',{onboard:'dismiss'}).then(function(){S.onboarding.show=false;render();});
   else if(a==='bz-ob-share'){if(S.quoteLink){copyText(S.bookLink&&S.calendar&&S.calendar.connected?S.bookLink:S.quoteLink,'Link copied. Put it on your site, Google profile and texts.');post('prefs',{onboard:'shared'}).then(function(){load(true);});}}
+  else if(a==='bz-ob-help'){if(id)location.href=BASE+id;}
   else if(a==='bz-ob-hours')hoursSheet();
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}

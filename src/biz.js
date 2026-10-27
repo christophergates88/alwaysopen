@@ -530,20 +530,25 @@ export async function apiPrefs(req, env, c) {
   let b = {}; try { b = await req.json(); } catch (e) {}
   const p = await prefs(env, c.client_id);
   if (typeof b.weekly === 'boolean') p.weeklyOff = !b.weekly;
-  if (b.onboard === 'dismiss') p.onboard.dismissed = now();
   if (b.onboard === 'shared') p.onboard.shared = now();
+  if (b.onboard === 'dismiss') p.onboard.dismissed = now();
   await env.DB.prepare('INSERT INTO biz_prefs (client_id, weekly_off, weekly_sent, onboard) VALUES (?1,?2,?3,?4) ON CONFLICT(client_id) DO UPDATE SET weekly_off = excluded.weekly_off, onboard = excluded.onboard')
     .bind(c.client_id, p.weeklyOff ? 1 : 0, p.weeklySent, JSON.stringify(p.onboard)).run();
   return aj({ ok: true, weekly: !p.weeklyOff });
 }
 function onboarding(p, s) {
+  // "Your first hour": the things that pay off right away come first.
   const steps = [];
-  steps.push({ key: 'hours', label: 'Add your hours', done: !!s.hours });
-  steps.push({ key: 'calendar', label: 'Connect Google Calendar', done: !!s.calendar });
+  const v = k => !!(p.onboard && p.onboard[k]);
+  steps.push({ key: 'share', label: 'Share your request link', done: v('shared'), hint: 'Customers can ask for a quote or book without calling. Put it on your site, your Google profile and your texts.' });
+  if (s.qr) steps.push({ key: 'qr', label: 'Print your review QR card', done: v('qr'), hint: 'One page for the counter, the truck or the invoice.', help: '/help/qr' });
+  steps.push({ key: 'hours', label: 'Add your hours', done: !!s.hours, hint: 'So Max and your Google profile tell customers the right thing.' });
+  if (s.line) steps.push({ key: 'forward', label: 'Forward your missed calls to Max', done: v('forward'), hint: 'Your phone still rings first. Steps for Verizon, AT&T, T-Mobile and landlines.', help: '/help/forwarding' });
+  if (s.line) steps.push({ key: 'max', label: 'Test Max by calling your line', done: !!s.called, hint: 'Call it and see what he says.' });
+  steps.push({ key: 'calendar', label: 'Connect Google Calendar', done: !!s.calendar, hint: 'Lets Max book real open times.' });
   if (s.metaAvailable) steps.push({ key: 'facebook', label: 'Connect Facebook', done: !!s.meta });
   if (s.stripeAvailable) steps.push({ key: 'stripe', label: 'Connect Stripe for card payments', done: !!s.stripe });
-  if (s.line) steps.push({ key: 'max', label: 'Test Max by calling your line', done: !!s.called });
-  steps.push({ key: 'share', label: 'Share your request link', done: !!p.onboard.shared });
+  steps.push({ key: 'google', label: 'Invite us to your Google profile (optional)', done: v('google'), hint: 'Everything above works without it. Once you invite us, we answer reviews and keep your profile current.', help: '/help/google' });
   const left = steps.filter(x => !x.done).length;
   return { steps, left, show: left > 0 && !p.onboard.dismissed };
 }
@@ -579,7 +584,7 @@ export function finishOnboarding(state, p) {
     const L = state.line;
     const ob = onboarding(p || { onboard: {} }, {
       hours: !!(L && L.hours) || (state.messages || []).some(m => /^Hours change:/.test(m.text || '')),
-      calendar: !!(state.calendar && state.calendar.connected), meta: !!(state.meta && state.meta.connected), metaAvailable: !!(state.meta && state.meta.available),
+      qr: !!(state.client && state.client.qr), calendar: !!(state.calendar && state.calendar.connected), meta: !!(state.meta && state.meta.connected), metaAvailable: !!(state.meta && state.meta.available),
       stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called
     });
     return ob;
@@ -643,4 +648,16 @@ export async function bizCron(env, at) {
     if (lp.hour === 6 && new Date(at).getUTCMinutes() < 10) { const r = await buildInsights(env, c.client_id).catch(() => null); if (r) insights++; }
   }
   return { weekly, insights };
+}
+
+// Opening a help page ticks its step.
+export async function markOnboard(env, cid, key) {
+  try {
+    await ensureBiz(env);
+    const p = await prefs(env, cid);
+    if (p.onboard[key]) return;
+    p.onboard[key] = now();
+    await env.DB.prepare('INSERT INTO biz_prefs (client_id, weekly_off, weekly_sent, onboard) VALUES (?1,?2,?3,?4) ON CONFLICT(client_id) DO UPDATE SET onboard = excluded.onboard')
+      .bind(cid, p.weeklyOff ? 1 : 0, p.weeklySent, JSON.stringify(p.onboard)).run();
+  } catch (e) { /* the page still shows */ }
 }

@@ -7,12 +7,13 @@ import { opsAlert } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
+import { helpPage } from './onboard.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
 import { apiImport, apiRevive, pastState } from './past.js';
 import { apiRivals, rivalsState } from './rivals.js';
-import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
+import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -154,6 +155,15 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub === '/billing') {
       if (c.staff) return gone(404);
       return await billingPage(env, c, base, req, url, { notify: (t, b, pr) => ntfy(env, t, b, pr || 'default', 'moneybag') });
+    } else if (sub.startsWith('/help/')) {
+      // First-hour help pages (owner only). Opening one ticks its step in "Your first hour".
+      if (c.staff) return gone(404);
+      if (meth === 'GET' || meth === 'HEAD') {
+        const which = sub.slice(6), html = await helpPage(env, c, which, base);
+        if (!html) return gone(404);
+        if (meth === 'GET') await markOnboard(env, c.client_id, which === 'forwarding' ? 'forward' : which);
+        return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
+      }
     } else if (sub.startsWith('/record/')) {
       if (meth === 'GET' || meth === 'HEAD') return await recordPage(env, c, sub.slice(8), base);
     } else if (sub === '/api/state' && meth === 'GET') {
