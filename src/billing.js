@@ -6,6 +6,8 @@
 //   POST /billing/setup         (x-key: LEADS_KEY) one-time: creates the Stripe webhook and the customer portal settings
 // The client's own billing page (plan, card, pause, change, cancel with offers) lives at /app/<code>/billing (see billingPage).
 
+import { noteSignup, expireCredits, REF_RE } from './referral.js';
+
 const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
   Starter: { cents: 14900, blurb: 'Max answers your calls (300 minutes a month), every review answered, your Google profile kept current, a monthly report and your own app.' },
@@ -82,6 +84,7 @@ export async function createFromSession(env, s, h) {
     env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
       .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls')
   ]);
+  try { await noteSignup(env, { clientId: cid, ref: m.ref, email: s.customer_email || (s.customer_details && s.customer_details.email) || '', phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
   if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', Max included (set up his line)' + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live; open HQ to set them up.');
   return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
 }
@@ -126,6 +129,7 @@ ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
 <div class="row"><label>Your name<input name="owner" required maxlength="80" autocomplete="name" value="${esc(v.owner)}"></label><label>Mobile phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel" value="${esc(v.phone)}"></label></div>
 <div class="row"><label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(v.email)}"></label><label>Town and state<input name="town" required maxlength="80" placeholder="Eatonton, GA" value="${esc(v.town)}"></label></div>
 <label>Kind of business<select name="type">${TYPES.map(t => `<option${t === v.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+${REF_RE.test(v.ref || '') ? '<input type="hidden" name="ref" value="' + esc(v.ref) + '">' : ''}
 <label class="opt"><input type="checkbox" name="agree" value="1" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and authorize monthly charges until I cancel.</span></label>
 <button class="btn" type="submit">Continue to secure payment</button>
 <p class="fine">Payment is handled by Stripe. We never see your card number.</p></form>`);
@@ -133,7 +137,7 @@ ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
 
 async function checkout(req, env) {
   const f = await req.formData();
-  const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
+  const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree', 'ref']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
   if (!PLANS[v.plan]) v.plan = 'Growth';
   if (TYPES.indexOf(v.type) < 0) v.type = 'Other';
   if (!v.business || !v.owner || v.phone.replace(/\D/g, '').length < 10 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) || !v.town) return startPage(v, 'Please fill in every box.');
@@ -142,6 +146,7 @@ async function checkout(req, env) {
   const items = [{ price_data: { currency: 'usd', unit_amount: PLANS[v.plan].cents, recurring: { interval: 'month' }, product_data: { name: 'Always Open ' + v.plan } }, quantity: 1 }];
   if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'More Max minutes' } }, quantity: 1 });
   const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type };
+  if (REF_RE.test(v.ref || '')) meta.ref = v.ref;
   try {
     const s = await stripe(env, 'POST', 'checkout/sessions', {
       mode: 'subscription', line_items: items, customer_email: v.email, metadata: meta, subscription_data: { metadata: meta },
@@ -252,7 +257,7 @@ export async function handleBilling(req, env, url, h) {
     if (env.STRIPE_KEY) {
       try { await ensureBilling(env); const w = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first(); if (!w) await setupStripe(env); } catch (e) { /* the page still works; setup retries next load */ }
     }
-    return startPage({ plan: url.searchParams.get('plan') || '' });
+    return startPage({ plan: url.searchParams.get('plan') || '', ref: url.searchParams.get('ref') || '' });
   }
   if (path === '/welcome') return welcome(env, url, h);
   if (req.method !== 'POST') return new Response('Not found', { status: 404 });
@@ -267,7 +272,7 @@ export async function handleBilling(req, env, url, h) {
       const b = await env.DB.prepare('SELECT client_id, business FROM billing WHERE sub = ?1').bind(sub).first();
       if (!b) return;
       await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(set, new Date().toISOString(), b.client_id).run();
-      if (set === 'canceled') await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run();
+      if (set === 'canceled') { await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run(); await expireCredits(env, { stripe }, b.client_id); }
       if (msg && h.notify) await h.notify((b.business || 'A client') + ': ' + msg, 'Stripe event ' + ev.type + '.', set === 'past_due' ? 'high' : 'default');
     };
     if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') await createFromSession(env, o, h);

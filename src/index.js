@@ -8,10 +8,11 @@ import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
 import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
-import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations } from './app.js';
+import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations, opsPing } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
 import { handleAudit } from './audit.js';
-import { handleBilling } from './billing.js';
+import { handleBilling, stripe as stripeCall } from './billing.js';
+import { referralCron } from './referral.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron, ensureInvoices } from './extras.js';
 import { handleOptOut } from './past.js';
@@ -88,7 +89,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 

@@ -4,6 +4,7 @@ import { EmailMessage } from 'cloudflare:email';
 import { TEXTING_ON, metaReady } from './extras.js';
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
+import { markCredited } from './referral.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
@@ -46,6 +47,8 @@ export async function boardItems(env) {
   for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups to adopt in HQ', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) });
   const failed = await all(env, "SELECT client_id, business, plan, updated FROM billing WHERE status = 'past_due' AND client_id != ?1 ORDER BY updated DESC LIMIT 50", DEMO_ID);
   for (const f of failed) items.push({ key: 'pay:' + f.client_id + ':' + String(f.updated || '').slice(0, 10), group: 'Failed payments', title: f.business || f.client_id, detail: (f.plan || '') + ' plan. Stripe is retrying and emailing them; a call from you may help' });
+  const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");
+  for (const r of refs) items.push({ key: 'referral:' + r.id, group: 'Referral credits to give', title: r.referrer, detail: 'Sent us ' + r.referred + ' (signed up ' + String(r.created || '').slice(0, 10) + '). Check they have paid three months, then give ' + r.referrer + ' one free month. Tick Done once it is applied' });
   const sys = [
     ['Twilio texting', TEXTING_ON ? 'on' : 'off, waiting for the carrier campaign to be approved'],
     ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],
@@ -90,6 +93,7 @@ export async function handleOpsBoard(req, env, url) {
     if (!k) return new Response('{"ok":false}', { status: 400, headers: { 'content-type': 'application/json' } });
     await ensure(env);
     await env.DB.prepare('INSERT OR REPLACE INTO ops_done (k, at) VALUES (?1, ?2)').bind(k, new Date().toISOString()).run();
+    if (/^referral:\d+$/.test(k)) { try { await markCredited(env, +k.slice(9)); } catch (e) { /* the tick stands */ } }
     return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
   if (!(await allowed(req, env, url))) return new Response('Not found', { status: 404 });

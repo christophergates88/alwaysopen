@@ -115,7 +115,7 @@ a.btn{color:inherit}
 .tile em{font-style:normal;font:500 12.5px var(--mono);margin-top:4px}
 .up{color:var(--ok)}.down{color:var(--slate)}
 .note{color:var(--slate);font-size:13.5px;margin:10px 2px 0}
-.feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}
+.feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
 .feature p{margin:0;color:var(--slate);font-size:15px}
 .recs{display:grid;gap:10px}
@@ -307,8 +307,13 @@ function vHome(){
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
   h+=guardCard();
-  h+='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div></div>';
+  h+=referCard();
   return h;
+}
+function referCard(){
+  var r=S.referrals||{},rows=r.list||[],h='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><p><b>Refer a business. When they\\u2019ve stayed 3 months, you get a month free.</b></p>';
+  if(rows.length)h+='<ul class="reflist">'+rows.map(function(x){return '<li><b>'+esc(x.business)+'</b><span>'+esc(x.label)+'</span></li>';}).join('')+'</ul><p class="fine">'+(r.bank?'Credit on your account: $'+Math.round(r.bank/100).toLocaleString('en-US')+'. ':'')+(r.used||0)+' of '+(r.cap||6)+' free months used in the last 12 months.</p>';
+  return h+'<div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div><p class="fine">Send us six businesses, we work for free half the year. Never for customers or reviews. <a href="/terms#referral-credit" target="_blank" rel="noopener">The rules</a></p></div>';
 }
 function guardCard(){
   var g=S.complianceGuard;if(!g)return '';
@@ -575,7 +580,7 @@ function showQr(){
   sheet('<h2>Scan to review '+esc(S.client.business)+'</h2><div class="qrbox">'+svg+'</div><p class="fine">Opens your Google review page. Ask everyone, never offer anything for a review.</p><div class="acts"><a class="btn line" href="'+esc(BASE+'/help/qr')+'">Print a card</a><button class="btn ok" type="button" data-close="1">Done</button></div>');
 }
 function refer(){
-  var url=S.client.refLink,text='I use Always Open for our reviews and Google profile. They\\u2019ll do a free audit of your business too:';
+  var url=S.client.refLink,text='I use Always Open for our reviews and Google profile. They\\u2019ll do a free audit of your business too (I get a free month if you sign up and stay):';
   if(navigator.share){navigator.share({title:'Always Open',text:text,url:url}).catch(function(){});return;}
   var t=text+' '+url;
   try{navigator.clipboard.writeText(t).then(function(){toast('Link copied. Paste it in a text.');},function(){toast(url);});}catch(e){toast(url);}

@@ -8,6 +8,7 @@ import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
 import { helpPage } from './onboard.js';
+import { referralState } from './referral.js';
 import { appHtml } from './apppage.js';
 import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
@@ -357,6 +358,7 @@ async function apiState(env, c, ctx) {
     out.sample = true;
     try { out.sampleWeekly = weeklyLine(await weeklyNumbers(env, cid, Date.now())); } catch (e) { out.sampleWeekly = ''; }
   }
+  out.referrals = c.staff ? null : await referralState(env, c);
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
 }
