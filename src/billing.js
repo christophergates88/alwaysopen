@@ -8,11 +8,11 @@
 
 const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
-  Starter: { cents: 14900, blurb: 'Every review answered, your Google profile kept current, a monthly report and your own app.' },
+  Starter: { cents: 14900, blurb: 'Max answers your calls (300 minutes a month), every review answered, your Google profile kept current, a monthly report and your own app.' },
   Growth: { cents: 29900, blurb: 'Starter, plus review requests after every job, posts from your photos, competitor watch and Storm Desk.' },
   Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and, once texting launches, missed-call text-back from your own number.' }
 };
-const MAX = { cents: 14900, blurb: 'Max, the AI line: answers the calls you miss, says he is an AI, and sends you every caller in the app.' };
+const MAX = { cents: 14900, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
 const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
 const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted'];
@@ -80,9 +80,9 @@ export async function createFromSession(env, s, h) {
     env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
       .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', s.customer_email || (s.customer_details && s.customer_details.email) || '', m.phone || '', m.town || '', m.type || '', code, ref, now),
     env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
-      .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, m.max === '1' ? 'calls' : '')
+      .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls')
   ]);
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + Max' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live; open HQ to set them up.');
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', Max included (set up his line)' + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live; open HQ to set them up.');
   return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
 }
 
@@ -120,7 +120,7 @@ function startPage(v, err) {
 ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
 <form method="post" action="/billing/checkout" class="card">
 <h2>Your plan</h2><div class="plans">${Object.entries(PLANS).map(([k, p]) => `<label class="plan"><input type="radio" name="plan" value="${k}"${k === plan ? ' checked' : ''}><span><b>${k}</b><br><span class="sub">${esc(p.blurb)}</span></span><span class="p">${money(p.cents)}<span class="sub">/mo</span></span></label>`).join('')}</div>
-<label class="opt"><input type="checkbox" name="max" value="1"${v.max === '1' ? ' checked' : ''}><span><b>Add Max, the AI line, ${money(MAX.cents)}/mo.</b> <span class="sub">${esc(MAX.blurb)} 300 minutes a month included.</span></span></label>
+<label class="opt"><input type="checkbox" name="max" value="1"${v.max === '1' ? ' checked' : ''}><span><b>Add 300 more Max minutes, ${money(MAX.cents)}/mo.</b> <span class="sub">${esc(MAX.blurb)}</span></span></label>
 <h2>Your business</h2>
 <label>Business name<input name="business" required maxlength="120" autocomplete="organization" value="${esc(v.business)}"></label>
 <div class="row"><label>Your name<input name="owner" required maxlength="80" autocomplete="name" value="${esc(v.owner)}"></label><label>Mobile phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel" value="${esc(v.phone)}"></label></div>
@@ -140,7 +140,7 @@ async function checkout(req, env) {
   if (v.agree !== '1') return startPage(v, 'Please check the box to agree to the terms.');
   if (!env.STRIPE_KEY) return startPage(v, 'Online signup is not open yet. Call (706) 460-2226 or request the free audit, and we will set you up.');
   const items = [{ price_data: { currency: 'usd', unit_amount: PLANS[v.plan].cents, recurring: { interval: 'month' }, product_data: { name: 'Always Open ' + v.plan } }, quantity: 1 }];
-  if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'Max, the AI line' } }, quantity: 1 });
+  if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'More Max minutes' } }, quantity: 1 });
   const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type };
   try {
     const s = await stripe(env, 'POST', 'checkout/sessions', {
@@ -161,14 +161,14 @@ async function welcome(env, url, h) {
   const b = await createFromSession(env, s, h);
   const link = SITE + '/app/' + b.code;
   return page('Welcome', `<div><p class="mono">You're in</p><h1>Welcome to Always Open, ${esc(String(b.owner || '').split(' ')[0] || 'friend')}.</h1></div>
-<p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with Max' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
+<p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with 300 more Max minutes' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
 <div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Give us access to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
 <li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>
 <li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol></div>
-${b.max ? '<div class="card"><h2>3. Max</h2><p>We set up your AI line within two business days and send you the number and how to forward your calls to it.</p></div>' : ''}
+<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. We set up his line within two business days and send you the number and how to forward your calls to it.</p></div>
 <div class="card"><h2>What happens next</h2><p>Within two business days you get your first review replies to approve in the app. Questions? Message us from Ask us in the app.</p></div>`);
 }
 
@@ -237,7 +237,7 @@ ${lower ? `<div class="card"><h2>Switch to ${lower}, ${money(PLANS[lower].cents)
 <div class="acts"><a class="btn line" href="${esc(base)}/billing">Keep my plan</a></div>`);
   }
   return page('Your plan', `<div><p class="mono">${esc(c.business || '')}</p><h1>Your plan</h1></div>${note}
-<div class="card"><h2>${esc(b.plan)}${b.max ? ' + Max' : ''}</h2><p class="sub">${esc(status)}</p><p>${esc((PLANS[b.plan] || {}).blurb || '')}</p>
+<div class="card"><h2>${esc(b.plan)}${b.max ? ' + 300 more Max minutes' : ''}</h2><p class="sub">${esc(status)}</p><p>${esc((PLANS[b.plan] || {}).blurb || '')}</p>
 <div class="acts">${btn('card', 'Update card or see invoices', 'line')}${b.status === 'paused' ? btn('resume', 'Resume now', '') : ''}${b.status === 'canceling' ? btn('undo', 'Undo cancellation', '') : ''}</div></div>
 <div class="card"><h2>Change plan</h2><div class="acts">${Object.keys(PLANS).filter(k => k !== b.plan).map(k => btn('plan', k + ' · ' + money(PLANS[k].cents) + '/mo', 'line', '<input type="hidden" name="plan" value="' + k + '">')).join('')}</div><p class="fine">Changes start now; the difference is prorated on your next bill.</p></div>
 ${b.status !== 'canceling' && b.status !== 'canceled' ? `<p><a href="${esc(base)}/billing?step=cancel" class="sub">Cancel my plan</a></p>` : ''}

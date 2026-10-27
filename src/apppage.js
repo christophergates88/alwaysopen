@@ -316,8 +316,8 @@ function heroCard(){
     return '<div class="hero'+(on?'':' off')+'"><div class="sign"><b>'+(on?'OPEN':'OFF')+'</b><span>'+(on?'24 HOURS':'LINE OFF')+'</span></div><div class="hero-t"><b>'+esc(L.name)+(on?' is answering':(L.paused?' is paused':' is off'))+'</b><span>'+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
       (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+'<button class="btn ghost sm" type="button" data-tab="max">Settings</button></div></div></div>';
   }
-  return '<div class="hero"><div class="sign"><b>OPEN</b><span>24 HOURS</span></div><div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.</span>'+
-    (f.calls||S.client.regulated?'':'<div class="acts"><button class="btn ghost sm" type="button" data-a="ask-max">Add Max for your calls</button></div>')+'</div></div>';
+  return '<div class="hero"><div class="sign"><b>OPEN</b><span>24 HOURS</span></div><div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.'+(f.calls||S.client.regulated?'':' Max, your phone assistant, comes with your plan.')+'</span>'+
+    (f.calls||S.client.regulated?'':'<div class="acts"><button class="btn ghost sm" type="button" data-a="ask-max">Set up Max for your calls</button></div>')+'</div></div>';
 }
 function monthBlock(){
   var ms=S.months||[];
@@ -668,7 +668,7 @@ document.addEventListener('click',function(e){
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
-  else if(a==='ask-max')askAbout('Max','I\u2019d like to add Max, the AI line, to answer my calls.');
+  else if(a==='ask-max')askAbout('Max','Please set up Max, my phone assistant, on my account. He comes with my plan.');
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
   else if(a&&a.indexOf('rv-')===0)rvAct(a,id,t);
