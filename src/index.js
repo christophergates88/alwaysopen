@@ -37,7 +37,7 @@ export default {
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
       return new Response('ok', { headers: { 'cache-control': 'no-store' } });
     }
-    if (path === '/ops' || path === '/ops/done') return handleOpsBoard(req, env, url);
+    if (path === '/ops' || path === '/ops/done' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);

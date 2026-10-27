@@ -3,6 +3,7 @@
 import { EmailMessage } from 'cloudflare:email';
 import { TEXTING_ON, metaReady } from './extras.js';
 import { DEMO_ID } from './demo.js';
+import { buildPack } from './cpack.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
@@ -92,6 +93,10 @@ export async function handleOpsBoard(req, env, url) {
     return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
   if (!(await allowed(req, env, url))) return new Response('Not found', { status: 404 });
+  if (path === '/ops/compliance-pack') {
+    try { return new Response(buildPack(new Date().toISOString().slice(0, 10)), { headers: { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="compliance-guard-rules.pdf"', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } }); }
+    catch (e) { return new Response('Could not build the pack: ' + String((e && e.message) || e).slice(0, 120), { status: 500 }); }
+  }
   const items = await boardItems(env);
   const tok = url.searchParams.get('t') || await boardToken(env);
   return new Response(boardHtml(items, tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });

@@ -35,7 +35,7 @@ const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 's
   "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 // ---------- Compliance Guard (same rules as Always Open HQ) ----------
-const CG_RULES = [
+export const CG_RULES = [
   { why: 'Promises an outcome', kinds: 'all', re: /\b(guarantee[sd]?|guaranteed|promise[sd]?|100 ?%|always covered|never (be )?denied|risk[- ]free)\b|garantiz\w*/i },
   { why: 'Talks about rates or prices', kinds: 'all', re: /\$\s?\d|\b\d+(\.\d+)?\s?%|\b(lowest|cheapest|best|great|low|lower|competitive|affordable) (rates?|prices?|premiums?)\b|\bsave (money|you|up to|big)\b|\bdiscounts?\b|\bquotes?\b|\bdescuentos?\b|\bahorr\w+/i },
   { why: 'Confirms they are a client', kinds: 'reply', re: /\byour (policy|policies|claim|account|coverage|premium|renewal|agent|deductible|plan|bill)\b|\bas (our|a valued) (client|customer|policyholder|patient)\b|\bthank(s| you) for being (a|our) (loyal |valued )?(client|customer|policyholder|patient)\b|\bwe insure you\b|\bsu (p[oó]liza|reclamo|reclamaci[oó]n|cuenta|cobertura|prima|agente)\b/i },
