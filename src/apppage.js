@@ -186,6 +186,7 @@ a.btn{color:inherit}
 .sign b{font:800 1.4rem/1 var(--display);letter-spacing:.14em;margin-right:-.14em;text-shadow:0 0 12px rgba(255,106,94,.9)}
 .sign span{font:500 9.5px var(--mono);letter-spacing:.22em;margin-right:-.22em;white-space:nowrap}
 .hero.off .sign{color:var(--slate);border-color:var(--line);box-shadow:none}.hero.off .sign b{text-shadow:none}
+@keyframes aoOn{0%{opacity:.35}8%{opacity:1}14%{opacity:.2}30%{opacity:.95}38%{opacity:.3}52%,100%{opacity:1}}@keyframes aoBreath{0%,100%{box-shadow:0 0 14px rgba(255,90,77,.4),inset 0 0 9px rgba(255,90,77,.18)}50%{box-shadow:0 0 22px rgba(255,90,77,.55),inset 0 0 12px rgba(255,90,77,.26)}}@media (prefers-reduced-motion:no-preference){.hero:not(.off) .sign{animation:aoOn 1.1s linear 1,aoBreath 4.4s ease-in-out 1.4s infinite}}
 .hero-t{display:grid;gap:4px;min-width:0}
 .hero-t b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}
 .hero-t span{color:var(--slate);font-size:14px}
