@@ -12,7 +12,7 @@ import { gcalStatus } from './gcal.js';
 import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish } from './extras.js';
 import { apiImport, apiRevive, pastState } from './past.js';
 import { apiRivals, rivalsState } from './rivals.js';
-import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES } from './biz.js';
+import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -329,6 +329,10 @@ async function apiState(env, c, ctx) {
   Object.assign(out, biz);
   if (tech) { out.invoices = []; out.unpaid = 0; out.billing = null; out.quotes = []; }
   out.me = { name: c.staff || c.owner_first || 'Owner', role: c.role || 'owner' };
+  if (cid === 'demo-plumbing') {
+    out.sample = true;
+    try { out.sampleWeekly = weeklyLine(await weeklyNumbers(env, cid, Date.now())); } catch (e) { out.sampleWeekly = ''; }
+  }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
 }

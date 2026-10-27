@@ -620,7 +620,7 @@ export function weeklyLine(n) {
 export async function bizCron(env, at) {
   at = at || Date.now();
   try { await ensureBiz(env); } catch (e) { return { weekly: 0, insights: 0 }; }
-  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.owner_first, b.email FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id WHERE c.active = 1 LIMIT 500').all().catch(async () => env.DB.prepare('SELECT client_id, business, owner_first, NULL AS email FROM app_clients WHERE active = 1 LIMIT 500').all())).results) || [];
+  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.owner_first, b.email FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id WHERE c.active = 1 AND c.client_id != \'demo-plumbing\' LIMIT 500').all().catch(async () => env.DB.prepare('SELECT client_id, business, owner_first, NULL AS email FROM app_clients WHERE active = 1 AND client_id != \'demo-plumbing\' LIMIT 500').all())).results) || [];
   let weekly = 0, insights = 0;
   for (const c of clients) {
     let tz = 'America/New_York';

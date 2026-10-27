@@ -117,7 +117,7 @@ async function putSnap(env, cid, week, x, own) {
 }
 // Takes this week's numbers once. Safe to call again: it does nothing if the week is already saved. Returns 'saved', 'have', 'profile', 'off' or 'busy'.
 export async function takeSnapshot(env, c, at) {
-  if (!env.PLACES_KEY || !GROWTH(c)) return 'off';
+  if (!env.PLACES_KEY || !GROWTH(c) || c.client_id === 'demo-plumbing') return 'off';
   at = at || Date.now();
   await ensureRivals(env);
   const cid = c.client_id, week = isoWeek(at);
@@ -160,7 +160,7 @@ export async function rivalsWeekly(env, at) {
   at = at || Date.now();
   await ensureRivals(env);
   const week = isoWeek(at);
-  const rows = (await env.DB.prepare("SELECT c.* FROM app_clients c WHERE c.active = 1 AND c.tier IN ('Growth', 'Pro') AND NOT EXISTS (SELECT 1 FROM rival_snap s WHERE s.client_id = c.client_id AND s.week = ?1) AND NOT EXISTS (SELECT 1 FROM rival_profile p WHERE p.client_id = c.client_id AND p.found = 0 AND p.tried = ?1) LIMIT 40").bind(week).all()).results || [];
+  const rows = (await env.DB.prepare("SELECT c.* FROM app_clients c WHERE c.active = 1 AND c.client_id != 'demo-plumbing' AND c.tier IN ('Growth', 'Pro') AND NOT EXISTS (SELECT 1 FROM rival_snap s WHERE s.client_id = c.client_id AND s.week = ?1) AND NOT EXISTS (SELECT 1 FROM rival_profile p WHERE p.client_id = c.client_id AND p.found = 0 AND p.tried = ?1) LIMIT 40").bind(week).all()).results || [];
   let done = 0;
   for (const c of rows) { try { if ((await takeSnapshot(env, c, at)) === 'saved') done++; } catch (e) { /* the next client still runs */ } }
   return { done };
@@ -210,8 +210,8 @@ export async function rivalsState(env, c, ctx) {
   const { cur, prev, week: wk } = await weeks(env, cid);
   const owner = !c.staff;
   const base = { on: true, owner, canAdd: false, week: wk, note: '', rows: [], profile: prof && +prof.found ? prof.name : '' };
-  if (!env.PLACES_KEY) return { rivals: Object.assign(base, { status: 'first' }) };
-  if (wk !== week && ctx && ctx.waitUntil && !(prof && !+prof.found && prof.tried === week)) ctx.waitUntil(takeSnapshot(env, c).catch(() => {}));
+  if (!env.PLACES_KEY && cid !== 'demo-plumbing') return { rivals: Object.assign(base, { status: 'first' }) };
+  if (wk !== week && cid !== 'demo-plumbing' && ctx && ctx.waitUntil && !(prof && !+prof.found && prof.tried === week)) ctx.waitUntil(takeSnapshot(env, c).catch(() => {}));
   if (!cur.length) return { rivals: Object.assign(base, { status: prof && !+prof.found && prof.tried ? 'profile' : 'first' }) };
   const pm = new Map(prev.map(r => [r.place_id, r]));
   const rows = cur.slice().sort((a, b) => (+b.own - +a.own) || ((+b.reviews || 0) - (+a.reviews || 0))).map(r => {

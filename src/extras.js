@@ -161,7 +161,7 @@ export async function invoiceCron(env, at) {
   try {
     await ensureInvoices(env);
     const now = at || Date.now();
-    const rows = (await env.DB.prepare("SELECT i.*, c.business FROM app_invoices i JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'open' AND c.active = 1 LIMIT 500").all()).results || [];
+    const rows = (await env.DB.prepare("SELECT i.*, c.business FROM app_invoices i JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'open' AND c.active = 1 AND c.client_id != 'demo-plumbing' LIMIT 500").all()).results || [];
     let made = 0;
     for (const inv of rows) {
       const late = Math.floor((now - Date.parse(inv.due + 'T12:00:00Z')) / 864e5);

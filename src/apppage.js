@@ -207,7 +207,7 @@ a.btn{color:inherit}
 .switch[disabled]{opacity:.45;cursor:default}
 .form label{display:grid;gap:6px;font-weight:600;font-size:14.5px}
 .form textarea{min-height:110px}
-.vers{margin-top:10px;display:grid;gap:10px}.ver{border:1px dashed var(--line);border-radius:12px;padding:10px}.ver .btn{margin-top:8px}
+.sample{margin:0 0 12px;padding:9px 12px;border-radius:12px;border:1px dashed var(--line);background:var(--soft,transparent);font-size:13px;color:var(--slate)}.sample b{color:var(--ink)}.vers{margin-top:10px;display:grid;gap:10px}.ver{border:1px dashed var(--line);border-radius:12px;padding:10px}.ver .btn{margin-top:8px}
 select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px;color:var(--ink)}
 .form details summary{cursor:pointer;font-weight:600;color:var(--slate);min-height:32px;display:flex;align-items:center}
 .score .big{display:grid;justify-items:start;gap:2px}
@@ -282,7 +282,7 @@ function render(){
   var v={home:vHome,approve:vApprove,reviews:vReviews,max:vMax,ask:vAsk}[TAB]||vHome;
   // what they were typing survives a refresh
   var keep={},act=document.activeElement;KEEP.forEach(function(k){var el=document.getElementById(k);if(el)keep[k]={v:el.value,f:act===el};});
-  $('#view').innerHTML=v();
+  $('#view').innerHTML=sampleBar()+v();
   KEEP.forEach(function(k){var el=document.getElementById(k);if(!el||!keep[k])return;if(k==='msg'||DIRTY)el.value=keep[k].v;if(keep[k].f)el.focus({preventScroll:true});});
   if(TAB==='ask'){var th=$('.thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
 }
@@ -291,6 +291,7 @@ function render(){
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
 function row(go,icon,title,sub){return '<button class="row" type="button" data-go="'+go+'">'+icon+'<div><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+ICON.chev+'</button>';}
 function qt(a,icon,title,sub){return '<button class="qt" type="button" data-a="'+a+'">'+icon+'<b>'+esc(title)+'</b><span>'+esc(sub)+'</span></button>';}
+function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'.</div>';}
 function vHome(){
   var f=S.features||{},first=S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;

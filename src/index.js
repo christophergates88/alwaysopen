@@ -1,7 +1,10 @@
 // Always Open on Cloudflare: serves the website (public/), and receives the website form.
 // Each request is checked for spam, saved to D1, pushed to Christopher's phone (ntfy) and emailed to him.
 // The Always Open check (scheduled task) reads new requests from that email, or from /leads with a key.
-import { rivalsWeekly } from './rivals.js';
+import { rivalsWeekly, ensureRivals, isoWeek } from './rivals.js';
+import { ensureReviews } from './reviews.js';
+import { seedDemo } from './demo.js';
+import { ensureBiz } from './biz.js';
 import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations } from './app.js';
@@ -9,7 +12,7 @@ import { handleVoice, voiceCron, CallRoom } from './voice.js';
 import { handleAudit } from './audit.js';
 import { handleBilling } from './billing.js';
 import { handleGoogle } from './gcal.js';
-import { handleBooking, handleInvoicePage, handleMeta, invoiceCron } from './extras.js';
+import { handleBooking, handleInvoicePage, handleMeta, invoiceCron, ensureInvoices } from './extras.js';
 import { handleOptOut } from './past.js';
 import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
 
@@ -32,6 +35,11 @@ export default {
       const k = req.headers.get('x-key') || '';
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
       return new Response('ok', { headers: { 'cache-control': 'no-store' } });
+    }
+    if (path === '/ops/seed-demo') {
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      try { return json(await seedDemo(env, { ensureBiz, ensureInvoices, ensureRivals, ensureReviews, isoWeek })); } catch (e) { return json({ ok: false, error: String((e && e.message) || e).slice(0, 200) }, 500); }
     }
     if (path === '/ops/deploy-failed') {
       const k = req.headers.get('x-key') || '';
