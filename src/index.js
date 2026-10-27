@@ -2,6 +2,7 @@
 // Each request is checked for spam, saved to D1, pushed to Christopher's phone (ntfy) and emailed to him.
 // The Always Open check (scheduled task) reads new requests from that email, or from /leads with a key.
 import { rivalsWeekly } from './rivals.js';
+import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
@@ -27,14 +28,27 @@ export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname;
-    if (path === '/health') return new Response('ok', { headers: { 'cache-control': 'no-store' } });
+    if (path === '/health') {
+      const k = req.headers.get('x-key') || '';
+      if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
+      return new Response('ok', { headers: { 'cache-control': 'no-store' } });
+    }
+    if (path === '/ops/deploy-failed') {
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const r = await opsAlert(env, 'deploy', '', 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
+      return json({ ok: true, alert: r }, 200);
+    }
     if (path === '/lead') {
       if (req.method === 'POST') return lead(req, env, ctx, url);
       return Response.redirect(url.origin + '/#contact', 303);
     }
     if (path === '/leads') return leadsList(req, env, url);
     if (path === '/storms') return stormsList(req, env, url);
-    if (path === '/start' || path === '/welcome' || path.startsWith('/billing/')) return handleBilling(req, env, url, { json, sameKey, notify: (t, b, pr) => billingNotify(env, ctx, t, b, pr) });
+    if (path === '/start' || path === '/welcome' || path.startsWith('/billing/')) {
+      try { const r = await handleBilling(req, env, url, { json, sameKey, notify: (t, b, pr) => billingNotify(env, ctx, t, b, pr) }); if (r && r.status >= 500) ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', 'Checkout/billing answered ' + r.status + ' on ' + path)); return r; }
+      catch (e) { ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', ((e && e.message) || 'threw') + ' on ' + path)); return json({ ok: false, error: 'Something went wrong. Please try again.' }, 500); }
+    }
     if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash((r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
@@ -48,7 +62,10 @@ export default {
     if (path.startsWith('/i/')) return handleInvoicePage(req, env, url);
     if (path.startsWith('/e/')) return handleEstimate(req, env, ctx, url);
     if (path.startsWith('/u/')) return handleOptOut(req, env, url);
-    if (path.startsWith('/stripe/')) return handleStripe(req, env, ctx, url);
+    if (path.startsWith('/stripe/')) {
+      try { const r = await handleStripe(req, env, ctx, url); if (r && r.status >= 500) ctx.waitUntil(opsAlert(env, 'stripe-webhook', '', 'The Stripe webhook answered ' + r.status)); return r; }
+      catch (e) { ctx.waitUntil(opsAlert(env, 'stripe-webhook', '', (e && e.message) || 'threw')); return json({ ok: false }, 500); }
+    }
     if (path === '/meta/webhook') return metaWebhook(req, env, ctx, url);
     if (path.startsWith('/meta/')) return handleMeta(req, env, url);
     if (path.startsWith('/voice/')) return handleVoice(req, env, ctx, url);
@@ -60,8 +77,8 @@ export default {
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
-    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(radarWatch(env)); ctx.waitUntil(rivalsWeekly(env).catch(() => {})); }
-    else { ctx.waitUntil(stormWatch(env)); ctx.waitUntil(appCron(env)); ctx.waitUntil(invoiceCron(env)); ctx.waitUntil(bizCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(voiceCron(env)); }
+    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 

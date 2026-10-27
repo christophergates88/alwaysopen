@@ -3,6 +3,7 @@
 // Always Open HQ (the artifact) keeps D1 in step through the Cloudflare connector: it writes clients, drafts and month numbers,
 // and reads back approvals, messages, finished jobs and photos. Approvals ping Christopher's phone right away (ntfy).
 // Every 10 minutes the cron sends iPhone notifications for new drafts and new replies from Always Open (when APNs is set up).
+import { opsAlert } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
@@ -823,7 +824,7 @@ export async function mailTo(env, to, subject, text, biz, opts) {
     'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'
   ].join('\r\n') + '\r\n\r\n' + text;
-  try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, to, raw)); return 'sent'; } catch (e) { return 'failed'; }
+  try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, to, raw)); return 'sent'; } catch (e) { await opsAlert(env, 'mail-send', '', 'A customer email could not be sent: ' + String((e && e.message) || e).slice(0, 200)); return 'failed'; }
 }
 async function mail(env, subject, text) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return;

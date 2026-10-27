@@ -9,6 +9,7 @@
 // Nothing here records audio. The written transcript is kept so the owner and Always Open can see what was said.
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
+import { opsAlert } from './ops.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
@@ -68,6 +69,7 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'status') return await callStatus(env, ctx, form);
   } catch (e) {
     // Never leave a caller in silence: say something useful and hang up.
+    ctx.waitUntil(opsAlert(env, 'max-call', '', 'A call to Max errored in /voice/' + kind + ': ' + String((e && e.message) || e).slice(0, 200)));
     return twiml(say('Sorry, something went wrong on our end. Please call back in a few minutes. Goodbye.') + '<Hangup/>');
   }
   return txt('Not found', 404);
@@ -126,6 +128,7 @@ async function afterRelay(env, ctx, f) {
       '<Number url="' + xa(SITE + '/voice/whisper/' + env.VOICE_KEY + '?c=' + sid) + '">' + xa(line.transfer_to) + '</Number></Dial>');
   }
   ctx.waitUntil(room.finalize(sid, failed ? 'failed' : 'ended').catch(() => {}));
+  if (failed) ctx.waitUntil(opsAlert(env, 'max-call', (call && call.client_id) || '', 'A Max call ended in failure (relay error ' + (f.get('ErrorCode') || f.get('SessionStatus') || '?') + ')'));
   if (failed) return twiml(say('Sorry, I am having trouble on my end. I will make sure ' + ((line && line.business) || 'the team') + ' gets your number so they can call you back. Goodbye.') + '<Hangup/>');
   return twiml('<Hangup/>');
 }

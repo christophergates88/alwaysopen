@@ -13,3 +13,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx -y wrangler@4 deploy || npx -y wrangler@4 deploy --config wrangler.noemail.toml
+      - name: Tell Christopher if the deploy failed
+        if: failure()
+        env:
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+        run: |
+          if [ -n "$OPS_KEY" ]; then curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" https://alwaysopenoffice.com/ops/deploy-failed || true; fi
