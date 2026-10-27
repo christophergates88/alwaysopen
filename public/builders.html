@@ -220,6 +220,26 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   .guarantee{grid-template-columns:1fr;gap:6px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.scene{font:600 1.22rem/1.35 var(--display);letter-spacing:-.005em;color:var(--ink);margin:0 0 10px;max-width:34ch}
+.hero-scene,.final .scene{color:var(--night-ink);max-width:30ch}
+.hero-scene{font-size:clamp(1.25rem,2.4vw,1.6rem);margin-bottom:14px}
+.final .scene{margin:18px auto 10px}
+.payoff{margin:0 0 20px;color:var(--slate);max-width:52ch}
+.seclabel{display:none}
+@media (max-width:760px){
+  .js .seclabel{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px max(16px,env(safe-area-inset-left,0px));font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--night-ink);background:rgba(15,19,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,106,94,.35);transform:translateY(-100%);transition:transform .25s ease}
+  .js .seclabel.show{transform:none}
+  .seclabel i{width:7px;height:7px;border-radius:50%;background:var(--night-sign);box-shadow:0 0 8px var(--night-sign)}
+  .rows{gap:0}
+  .row{padding:52px 0 56px;border-top:2px solid var(--sign);box-shadow:0 -1px 0 rgba(217,45,32,.18),0 -10px 24px -18px rgba(217,45,32,.6);gap:26px}
+  .row:first-child{border-top:0;box-shadow:none;padding-top:0}
+  .row:nth-child(even){background:var(--card);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .scene{font-size:1.35rem;max-width:none}
+  .js .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .js .reveal.in{opacity:1;transform:none}
+}
+@media (prefers-reduced-motion:reduce){.js .reveal{opacity:1;transform:none;transition:none}.seclabel{transition:none}}
+
 .soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
 </style>
 
@@ -244,6 +264,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
 </svg>
 
+<div class="seclabel" id="seclabel" aria-hidden="true"><i></i><span></span></div>
 <header class="hero band">
   <div class="inner">
     <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what matters most to builders and remodelers. <a href="index.html">See everything we do</a></p>
@@ -255,7 +276,8 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
       <div>
         <p class="for">For builders, remodelers and contractors</p>
         <h1>The next job calls while you’re building this one.</h1>
-        <p class="lede">Max answers the calls you can’t, quotes get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone</b>, between cuts.</p>
+        <p class="scene hero-scene">5:40 PM. Sun’s going down. You told them you’d be home for dinner. A customer is calling. Max has it. Go home.</p>
+        <p class="lede">The caller’s name, number and what they need are on your phone. Quotes get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone</b>, between cuts.</p>
         <div class="ctas"><a class="btn primary" href="index.html#contact">Get my free audit</a><a class="btn line" href="tel:+17064602226">Call Max: (706) 460-2226</a></div>
         <p class="promise"><svg aria-hidden="true"><use href="#shield"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.<small>No setup fee and no contract. Spanish included.</small></span></p>
       </div>
@@ -272,12 +294,14 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 <main>
 <section class="sec band" id="calls">
   <div class="inner rows">
-    <div class="row">
+    <div class="row reveal" data-label="Calls">
       <div class="copy">
+        <p class="scene">Bottom of the ninth. Your kid is up. A customer is calling. Max has it. Look up.</p>
+        <p class="payoff">Name, number and what they need, on your phone after the inning.</p>
         <h2>Every call answered, even when you’re on a roof.</h2>
         <p class="lead">When you can’t pick up, Max answers in your company’s name. He answers questions about your services, area and hours from what you tell him, takes the details for an estimate, and sends it all to your phone in seconds.</p>
         <ul class="chk">
-          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Says up front that he isn’t a person and the call may be recorded</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Says up front that he’s an automated assistant and the call may be recorded</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Shares only the prices you give him, and never makes one up</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Urgent calls, like a leak, can ring through to your cell</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Keep your number: missed calls forward to Max</span></li>
@@ -298,8 +322,10 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
       </div></div>
     </div>
 
-    <div class="row flip" id="quotes">
+    <div class="row flip reveal" id="quotes" data-label="Quotes">
       <div class="copy">
+        <p class="scene">Hole 14. Nine feet for birdie. First round in a month. A customer just booked a job. You’ll read it after the putt. Take your time.</p>
+        <p class="payoff">Booked from your booking page. It’s on your calendar, and the follow-up for Tuesday’s quote is already written.</p>
         <h2>Quotes don’t go quiet.</h2>
         <p class="lead">Most quotes aren’t turned down. They’re forgotten. Add the quote in the app and pick a day. That morning your phone reminds you, and the text is already written.</p>
         <ul class="chk">
@@ -320,10 +346,12 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
       </div></div>
     </div>
 
-    <div class="row" id="finished">
+    <div class="row reveal" id="finished" data-label="Finished jobs">
       <div class="copy">
+        <p class="scene">Your dad is blowing out seventy candles. A customer is calling. Max has it. Be there.</p>
+        <p class="payoff">The call is on your phone. So is the review request for the job you finished at four. One tap each, after cake.</p>
         <h2>Finished jobs turn into reviews and posts.</h2>
-        <p class="lead">When a job wraps up, tap Finished a job. Your customer gets one friendly text asking for a Google review, if they agreed to it. Send us a photo, and it comes back as a post written for you, ready for your OK.</p>
+        <p class="lead">When a job wraps up, tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed. Send us a photo, and it comes back as a Google post written for you, ready for your OK.</p>
         <ul class="chk">
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every customer asked, not just the happy ones</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every review answered, and bad ones flagged the same day</span></li>
@@ -341,7 +369,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band dark" id="math">
+<section class="sec band dark" id="math" data-label="The math">
   <div class="inner math-grid">
     <div>
       <h2>One job can cover the whole year.</h2>
@@ -361,7 +389,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band" id="plans">
+<section class="sec band" id="plans" data-label="Plans">
   <div class="inner">
     <h2>Plans for builders</h2>
     <p class="lead" style="margin-top:14px">Month to month, with no setup fee. If the first month isn’t worth it, tell us and we refund it.</p>
@@ -391,11 +419,11 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Your own business number, and a text back for every missed call<span class="soon">Coming soon</span></span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Seasonal and past-customer reminders<span class="soon">Coming soon</span></span></li>
         </ul>
-        <p class="plan-note">Texting from your business number starts once carriers approve it, usually about two weeks after you sign up.</p>
+        <p class="plan-note">Texting from your business number starts once carriers approve it, usually one to two weeks. Until then every text is written for you and sends from your own phone in one tap.</p>
         <a class="btn line" href="index.html#contact">Choose Pro</a>
       </div>
       <div class="plan add">
-        <h3>Max, the phone assistant</h3>
+        <h3>Max, your phone assistant</h3>
         <div class="price"><b>$149</b><span>/ month, add to any plan</span></div>
         <p class="who">300 minutes included, about 120 calls. After that, 25¢ a minute.</p>
         <ul class="chk">
@@ -411,7 +439,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band alt" id="rules">
+<section class="sec band alt" id="rules" data-label="How we work">
   <div class="inner">
     <h2>Three rules we don’t bend.</h2>
     <div class="rules3">
@@ -422,25 +450,27 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band" id="questions">
+<section class="sec band" id="questions" data-label="Questions">
   <div class="inner">
     <h2>What builders ask first</h2>
     <div class="faq">
-      <details><summary>Do I have to sit at a desk for this?</summary><p>No. Everything comes to your phone in the Always Open app. You tap Approve, or change the words first. Once a month you get a one-page report.</p></details>
+      <details><summary>Do I have to sit at a desk for this?</summary><p>No. Everything comes to your phone in the Always Open app. You tap Approve, or change the words first. Once a month you get a one-page report. You can read it on the tailgate.</p></details>
       <details><summary>What does Max say when someone asks what a job costs?</summary><p>He shares only the prices you give him, word for word, and never makes one up. Otherwise he takes the details for an estimate and a good time for you to call back.</p></details>
-      <details><summary>Will callers know Max isn’t a person?</summary><p>Yes. Max says so at the start of every call, along with the fact that the call may be recorded. If someone wants a person, he takes a message, or puts urgent calls through to your cell if you choose.</p></details>
+      <details><summary>Will callers know Max isn’t a person?</summary><p>Yes. He says so at the start of every call, along with the fact that the call may be recorded. If someone wants a person, he takes a message, or puts urgent calls through to your cell if you choose.</p></details>
       <details><summary>Can I keep my business number?</summary><p>Yes. When you can’t pick up, call forwarding sends the call to Max. We set it up with you, and most phone companies support it.</p></details>
       <details><summary>Do you text my customers?</summary><p>Only people who reached out to you or agreed to it. A finished-job review request is one text, and only for customers who agreed. Follow-ups open on your own phone with the text ready, so you send them yourself. On Pro, once your business number is approved, someone who calls and can’t reach you will get a text back once texting launches.</p></details>
-      <details><summary>Will this get me to the top of Google?</summary><p>We can’t promise a ranking, and nobody honest can. Steady new reviews, answered reviews and an accurate profile all help you show up, and your monthly report shows what changed.</p></details>
-      <details><summary>What do you need from me to start?</summary><p>Manager access to your Google Business Profile and Facebook page, your service area, hours and the work you want more of. Setup takes about a week.</p></details>
+      <details><summary>Will this get me to number one on Google?</summary><p>No promises. The honest options are doing nothing, hiring someone, or us. One of those has never moved a ranking. The report shows you which of the other two did.</p></details>
+      <details><summary>What do you need from me to start?</summary><p>Three things, about ten minutes. Your hours, service area and the best number for urgent calls. One tap in the app to connect Facebook. And a sample reply approved so we sound like you. Your audit, request link, booking link and app work the same day. Invite us onto your Google profile whenever you’re ready: you stay the owner, and you can remove us any time.</p></details>
       <details><summary>Is there a contract?</summary><p>No. It’s month to month, there’s no setup fee, and the first month is refundable.</p></details>
+      <details><summary>Why pay for this when I could do it myself?</summary><p>You could. You won’t. Not because you’re lazy. You’re busy, and the work in front of you pays. Meanwhile the review from Tuesday sits there, Thursday’s call went to voicemail, and that customer called the next guy. We do it every day, including the days you’re under a house. About what six hours of office help costs. You approve it. You’re the boss. We’re the ones who remember.</p></details>
     </div>
   </div>
 </section>
 
-<section class="band dark final" id="next">
+<section class="band dark final" id="next" data-label="Free audit">
   <div class="inner">
     <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
+    <p class="scene">Sunday, 11:12 PM. A customer’s water heater just quit. They called three places. One answered.</p>
     <h2>See what’s costing you calls before you spend a dollar.</h2>
     <p class="lead">Ask for a free audit: your rating next to the builders you compete with, the reviews nobody answered, and the details that don’t match across the web. It’s yours to keep.</p>
     <div class="ctas"><a class="btn primary" href="index.html#contact">Get my free audit</a><a class="btn line" href="index.html">Back to Always Open</a></div>
@@ -451,7 +481,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 <footer class="band">
   <div class="inner">
     <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-    <span>Keeping businesses always open · Anywhere in the U.S.</span>
+    <span>Be wherever you’d rather be · Anywhere in the U.S.</span>
     <span class="legal"><a href="tel:+17064602226">(706) 460-2226</a></span>
     <span class="legal"><a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
     <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
@@ -472,6 +502,18 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
     cover.innerHTML = g < 1 ? 'That’s most of a month of Growth.' : 'That covers <b>' + months(g) + '</b> of Growth' + (p >= 1 ? ', or <b>' + months(p) + '</b> of Pro.' : '.');
   }
   job.addEventListener('input', draw); mg.addEventListener('input', draw); draw();
+})();
+</script>
+<script>
+(function () {
+  document.documentElement.classList.add('js');
+  if (!window.matchMedia('(max-width:760px)').matches || !('IntersectionObserver' in window)) return;
+  var label = document.getElementById('seclabel'), txt = label && label.querySelector('span'), hero = document.querySelector('header.hero'), cur = '';
+  var heroIn = true, io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { cur = e.target.getAttribute('data-label') || ''; if (txt) txt.textContent = cur; } }); if (label) label.classList.toggle('show', !heroIn && !!cur); }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+  document.querySelectorAll('[data-label]').forEach(function (s) { io.observe(s); });
+  if (hero && label) new IntersectionObserver(function (es) { heroIn = es[0].isIntersecting; label.classList.toggle('show', !heroIn && !!cur); }, { threshold: 0.02 }).observe(hero);
+  var rv = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rv.unobserve(e.target); } }); }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (r) { rv.observe(r); });
 })();
 </script>
 </body>

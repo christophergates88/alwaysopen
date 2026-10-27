@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>Insurance agencies · Always Open</title><link rel="canonical" href="https://alwaysopenoffice.com/insurance">
-<meta name="description" content="Always Open for insurance agencies: every review answered in wording your compliance contact approved, Compliance Guard on every reply, Rate-Shock Radar, an after-hours phone line that only takes messages, and a monthly record of everything posted in your name. We never see your client list.">
+<meta name="description" content="Always Open for insurance agencies: every review answered in wording your compliance contact approved, Compliance Guard on every reply, Rate-Shock Radar, an after-hours phone assistant that only takes messages, and a monthly record of everything posted in your name. We never see your client list.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <style>
@@ -279,6 +279,26 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   .guarantee{grid-template-columns:1fr;gap:6px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.scene{font:600 1.22rem/1.35 var(--display);letter-spacing:-.005em;color:var(--ink);margin:0 0 12px;max-width:34ch}
+.cg-how{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.cg-how b{display:block;margin-bottom:8px}
+.cg-how ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:.95rem}
+.cg-how p{margin:0;font-size:.95rem;color:var(--slate)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px!important}
+.flow span{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink)}
+.flow span+span::before{content:"\2192  ";color:var(--slate)}
+.cg-note{margin:14px 0 0;color:var(--slate);font-size:.88rem}
+.seclabel{display:none}
+@media (max-width:760px){
+  .cg-how{grid-template-columns:1fr}
+  .js .seclabel{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px max(16px,env(safe-area-inset-left,0px));font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--night-ink);background:rgba(15,19,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,106,94,.35);transform:translateY(-100%);transition:transform .25s ease}
+  .js .seclabel.show{transform:none}
+  .seclabel i{width:7px;height:7px;border-radius:50%;background:var(--night-sign);box-shadow:0 0 8px var(--night-sign)}
+  main>.sec{border-top:2px solid var(--sign);box-shadow:0 -1px 0 rgba(217,45,32,.18),0 -10px 24px -18px rgba(217,45,32,.6)}
+  .scene{font-size:1.3rem;max-width:none}
+}
+@media (prefers-reduced-motion:reduce){.seclabel{transition:none}}
+
 .soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
 </style>
 
@@ -305,6 +325,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
 </svg>
 
+<div class="seclabel" id="seclabel" aria-hidden="true"><i></i><span></span></div>
 <header class="hero band">
   <div class="inner">
     <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what’s different for insurance agencies. <a href="index.html">See everything we do</a></p>
@@ -346,11 +367,18 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 </header>
 
 <main>
-<section class="sec band" id="guard">
+<section class="sec band" id="guard" data-label="Compliance Guard">
   <div class="inner guard-grid">
     <div>
+      <p class="scene">Your compliance officer has opinions. Compliance Guard read them first.</p>
       <h2>Write a reply. See what Compliance Guard stops.</h2>
-      <p class="lead" style="margin-top:16px">Every reply we draft, and every edit you make in the app, goes through these checks before it can post. Your compliance contact can add words of their own.</p>
+      <p class="lead" style="margin-top:16px">Compliance Guard is a check that runs on every draft before it reaches your phone. It reads each reply and post against the rules below, and against any words your compliance contact adds, and flags anything that shouldn’t go out. A flagged draft can’t be approved until the words change.</p>
+      <div class="cg-how">
+        <div><b>How it helps</b><ul><li>Protects your license and your agency’s name.</li><li>Nothing goes out unchecked, and nothing goes out without your tap.</li><li>A record for your compliance file: what was checked, who approved it, and when.</li></ul></div>
+        <div><b>What it’s part of</b><p class="flow"><span>Draft</span><span>Guard check</span><span>Your OK</span><span>Record</span></p><p>It runs on every review reply and post, in the app and in your monthly record.</p></div>
+      </div>
+      <p class="cg-note">Compliance Guard is a safeguard, not legal advice, and not a guarantee of compliance. Your agency stays responsible for what it publishes.</p>
+      <p class="lead" style="margin-top:16px">What it checks:</p>
       <ul class="rules">
         <li><b>Confirms someone is a client</b><span>“your policy,” “your claim,” “as a valued client”</span></li>
         <li><b>Mentions claim details</b><span>adjusters, settlements, payouts, deductibles</span></li>
@@ -370,9 +398,10 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band dark" id="radar">
+<section class="sec band dark" id="radar" data-label="Rate-Shock Radar">
   <div class="inner radar-grid">
     <div>
+      <p class="scene">Rates went up in March. So did the one-star reviews. Not yours.</p>
       <h2>Hear about a rate wave before it reaches your page.</h2>
       <p class="lead" style="margin-top:16px">Every week we read new public reviews for the agencies in your town. When complaints about rate increases start climbing, you hear from us first, with a reply and a helpful post ready for your OK.</p>
       <ul class="steps3">
@@ -390,14 +419,15 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band" id="max">
+<section class="sec band" id="max" data-label="After hours">
   <div class="inner max-grid">
     <div>
+      <p class="scene">5:01 PM. The office just closed. The customer’s problem did not.</p>
       <h2>After hours, Max takes the message.</h2>
       <p class="lead" style="margin-top:16px">People shop for insurance after work. When you can’t pick up, Max answers in your agency’s name, takes their name, number, what they need and a good time to call back, and sends it to your phone in seconds.</p>
       <div class="never">
         <b>What Max never does</b>
-        <p>Discuss policies, coverage, claims, rates or quotes, or say whether someone is your client. He tells every caller up front he isn’t a person and that the call may be recorded.</p>
+        <p>Discuss policies, coverage, claims, rates or quotes, or say whether someone is your client. He tells every caller he’s an automated assistant and that the call may be recorded.</p>
       </div>
       <ul class="chk" style="margin-top:20px">
         <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Urgent calls can ring through to your cell</span></li>
@@ -419,7 +449,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
             <p class="sum">Dana is adding her 16-year-old son as a driver and would like someone to call her back.</p>
             <div class="meta"><span><b>Wants:</b> a call about adding a new driver</span><span><b>When:</b> tomorrow after 10</span></div>
             <div class="acts"><span>Call back</span><span class="alt">Text</span></div>
-            <p class="said">What was said: Max greeted her, said he isn’t a person and the call may be recorded, and took the message.</p>
+            <p class="said">What was said: Max greeted her, said he’s an automated assistant and the call may be recorded, and took the message.</p>
           </div>
         </div>
       </div>
@@ -428,8 +458,9 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band alt" id="posts">
+<section class="sec band alt" id="posts" data-label="Posts">
   <div class="inner">
+      <p class="scene">Monday. The weekly post is drafted. You were at the Rotary breakfast.</p>
     <h2>Posts that teach, never sell.</h2>
     <p class="lead" style="margin-top:16px">Your Google profile stays active with helpful posts from a calendar built for agencies. No rates, no quotes, no promises, and each one waits for your OK.</p>
     <div class="cal">
@@ -452,9 +483,10 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band" id="record">
+<section class="sec band" id="record" data-label="On the record">
   <div class="inner rec-grid">
     <div>
+      <p class="scene">An auditor asks what you posted in June. You have a file for that.</p>
       <h2>Every public word, on file.</h2>
       <p class="lead" style="margin-top:16px">Once a month you get a record of every review, reply and post, with the date and who approved it. Keep it with your files, or hand it to compliance when they ask.</p>
       <ul class="chk" style="margin-top:22px">
@@ -474,8 +506,9 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band alt" id="privacy">
+<section class="sec band alt" id="privacy" data-label="Privacy">
   <div class="inner">
+      <p class="scene">Nobody’s client list left the building. Including yours.</p>
     <h2>We never see your client list.</h2>
     <p class="lead" style="margin-top:16px">Always Open works only from public pages: your Google and Facebook profiles, your reviews, and other agencies’ public ratings.</p>
     <div class="three">
@@ -486,7 +519,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band" id="plans">
+<section class="sec band" id="plans" data-label="Plans">
   <div class="inner">
     <h2>Plans for agencies</h2>
     <p class="lead" style="margin-top:14px">Month to month, with no setup fee. If the first month isn’t worth it, tell us and we refund it.</p>
@@ -514,8 +547,8 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
         <ul class="chk">
           <li class="plus">Everything in Starter, plus:</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Storm Desk: a storm-day post ready when a warning hits your county</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Replies in your agency’s voice, with three versions to pick from</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>What the chatbots say about you: a monthly check, done by our team, of what chatbots tell people, with wrong details fixed</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Replies in your agency’s voice, from the library your compliance contact approved</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>What assistants say about you: a monthly check, by our team, of what answer assistants tell people, with wrong details fixed</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>The same details on Apple Maps, Bing, Facebook and Yelp<span class="soon">Coming soon</span></span></li>
         </ul>
         <a class="btn primary" href="index.html#start-insurance">Choose Growth</a>
@@ -526,7 +559,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
         <p class="who">300 minutes included, about 120 calls. After that, 25¢ a minute.</p>
         <ul class="chk">
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Takes messages only, and never talks coverage, claims, rates or quotes</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Tells every caller up front he isn’t a person and that calls may be recorded</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Says he’s an automated assistant and that calls may be recorded</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every call on your phone in seconds</span></li>
         </ul>
         <a class="btn line" href="tel:+17064602226">Call Max first</a>
@@ -537,7 +570,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band alt" id="questions">
+<section class="sec band alt" id="questions" data-label="Questions">
   <div class="inner">
     <h2>What agency owners ask first</h2>
     <div class="faq">
@@ -548,13 +581,16 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
       <details><summary>What does Max say when someone calls about a claim?</summary><p>Max takes a message only: their name, number, what they need and a good time to call back. He never discusses policies, coverage, claims, rates or quotes, and he tells every caller up front he isn’t a person and that the call may be recorded. If you choose, urgent calls ring through to your cell.</p></details>
       <details><summary>Does Rate-Shock Radar name other agencies?</summary><p>Never. We count public reviews about rate increases across the agencies in your town, and you only see the trend and what’s ready for you to approve.</p></details>
       <details><summary>Do you reply in Spanish?</summary><p>Yes. Spanish reviews get Spanish replies from the same approved library, checked by the same Compliance Guard, and Max speaks Spanish too.</p></details>
-      <details><summary>What do you need from us to start?</summary><p>Manager access to your Google Business Profile, your compliance contact’s OK on the reply library, your license number and any required notices, and any words you never want used. Setup takes about a week.</p></details>
+      <details><summary>What do you need from us to start?</summary><p>Three things, about ten minutes. Your hours and the best number for urgent calls. Your compliance contact’s OK on the reply library, with your license number, any required notices and any words you never want used. And one tap in the app to connect Facebook, if you use it. Your audit and app work the same day. Invite us onto your Google profile whenever you’re ready: you stay the owner, and you can remove us any time.</p></details>
+      <details><summary>Will this get me to number one on Google?</summary><p>No promises. The honest options are doing nothing, hiring someone, or us. One of those has never moved a ranking. The report shows you which of the other two did.</p></details>
+      <details><summary>Do you reply on Yelp?</summary><p>We write it. You post it. Yelp doesn’t let outside services post for a business, so we hand you the finished reply and a one-tap link. About ten seconds on your end. We would do it for you if Yelp allowed it. They don’t. One more Yelp rule: they ask businesses not to request reviews. So we never ask for Yelp reviews. We’d rather lose a review than get your page flagged. Yelp replies come with the <a href="#addons">Review alerts beyond Google</a> add-on.</p></details>
+      <details><summary>Why pay for this when I could do it myself?</summary><p>You could. You won’t. Not because you’re lazy. You’re busy, and the work in front of you pays. Meanwhile the review from Tuesday sits there, Thursday’s call went to voicemail, and that customer called the next guy. We do it every day, including the days you’re under a house. About what six hours of office help costs. You approve it. You’re the boss. We’re the ones who remember.</p></details>
       <details><summary>Is there a contract?</summary><p>No. It’s month to month, there’s no setup fee, and the first month is refundable.</p></details>
     </div>
   </div>
 </section>
 
-<section class="band dark final" id="next">
+<section class="band dark final" id="next" data-label="Free audit">
   <div class="inner">
     <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
     <h2>See how your agency looks next to the agencies near you.</h2>
@@ -567,7 +603,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 <footer class="band">
   <div class="inner">
     <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-    <span>Keeping businesses always open · Anywhere in the U.S.</span>
+    <span>Be wherever you’d rather be · Anywhere in the U.S.</span>
     <span class="legal"><a href="tel:+17064602226">(706) 460-2226</a></span>
     <span class="legal"><a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
     <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
@@ -636,6 +672,16 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   btns.forEach(function (b) { b.addEventListener('click', function () { use(b.dataset.s); }); });
   var timer; ta.addEventListener('input', function () { btns.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); }); clearTimeout(timer); timer = setTimeout(draw, 120); });
   use('risky');
+})();
+</script>
+<script>
+(function () {
+  document.documentElement.classList.add('js');
+  if (!window.matchMedia('(max-width:760px)').matches || !('IntersectionObserver' in window)) return;
+  var label = document.getElementById('seclabel'), txt = label && label.querySelector('span'), hero = document.querySelector('header.hero'), cur = '';
+  var heroIn = true, io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { cur = e.target.getAttribute('data-label') || ''; if (txt) txt.textContent = cur; } }); if (label) label.classList.toggle('show', !heroIn && !!cur); }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+  document.querySelectorAll('[data-label]').forEach(function (s) { io.observe(s); });
+  if (hero && label) new IntersectionObserver(function (es) { heroIn = es[0].isIntersecting; label.classList.toggle('show', !heroIn && !!cur); }, { threshold: 0.02 }).observe(hero);
 })();
 </script>
 </body>

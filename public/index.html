@@ -355,6 +355,70 @@ footer .legal a:focus-visible{outline:3px solid var(--night-sign);outline-offset
   .phone{width:min(290px,100%)}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+/* scenes: the moment first, the feature as the small label */
+.scene{font:600 1.22rem/1.35 var(--display);letter-spacing:-.005em;color:var(--ink);margin:0 0 10px;max-width:34ch}
+.hero-scene{font-size:clamp(1.25rem,2.4vw,1.6rem);color:var(--night-ink);max-width:30ch;margin:22px 0 0}
+.hero-scene+.lede{margin-top:16px}
+.day .scene{color:var(--night-ink)}
+.payoff{margin:0 0 22px;color:var(--slate);max-width:52ch}
+.payoff+.eyebrow{margin-top:0}
+.moments-wrap{margin-top:64px}
+.moments{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 0 12px;margin-top:14px;-webkit-overflow-scrolling:touch}
+.moment{scroll-snap-align:start;background:var(--night);color:var(--night-ink);border:1px solid var(--night-line);border-radius:16px;padding:22px 20px;display:grid;gap:10px;align-content:start;box-shadow:inset 0 0 0 1px rgba(255,106,94,.08)}
+.moment p{margin:0;font:600 1.05rem/1.4 var(--display)}
+.moment small{color:var(--night-mute);font-size:.9rem}
+.closer{margin:14px 0 0;font:600 1.05rem var(--display);color:var(--sign)}
+.sms .via{display:block;font:500 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--m-mute);margin-bottom:6px}
+/* add-ons */
+.addons-head{margin-top:44px;display:grid;gap:8px;max-width:62ch}
+.addons-h{font:700 clamp(1.4rem,2.6vw,1.9rem)/1.15 var(--display);margin:0}
+.addons-sub{margin:0;color:var(--slate)}
+.addon .what{margin:0}
+.addon dl{margin:4px 0 0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:.94rem}
+.addon dt{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--slate);padding-top:2px}
+.addon dd{margin:0}
+.addon .btn{justify-self:start;margin-top:6px}
+/* compliance guard explainer */
+.cg{margin:34px 0;padding:26px;border:1px solid var(--line);border-radius:18px;background:var(--card);display:grid;gap:12px}
+.cg h3{margin:0;font:700 1.35rem/1.2 var(--display)}
+.cg>p{margin:0;max-width:62ch}
+.cg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:6px}
+.cg-grid b{display:block;margin-bottom:8px}
+.cg-grid ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:.95rem}
+.cg-grid p{margin:0;font-size:.95rem;color:var(--slate)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px!important}
+.flow span{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink)}
+.flow span+span::before{content:"\2192  ";color:var(--slate)}
+.cg .fine{margin:0;color:var(--slate);font:400 .9rem/1.5 var(--body);letter-spacing:0;text-transform:none}
+@media (max-width:860px){.cg-grid{grid-template-columns:1fr}}
+/* the "what you get" lists fold away on phones; the summary is invisible on wide screens */
+details.more>summary{list-style:none;cursor:pointer;display:none;font:600 .95rem var(--body);color:var(--sign);padding:8px 0}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::after{content:" +"}
+details.more[open]>summary::after{content:" \2212"}
+/* sticky section label on phones */
+.seclabel{display:none}
+@media (max-width:760px){
+  .js .seclabel{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px max(16px,env(safe-area-inset-left,0px));font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--night-ink);background:rgba(15,19,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,106,94,.35);transform:translateY(-100%);transition:transform .25s ease}
+  .js .seclabel.show{transform:none}
+  .seclabel i{width:7px;height:7px;border-radius:50%;background:var(--night-sign);box-shadow:0 0 8px var(--night-sign)}
+  .seclabel.show+*{scroll-margin-top:40px}
+  /* each feature is its own scene on a phone */
+  .rows{gap:0}
+  .row{padding:52px 0 56px;border-top:2px solid var(--sign);box-shadow:0 -1px 0 rgba(217,45,32,.18),0 -10px 24px -18px rgba(217,45,32,.6);gap:26px}
+  .row:first-child{border-top:0;box-shadow:none;padding-top:0}
+  .row:nth-child(even){background:var(--card);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .scene{font-size:1.35rem;max-width:none}
+  .row .copy h2{font-size:1.5rem}
+  details.more>summary{display:block}
+  details.more:not([open])>ul,details.more:not([open])>.allgrid{display:none}
+  .moments{grid-auto-columns:84%}
+  .js .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .js .reveal.in{opacity:1;transform:none}
+  .allgrid{gap:8px}
+}
+@media (prefers-reduced-motion:reduce){.js .reveal{opacity:1;transform:none;transition:none}.seclabel{transition:none}}
+
 dialog.ask{border:0;border-radius:18px;padding:24px;width:min(440px,calc(100% - 32px));background:var(--card);color:var(--ink);box-shadow:0 30px 70px -20px rgba(0,0,0,.6)}
 dialog.ask::backdrop{background:rgba(10,12,18,.6)}
 .ask h3{font-family:var(--display);font-size:1.35rem}
@@ -431,59 +495,61 @@ a.chip:hover{border-color:var(--ink)}
   <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
 </svg>
 
+<div class="seclabel" id="seclabel" aria-hidden="true"><i></i><span></span></div>
 <header class="hero band">
   <div class="inner">
     <div class="top">
       <a class="wordmark" href="#top" id="top"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-      <nav aria-label="Main"><a class="nav-call" href="#try">Call Max</a><a href="#industries">Your business</a><a href="#day">A day with us</a><a href="#pricing">Pricing</a><a href="#faq">Questions</a><a class="btn primary small" href="#contact">Free audit</a></nav>
+      <nav aria-label="Main"><a class="nav-call" href="#try">Call Max</a><a href="#industries">Your business</a><a href="#day">A day with us</a><a href="#pricing">Pricing</a><a href="#addons">Add-ons</a><a href="#faq">Questions</a><a class="btn primary small" href="#contact">Free audit</a></nav>
     </div>
     <div class="hero-grid">
       <div>
         <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
         <h1>Your business, <em>always</em> open.</h1>
-        <p class="lede">Missed calls get a text back. Reviews get answered. Quotes get followed up. Invoices get chased. You stay on the job, and we handle the rest.</p>
+        <p class="scene hero-scene">3:14 AM. Your kid finally fell asleep on your chest. A customer is calling about a burst pipe. Max took the address. Don’t move.</p>
+        <p class="lede">The name, number and address are on your phone for the morning. Reviews get answered. Quotes and invoices get followed up. You stay where you are, and we handle the rest.</p>
         <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
         <p class="promise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
         <p class="fine">No setup fee · Month to month · Spanish replies included</p>
       </div>
-      <div class="stack" role="img" aria-label="Example: a missed call at 2:14 AM gets an instant text, a 2-star review arrives with a drafted reply, and the monthly report is ready">
+      <div class="stack" role="img" aria-label="Example: Max answers a 3:14 AM call about a burst pipe and takes the address, a 2-star review arrives with a drafted reply, and the monthly report is ready">
         <div class="phone"><div class="screen">
-          <div class="who">(478) 555-0142</div>
-          <div class="stamp">Tue 2:14 AM</div>
-          <div class="bub sys">Missed call · Mike's Roofing</div>
-          <div class="bub out">Sorry we missed you! This is Mike's Roofing. What do you need help with?</div>
-          <div class="bub in">Water coming through the kitchen ceiling</div>
-          <div class="bub out">Got it. Mike will call you at 7:30 AM. Can you send a photo of the spot?</div>
-          <div class="bub in">Sending now</div>
+          <div class="who">Max · Mike's Plumbing</div>
+          <div class="stamp">Tue 3:14 AM · call answered</div>
+          <div class="bub sys">Caller: (478) 555-0142</div>
+          <div class="bub in">A pipe burst under the kitchen sink. Water everywhere.</div>
+          <div class="bub out">I’ve got it. Shut the valve under the sink if you can reach it. What’s the address?</div>
+          <div class="bub in">41 Lakeview Dr, Eatonton</div>
+          <div class="bub out">Mike’s team will call you first thing. Help is on the way.</div>
         </div></div>
-        <div class="notif n1"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>7:02 AM</time></div><b>New 2-star review from Dana R.</b><p>Reply drafted. Want to post it?</p><div class="acts"><span class="pill-btn">Post reply</span><span class="pill-btn alt">Edit</span></div></div>
-        <div class="notif n2"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>2:14 AM</time></div><b>Lead saved: roof leak</b><p>Text sent in 4 seconds. Photo requested.</p></div>
+        <div class="notif n1"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>7:02 AM</time></div><b>New 2-star review from Dana R.</b><p>Reply drafted. Tap when you’re ready.</p><div class="acts"><span class="pill-btn">Post reply</span><span class="pill-btn alt">Edit</span></div></div>
+        <div class="notif n2"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>3:14 AM</time></div><b>Max has it. Burst pipe, 41 Lakeview Dr.</b><p>Name and number saved. Go back to sleep.</p></div>
         <div class="notif n3"><div class="nh"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg>Always Open<time>Oct 31</time></div><b>Your October report is ready</b><p>Rating 4.1 to 4.6 · 14 new reviews</p></div>
-        <p class="cap">Examples for a made-up roofer.</p>
+        <p class="cap">Examples for a made-up plumber.</p>
       </div>
     </div>
   </div>
 </header>
 
-<section class="try band" id="try" aria-labelledby="try-h">
+<section class="try band" id="try" data-label="Call Max" aria-labelledby="try-h">
   <div class="inner try-grid">
     <div>
       <p class="eyebrow">The dare</p>
       <h2 id="try-h">Nobody likes talking to AI. Call ours anyway.</h2>
-      <p class="sub">Max answers our phone, and he's the same assistant we set up for your business. No phone tree, no "press 1." He listens, answers real questions, takes down what you need and tells you up front he isn't a person. He's also really good at his job. Go ahead, test him.</p>
+      <p class="sub">Max answers our phone. He’s the same assistant we set up for your business. No phone tree, no “press 1.” He listens, answers real questions, takes down what you need and tells you up front that he isn’t a person. He’s also good at his job. Go ahead. Test him.</p>
       <a class="neon-call" href="tel:+17064602226"><span>Call Max now</span><b>(706) 460-2226</b></a>
       <p class="try-ideas">Things to try: ask what it costs, ask if he's a real person, or say nothing at all and see what he does.</p>
     </div>
     <div class="keep">
       <p class="eyebrow">Your number stays yours</p>
       <h3>Customers keep calling the number they already know.</h3>
-      <p>When you can't pick up, call forwarding sends the call to your own phone line, just like Max. It answers in your business's name and sends you the details in seconds, with a button to call them back.</p>
+      <p>When you can’t pick up, call forwarding sends the call to your own Max. He answers in your business’s name and sends you the details in seconds, with a button to call them back.</p>
       <p>We set up the forwarding with you. Most phone companies support it, and it only takes a few minutes.</p>
     </div>
   </div>
 </section>
 
-<section class="ind band" id="industries"><div class="inner">
+<section class="ind band" id="industries" data-label="Your business"><div class="inner">
   <p class="eyebrow">Pick your business</p>
   <h2>We speak your business’s language.</h2>
   <p class="sub">Every trade has its own busy season, its own customers and its own rules. Tap yours to see what Always Open does for a business like yours.</p>
@@ -492,17 +558,18 @@ a.chip:hover{border-color:var(--ink)}
 </div></section>
 
 <main>
-<section class="day band" id="day">
+<section class="day band" id="day" data-label="One ordinary day">
   <div class="inner">
+    <p class="scene">5:01 PM. The office just closed. The customer’s problem did not.</p>
     <p class="eyebrow">One ordinary day</p>
-    <h2>The work keeps moving while you're on a roof.</h2>
-    <p class="sub">Most small businesses lose jobs in the gaps: the call after hours, the review nobody answered, the quote nobody followed up. Here is what Always Open does in those gaps.</p>
+    <h2>The work keeps moving while you’re on a roof.</h2>
+    <p class="sub">Most small businesses lose jobs in the gaps: the call after hours, the review nobody answered, the quote nobody followed up. Here is what happens in those gaps now.</p>
     <ul class="events">
-      <li><time>2:14 AM</time><span class="what">A customer calls after hours.</span><span class="then">Within seconds they get a text asking what they need. You wake up to a lead, not a voicemail.</span></li>
+      <li><time>2:14 AM</time><span class="what">A customer calls after hours.</span><span class="then">Max answers, takes the address and what’s wrong. You wake up to a lead, not a voicemail.</span></li>
       <li><time>7:02 AM</time><span class="what">A 2-star review is posted.</span><span class="then">Your phone buzzes with a drafted reply. Tap Approve in the Always Open app, or change the words first.</span></li>
-      <li><time>12:30 PM</time><span class="what">You text a photo of a finished job.</span><span class="then">It becomes a Facebook post and a Google update with a caption written for you.</span></li>
-      <li><time>4:45 PM</time><span class="what">Tuesday's quote still has no answer.</span><span class="then">A friendly follow-up goes to the customer, and again later if they stay quiet.</span></li>
-      <li><time>8:00 PM</time><span class="what">An invoice is two days late.</span><span class="then">A polite reminder goes out with a link to pay.</span></li>
+      <li><time>12:30 PM</time><span class="what">You send a photo of a finished job.</span><span class="then">It comes back as a Google post with the caption written. You approve it from the truck.</span></li>
+      <li><time>4:45 PM</time><span class="what">Tuesday’s quote still has no answer.</span><span class="then">The follow-up is written and on your phone. One tap sends it from your own number.</span></li>
+      <li><time>8:00 PM</time><span class="what">An invoice is two days late.</span><span class="then">A polite reminder with a pay link is drafted. You tap OK, and it goes out by email.</span></li>
     </ul>
   </div>
 </section>
@@ -510,17 +577,19 @@ a.chip:hover{border-color:var(--ink)}
 <section class="sec band" id="what">
   <div class="inner rows">
 
-    <div class="row">
+    <div data-label="Get found" class="row reveal">
       <div class="copy">
+        <p class="scene">Christmas morning. Everyone is closed. Your phone number is not.</p>
+        <p class="payoff">Your hours, photos and posts are kept current by our team, so the search shows a business that’s alive.</p>
         <p class="eyebrow">Get found</p>
         <h2>Look open, current and trusted when they search.</h2>
-        <p class="lead">Customers decide in seconds. We keep your Google profile, listings and social pages accurate and active, so the first thing they see is a business that's alive.</p>
-        <ul>
+        <p class="lead">Customers decide in seconds. Once you invite us onto your Google profile, we keep it accurate and active.</p>
+        <details class="more" open><summary>What you get</summary><ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current: hours, photos, a weekly post</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Same name, address, phone and hours on Apple Maps, Bing, Facebook and Yelp</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Same name, address, phone and hours on Apple Maps, Bing, Facebook and Yelp<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts made from your job photos<span class="soon">Coming soon</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Review requests after every job, to every customer</li>
-        </ul>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A review request after every job, written for you, sent from your phone in one tap</li>
+        </ul></details>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample business profile showing current hours, a recent post and a checklist of kept-current items">
         <span class="mtag">Sample</span>
@@ -532,41 +601,45 @@ a.chip:hover{border-color:var(--ink)}
       </div></div>
     </div>
 
-    <div class="row flip">
+    <div data-label="Answer everyone" class="row reveal flip">
       <div class="copy">
+        <p class="scene">Bottom of the ninth. Your kid is up. A customer is calling. Max has it. Look up.</p>
+        <p class="payoff">With Max on your line, the caller’s name, number and reason are on your phone. Read it after the inning.</p>
         <p class="eyebrow">Answer everyone</p>
         <h2>Nobody waits for a reply.</h2>
         <p class="lead">Calls, reviews, quote requests and bookings all land in one place, and each gets an answer fast, from your own number once texting is approved.</p>
-        <ul>
+        <details class="more" open><summary>What you get</summary><ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed call, instant text<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every review answered, bad ones flagged the same day</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Online booking and quote requests, any hour</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Appointment confirmations and reminders<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Spanish replies on every plan</li>
-        </ul>
+        </ul></details>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample activity inbox: a missed call with text sent, a new quote request, a confirmed appointment and a review reply waiting for approval">
+      <div class="stage"><div class="mock" role="img" aria-label="Sample activity inbox: a call answered by Max, a new quote request, a booking and a review reply waiting for approval">
         <span class="mtag">Sample</span>
         <div class="mh"><b>Today · Mike's Roofing</b><small>4 handled</small></div>
         <div class="inbox">
-          <div class="irow"><i></i><div><b>Missed call · (478) 555-0142</b><span>Text sent in 4 seconds</span></div><span class="pill ok">Lead saved</span></div>
+          <div class="irow"><i></i><div><b>Call · (478) 555-0142</b><span>Max took the details, 2:14 AM</span></div><span class="pill ok">Lead saved</span></div>
           <div class="irow"><i class="r"></i><div><b>Quote request · Kitchen ceiling leak</b><span>From your booking page, 6:51 AM</span></div><span class="pill red">New</span></div>
-          <div class="irow"><i></i><div><b>Appointment · Thu 9:00 AM</b><span>Confirmation sent, reminder queued</span></div><span class="pill ok">Confirmed</span></div>
+          <div class="irow"><i></i><div><b>Booking · Thu 9:00 AM</b><span>From your booking page</span></div><span class="pill ok">Booked</span></div>
           <div class="irow"><i class="w"></i><div><b>2-star review · Dana R.</b><span>Reply drafted for your OK</span></div><span class="pill warn">Needs OK</span></div>
         </div>
       </div></div>
     </div>
 
-    <div class="row">
+    <div data-label="Get paid" class="row reveal">
       <div class="copy">
+        <p class="scene">Your daughter is telling you about her day. It’s the most she’s said all week. The phone buzzes. Max has it. Keep listening.</p>
+        <p class="payoff">The invoice reminder is drafted and waiting for your OK. It can wait until she’s done.</p>
         <p class="eyebrow">Get paid</p>
-        <h2>Quotes and invoices don't go quiet.</h2>
-        <p class="lead">Most unpaid money isn't refused, it's forgotten. We follow up politely, as many times as it takes, in your voice.</p>
-        <ul>
+        <h2>Quotes and invoices don’t go quiet.</h2>
+        <p class="lead">Most unpaid money isn’t refused. It’s forgotten. We write the follow-up, in your voice, and you send it with one tap.</p>
+        <details class="more" open><summary>What you get</summary><ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Invoice and payment reminders with a pay link</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote follow-up, so good leads don't fade</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote follow-up, written for you, one tap to send</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Past-customer reminders and referral asks<span class="soon">Coming soon</span></li>
-        </ul>
+        </ul></details>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample money-waiting list with three invoices and a payment reminder text">
         <span class="mtag">Sample</span>
@@ -576,20 +649,22 @@ a.chip:hover{border-color:var(--ink)}
           <div class="inv"><b>#1049 · Hart Farms</b><em>$940</em><span>Due Friday</span></div>
           <div class="inv"><b>#1038 · L. Moss</b><em>$450</em><span style="color:var(--m-ok)">Paid</span></div>
         </div>
-        <div class="sms"><div class="bub in">Hi Dana, a friendly reminder that invoice #1042 ($1,850) was due Oct 20. Thank you for choosing Mike's Roofing.<br><span class="paylink">Pay invoice</span></div></div>
+        <div class="sms"><small class="via">Sent by email</small><div class="bub in">Hi Dana, a friendly reminder that invoice #1042 ($1,850) was due Oct 20. Thank you for choosing Mike's Roofing.<br><span class="paylink">Pay invoice</span></div></div>
       </div></div>
     </div>
 
-    <div class="row flip">
+    <div data-label="Prove it works" class="row reveal flip">
       <div class="copy">
+        <p class="scene">12:15 PM. Everyone is on a job. The phone is ringing. It has been answered.</p>
+        <p class="payoff">Every call, review and request lands in one report, so you can see what the gaps used to cost.</p>
         <p class="eyebrow">Prove it works</p>
         <h2>One page a month shows what changed.</h2>
-        <p class="lead">No dashboards to learn. You get a short report with calls, reviews, your rating and what we did, plus how you compare with the three businesses you compete with most.</p>
-        <ul>
+        <p class="lead">No dashboards to learn. You get a short report with calls, reviews, your rating and what we did, plus how you compare with the businesses near you.</p>
+        <details class="more" open><summary>What you get</summary><ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A one-page monthly report</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead logged: who called, what they wanted, quoted, booked or lost</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch on rating and review count</li>
-        </ul>
+        </ul></details>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample monthly report with calls, direction requests, new reviews, rating change and a bar chart of reviews per month rising from 2 in May to 14 in October">
         <span class="mtag">Sample · made-up numbers</span>
@@ -615,17 +690,19 @@ a.chip:hover{border-color:var(--ink)}
       </div></div>
     </div>
 
-    <div class="row">
+    <div data-label="Stay on the record" class="row reveal">
       <div class="copy">
+        <p class="scene">You’re out sick. The business isn’t.</p>
+        <p class="payoff">Every reply and post is saved with its date and who approved it. The record is there when you’re back.</p>
         <p class="eyebrow">Stay on the record</p>
         <h2>Everything we do is written down.</h2>
         <p class="lead">Every review reply, post, lead and text is saved with its date and who approved it. Once a month you get a record file to keep, hand to a compliance officer, or pull out when someone says nobody called them back.</p>
-        <ul>
+        <details class="more" open><summary>What you get</summary><ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every reply and post saved with its date and your approval</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead and missed-call text logged</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead and call logged</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A monthly record file on every plan</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Nothing goes out in your name without your OK</li>
-        </ul>
+        </ul></details>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample monthly record listing a posted review reply, a Google post, a missed-call text and a logged lead, each with its date">
         <span class="mtag">Sample</span>
@@ -633,7 +710,7 @@ a.chip:hover{border-color:var(--ink)}
         <div class="inbox">
           <div class="irow"><i></i><div><b>Oct 4 · Reply posted to a 5-star review</b><span>Approved by Mike, Oct 4, 8:12 AM</span></div><span class="pill ok">Saved</span></div>
           <div class="irow"><i></i><div><b>Oct 7 · Google post: fall roof checks</b><span>Approved by Mike, Oct 6</span></div><span class="pill ok">Saved</span></div>
-          <div class="irow"><i></i><div><b>Oct 9 · Missed call texted back</b><span>2:14 AM · reply in 4 seconds</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 9 · Call answered by Max</b><span>2:14 AM · address taken</span></div><span class="pill ok">Saved</span></div>
           <div class="irow"><i></i><div><b>Oct 12 · Lead logged: kitchen ceiling leak</b><span>Booked for Thu 9:00 AM</span></div><span class="pill ok">Saved</span></div>
         </div>
         <span class="recbtn">October record (PDF)</span>
@@ -641,17 +718,28 @@ a.chip:hover{border-color:var(--ink)}
     </div>
 
   </div>
-</section>
-
-<section class="sec band" id="all">
-  <div class="inner">
-    <div class="head"><p class="eyebrow">Everything we handle</p><h2>One team behind the scenes, not one more app.</h2><p>Reviews and texting are only the start. Here is everything Always Open can take off your plate, and the plan that includes it.</p></div>
-    <div class="allgrid"><div class="allitem"><span class="tag ">Starter</span><b>Every review answered</b><p>Google and Facebook, with bad reviews flagged the same day.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Google profile kept current</b><p>Hours, holiday hours, photos and a weekly post.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Monthly report and record</b><p>One page of results, plus a record of everything we did.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Spanish replies</b><p>For every customer who writes in Spanish.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Your own app</b><p>On your phone: approve replies and posts with one tap, see your month, keep your records, message us.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Review requests after every job</b><p>Every customer asked once, never only the happy ones.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Posts from your photos</b><p>Google posts with captions written for you. Facebook and Instagram coming soon.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Listings that match<span class="soon">Coming soon</span></b><p>Same details on Apple Maps, Bing, Facebook and Yelp.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Booking and quote requests</b><p>Taken any hour, sent straight to you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Competitor watch</b><p>How you stack up against the businesses near you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Storm Desk</b><p>When a weather warning hits your county, a storm-day post is ready for you to approve.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Replies in your voice</b><p>Written the way you talk, with three versions to pick from.</p></div><div class="allitem"><span class="tag g">Growth</span><b>What the chatbots say about you</b><p>Each month our team asks the chatbots what customers ask, and we fix wrong hours or phone numbers. Done by hand, every month.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Missed-call text-back<span class="soon">Coming soon</span></b><p>A text in seconds, from your own number.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Quote, invoice and appointment follow-up</b><p>Today: we remind you the day one is due, with the text written. Automatic texts are coming soon.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Seasonal and past-customer reminders<span class="soon">Coming soon</span></b><p>Tune-ups, openings and checkups, plus referral asks.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>After-hours phone line</b><p>Answers calls you miss and sends you a summary in seconds.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Google Ads management</b><p>Set up, run and reported every month.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>A new website</b><p>A fast, simple site with a request form that reaches you.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Website chat</b><p>Visitors ask a question, and you get it by text.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Help-wanted posts</b><p>Your job openings on Google, Indeed and Facebook.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Review alerts beyond Google</b><p>Facebook, Yelp, the BBB, Angi and Nextdoor.</p></div></div>
-    <div class="ctas"><a class="btn primary" href="#pricing">See the plans</a><a class="btn line" href="#contact">Get your free audit</a></div>
+  <div class="inner moments-wrap">
+    <p class="eyebrow">More moments</p>
+    <div class="moments" role="list" aria-label="More moments">
+      <div class="moment" role="listitem"><p>5:40 PM. Sun’s going down. You told them you’d be home for dinner. A customer is calling. Max has it. Go home.</p><small>The details are on your phone. Call back after dinner.</small></div>
+      <div class="moment" role="listitem"><p>Hole 14. Nine feet for birdie. First round in a month. A customer just booked a job. You’ll read it after the putt. Take your time.</p><small>Booked from your booking page. It’s on your calendar.</small></div>
+      <div class="moment" role="listitem"><p>Your dad is blowing out seventy candles. A customer is calling. Max has it. Be there.</p><small>Name, number and reason, waiting on your phone.</small></div>
+      <div class="moment" role="listitem"><p>Sunday, 11:12 PM. A customer’s water heater just quit. They called three places. One answered.</p><small>Max picked up in your name and took the address.</small></div>
+      <div class="moment" role="listitem"><p>Storm warning, 2 AM. Your customers are awake. So is Max.</p><small>Every call answered. A storm-day post ready for your OK by morning.</small></div>
+    </div>
+    <p class="closer">Always Open. Be wherever you’d rather be.</p>
   </div>
 </section>
 
-<section class="sec band alt" id="audit">
+<section class="sec band" id="all" data-label="Everything we handle">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Everything we handle</p><h2>One team behind the scenes, not one more app.</h2><p>Here is everything we take off your plate, the plan that includes it, and an honest tag on anything that isn’t ready yet.</p></div>
+    <details class="more allfold" open><summary>Show everything</summary><div class="allgrid"><div class="allitem"><span class="tag ">Starter</span><b>Every review answered</b><p>Google and Facebook, with bad reviews flagged the same day.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Google profile kept current</b><p>Hours, holiday hours, photos and a weekly post.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Monthly report and record</b><p>One page of results, plus a record of everything we did.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Spanish replies</b><p>For every customer who writes in Spanish.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Your own app</b><p>On your phone: approve replies and posts with one tap, see your month, keep your records, message us.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Review requests after every job</b><p>Every customer asked once, never only the happy ones.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Posts from your photos</b><p>Google posts with captions written for you. Facebook and Instagram coming soon.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Listings that match<span class="soon">Coming soon</span></b><p>Same details on Apple Maps, Bing, Facebook and Yelp.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Booking and quote requests</b><p>Taken any hour, sent straight to you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Competitor watch</b><p>How you stack up against the businesses near you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Storm Desk</b><p>When a weather warning hits your county, a storm-day post is ready for you to approve.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Replies in your voice</b><p>Written the way you talk. Tell us once how you sound.</p></div><div class="allitem"><span class="tag g">Growth</span><b>What assistants say about you</b><p>Each month our team asks the big answer assistants about your business, by hand, and fixes wrong hours or phone numbers.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Missed-call text-back<span class="soon">Coming soon</span></b><p>A text in seconds, from your own number.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Quote, invoice and appointment follow-up</b><p>Today: we remind you the day one is due, with the text written. Automatic texts are coming soon.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Seasonal and past-customer reminders<span class="soon">Coming soon</span></b><p>Tune-ups, openings and checkups, plus referral asks.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Max, your phone assistant</b><p>Answers calls you miss and sends you the details in seconds.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Google Ads management</b><p>Set up, run and reported every month.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>A new website</b><p>A fast, simple site with a request form that reaches you.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Website chat</b><p>Visitors ask a question, and you get it by text.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Help-wanted posts</b><p>Your job openings on Google, Indeed and Facebook.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Review alerts beyond Google</b><p>Facebook, Yelp, the BBB, Angi and Nextdoor.</p></div></div></details>
+    <div class="ctas"><a class="btn primary" href="#pricing">See the plans</a><a class="btn line" href="#addons">See the add-ons</a></div>
+  </div>
+</section>
+
+<section class="sec band alt" id="audit" data-label="Free audit">
   <div class="inner audit-grid">
     <div class="copy">
       <p class="eyebrow">Start here</p>
@@ -688,19 +776,19 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="pricing">
+<section class="sec band" id="pricing" data-label="Pricing">
   <div class="inner">
     <div class="head">
       <p class="eyebrow">Pricing</p>
       <h2>Try it for a month. If it’s not worth it, you don’t pay for it.</h2>
-      <p>No contract and no setup fee. Starter is about $5 a day. Cancel by text, and change plans any month. <a href="#worth" style="color:inherit;text-underline-offset:3px">Is it worth it? Do the math.</a></p>
+      <p>No contract and no setup fee. Starter is about $5 a day. Cancel from the app, and change plans any month. <a href="#worth" style="color:inherit;text-underline-offset:3px">Is it worth it? Do the math.</a></p>
     </div>
     <div class="plans">
       <div class="plan">
         <h3>Starter</h3>
         <div class="price"><b>$149</b><span>/ month</span></div>
         <p class="perday">About $5 a day</p>
-        <p class="for">Get your reputation under control.</p>
+        <p class="for">Every review answered. Even the one from Tuesday.</p>
         <ul>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>All reviews in one feed, every one answered</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Bad-review alerts the same day</li>
@@ -716,7 +804,7 @@ a.chip:hover{border-color:var(--ink)}
         <h3>Growth</h3>
         <div class="price"><b>$299</b><span>/ month</span></div>
         <p class="perday">About $10 a day</p>
-        <p class="for">Get found and get reviews on autopilot.</p>
+        <p class="for">Every customer asked. Every post written. You tap OK.</p>
         <ul>
           <li class="plus">Everything in Starter, plus:</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Review requests after every job</li>
@@ -727,7 +815,7 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Storm Desk: a storm-day post ready when a weather warning hits your county</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Review replies written in your voice</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>What the chatbots say about you: a monthly check, done by our team, of what chatbots tell customers, with anything wrong fixed</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>What assistants say about you: a monthly check, by our team, of what answer assistants tell customers, with anything wrong fixed</li>
         </ul>
         <a class="btn primary" href="/start?plan=Growth">Start with Growth</a>
       </div>
@@ -735,7 +823,7 @@ a.chip:hover{border-color:var(--ink)}
         <h3>Pro</h3>
         <div class="price"><b>$499</b><span>/ month</span></div>
         <p class="perday">About $16 a day</p>
-        <p class="for">Never lose a call, a quote or a payment.</p>
+        <p class="for">Your own number, and nothing goes quiet.</p>
         <ul>
           <li class="plus">Everything in Growth, plus:</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Your own business number</li>
@@ -749,53 +837,94 @@ a.chip:hover{border-color:var(--ink)}
         <a class="btn line" href="/start?plan=Pro">Start with Pro</a>
       </div>
     </div>
-    <div class="setup"><b>No setup fee</b><span>We clean up your Google profile and listings in your first week. It’s included in every plan.</span></div>
+    <div class="setup"><b>No setup fee</b><span>Your audit, request link, booking link and app work the first day. Once you invite us onto your Google profile, we clean it up. Included in every plan.</span></div>
 
+    <div class="addons-head" id="addons">
+      <p class="eyebrow">Add to any plan</p>
+      <h3 class="addons-h">Extra hands, when you want them.</h3>
+      <p class="addons-sub">Add-ons are optional services on top of any plan. Each is set up for your business by our team and billed separately. Ask any time, and nothing starts, or costs anything, until we’ve confirmed a date with you.</p>
+    </div>
     <div class="addons">
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
-        <h3>After-hours phone line</h3>
+        <span class="avail">Add-on · set up on request</span>
+        <h3>Max, your phone assistant</h3>
         <div class="price"><b>$149</b><span>/ month, 300 minutes included</span></div>
-        <p>An assistant answers calls when you can't, takes the details and the time that works for them, and sends the summary to your phone in seconds, with a button to call them back. It tells every caller up front it isn't a person and that the call may be recorded. 300 minutes is about 120 calls of two and a half minutes. Past that, it's 25¢ a minute. Hear it for yourself: call <a href="tel:+17064602226">(706) 460-2226</a>.</p>
+        <p class="what">Max answers the calls you can’t, in your business’s name. He takes the caller’s name, number, what they need and a good time, and sends it to your phone in seconds with a button to call back. He tells every caller up front that he’s an automated assistant and that the call may be recorded.</p>
+        <dl>
+          <dt>Each month</dt><dd>Every call answered day and night, each one summarized on your phone and logged in your record. 300 minutes is about 120 calls. Past that, 25¢ a minute.</dd>
+          <dt>We need</dt><dd>Your hours, the best number for urgent calls, and ten minutes to set up call forwarding with you.</dd>
+          <dt>Good for</dt><dd>Anyone who works with their hands and can’t pick up. Hear him first: <a href="tel:+17064602226">(706) 460-2226</a>.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="Max, your phone assistant">Ask about this</a>
       </div>
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
+        <span class="avail">Add-on · done by our team</span>
         <h3>Google Ads management</h3>
         <div class="price"><b>$299</b><span>/ month, or 15% of ad spend if higher</span></div>
-        <p>We set up and manage your Google Ads and send the results in your monthly report. You pay Google for the ads directly, so your ad money never passes through us.</p>
+        <p class="what">We set up and run your Google Ads so the people searching for what you do see you first on the page. You pay Google for the ads directly, so your ad money never passes through us.</p>
+        <dl>
+          <dt>Each month</dt><dd>Ads written, bids adjusted, wasted clicks cut, and the results in your monthly report.</dd>
+          <dt>We need</dt><dd>Your ad budget, the jobs you want more of, and the towns you serve.</dd>
+          <dt>Good for</dt><dd>Businesses with room for more work and a budget to spend on it.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="Google Ads management">Ask about this</a>
       </div>
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
+        <span class="avail">Add-on · done by our team</span>
         <h3>A new website</h3>
         <div class="price"><b>$799</b><span>one time, then $29 / month</span></div>
-        <p>A fast, simple website of up to five pages, built for phones, with a request form that reaches you right away. The $29 a month covers hosting and small updates. You own your domain.</p>
+        <p class="what">A fast, simple website of up to five pages, built for phones, with a request form that reaches you right away. You own your domain.</p>
+        <dl>
+          <dt>Each month</dt><dd>Hosting, security and small updates, covered by the $29.</dd>
+          <dt>We need</dt><dd>Your logo if you have one, a few photos, and what you want the site to say.</dd>
+          <dt>Good for</dt><dd>Businesses with no site, or one nobody has touched in years.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="A new website">Ask about this</a>
       </div>
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
+        <span class="avail">Add-on · set up on request</span>
         <h3>Website chat</h3>
         <div class="price"><b>$49</b><span>/ month</span></div>
-        <p>A chat box on your website. When a visitor asks a question, you get it by text and can answer from your phone, day or night.</p>
+        <p class="what">A chat box on your website. When a visitor asks a question, it comes to you, and you answer from your phone.</p>
+        <dl>
+          <dt>Each month</dt><dd>Every question logged with the visitor’s name and contact, so none go missing.</dd>
+          <dt>We need</dt><dd>Access to add one line of code to your site, or we add it to a site we built.</dd>
+          <dt>Good for</dt><dd>Businesses whose customers like to ask before they call.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="Website chat">Ask about this</a>
       </div>
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
+        <span class="avail">Add-on · done by our team</span>
         <h3>Help-wanted posts</h3>
         <div class="price"><b>$99</b><span>/ month</span></div>
-        <p>We write your job openings and post them on Google, Indeed and Facebook, up to two openings a month. Applicants go straight to you. If you choose paid job ads, you pay the job site directly.</p>
+        <p class="what">We write your job openings and post them on Google, Indeed and Facebook. Applicants go straight to you.</p>
+        <dl>
+          <dt>Each month</dt><dd>Up to two openings written, posted and kept current. If you choose paid job ads, you pay the job site directly.</dd>
+          <dt>We need</dt><dd>The job, the pay range if you share it, and where applicants should go.</dd>
+          <dt>Good for</dt><dd>Businesses that are always hiring and never have time to write the ad.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="Help-wanted posts">Ask about this</a>
       </div>
       <div class="addon">
-        <span class="avail">Add-on · available on request</span>
+        <span class="avail">Add-on · done by our team</span>
         <h3>Review alerts beyond Google</h3>
         <div class="price"><b>$49</b><span>/ month</span></div>
-        <p>We watch Facebook, Yelp, the BBB, Angi and Nextdoor, alert you to every new review, and draft a reply for you to approve.</p>
+        <p class="what">We watch Facebook, Yelp, the BBB, Angi and Nextdoor, tell you about every new review, and draft the reply for you to post.</p>
+        <dl>
+          <dt>Each month</dt><dd>Every new review on those sites flagged to your phone, with a drafted reply and a one-tap link to post it.</dd>
+          <dt>We need</dt><dd>Links to your pages on those sites.</dd>
+          <dt>Good for</dt><dd>Businesses that get reviews in more places than Google.</dd>
+        </dl>
+        <a class="btn line small" href="#contact" data-addon="Review alerts beyond Google">Ask about this</a>
       </div>
     </div>
-    <p class="fine" style="margin-top:14px;color:var(--slate)">Add-ons are set up per business. We confirm a start date with you first, and you pay nothing until they're running.</p>
+    <p class="fine" style="margin-top:14px;color:var(--slate)">Add-ons are set up per business. We confirm a start date with you first, and you pay nothing until they’re running.</p>
 
     <div class="guarantee"><b>30 days, no risk.</b><p>If the first month isn't worth it, tell us and we refund it. No forms, no argument. And there’s no setup fee.</p></div>
   </div>
 </section>
 
-<section class="sec band alt" id="worth">
+<section class="sec band alt" id="worth" data-label="Is it worth it?">
   <div class="inner">
     <div class="head"><p class="eyebrow">Is it worth it?</p><h2>One new customer can cover the whole month.</h2><p>Fair question. Here's the honest math, with your own numbers.</p></div>
     <div class="worth-grid">
@@ -812,7 +941,7 @@ a.chip:hover{border-color:var(--ink)}
       </div>
       <div class="facts">
         <div class="fact"><b>80%</b><p>of people say they're likely to use a business that answers all of its reviews. 42% say they're unlikely to use one that never replies.</p><small><a href="https://brightlocal.com/research/local-consumer-review-survey/" target="_blank" rel="noopener">BrightLocal, Local Consumer Review Survey 2026</a></small></div>
-        <div class="fact"><b>69%</b><p>of missed calls to businesses got no call back within 48 hours. With Pro, every missed call gets a text back in seconds.</p><small><a href="https://www.quo.com/blog/small-business-callback-statistics/" target="_blank" rel="noopener">Quo, 16.7 million missed calls, 2026</a></small></div>
+        <div class="fact"><b>69%</b><p>of missed calls to businesses got no call back within 48 hours. With Max on your line, every missed call is answered.</p><small><a href="https://www.quo.com/blog/small-business-callback-statistics/" target="_blank" rel="noopener">Quo, 16.7 million missed calls, 2026</a></small></div>
         <div class="fact"><b>70%</b><p>more likely to visit: that's what Google says about businesses with a complete Business Profile. We keep yours complete and current.</p><small><a href="https://support.google.com/business/answer/10515606?hl=en" target="_blank" rel="noopener">Google Business Profile Help</a></small></div>
       </div>
     </div>
@@ -820,26 +949,26 @@ a.chip:hover{border-color:var(--ink)}
       <h3>What the same work costs other ways</h3>
       <div class="cost"><div><b>Doing it yourself</b><span>Nights and weekends on reviews, posts and call-backs. When it slips, it costs jobs.</span></div><em>Your evenings</em></div>
       <div class="cost"><div><b>Hiring part-time help</b><span>Office help in the U.S. averages $24.79 an hour. Twenty hours a week is about $2,150 a month before payroll taxes, and they go home at 5.</span></div><em>About $2,150 a month</em></div>
-      <div class="cost ours"><div><b>Always Open</b><span>Every day, weekends included. Software does the daily work, a real person checks it, and you approve what matters by text.</span></div><em>From $149 a month</em></div>
+      <div class="cost ours"><div><b>Always Open</b><span>Every day, weekends included. Software does the daily work, a real person checks it, and you approve what matters in the app.</span></div><em>From $149 a month</em></div>
       <p class="note">Wage: <a href="https://www.bls.gov/news.release/pdf/ocwage.pdf" target="_blank" rel="noopener" style="color:inherit;text-underline-offset:3px">U.S. Bureau of Labor Statistics, Occupational Employment and Wages, May 2025</a>, office and administrative support, national mean hourly wage.</p>
     </div>
     <div class="norisk">
       <div><b>Free audit first</b><span>See what's costing you calls before you spend a dollar. It's yours to keep.</span></div>
       <div><b>First month refundable</b><span>Not worth it? Tell us and we refund it. And there’s no setup fee.</span></div>
-      <div><b>No contract</b><span>Month to month. Cancel by text.</span></div>
+      <div><b>No contract</b><span>Month to month. Cancel from the app.</span></div>
     </div>
     <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="btn line" href="#pricing">See the plans</a></div>
   </div>
 </section>
 
-<section class="sec band" id="compare">
+<section class="sec band" id="compare" data-label="Compared">
   <div class="inner">
     <div class="head"><p class="eyebrow">Compared</p><h2>Software you run, or a team that runs it.</h2></div>
     <div class="tablewrap">
       <table>
         <thead><tr><th></th><th class="us">Always Open</th><th>Review software</th><th>Marketing agency</th></tr></thead>
         <tbody>
-          <tr><td>Who does the work</td><td class="us">We do, you approve by text</td><td>You or your staff</td><td>The agency</td></tr>
+          <tr><td>Who does the work</td><td class="us">We do, you approve in the app</td><td>You or your staff</td><td>The agency</td></tr>
           <tr><td>Monthly price</td><td class="us">$149 to $499</td><td>About $299 to $599 list price</td><td>Varies widely</td></tr>
           <tr><td>Contract</td><td class="us">Month to month</td><td>Often a year or more</td><td>Varies</td></tr>
           <tr><td>A real person to call</td><td class="us">Yes</td><td>Support queue</td><td>Sometimes</td></tr>
@@ -850,7 +979,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="rules">
+<section class="sec band" id="rules" data-label="How we work">
   <div class="inner">
     <div class="head"><p class="eyebrow">How we work</p><h2>Three rules we don't bend.</h2></div>
     <div class="rules">
@@ -861,18 +990,29 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="regulated">
+<section class="sec band" id="regulated" data-label="Regulated businesses">
   <div class="inner">
     <div class="regbox">
       <div class="head">
         <p class="eyebrow">For regulated businesses</p>
         <h2>Can't share your client list? You don't have to.</h2>
-        <p>Insurance agencies, medical and dental offices, law firms and financial advisors have rules about client information. Our Starter plan runs entirely on public information: your Google and Facebook pages, your reviews, and your competitors' public numbers. We never ask for, receive or store a client's name or number.</p>
+        <p>Insurance agencies, medical and dental offices, law firms and financial advisors have rules about client information. The Starter plan runs entirely on public information: your Google and Facebook pages, your reviews, and other businesses’ public numbers. We never ask for, receive or store a client’s name or number. We have never needed one.</p>
       </div>
       <div class="rules">
         <div class="rule"><h3>Nothing private comes in</h3><p>We work from your public pages. No client names, no policy or account details, no patient or case information.</p></div>
         <div class="rule"><h3>Replies that say nothing private</h3><p>A reply never confirms that someone is a client or patient and never mentions details. Anything sensitive comes to you first.</p></div>
         <div class="rule"><h3>Your rules come first</h3><p>Every industry has its own rules about advertising and review replies. You tell us what is allowed, and we follow it. If you need sign-off from a parent company, get it before we start.</p></div>
+      </div>
+      <div class="cg" id="compliance-guard">
+        <p class="eyebrow">Compliance Guard</p>
+        <h3>Every word is checked before you see it.</h3>
+        <p>Compliance Guard is a check that runs on every draft for a regulated business before it reaches your phone. It reads the reply or post against your rules and flags anything that shouldn’t go out. A flagged draft can’t be approved until the words change.</p>
+        <div class="cg-grid">
+          <div><b>How it helps</b><ul><li>Protects your license and your reputation.</li><li>Nothing goes out unchecked, and nothing goes out without your OK.</li><li>A record you can hand to a compliance officer: what was checked, who approved it, and when.</li></ul></div>
+          <div><b>What it checks</b><ul><li>Promises of an outcome</li><li>Rates, prices, quotes or discounts</li><li>Anything that confirms someone is a client or patient</li><li>Claim or case details</li><li>Anything that sounds like advice</li><li>Your own do-not-use list</li><li>On every plan, for every business: anything offered in return for a review</li></ul></div>
+          <div><b>What it’s part of</b><p class="flow"><span>Draft</span><span>Guard check</span><span>Your OK</span><span>Record</span></p><p>It runs on review replies and posts for regulated accounts, in the app and in your monthly record.</p></div>
+        </div>
+        <p class="fine">Compliance Guard is a safeguard, not legal advice, and not a guarantee of compliance. Your business stays responsible for what it publishes.</p>
       </div>
       <div class="incl-wrap">
         <h3>What you get for $149 a month (about $5 a day)</h3>
@@ -893,34 +1033,34 @@ a.chip:hover{border-color:var(--ink)}
 </section>
 
 
-<section class="sec band alt" id="faq">
+<section class="sec band alt" id="faq" data-label="Questions">
   <div class="inner">
     <div class="head"><p class="eyebrow">Questions</p><h2>Things owners ask first.</h2></div>
     <div class="faq">
-      <details><summary>Do I have to learn new software?</summary><p>No. Replies and posts come to your phone in the Always Open app; you tap Approve, or change the words first. Once a month you open a one-page report. That's the whole job on your side.</p></details>
+      <details><summary>Do I have to learn new software?</summary><p>No. Replies and posts come to your phone in the Always Open app. You tap Approve, or change the words first. Once a month you open a one-page report. That’s the whole job on your side. It takes less time than reading this.</p></details>
       <details><summary>What is the Always Open app?</summary><p>Your own private app, included with every plan. It shows the replies and posts waiting for your OK, your month in numbers, your monthly records, and a message box that reaches us directly. It opens from a private link, so there's no password to remember, and it's in the App Store for iPhone.</p></details>
       <details><summary>Do you pay for referrals?</summary><p>No. If a client sends another owner our way, we say thank you and mean it, but there's no payment or discount for it. The same goes for reviews: we never offer anything for one.</p></details>
-      <details><summary>What do you need from me to start?</summary><p>Manager access to your Google Business Profile and Facebook page. You invite us, you stay the owner, and you can remove us any time. Setup takes about a week.</p></details>
-      <details><summary>Will this get me to number one on Google?</summary><p>We can't promise a ranking, and nobody honest can. Steady new reviews, answered reviews and accurate listings all help you show up, and you'll see your numbers move in the monthly report.</p></details>
-      <details><summary>Do you reply on Yelp?</summary><p>Replies on Google and Facebook are posted for you once you've approved how we write. Yelp doesn't let outside services post, so we send you the drafted reply and a one-tap link to post it yourself. Yelp also asks businesses not to request reviews, so we don't.</p></details>
-      <details><summary>How long until texting works from my business number?</summary><p>Carriers require every business that sends texts to register first, and approval usually takes about two weeks. We handle the paperwork. Until it's approved, the texting features wait. Everything else, from review replies to your Google profile and your monthly report, starts in the first week.</p></details>
-      <details><summary>We can't share our customer or client information. Can you still help?</summary><p>Yes. The Starter plan uses only public information, so we never receive a client's name, number or details. We reply to your reviews, keep your Google profile current, and report on how many people called, asked for directions or visited your site from Google. Your industry may have rules about advertising and review replies. Check them first and tell us what is allowed, and we will follow it.</p></details>
-      <details><summary>Why pay for this when I could do it myself?</summary><p>You can, and some owners do. Most mean to and don't, because the job comes first. The unanswered review and the call nobody returned are where it costs you. For about what six hours of office help costs, it gets done every day, and you just approve by text.</p></details>
-      <details><summary>What if it doesn't bring in new business?</summary><p>Then don't keep paying for it. The first month is refundable, there's no contract, and your monthly report shows calls, direction requests, website clicks and new reviews, so you can judge it on your own numbers.</p></details>
-      <details><summary>Is there a contract?</summary><p>No. It's month to month, the first month is refundable, and there's no setup fee.</p></details>
+      <details><summary>What do you need from me to start?</summary><p>Three things, about ten minutes. Your hours and the best number for urgent calls. One tap in the app to connect Facebook. And a sample reply approved so we sound like you. Your audit, request link, booking link and app work the same day. Invite us onto your Google profile whenever you’re ready: you stay the owner, and you can remove us any time.</p></details>
+      <details><summary>Will this get me to number one on Google?</summary><p>No promises. The honest options are doing nothing, hiring someone, or us. One of those has never moved a ranking. The report shows you which of the other two did.</p></details>
+      <details><summary>Do you reply on Yelp?</summary><p>We write it. You post it. Yelp doesn’t let outside services post for a business, so we hand you the finished reply and a one-tap link. About ten seconds on your end. We would do it for you if Yelp allowed it. They don’t. One more Yelp rule: they ask businesses not to request reviews. So we never ask for Yelp reviews. We’d rather lose a review than get your page flagged. Yelp replies come with the <a href="#addons">Review alerts beyond Google</a> add-on.</p></details>
+      <details><summary>How long until texting works from my business number?</summary><p>Carriers make every business register before it can text. Think of it as a license for your phone number, with more forms. Approval usually takes one to two weeks. We handle the paperwork and ask you only for a few business details. Until then, nothing waits. Reminders go out by email, and every text is written for you with a one-tap button that sends it from your own phone. Calls, booking, invoices, estimates and your monthly report start the first day.</p></details>
+      <details><summary>We can’t share client or patient information. Can we still use you?</summary><p>Yes. It was built for that. The Starter plan runs on public information only: your reviews, your Google profile and your public numbers. We never receive a client list, a policy, a chart or a case file. We have never needed one. What you get: every review answered in your voice, your profile kept current, and a monthly report on how many people called, asked for directions or visited your site. The rules for your field: Compliance Guard checks every reply and post against them before you see it, and nothing goes out until you approve it. Tell us your rules once and we apply them every time. If you add Max, he takes a caller’s name and number the way a receptionist would. It goes to your phone, not into any client or patient file.</p></details>
+      <details><summary>Why pay for this when I could do it myself?</summary><p>You could. You won’t. Not because you’re lazy. You’re busy, and the work in front of you pays. Meanwhile the review from Tuesday sits there, Thursday’s call went to voicemail, and that customer called the next guy. We do it every day, including the days you’re under a house. About what six hours of office help costs. You approve it. You’re the boss. We’re the ones who remember.</p></details>
+      <details><summary>What if it doesn’t bring in new business?</summary><p>Then stop paying for it. The first month is refundable, there’s no contract, and the monthly report shows calls, direction requests, website clicks and new reviews. Judge it on your own numbers. We do.</p></details>
+      <details><summary>Is there a contract?</summary><p>No. Month to month, the first month is refundable, and there’s no setup fee. If we’re not worth it, you’ll know by the report, and so will we.</p></details>
       <details><summary>Who am I dealing with?</summary><p>A real person. Always Open works with businesses anywhere in the U.S., all online and by phone, with software assistants doing the daily work and a person checking it. You can reach us any time at (706) 460-2226 or hello@alwaysopenoffice.com.</p></details>
     </div>
   </div>
 </section>
 
-<section class="sec band" id="contact">
+<section class="sec band" id="contact" data-label="Get started">
   <div class="inner contact-grid">
     <div class="who">
       <p class="eyebrow">Get started</p>
       <h2>Tell us about your business.</h2>
       <p>Send the short form. We reply within one business day, and your free audit follows within two. No pressure, and no card needed.</p>
       <p class="callus">Rather talk? Call <a href="tel:+17064602226">(706) 460-2226</a>. Max, our phone assistant, answers any time, takes your details, and someone from our team calls you back within one business day.</p>
-      <div class="founding"><b>Try it for a month. If it’s not worth it, you don’t pay for it.</b><p style="margin-top:4px">No contract and no setup fee. Cancel by text.</p></div>
+      <div class="founding"><b>Try it for a month. If it’s not worth it, you don’t pay for it.</b><p style="margin-top:4px">No contract and no setup fee. Cancel from the app.</p></div>
       <p class="addr" id="contactLine"></p>
     </div>
     <div>
@@ -972,13 +1112,29 @@ a.chip:hover{border-color:var(--ink)}
 <footer class="band">
   <div class="inner">
     <a class="wordmark" href="#top"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-    <span>Keeping businesses always open · Anywhere in the U.S.</span>
+    <span>Be wherever you’d rather be · Anywhere in the U.S.</span>
     <span class="legal tel"><a href="tel:+17064602226">(706) 460-2226</a></span>
     <span class="legal"><a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
     <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
   </div>
 </footer>
 <a class="call-float off" id="callFloat" href="tel:+17064602226" aria-label="Call Max at (706) 460-2226" tabindex="-1" aria-hidden="true"><i aria-hidden="true"></i><span>Call Max</span><b>(706) 460-2226</b></a>
+<script>
+// Phones: each section announces itself in a slim label at the top, lists fold away, and rows ease in once.
+(function () {
+  document.documentElement.classList.add('js');
+  var phone = window.matchMedia('(max-width:760px)');
+  if (!phone.matches || !('IntersectionObserver' in window)) return;
+  document.querySelectorAll('details.more[open]').forEach(function (d) { d.removeAttribute('open'); });
+  var label = document.getElementById('seclabel'), txt = label && label.querySelector('span'), hero = document.querySelector('header.hero');
+  var cur = '';
+  var heroIn = true, io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { cur = e.target.getAttribute('data-label') || ''; if (txt) txt.textContent = cur; } }); if (label) label.classList.toggle('show', !heroIn && !!cur); }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+  document.querySelectorAll('[data-label]').forEach(function (s) { io.observe(s); });
+  if (hero && label) new IntersectionObserver(function (es) { heroIn = es[0].isIntersecting; label.classList.toggle('show', !heroIn && !!cur); }, { threshold: 0.02 }).observe(hero);
+  var rv = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rv.unobserve(e.target); } }); }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (r) { rv.observe(r); });
+})();
+</script>
 <script>
 // The floating "Call Max" button shows once the hero has scrolled away, and steps aside wherever the page already
 // shows the number big (the dare section, the contact section, the footer).
@@ -1008,6 +1164,7 @@ a.chip:hover{border-color:var(--ink)}
   if(CONFIG.phone)bits.push(CONFIG.phone);
   line.textContent=bits.join(' · ');
 
+  document.querySelectorAll('[data-addon]').forEach(function(a){a.addEventListener('click',function(){var nt=document.getElementById('f-note');if(nt&&nt.value.indexOf(a.dataset.addon)<0)nt.value=(nt.value?nt.value+'\n':'')+'Interested in: '+a.dataset.addon;});});
   document.querySelectorAll('[data-plan]').forEach(function(a){a.addEventListener('click',function(){
     var sel=document.getElementById('f-plan');
     for(var i=0;i<sel.options.length;i++){if(sel.options[i].text.indexOf(a.dataset.plan)===0){sel.selectedIndex=i;break;}}
@@ -1038,9 +1195,9 @@ a.chip:hover{border-color:var(--ink)}
   window.addEventListener('hashchange',function(){if(location.hash==='#start-insurance')startIns();});
   /* pick your business */
   var IND={
-    trades:['Contractors and home services','Contractor or trade',['A 2 AM leak call gets a text back in seconds and turns into a booked job.','Every finished job gets one review request, so new reviews keep coming.','Storm-season and seasonal posts made from your own job photos.','Quotes and invoices get a polite follow-up until they\u2019re answered.']],
-    marine:['Docks and marine','Dock, marine or outdoor',['Lake-house owners searching from out of town find current hours, photos and reviews.','Spring launch and dock-check reminders go out before the season starts.','Calls you miss on the water get a text back right away.','Reviews answered while you\u2019re out on a job.']],
-    salon:['Salons and fitness','Salon, spa or fitness',['Booking requests answered any hour, with reminders that cut no-shows.','Every client asked for a review after a visit.','Posts made from your photos (Instagram and Facebook coming soon).','Spanish replies on every plan.']],
+    trades:['Contractors and home services','Contractor or trade',['A 2 AM leak call gets answered, and the address is on your phone before you\u2019re awake.','Every finished job gets one review request, so new reviews keep coming.','Storm-season and seasonal posts made from your own job photos.','Quotes and invoices get a polite follow-up until they\u2019re answered.']],
+    marine:['Docks and marine','Dock, marine or outdoor',['Lake-house owners searching from out of town find current hours, photos and reviews.','Spring launch and dock-check reminders go out before the season starts.','Calls you miss on the water get answered, and the details come to your phone.','Reviews answered while you\u2019re out on a job.']],
+    salon:['Salons and fitness','Salon, spa or fitness',['Booking requests taken any hour, straight to your phone.','Every client asked for a review after a visit.','Posts made from your photos (Instagram and Facebook coming soon).','Spanish replies on every plan.']],
     food:['Restaurants and shops','Restaurant or shop',['Holiday hours set on every listing before every holiday.','Every review answered, and bad ones flagged the same day.','Weekly specials posted on Google and Facebook.','A monthly report on calls, direction requests and website clicks.']],
     insurance:['Insurance agents','Insurance agency',['Review replies from wording your compliance contact approves once.','A monthly record of every public review, reply and post for your files.','A heads-up when reviews about rate increases start coming in.','Educational posts you approve before anything goes up.','Already texting through your insurance company? We work around it and never touch it.']],
     health:['Medical, dental and legal','Medical, dental or vet',['We work only from public information: no patient or client names, ever.','Replies never confirm that someone is a patient or client.','A monthly record of every public reply and post.','Your Google profile kept current: hours, holidays and photos.']]
