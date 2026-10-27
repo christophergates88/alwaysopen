@@ -728,7 +728,7 @@ async function writeUp(env, sid, s, why) {
   if (note && note.spam) outcome = 'spam';
   const relay = call.relay_seconds || (s && s.started ? Math.round((Date.now() - s.started) / 1000) : 0);
   const callback = note && E164.test(note.callback || '') ? note.callback : (E164.test(call.caller || '') ? call.caller : '');
-  const summary = note ? note.summary : (outcome === 'failed' ? 'The AI line could not start this call. Call them back.' : 'They hung up before leaving a message.');
+  const summary = note ? note.summary : (outcome === 'failed' ? 'The phone line could not start this call. Call them back.' : 'They hung up before leaving a message.');
   const transcript = JSON.stringify(msgs.slice(0, 80).map(x => ({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) }))).slice(0, 24000);
   if (s && s.lat && s.lat.length) await vlog(env, 'latency', JSON.stringify({ sid, model: (s && s.model) || '', firstWordMs: s.lat }));
   await env.DB.prepare('UPDATE app_calls SET caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
@@ -738,7 +738,7 @@ async function writeUp(env, sid, s, why) {
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
   const who = (note && note.name) || (callback ? spokenNumber(callback, true) : 'a caller');
   const title = outcome === 'failed' ? 'Missed call from ' + who : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who);
-  const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The AI line had a problem, so they did not leave a message. Tap to call them back.' : summary + ' Tap to call back.');
+  const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so they did not leave a message. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
   if (outcome === 'failed') await opsPing(env, 'AI line problem: ' + ((line && line.business) || call.client_id), 'Call ' + sid + ' from ' + (call.caller || 'unknown') + ' could not start. The owner was told to call them back.', 'high', 'warning');
   return true;

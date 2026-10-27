@@ -352,7 +352,7 @@ function callOut(r) {
 }
 
 async function apiCall(req, env, c) {
-  if (!features(c).calls) return aj({ ok: false, error: 'The AI phone line is not on for your account.' }, 403);
+  if (!features(c).calls) return aj({ ok: false, error: 'The phone line is not on for your account.' }, 403);
   const b = await readJson(req, 2000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const id = clean(b.id, 40);
@@ -406,7 +406,7 @@ function lineOut(raw, c) {
 }
 async function apiLine(req, env, ctx, c) {
   const raw = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
-  if (!raw) return aj({ ok: false, error: 'You don’t have an AI line yet. Ask us about adding Max.' }, 403);
+  if (!raw) return aj({ ok: false, error: 'You don’t have a phone line yet. Ask us to set up Max.' }, 403);
   const b = await readJson(req, 6000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const by = oneLine(clean(b.by, 40)) || 'Owner';
@@ -420,13 +420,16 @@ async function apiLine(req, env, ctx, c) {
   if (typeof b.onAir === 'boolean' && (b.onAir ? 1 : 0) !== l.on_air) {
     if (b.onAir && !l.hq_on) return aj({ ok: false, error: 'Your line is paused on our side. Message us in Ask us to turn it back on.' }, 409);
     if (b.onAir) delete o.off; else o.off = true;
-    changes.push(b.onAir ? 'turned the AI line on' : 'turned the AI line off');
+    changes.push(b.onAir ? 'turned the phone line on' : 'turned the phone line off');
   }
   if (b.hours != null) { const h = oneLine(clean(b.hours, 300)); if (h !== String(f.hours || '')) { o.hours = { v: h, base: String(hq.hours || '') }; changes.push('hours: ' + (h || '(cleared)')); } }
-  if (b.owner != null) { const t = clean(b.owner, 800).replace(/[\[\]<>{}]/g, ''); if (t !== String(f.owner || '')) { o.owner = t; changes.push('what the AI should know: ' + (t ? t.slice(0, 300) : '(cleared)')); } }
+  if (b.owner != null) { const t = clean(b.owner, 800).replace(/[\[\]<>{}]/g, ''); if (t !== String(f.owner || '')) { o.owner = t; changes.push('what Max should know: ' + (t ? t.slice(0, 300) : '(cleared)')); } }
   if (b.greeting != null) {
-    const g = oneLine(clean(b.greeting, 320));
-    if (g && !greetOk(g)) return aj({ ok: false, error: 'The greeting has to say it’s an AI and that calls are recorded (for example “I’m an AI, and calls are recorded”).' }, 422);
+    const g0 = oneLine(clean(b.greeting, 320));
+    // Every greeting must tell callers they are talking to an AI and that the call may be recorded. If theirs doesn't, we add that sentence.
+    const DISC = ' I’m an AI assistant, and this call may be recorded.';
+    const g = greetOk(g0) || !g0 ? g0 : (g0.slice(0, 320 - DISC.length).trim() + DISC);
+    if (g && !greetOk(g)) return aj({ ok: false, error: 'That greeting is too short. Leave it empty for the standard one.' }, 422);
     if (g !== String(f.greeting || '')) { o.greeting = { v: g, base: String(hq.greeting || '') }; changes.push('greeting: ' + (g || '(back to the standard one)')); }
   }
   if (b.transferTo != null) {
@@ -451,7 +454,7 @@ async function apiLine(req, env, ctx, c) {
   const after = Object.assign({}, raw, { owner_set: set });
   ctx.waitUntil(Promise.all([
     env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'line-edit', ?2)").bind(now, JSON.stringify({ cid: c.client_id, by, changes }).slice(0, 2000)).run(),
-    ntfy(env, 'AI line changed: ' + (c.business || 'a client'), by + ' changed ' + changes.join('; ').slice(0, 1500) + ' (in their app; HQ’s AI line card still shows the old values)', withOwner(after).on_air ? 'default' : 'high', 'telephone_receiver')
+    ntfy(env, 'Phone line changed: ' + (c.business || 'a client'), by + ' changed ' + changes.join('; ').slice(0, 1500) + ' (in their app; HQ’s phone line card still shows the old values)', withOwner(after).on_air ? 'default' : 'high', 'telephone_receiver')
   ]).catch(() => {}));
   return aj({ ok: true, line: lineOut(after, c) });
 }

@@ -441,13 +441,13 @@ function vReviews(){
   return h;
 }
 
-/* ---------- Max (the AI line) ---------- */
+/* ---------- Max (the phone line) ---------- */
 function sel(a,b){return a===b?' selected':'';}
 function vMax(){
   var L=S.line,f=S.features||{};
   var h='<h1>'+esc(L?L.name:'Calls')+'</h1>';
   if(L){
-    h+='<p class="lede">Your AI line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>';
+    h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>';
     h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?' is answering':' is off')+'</b><span>'+(L.onAir?'Every call, day and night.':(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
@@ -456,10 +456,10 @@ function vMax(){
       '<label>What should '+esc(L.name)+' tell callers?<textarea id="lo" maxlength="800" placeholder="Specials, how you book, areas you serve, anything to steer clear of.">'+esc(L.owner)+'</textarea></label>'+
       '<label>Urgent calls go to<input type="tel" id="lt" maxlength="20" inputmode="tel" value="'+esc(L.transferText)+'" placeholder="Your cell, or leave blank"></label>'+
       '<label>Put callers through to that number<select id="lw"><option value="never"'+sel(L.transferWhen,'never')+'>Never, just take a message</option><option value="urgent"'+sel(L.transferWhen,'urgent')+'>Only if it\\u2019s urgent</option><option value="asked"'+sel(L.transferWhen,'asked')+'>When they ask, or it\\u2019s urgent</option></select></label>'+
-      '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">It has to say it\\u2019s an AI and that calls are recorded. Leave it empty for the standard one.</p></details>'+
+      '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     if(S.calendar&&!S.client.regulated)h+='<h2>Booking</h2><div class="card"><div class="sw"><div><b>Google Calendar '+(S.calendar.connected?'connected':'not connected')+'</b><span>'+(S.calendar.connected?esc(L.name)+' offers open times on weekdays 9 to 5 and books them for callers.':'Connect it and '+esc(L.name)+' can book callers into open times.')+'</span></div></div><div class="acts">'+(S.calendar.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect</button>':'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
-  } else h+='<p class="lede">Calls your AI line answered.</p>';
+  } else h+='<p class="lede">Calls your phone line answered.</p>';
   if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p><p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p></div>':
     '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   if(f.calls)h+='<h2>Calls</h2>'+callsList();
@@ -529,11 +529,11 @@ function decide(id,action,text){
   });
 }
 
-/* ---------- Calls (the AI phone line) ---------- */
+/* ---------- Calls (the phone line) ---------- */
 function callsList(){
   var cs=S.calls||[],open=cs.filter(function(c){return c.status!=='handled';}),done=cs.filter(function(c){return c.status==='handled';});
   var h='<p class="note" style="margin:-4px 2px 10px">Call them back, then tap Done.</p>';
-  if(!cs.length)return h+'<div class="empty">'+ICON.phone+'<b>No calls yet</b><span>When the AI line takes a call, who called, their number and what they need show up here, and your phone buzzes.</span></div>';
+  if(!cs.length)return h+'<div class="empty">'+ICON.phone+'<b>No calls yet</b><span>When Max takes a call, who called, their number and what they need show up here, and your phone buzzes.</span></div>';
   h+=open.length?open.map(callCard).join(''):'<div class="empty">'+ICON.check+'<b>You\u2019re all caught up</b><span>Every call has been handled.</span></div>';
   if(done.length)h+='<h2>Handled</h2>'+done.slice(0,20).map(callCard).join('');
   return h;
@@ -545,7 +545,7 @@ function callCard(c){
   var meta=(c.reason?'<span><b>Wants:</b> '+esc(c.reason)+'</span>':'')+(c.details?'<span><b>Details:</b> '+esc(c.details)+'</span>':'')+(c.when?'<span><b>When:</b> '+esc(c.when)+'</span>':'')+(c.callbackText&&c.callbackText!==c.numberText?'<span><b>Call back on:</b> '+esc(c.callbackText)+'</span>':'');
   var acts=(c.callback?'<a class="btn ok" href="tel:'+esc(c.callback)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call back</a><a class="btn line" href="sms:'+esc(c.callback)+'">Text</a>':'')+
     (c.status==='handled'?'<button class="btn ghost" type="button" data-a="call-reopen" data-id="'+esc(c.id)+'">Not done</button>':'<button class="btn ghost" type="button" data-a="call-done" data-id="'+esc(c.id)+'">Done</button>');
-  var said=c.transcript&&c.transcript.length?'<details><summary>What was said</summary><div class="said">'+c.transcript.map(function(x){return '<p class="'+(x.w==='caller'?'caller':'ai')+'"><small>'+(x.w==='caller'?'Caller':esc(S.line?S.line.name:'AI line'))+'</small>'+esc(x.t)+'</p>';}).join('')+'</div></details>':'';
+  var said=c.transcript&&c.transcript.length?'<details><summary>What was said</summary><div class="said">'+c.transcript.map(function(x){return '<p class="'+(x.w==='caller'?'caller':'ai')+'"><small>'+(x.w==='caller'?'Caller':esc(S.line?S.line.name:'Phone line'))+'</small>'+esc(x.t)+'</p>';}).join('')+'</div></details>':'';
   return '<article class="call'+(c.urgent&&c.status!=='handled'?' urgent':'')+(c.status==='handled'?' handled':'')+'" id="call-'+esc(c.id)+'"><div class="top2"><span class="nm">'+esc(who)+'</span><span class="num">'+esc(c.numberText||'')+' \u00b7 '+esc(when(c.at))+'</span></div>'+(chips?'<div class="ch">'+chips+'</div>':'')+
     '<p class="sum">'+esc(c.summary||'')+'</p>'+(meta?'<div class="meta">'+meta+'</div>':'')+'<div class="acts">'+acts+'</div>'+said+'</article>';
 }

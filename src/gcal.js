@@ -150,7 +150,7 @@ export async function openSlots(env, cid, now, max) {
 export async function bookSlot(env, cid, slot, who) {
   const a = await access(env, cid);
   if (!a) return false;
-  const body = { summary: 'Appointment: ' + (who.name || 'caller'), description: 'Booked ' + (who.via ? 'from ' + who.via : 'by Max, the Always Open AI line') + '.\nName: ' + (who.name || '') + '\nPhone: ' + (who.phone || '') + '\nReason: ' + (who.reason || ''),
+  const body = { summary: 'Appointment: ' + (who.name || 'caller'), description: 'Booked ' + (who.via ? 'from ' + who.via : 'by Max, the Always Open phone assistant') + '.\nName: ' + (who.name || '') + '\nPhone: ' + (who.phone || '') + '\nReason: ' + (who.reason || ''),
     start: { dateTime: new Date(slot.start).toISOString() }, end: { dateTime: new Date(slot.end).toISOString() } };
   const r = await fetch(API, { method: 'POST', headers: { authorization: 'Bearer ' + a.token, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return r.ok;
