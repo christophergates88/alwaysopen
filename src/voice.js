@@ -8,6 +8,7 @@
 // (app_calls), pushes it to the owner's phone (the Always Open app), and HQ reads it for the calls list and the cost meter.
 // Nothing here records audio. The written transcript is kept so the owner and Always Open can see what was said.
 import { handleSms, sendText, TEXTING_ON } from './sms.js';
+import { recordLost } from './lost.js';
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
 import { opsAlert } from './ops.js';
@@ -737,6 +738,7 @@ async function writeUp(env, sid, s, why) {
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
   if (outcome === 'spam' || call.test) return true;
+  if (note && note.booked === 'no' && note.lost && line && !+line.regulated && call.client_id !== OWN_ID) await recordLost(env, call.client_id, sid, note.lost, note.lostNote).catch(() => {});
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
   const who = (note && note.name) || (callback ? spokenNumber(callback, true) : 'a caller');
   const title = outcome === 'failed' ? 'Missed call from ' + who : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who);
@@ -843,6 +845,7 @@ export function lineView(line) {
   const pick = k => oneLine(String(f[k] || '')).slice(0, 3000);
   return {
     business: line.business || 'the business', town: line.town || '', regulated: !!+line.regulated, industry: line.industry || '', spanish: !!+line.spanish,
+    own: line.client_id === OWN_ID, lostOff: (() => { try { return JSON.parse(line.owner_set || '{}').lostAsk === false; } catch (e) { return false; } })(),
     canTransfer: E164.test(line.transfer_to || '') && line.transfer_when !== 'never', transferWhen: line.transfer_when || 'never',
     services: pick('services'), area: pick('area'), hours: pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake'),
     urgent: pick('urgent'), next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
@@ -906,6 +909,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- You are an SI (always write it as "S.I." so it is spoken as two letters), an automated assistant, and the caller already heard that in the greeting. If they ask whether you are a person, a bot, an AI or a recording, say plainly that you are an S.I., an automated assistant, not a person; if they ask what S.I. means, say it is the new name for AI and do not spell it out any further; otherwise do not keep bringing it up. Never claim to be a person.',
     '- Never give legal, medical, insurance, tax or financial advice. Never discuss coverage, claims, quotes or rates.' + (L.regulated ? '' : ' Explaining what ' + L.business + ' does and how it would work for their kind of business is not advice; do that plainly.') + (L.prices ? ' Only share the prices listed above, word for word.' : ' Never quote a price; say the team will go over pricing.'),
     '- Never promise prices, timing, outcomes or availability.',
+    (L.regulated || L.lostOff || L.own) ? null : '- If the caller decides not to go ahead (they will think about it, it is not for them, they only wanted a price, or it is work the business does not do), ask once, plainly: "Before you go, was it the price, the timing, or the drive? It helps him." Take whatever they say, thank them, and let them go. Never argue, never offer anything, never ask twice.',
     '- Never ask for or accept card numbers, Social Security numbers, account or policy numbers, birth dates, passwords or health details. If they start to give one, stop them kindly and say the team will take care of it on the callback.',
     '- Never share personal information about the owner or staff, such as cell numbers, home addresses or schedules.',
     '- If someone is hurt or in danger, tell them to hang up and call 911 right away.',
@@ -944,6 +948,8 @@ async function summarize(env, line, msgs, caller) {
     '"name" (the caller\'s name as they said it, or ""), "callback" (the best callback number in +1XXXXXXXXXX form if they gave or confirmed one, or ""), ' +
     '"reason" (what they want, at most 8 words), "details" (the useful details: address or town, what is going on, at most 40 words), ' +
     '"when" (the day or time they asked for, or ""), "urgent" (true only if they said it is urgent or an emergency), ' +
+    '"booked" ("yes" if they booked, asked for a callback or want to go ahead; "no" if they decided not to go ahead; "" if unclear), ' +
+    '"lost" (only when booked is "no": the reason they gave, one of "price", "timing", "distance", "not what we do", "other", or "" if they gave none), "lost_note" (their own words for it, at most 12 words, or ""), ' +
     '"spam" (true for sales pitches, robocalls, surveys, wrong numbers with no message, or abuse' + (own ? '; someone testing the AI with an odd or off-topic question is not spam' : '') + '), ' +
     (own ? '"business" (the caller\'s business name, or ""), "kind" (what kind of business, a few words, or ""), "town" (their town, or ""), ' +
       '"plan" ("Starter", "Growth", "Pro" or "AI line" if they named one, else another service they asked about, or ""), ' : '') +
@@ -958,7 +964,7 @@ async function summarize(env, line, msgs, caller) {
   if (/^\d{10}$/.test(cb)) cb = '+1' + cb;
   if (/^1\d{10}$/.test(cb)) cb = '+' + cb;
   return {
-    note: Object.assign({ name: s(j.name, 60), callback: E164.test(cb) ? cb : '', reason: s(j.reason, 80), details: s(j.details, 400), when: s(j.when, 80), urgent: j.urgent === true, spam: j.spam === true, summary: s(j.summary, 400) || 'They left a message.' },
+    note: Object.assign({ name: s(j.name, 60), callback: E164.test(cb) ? cb : '', reason: s(j.reason, 80), details: s(j.details, 400), when: s(j.when, 80), urgent: j.urgent === true, spam: j.spam === true, summary: s(j.summary, 400) || 'They left a message.', booked: s(j.booked, 4), lost: s(j.lost, 20), lostNote: s(j.lost_note, 120) },
       own ? { business: s(j.business, 80), kind: s(j.kind, 60), town: s(j.town, 60), plan: s(j.plan, 40) } : {}),
     inTok: r.inTok, outTok: r.outTok, model: r.model
   };

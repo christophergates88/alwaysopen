@@ -3,6 +3,7 @@
 import { pushClient, sha256hex, mailTo } from './app.js';
 import { page, ensureInvoices, invOut } from './extras.js';
 import { TEXTING_ON, replyText } from './sms.js';
+import { lostSince, LABELS as LOST_LABELS } from './lost.js';
 import { buildRevive } from './past.js';
 import { rivalLine } from './rivals.js';
 
@@ -625,13 +626,15 @@ export async function weeklyNumbers(env, cid, at) {
   const revs = await one("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created > ?2", cid, since);
   const unpaid = await one("SELECT SUM(amount) AS s FROM app_invoices WHERE client_id = ?1 AND status = 'open'", cid);
   const paid = await one("SELECT SUM(amount) AS s FROM app_invoices WHERE client_id = ?1 AND status = 'paid' AND paid_at > ?2", cid, since);
-  return { calls: +calls.n || 0, bookings: +books.n || 0, requests: +reqs.n || 0, reviews: +revs.n || 0, unpaid: +unpaid.s || 0, paid: +paid.s || 0 };
+  let lost = null; try { lost = await lostSince(env, cid, since); } catch (e) {}
+  return { calls: +calls.n || 0, bookings: +books.n || 0, requests: +reqs.n || 0, reviews: +revs.n || 0, unpaid: +unpaid.s || 0, paid: +paid.s || 0, lost };
 }
 export function weeklyLine(n) {
   const pl = (x, a, b) => x + ' ' + (x === 1 ? a : b);
   const parts = [pl(n.calls, 'call', 'calls'), pl(n.bookings, 'booking', 'bookings'), pl(n.requests, 'request', 'requests'), pl(n.reviews, 'review', 'reviews')];
   const rv = n.revive && n.revive.count ? ' ' + n.revive.count + ' past ' + (n.revive.count === 1 ? 'customer looks' : 'customers look') + ' ready to hear from you' + (n.revive.value ? ' (about ' + money(n.revive.value) + ')' : '') + '.' : '';
-  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.') + rv + (n.rivals ? ' ' + n.rivals : '');
+  const lost = n.lost && n.lost.total ? ' ' + n.lost.total + (n.lost.total === 1 ? ' caller did not book' : ' callers did not book') + ': ' + ['price','timing','distance','notus','other'].filter(r => n.lost[r]).sort((x, y) => n.lost[y] - n.lost[x]).map(r => n.lost[r] + ' ' + LOST_LABELS[r]).join(', ') + '.' : '';
+  return 'Last week: ' + parts.join(', ') + '. ' + (n.paid ? money(n.paid) + ' came in. ' : '') + (n.unpaid ? money(n.unpaid) + ' waiting.' : 'Nothing waiting to be paid.') + rv + lost + (n.rivals ? ' ' + n.rivals : '');
 }
 export async function bizCron(env, at) {
   at = at || Date.now();

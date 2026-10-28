@@ -3,6 +3,7 @@
 import { EmailMessage } from 'cloudflare:email';
 import { metaReady } from './extras.js';
 import { TEXTING_ON, textingReady } from './sms.js';
+import { LABELS as LOST_LABELS } from './lost.js';
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
@@ -51,6 +52,12 @@ export async function boardItems(env) {
   for (const f of failed) items.push({ key: 'pay:' + f.client_id + ':' + String(f.updated || '').slice(0, 10), group: 'Failed payments', title: f.business || f.client_id, detail: (f.plan || '') + ' plan. Stripe is retrying and emailing them; a call from you may help' });
   const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");
   for (const r of refs) items.push({ key: 'referral:' + r.id, group: 'Referral credits to give', title: r.referrer, detail: 'Sent us ' + r.referred + ' (signed up ' + String(r.created || '').slice(0, 10) + '). Check they have paid three months, then give ' + r.referrer + ' one free month. Tick Done once it is applied' });
+  try {
+    const lost = await all(env, "SELECT l.client_id, COALESCE(c.business, l.client_id) AS biz, l.reason, COUNT(*) AS n FROM call_lost l LEFT JOIN app_clients c ON c.client_id = l.client_id WHERE l.at > ?1 GROUP BY l.client_id, l.reason ORDER BY biz", new Date(Date.now() - 30 * 864e5).toISOString());
+    const by = {};
+    for (const r of lost) { (by[r.client_id] = by[r.client_id] || { biz: r.biz, parts: [], total: 0 }).parts.push(+r.n + ' ' + (LOST_LABELS[r.reason] || r.reason)); by[r.client_id].total += +r.n; }
+    for (const k in by) items.push({ key: 'lost:' + k + ':' + by[k].total, group: 'Why callers walked (last 30 days)', title: by[k].biz, detail: by[k].parts.join(', ') });
+  } catch (e) {}
   const sys = [
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],
     ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],

@@ -306,9 +306,17 @@ function vHome(){
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
+  h+=lostCard();
   h+=guardCard();
   h+=referCard();
   return h;
+}
+function lostCard(){
+  var L=S.lost;if(!L||!L.month||!L.month.total)return '';
+  var m=L.month,top=L.top||[];
+  return '<div class="feature"><h3>Why callers walked</h3><p>When a caller decides not to book, Max asks one question: was it the price, the timing, or the drive. Here is what they said.</p>'+
+    '<p><b>This month: '+top.map(esc).join(', ')+'.</b></p>'+(L.last&&L.last.total?'<p class="fine">Last month: '+L.last.total+' caller'+(L.last.total===1?'':'s')+' did not book.</p>':'')+
+    '<p class="fine">Counts only. What you do with them is up to you.</p></div>';
 }
 function referCard(){
   var r=S.referrals||{},rows=r.list||[],h='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><p><b>Refer a business. When they\\u2019ve stayed 3 months, you get a month free.</b></p>';
