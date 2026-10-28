@@ -393,8 +393,8 @@ a.btn{justify-self:start;display:inline-block;background:var(--sign);color:var(-
 
 // ---------- Rate-Shock Radar ----------
 // Every Monday: for each town in RADAR_TOWNS, look up insurance agencies on Google (Places API, New) and count
-// new reviews, recent low ratings and recent reviews about rates. Stores and emails COUNTS ONLY:
-// no agency names, no reviewer names, no review text.
+// recent reviews, recent low ratings and recent reviews about rates. Emails COUNTS ONLY and keeps nothing: Google's terms
+// don't allow storing Places content, so there is no week-to-week table. No agency names, no reviewer names, no review text.
 const RADAR_CRON = '17 12 * * 1';
 const RATE_RE = /\b(rate|rates|premium|premiums|price|prices|bill|went up|goes up|going up|increase|increased|raised|doubled|expensive|afford)\b|tarifa|prima|precio|aument|subi[oó]|caro/i;
 function isoWeek(d) {
@@ -430,18 +430,14 @@ async function radarWatch(env) {
   if (!env.PLACES_KEY) return { ok: false, error: 'no key' };
   const towns = String(env.RADAR_TOWNS || '').split('|').map(x => x.trim()).filter(Boolean);
   if (!towns.length) return { ok: false, error: 'no towns' };
-  await env.DB.prepare('CREATE TABLE IF NOT EXISTS radar (town TEXT, week TEXT, at TEXT, places INTEGER, total INTEGER, avg REAL, recent INTEGER, rate INTEGER, low INTEGER, new_reviews INTEGER, wave INTEGER, PRIMARY KEY (town, week))').run();
   const now = Date.now(), week = isoWeek(new Date(now)), at = new Date(now).toISOString(), lines = [], out = [];
   for (const town of towns.slice(0, 12)) {
     try {
       const m = await radarTown(env, town, now);
-      const prev = await env.DB.prepare('SELECT total, places FROM radar WHERE town = ?1 AND week < ?2 ORDER BY week DESC LIMIT 1').bind(town, week).first();
-      const newReviews = prev && prev.places === m.places ? Math.max(0, m.total - prev.total) : null;
-      const wave = m.rate >= 2 || (newReviews != null && newReviews >= 6 && m.low >= 2);
-      await env.DB.prepare('INSERT OR REPLACE INTO radar (town, week, at, places, total, avg, recent, rate, low, new_reviews, wave) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)')
-        .bind(town, week, at, m.places, m.total, m.avg, m.recent, m.rate, m.low, newReviews, wave ? 1 : 0).run();
-      out.push(Object.assign({ town, week, newReviews, wave }, m));
-      lines.push('Town: ' + town + ' | Week: ' + week + ' | Agencies: ' + m.places + ' | Reviews total: ' + m.total + ' | New this week: ' + (newReviews == null ? 'first reading' : newReviews) +
+      // A wave: several recent reviews about rates, or a run of recent reviews with low ratings among them (last 30 days, from this lookup).
+      const wave = m.rate >= 2 || (m.recent >= 6 && m.low >= 2);
+      out.push(Object.assign({ town, week, wave }, m));
+      lines.push('Town: ' + town + ' | Week: ' + week + ' | Agencies: ' + m.places + ' | Reviews total: ' + m.total + ' | Recent reviews (30 days): ' + m.recent +
         ' | Average rating: ' + m.avg + ' | Recent reviews about rates: ' + m.rate + ' | Recent 1-2 star: ' + m.low + ' | Wave: ' + (wave ? 'yes' : 'no'));
     } catch (e) {
       lines.push('Town: ' + town + ' | Week: ' + week + ' | Error: ' + String((e && e.message) || e).slice(0, 120));
@@ -456,8 +452,8 @@ async function radarWatch(env) {
 async function radarMail(env, week, lines) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO || !lines.length) return;
   const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const text = ['Weekly Rate-Shock Radar. Counts only, from public Google data: no agency names, no reviewer names, no review text.', '', ...lines, '',
-    'The Always Open check copies these into Always Open HQ, Regulated, for insurance clients in these towns.'].join('\r\n');
+  const text = ['Weekly Rate-Shock Radar. Counts only: no agency names, no reviewer names, no review text.', '', ...lines, '',
+    'Source: Google Maps. Looked up for this email and not kept anywhere, so there is no week-to-week comparison. Please don\u2019t copy these numbers into a spreadsheet or HQ.'].join('\r\n');
   const raw = ['From: "Always Open Radar" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + encodeHeader('Always Open radar: ' + week),
     'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + text;

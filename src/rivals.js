@@ -50,6 +50,7 @@ export async function purgeGoogle(env) {
   await env.DB.batch(st);
   try { await env.DB.prepare('DELETE FROM share_hist').run(); } catch (e) { /* never created */ }
   try { await env.DB.prepare("UPDATE audits SET data = '{}' WHERE data != '{}'").run(); } catch (e) { /* no audits yet */ }
+  try { await env.DB.prepare('DELETE FROM radar').run(); } catch (e) { /* the radar keeps nothing now */ }
   return { ok: true };
 }
 // Kept for the Monday cron's import: there are no snapshots to take any more, only the purge.
