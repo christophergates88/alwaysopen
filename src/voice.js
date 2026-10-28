@@ -823,7 +823,7 @@ function greetingText(biz, spanish, custom) {
     const t = oneLine(String(custom));
     return sp ? t.replace(/(\?|\.|!)?$/, m => m) + sp : t;
   }
-  return 'Hi, thanks for calling ' + biz + '. I\'m the automated assistant here, an S.I., and this call may be recorded.' + sp + ' What can I do for you?';
+  return 'Hi, thanks for calling ' + biz + '. I\'m an S.I., and this call may be recorded.' + sp + ' What can I do for you?';
 }
 
 export function lineView(line) {
