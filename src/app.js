@@ -22,6 +22,7 @@ import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
 import { upgradesState } from './upgrades.js';
 import { textingPage, textingState } from './a2p.js';
+import { apiFirstLook, firstLookDue, shareState } from './firstlook.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -238,6 +239,9 @@ export async function handleApp(req, env, ctx, url) {
       return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
+    } else if (sub === '/api/firstlook' && meth === 'POST') {
+      const r = await apiFirstLook(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/fullmax' && meth === 'POST') {
       const r = await apiFullMax(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -401,6 +405,8 @@ async function apiState(env, c, ctx) {
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }
+  try { out.firstLookDue = cid === 'demo-plumbing' ? false : await firstLookDue(env, c); } catch (e) { out.firstLookDue = false; }
+  try { out.share = c.staff || cid === 'demo-plumbing' ? null : await shareState(env, c, out.client && out.client.refLink); } catch (e) { out.share = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);

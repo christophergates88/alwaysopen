@@ -297,11 +297,30 @@ function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'G
 function row(go,icon,title,sub){return '<button class="row" type="button" data-go="'+go+'">'+icon+'<div><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+ICON.chev+'</button>';}
 function qt(a,icon,title,sub){return '<button class="qt" type="button" data-a="'+a+'">'+icon+'<b>'+esc(title)+'</b><span>'+esc(sub)+'</span></button>';}
 function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'.</div>';}
+var FL=null,FLASKED=false;
+function flCard(){
+  if(!S.firstLookDue)return '';
+  if(!FLASKED){FLASKED=true;post('firstlook',{}).then(function(res){FL=(res.j&&res.j.firstLook)||{none:true};render();}).catch(function(){FL={none:true};render();});}
+  if(!FL)return '<div class="feature"><h3>Your first look</h3><p class="fine">Looking you up on Google\u2026</p></div>';
+  if(FL.none)return '';
+  var h='<div class="feature fl">';
+  if(FL.found){h+='<p class="fine">Your first look</p><h3>Your score: '+FL.score+' ('+esc(FL.grade)+')</h3>'+(FL.finding?'<p><b>What holds you back most:</b> '+esc(FL.finding.title)+'. '+esc(FL.finding.saw)+'</p><p class="fine">'+esc(FL.finding.fix)+'</p>':'<p>Nothing big is holding you back. We keep it that way.</p>')+'<p class="gm">Google Maps</p>';}
+  var t=FL.today||{};
+  h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><p class="fine">The one thing we\u2019ll do today</p><h3>'+esc(t.title||'')+'</h3><p>'+esc(t.detail||'')+'</p>'+(t.link?'<p class="fine" style="word-break:break-all">'+esc(t.link)+'</p>':'')+'</div>';
+  h+='<div class="acts">'+(t.help?'<a class="btn line" href="'+BASE+t.help+'">Show me how</a>':'')+'<button class="btn ghost" type="button" data-a="fl-done">Got it</button></div></div>';
+  return h;
+}
+function shareCard(){
+  var s=S.share;if(!s)return '';
+  var sms='sms:?&body='+encodeURIComponent(s.message),mail='mailto:?subject='+encodeURIComponent('Something that helped my business')+'&body='+encodeURIComponent(s.message);
+  return '<div class="feature"><h3>A good '+esc(s.month)+'</h3><p>Know an owner who\u2019d want the same? Here\u2019s a note you can send. Nothing goes out unless you send it.</p><p class="fine" style="white-space:pre-wrap">'+esc(s.message)+'</p>'+
+    '<div class="acts" style="flex-wrap:wrap;gap:8px"><button class="btn line small" type="button" data-a="sh-copy">Copy</button><a class="btn line small" href="'+esc(sms)+'">Text it</a><a class="btn line small" href="'+esc(mail)+'">Email it</a><button class="btn ghost small" type="button" data-a="sh-done">Not now</button></div></div>';
+}
 function vHome(){
   var f=S.features||{},first=S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here\\u2019s '+esc(S.client.business||'your business')+' today.</p>'+install()+bizTop()+heroCard();
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here\\u2019s '+esc(S.client.business||'your business')+' today.</p>'+install()+flCard()+shareCard()+bizTop()+heroCard();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -699,6 +718,9 @@ document.addEventListener('click',function(e){
   else if(a==='usever'){var vv=(VERS[id]||[])[+t.dataset.i];if(vv){EDIT[id]=vv.text;delete VERS[id];render();var ta2=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta2)ta2.focus();}}
   else if(a==='save'){var tx=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');var v=tx?tx.value.trim():'';if(!v){toast('The text is empty.');return;}EDIT[id]=v;decide(id,'approve',v);}
   else if(a==='skip'){if(t.classList.contains('sure'))decide(id,'skip','');else{t.classList.add('sure');t.textContent='Tap again to skip';setTimeout(function(){if(t.isConnected){t.classList.remove('sure');t.textContent='Skip';}},4000);}}
+  else if(a==='fl-done'){S.firstLookDue=false;render();post('firstlook',{action:'done'});}
+  else if(a==='sh-copy'){var m=(S.share||{}).message||'';if(navigator.clipboard)navigator.clipboard.writeText(m).then(function(){toast('Copied. Paste it wherever you like.');post('firstlook',{action:'share-done'});S.share=null;render();},function(){toast(m);});}
+  else if(a==='sh-done'){S.share=null;render();post('firstlook',{action:'share-done'});}
   else if(a==='up-all'){UPALL=!UPALL;render();}
   else if(a==='up-ask'){var uu=((S.upgrades||{}).list||[]).filter(function(x){return x.id===id;})[0];if(uu)askAbout(uu.name,uu.ask);}
   else if(a==='cb-done'||a==='cb-later'){t.disabled=true;post('callbacks',{action:a==='cb-done'?'done':'later',id:+id}).then(function(res){toast(res.j.message||res.j.error||'Done.');load();}).catch(function(){t.disabled=false;toast('No connection.');});}

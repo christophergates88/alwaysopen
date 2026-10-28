@@ -7,6 +7,7 @@
 // The client's own billing page (plan, card, pause, change, cancel with offers) lives at /app/<code>/billing (see billingPage).
 
 import { noteSignup, expireCredits, REF_RE } from './referral.js';
+import { firstLook } from './firstlook.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
@@ -165,8 +166,14 @@ async function welcome(env, url, h) {
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
   const link = SITE + '/app/' + b.code;
+  // The owner first: their score, what holds them back most, and the one thing we'll do today. Looked up live, not kept.
+  let fl = null;
+  try { const cl0 = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(b.client_id).first(); if (cl0) fl = await firstLook(env, cl0, { force: true }); } catch (e) { fl = null; }
+  const hero = !fl ? '' : (fl.found ? '<div class="card"><p class="mono">Your first look</p><h2>Your score: ' + fl.score + ' (' + esc(fl.grade) + ')</h2>' + (fl.finding ? '<p><b>What holds you back most:</b> ' + esc(fl.finding.title) + '. ' + esc(fl.finding.saw) + '</p><p class="fine">' + esc(fl.finding.fix) + '</p>' : '<p>Nothing big is holding you back. We keep it that way.</p>') + '<p class="fine">Google Maps. Looked up just now.</p></div>' : '') +
+    '<div class="card"><p class="mono">The one thing we\u2019ll do today</p><h2>' + esc(fl.today.title) + '</h2><p>' + esc(fl.today.detail) + '</p>' + (fl.today.help ? '<div class="acts"><a class="btn" href="' + esc(link + fl.today.help) + '">Show me how</a></div>' : (fl.today.link ? '<div class="link">' + esc(fl.today.link) + '</div>' : '')) + '</div>';
   return page('Welcome', `<div><p class="mono">You're in</p><h1>Welcome to Always Open, ${esc(String(b.owner || '').split(' ')[0] || 'friend')}.</h1></div>
 <p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with 300 more Max minutes' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
+${hero}
 <div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
