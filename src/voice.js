@@ -791,7 +791,7 @@ async function writeUp(env, sid, s, why) {
       const biz = line.business || 'the business';
       const tb = await sendText(env, { clientId: call.client_id, to: call.caller, kind: 'textback',
         body: 'Sorry we missed you. This is ' + biz + '. Reply here with what you need, or call back any time and Max will take it. Reply STOP to end texts.' });
-      if (tb.ok) await env.DB.prepare("UPDATE app_calls SET summary = CASE WHEN summary = '' OR summary IS NULL THEN 'We texted them back.' ELSE summary || ' We texted them back.' END WHERE sid = ?1").bind(sid).run().catch(() => {});
+      if (tb.ok) await env.DB.prepare("UPDATE app_calls SET summary = CASE WHEN summary = '' OR summary IS NULL THEN 'We texted them back.' ELSE summary || ' We texted them back.' END WHERE id = ?1").bind(sid).run().catch(() => {});
     }
   }
   if (outcome === 'failed') await opsPing(env, 'AI line problem: ' + ((line && line.business) || call.client_id), 'Call ' + sid + ' from ' + (call.caller || 'unknown') + ' could not start. The owner was told to call them back.', 'high', 'warning');

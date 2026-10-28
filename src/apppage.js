@@ -385,7 +385,7 @@ function vHome(){
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We’ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=cbCard()+fuBlock()+fwCard();
+  h+=cbCard()+fuBlock()+fwCard()+moreCard();
   return h;
 }
 var UPALL=false;
@@ -404,7 +404,13 @@ function upCard(){
 }
 function mapCard(){
   var m=S.map;if(!m)return '';
-  return '<div class="feature"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map" target="_blank" rel="noopener">Open the map</a></div></div>';
+  return '<div class="feature" id="map"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map" target="_blank" rel="noopener">Open the map</a></div></div>';
+}
+function moreCard(){
+  var r=[];
+  if(!isTech()&&S.upgrades&&S.upgrades.list&&S.upgrades.list.length)r.push(row('up',ICON.check,'Upgrades for you','What fits your business, and why'));
+  if(S.map)r.push(row('map',ICON.shield,'The Always Open map','Customers searching nearby find you here'));
+  return r.length?'<h2>More for your business</h2><div class="list">'+r.join('')+'</div>':'';
 }
 function cbCard(){
   var C=S.callbacks;if(!C||!C.list||!C.list.length)return '';
@@ -817,7 +823,7 @@ ${RIVALS_JS}
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg]');if(!t)return;
   if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
-  if(t.dataset.go){var g=t.dataset.go;if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
+  if(t.dataset.go){var g=t.dataset.go;if(g==='up'||g==='map'){TAB='home';SEG=g==='up'?'results':'customers';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var jt=document.getElementById(g==='up'?'upgrades':'map');if(jt)jt.scrollIntoView({behavior:'smooth',block:'start'});return;}if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
   if(t.dataset.close){close();return;}
   if(t.dataset.tab){TAB=t.dataset.tab;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);return;}
   var a=t.dataset.a,id=t.dataset.id;

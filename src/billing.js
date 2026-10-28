@@ -42,7 +42,7 @@ export async function stripe(env, method, path, body) {
     body: body ? form(body) : undefined
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j.error && j.error.message) || ('Stripe ' + r.status));
+  if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Stripe ' + r.status)); e.status = r.status; throw e; }
   return j;
 }
 async function hmacHex(secret, msg) {
@@ -165,7 +165,7 @@ async function welcome(env, url, h) {
   const id = url.searchParams.get('s') || '';
   if (!/^cs_[A-Za-z0-9_]{10,200}$/.test(id) || !env.STRIPE_KEY) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404);
   let s;
-  try { s = await stripe(env, 'GET', 'checkout/sessions/' + id); } catch (e) { return page('Welcome', '<h1>Almost there.</h1><p class="sub">We could not confirm the payment yet. Refresh this page in a minute.</p>', 502); }
+  try { s = await stripe(env, 'GET', 'checkout/sessions/' + id); } catch (e) { if (e && (e.status === 404 || e.status === 400)) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404); return page('Welcome', '<h1>Almost there.</h1><p class="sub">We could not confirm the payment yet. Refresh this page in a minute.</p>', 502); }
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
   const link = SITE + '/app/' + b.code;

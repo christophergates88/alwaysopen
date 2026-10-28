@@ -420,7 +420,7 @@ async function apiState(env, c, ctx) {
   } catch (e) { out.live = []; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
-  try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
+  try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }
   try { out.firstLookDue = cid === 'demo-plumbing' ? false : await firstLookDue(env, c); } catch (e) { out.firstLookDue = false; }
   try { out.share = c.staff || cid === 'demo-plumbing' ? null : await shareState(env, c, out.client && out.client.refLink); } catch (e) { out.share = null; }
