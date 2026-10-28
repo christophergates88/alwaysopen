@@ -16,7 +16,7 @@ import { referralCron } from './referral.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron, ensureInvoices } from './extras.js';
 import { handleOptOut } from './past.js';
-import { sendText } from './sms.js';
+import { sendText, setBrand } from './sms.js';
 import { callbackCron } from './callbacks.js';
 import { checkinCron } from './checkin.js';
 import { fullMaxCron } from './fullmax.js';
@@ -62,8 +62,11 @@ export default {
           const u = await fetch(base + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ SmsUrl: 'https://alwaysopenoffice.com/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST' }).toString() });
           row.webhook = u.ok ? 'set' : 'failed ' + u.status;
-          if (env.TWILIO_MESSAGING_SID) {
-            const m = await fetch('https://messaging.twilio.com/v1/Services/' + env.TWILIO_MESSAGING_SID + '/PhoneNumbers', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ PhoneNumberSid: pn.sid }).toString() });
+          const own = await env.DB.prepare('SELECT client_id FROM voice_lines WHERE number = ?1').bind(n.number).first();
+          const brand = own && own.client_id === 'always-open' ? { messaging_sid: env.TWILIO_MESSAGING_SID } : await env.DB.prepare("SELECT messaging_sid FROM sms_brands WHERE client_id = ?1 AND status = 'approved'").bind(own && own.client_id).first().catch(() => null);
+          if (!brand || !brand.messaging_sid) row.senderPool = 'waiting for this business to have its own texting registration';
+          else {
+            const m = await fetch('https://messaging.twilio.com/v1/Services/' + brand.messaging_sid + '/PhoneNumbers', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ PhoneNumberSid: pn.sid }).toString() });
             const mj = await m.json().catch(() => ({}));
             row.senderPool = m.ok ? 'added' : (mj.code === 21712 || /already/i.test(mj.message || '') ? 'already there' : 'failed: ' + String(mj.message || m.status).slice(0, 80));
           }
@@ -71,6 +74,16 @@ export default {
         out.push(row);
       }
       return json({ ok: true, numbers: out }, 200);
+    }
+    if (path === '/ops/sms-brand') {
+      // HQ: record a client's own texting registration (their Messaging Service SID, once their brand and campaign are approved).
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      let b = {}; try { b = await req.json(); } catch (e) {}
+      const cid = String(b.client || ''), mg = String(b.mg || ''), st = b.status === 'approved' ? 'approved' : (b.status === 'off' ? 'off' : 'pending');
+      if (!cid || (st === 'approved' && !/^MG[0-9a-f]{32}$/i.test(mg))) return json({ ok: false, error: 'client and a Messaging Service SID (MG...) are needed' }, 400);
+      await setBrand(env, cid, mg, st);
+      return json({ ok: true, client: cid, status: st }, 200);
     }
     if (path === '/ops/text-test') {
       const k = req.headers.get('x-key') || '';

@@ -43,3 +43,9 @@ test('a bad signature is refused', async () => {
   const res = await handleSms({}, { DB: fakeDB() }, new URLSearchParams(), false);
   assert.equal(res.status, 403);
 });
+
+test('a client without its own texting registration is never texted for', async () => {
+  const env = { DB: fakeDB(), TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_MESSAGING_SID: 'MG' + '0'.repeat(32) };
+  const r = await sendText(env, { clientId: 'sinclair-plumbing', to: '4783652533', body: 'hi', kind: 'reply' });
+  assert.equal(r.ok, false); assert.equal(r.why, 'texting not registered for this business');
+});

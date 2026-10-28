@@ -46,6 +46,23 @@ async function fromFor(env, cid) {
   const l = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 AND on_air = 1 ORDER BY updated DESC LIMIT 1').bind(cid).first().catch(() => null);
   return (l && l.number) || env.TWILIO_FROM || '';
 }
+// Carrier rules (A2P 10DLC): every business that texts needs its own registered brand and campaign; one campaign can't
+// speak for several companies. Always Open's own campaign covers Always Open's own number only. A client's texts go out
+// through that client's own Messaging Service, set once their registration is approved; until then nothing is sent for them.
+export const OWN = 'always-open';
+async function ensureBrands(env) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS sms_brands (client_id TEXT PRIMARY KEY, messaging_sid TEXT DEFAULT '', status TEXT DEFAULT 'pending', updated TEXT)").run();
+}
+export async function senderFor(env, cid) {
+  if (cid === OWN) return env.TWILIO_MESSAGING_SID ? { mg: env.TWILIO_MESSAGING_SID } : { mg: '' };
+  await ensureBrands(env);
+  const b = await env.DB.prepare("SELECT messaging_sid FROM sms_brands WHERE client_id = ?1 AND status = 'approved'").bind(cid).first().catch(() => null);
+  return b && /^MG[0-9a-f]{32}$/i.test(b.messaging_sid || '') ? { mg: b.messaging_sid } : null;
+}
+export async function setBrand(env, cid, mg, status) {
+  await ensureBrands(env);
+  await env.DB.prepare('INSERT INTO sms_brands (client_id, messaging_sid, status, updated) VALUES (?1,?2,?3,?4) ON CONFLICT(client_id) DO UPDATE SET messaging_sid = excluded.messaging_sid, status = excluded.status, updated = excluded.updated').bind(cid, mg || '', status || 'pending', new Date().toISOString()).run();
+}
 
 // sendText(env, { clientId, to, body, kind, tz }) -> { ok, sid?, why? }. kind: reply | test | textback | confirm | reminder | revive | invoice | review.
 export async function sendText(env, o) {
@@ -59,8 +76,10 @@ export async function sendText(env, o) {
   if (!ANYTIME.has(kind)) { const h = hourIn(o.tz); if (h < 8 || h >= 21) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; } }
   const form = new URLSearchParams({ To: '+1' + to10, Body: body });
   // The A2P campaign lives on a Messaging Service; the text still goes out from the client's own number so replies reach their line.
+  const sender = await senderFor(env, cid);
+  if (!sender) { await log('skipped', 'not registered'); return { ok: false, why: 'texting not registered for this business' }; }
   const from = await fromFor(env, cid);
-  if (env.TWILIO_MESSAGING_SID) { form.set('MessagingServiceSid', env.TWILIO_MESSAGING_SID); if (from) form.set('From', from); }
+  if (sender.mg) { form.set('MessagingServiceSid', sender.mg); if (from) form.set('From', from); }
   else { if (!from) { await log('skipped', 'no number'); return { ok: false, why: 'no number to send from' }; } form.set('From', from); }
   let r, j = {};
   try {
