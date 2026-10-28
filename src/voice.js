@@ -681,7 +681,7 @@ export class CallRoom extends DurableObject {
         await this.say(s, own ? s.quiet : (es ? '¿Hola? ¿Sigue ahí?' : 'Hello? Are you there?'));
       }
       else if (s.nudged === 1) { s.nudged = 2; this.mark('N', 2); await this.say(s, es ? 'No le escucho. ¿Me oye bien?' : 'I\'m not hearing anything on my end. Can you hear me okay?'); }
-      else { this.mark('N', 3); await this.sayAndEnd(s, es ? 'Parece que se cortó la llamada. Llámenos cuando quiera. Adiós.' : 'Sounds like we got cut off. Feel free to call back anytime. Bye!'); }
+      else { this.mark('N', 3); await this.sayAndEnd(s, es ? 'Parece que se cortó la llamada. Llámenos cuando quiera. Adiós.' : 'Sounds like we got cut off. Feel free to call back anytime. Bye.'); }
     } finally { this.nudgeBusy = false; }
     return true;
   }
@@ -823,7 +823,7 @@ function greetingText(biz, spanish, custom) {
     const t = oneLine(String(custom));
     return sp ? t.replace(/(\?|\.|!)?$/, m => m) + sp : t;
   }
-  return 'Hi, thanks for calling ' + biz + '! I\'m the AI assistant here, and this call may be recorded.' + sp + ' What can I do for you?';
+  return 'Hi, thanks for calling ' + biz + '. I\'m the AI assistant here, and this call may be recorded.' + sp + ' What can I do for you?';
 }
 
 export function lineView(line) {
@@ -857,7 +857,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
     'How you talk:',
-    '- This is a phone call. Sound like a real person who is good at this job: warm, relaxed and quick. Use contractions and everyday words, and vary how you start your sentences.',
+    '- This is a phone call. Sound like a calm, capable person at the front desk: plain, even and unhurried, the same steady tone from the first word to the last. No performed enthusiasm, no gushing, no sing-song, no sudden changes of mood, and never an exclamation mark. Friendly comes from being useful and brief, not from sounding excited. Use contractions and everyday words, and vary how you start your sentences.',
     '- Keep each turn really short, like people do on the phone: usually one sentence, two at most, never more than about 25 words. Then stop and let them talk.',
     '- Never list more than two things at once. If there is more, mention the one that fits them best and offer to tell them more.',
     '- Do not add disclaimers or explain what you cannot do unless they actually ask for advice. Ask one question at a time, and do not tack a question onto every answer; when you ask, make it about what they just said, and never ask the same thing twice.',
@@ -865,9 +865,9 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- Their words reach you through speech recognition, so expect small mistakes. If something sounds off, like a name heard as a similar-sounding word, go with what they most likely meant.',
     '- Callers do not know the team. The first time you mention someone by name, say who they are, like "Chris, who runs the business".',
     '- Never sound like a script or a phone menu, and do not repeat what they said back word for word unless you are checking a name or a number.',
-    '- Never write laughter like "ha" or "haha"; it sounds strange spoken. Be funny with words instead.',
+    '- Never write laughter like "ha" or "haha"; it sounds strange spoken. If something is funny, say it dry and flat, in the same even voice, and never act amused.',
     '- If they ask something off-topic, keep it light and quick, one line, never a lecture, then steer back to how you can help.',
-    '- If they share something personal, like a pet or family news, react warmly in a few words, the way a person would, before steering back.',
+    '- If they share something personal, like a pet or family news, acknowledge it simply in a few words, in your normal even tone, before steering back.',
     '- No lists, symbols, emojis or formatting. Say numbers the way people say them. Read phone numbers digit by digit in groups, like "four seven eight, five five five, zero one four two".',
     '- If you did not catch something, ask them to repeat it. Never invent details.',
     '',
@@ -1065,7 +1065,7 @@ export class Speaker {
     }
   }
   emit(t) {
-    t = String(t).replace(/[*_#`~|<>{}]/g, '').replace(/\s*\n+\s*/g, ' ');
+    t = String(t).replace(/[*_#`~|<>{}¡]/g, '').replace(/!+/g, '.').replace(/\.{2,}|…/g, '.').replace(/\s+[—–]\s+|[—–]/g, ', ').replace(/\s*\n+\s*/g, ' ');
     if (!t) return;
     if (!t.trim()) { this.pending += t; return; }   // keep spaces with the words, so the last piece is never just a space
     if (this.pending) { this.send(this.msg(this.pending, false)); this.spoken += this.pending; }
@@ -1089,42 +1089,43 @@ export class Speaker {
 // said, never one of the last few used, and "good question" at most once a call. Each is short and complete, so Twilio can
 // say it at once and the AI's answer starts a fresh sentence after it.
 const LEADS = {
-  repeat: ['Oh, sorry.', 'Sorry about that.'],
+  repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
   urgent: ['Okay.', 'Okay, got it.'],
-  sad: ['Oh, I\'m so sorry.'],
-  trouble: ['Oh no.', 'Oh no, okay.'],
-  aiq: ['Fair question.', 'Totally fair question.'],
+  sad: ['I\'m sorry to hear that.'],
+  trouble: ['I\'m sorry about that.', 'Okay.'],
+  aiq: ['Fair question.'],
   isai: ['Guilty.', 'Yep.'],
   ishuman: ['Nope.'],
-  sing: ['You asked for it!', 'Okay, you asked for it!'],
-  nicetry: ['Nice try.', 'Oh, nice try.'],
+  sing: ['You asked for it.', 'Okay. You asked for it.'],
+  nicetry: ['Nice try.'],
   private: ['Hmm.'],
-  tech: ['Ooh, good one.', 'Ah, good one.'],
-  aimad: ['I hear you.', 'Totally fair.', 'Yeah, I get it.'],
-  brag: ['I\'d like to think so!', 'Oh, I\'d like to think so!'],
-  dare: ['You\'re on!', 'Challenge accepted!'],
+  tech: ['Good one.'],
+  aimad: ['I hear you.', 'That\'s fair.', 'I get it.'],
+  brag: ['I\'d like to think so.'],
+  dare: ['You\'re on.', 'Challenge accepted.'],
   bye: ['Alright.', 'Okay.'],
-  no: ['Oh, okay.', 'Okay, no problem.', 'Ah, gotcha.'],
-  thanks: ['Of course!', 'You bet!', 'Sure thing!'],
+  no: ['Okay.', 'Okay, no problem.', 'Gotcha.'],
+  thanks: ['Of course.', 'Sure thing.', 'You bet.'],
   hear: ['Yep, I\'m here.', 'Yeah, I\'m here.'],
-  hi: ['Hey!', 'Hi there!'],
+  hi: ['Hi.', 'Hi there.'],
   wait: ['Sure.', 'Sure, no rush.'],
-  yes: ['Great.', 'Perfect.', 'Awesome.', 'Okay, great.'],
+  yes: ['Great.', 'Okay.', 'Okay, great.'],
   ask: ['Okay.', 'Alright.'],
-  wh: ['Good question.', 'Oh, good question.', 'Sure.', 'Okay.'],
-  worry: ['Fair question.', 'Totally fair question.', 'Good question.'],
-  yn: ['Good question.', 'Oh, good question.', 'Fair question.', 'Okay.'],
-  point: ['Fair point.', 'Good point.', 'Oh, fair point.'],
-  biz: ['Oh, nice.', 'Oh, cool.', 'Nice.'],
-  pet: ['Oh, I love that.', 'Oh, how fun.'],
-  doubt: ['Fair enough.', 'Totally fair.', 'I hear you.'],
-  info: ['Sure.', 'Sure thing.', 'Okay.', 'Absolutely.'],
-  name: ['Nice to meet you!', 'Great, thanks.', 'Got it, thanks.'],
+  wh: ['Good question.', 'Sure.', 'Okay.'],
+  worry: ['Fair question.', 'Good question.'],
+  yn: ['Good question.', 'Fair question.', 'Okay.'],
+  point: ['Fair point.', 'Good point.'],
+  biz: ['Nice.', 'Okay, nice.'],
+  pet: ['Nice.', 'That\'s great.'],
+  doubt: ['Fair enough.', 'That\'s fair.', 'I hear you.'],
+  info: ['Sure.', 'Sure thing.', 'Okay.'],
+  name: ['Nice to meet you.', 'Great, thanks.', 'Got it, thanks.'],
   said: ['Got it.', 'Okay.', 'Gotcha.', 'Okay, got it.', 'Alright.']
 };
+
 const LEADS_ES = {
-  repeat: ['Ay, perdón.'], danger: ['Entiendo.'], thanks: ['¡Con gusto!', '¡De nada!'], hi: ['¡Hola!'],
+  repeat: ['Perdón.'], danger: ['Entiendo.'], thanks: ['Con gusto.', 'De nada.'], hi: ['Hola.'],
   wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Muy bien.', 'Entiendo.', 'Perfecto.']
 };
 
@@ -1352,6 +1353,7 @@ async function lineFor(env, number) {
 // A line can pick its voice: an ElevenLabs "<voice id>", optionally "-<model>" and "-<speed>_<stability>_<similarity>"
 // (speed 0.7 to 1.2, the others 0 to 1), or "google:<voice name>" such as google:en-US-Journey-O.
 // Anything else is ignored and Twilio's default voice is used.
+const STEADY_VOICE = '1.0_0.85_0.8';   // speed_stability_similarity
 export function voiceFor(line) {
   const v = String((parse(line && line.facts) || {}).voice || '').trim();
   const g = v.match(/^google:([a-z]{2}-[A-Z]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,3})$/);
@@ -1361,8 +1363,11 @@ export function voiceFor(line) {
   if (m[3] != null) {
     const sp = +m[3], st = +m[4], si = +m[5];
     if (!(sp >= 0.7 && sp <= 1.2 && st >= 0 && st <= 1 && si >= 0 && si <= 1)) return '';
+    return { provider: 'ElevenLabs', voice: v };
   }
-  return { provider: 'ElevenLabs', voice: v };
+  // No settings on the line: use steady ones. ElevenLabs' own default stability lets the pitch and mood swing from one
+  // sentence to the next, which callers hear as fake. High stability keeps one even, plain voice for the whole call.
+  return { provider: 'ElevenLabs', voice: m[1] + '-' + (m[2] || 'flash_v2_5') + '-' + STEADY_VOICE };
 }
 function hintsFor(line) {
   const f = parse(line.facts) || {};
