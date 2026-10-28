@@ -389,6 +389,19 @@ test('next month, the first report is written once, from what actually happened,
   assert.ok(st.months.some(x => x.month === key && x.record), 'the report shows in the app with its record');
 });
 
+test('a month written by HQ with a label inside its numbers still reaches the iPhone app as numbers only', async () => {
+  // Lake Country Foam Party's October row looked like this; the app reads stats as numbers and threw the whole state away.
+  const data = { label: 'August 2026', stats: { label: 'August 2026', reviews: 0, rating: null, count: null, replies: 0, posts: 0, calls: null, clicks: null, directions: null },
+    prev: { label: 'July 2026', reviews: 0, rating: null }, record: { revs: [], posts: [] } };
+  await DB.prepare('INSERT OR REPLACE INTO app_months (client_id, month, data, hash, updated) VALUES (?1, ?2, ?3, ?4, ?5)').bind(cid, '2026-08', JSON.stringify(data), 'hq:1', nowIso()).run();
+  const st = (await site.call(A('/api/state'))).json();
+  const m = st.months.find(x => x.month === '2026-08');
+  assert.ok(m, 'the month is there');
+  for (const [k, v] of Object.entries(m.stats)) assert.ok(v === null || typeof v === 'number', 'stats.' + k + ' is a number or empty');
+  assert.equal(m.label, 'August 2026');
+  for (const mo of st.months) for (const v of Object.values(mo.stats)) assert.ok(v === null || typeof v === 'number');
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));

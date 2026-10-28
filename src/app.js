@@ -353,7 +353,7 @@ async function apiState(env, c, ctx) {
   const line = rows(6)[0] || null;
   let months = rows(2).map(r => {
     const d = parse(r.data) || {};
-    return { month: r.month, label: d.label || r.month, stats: d.stats || {}, prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)) };
+    return { month: r.month, label: d.label || r.month, stats: numbersOnly(d.stats), prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)) };
   });
   // Google's own numbers (calls, direction requests, website clicks) once the Business Profile access is on.
   try { months = await mergeMonths(env, cid, months); } catch (e) { /* the HQ record alone */ }
@@ -1050,6 +1050,13 @@ async function readJson(req, max) {
   try { const o = JSON.parse(t); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (e) { return null; }
 }
 function changed(r) { return !!(r && r.meta && r.meta.changes); }
+// Month tiles are numbers (or null for "not known yet"). Anything else in stats (an HQ-written label, say) is dropped, because the
+// iPhone app reads stats as numbers only and one string there used to make it throw the whole screen away.
+function numbersOnly(o) {
+  const out = {};
+  if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (v === null || (typeof v === 'number' && isFinite(v))) out[k] = v;
+  return out;
+}
 function parse(s) { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function monthStart() { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString(); }
 function clean(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max); }
