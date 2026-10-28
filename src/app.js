@@ -20,6 +20,7 @@ import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
+import { upgradesState } from './upgrades.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -393,6 +394,7 @@ async function apiState(env, c, ctx) {
   try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
+  try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);

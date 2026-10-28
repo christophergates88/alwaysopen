@@ -12,7 +12,7 @@ const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
   Starter: { cents: 14900, blurb: 'Max answers your calls (300 minutes a month), every review answered, your Google profile kept current, a monthly report and your own app.' },
   Growth: { cents: 29900, blurb: 'Starter, plus review requests after every job, posts from your photos, competitor watch and Storm Desk.' },
-  Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and, once texting launches, missed-call text-back from your own number.' }
+  Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and missed-call text-back from your own number.' }
 };
 const MAX = { cents: 14900, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];

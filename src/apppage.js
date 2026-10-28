@@ -117,6 +117,7 @@ a.btn{color:inherit}
 .up{color:var(--ok)}.down{color:var(--slate)}
 .note{color:var(--slate);font-size:13.5px;margin:10px 2px 0}
 .gm{margin:6px 0 0;font:400 12px Roboto,system-ui,-apple-system,sans-serif;letter-spacing:normal;color:#FFFFFF;white-space:nowrap}
+.uplist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:14px}.up{padding-top:12px;border-top:1px solid var(--line)}.uph{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}.fitrow{display:flex;align-items:center;gap:10px}.fitbar{flex:1;height:8px;border-radius:99px;background:var(--line);overflow:hidden}.fitbar i{display:block;height:100%;background:var(--sign);border-radius:99px}.why{margin:8px 0 8px 18px;padding:0;font-size:14px;display:grid;gap:4px}
 .cblist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}.cbrow{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.cbrow .fine{display:block}.cbrow .acts{display:flex;flex-wrap:wrap;gap:8px}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
@@ -312,9 +313,24 @@ function vHome(){
   h+=cbCard();
   h+=mapCard();
   h+=lostCard();
+  h+=upCard();
   h+=guardCard();
   h+=referCard();
   return h;
+}
+var UPALL=false;
+function upItem(u){
+  return '<li class="up"><div class="uph"><b>'+esc(u.name)+'</b><span class="fine">'+esc(u.price)+'</span></div><p class="fine" style="margin:2px 0 6px">'+esc(u.what)+'</p>'+
+    '<div class="fitrow"><div class="fitbar" role="img" aria-label="Fit for your business: '+u.fit+' percent"><i style="width:'+u.fit+'%"></i></div><b>'+u.fit+'%</b></div><p class="fine" style="margin:2px 0 0">Fit for your business</p>'+
+    '<ul class="why">'+u.why.map(function(w){return '<li>'+esc(w)+'</li>';}).join('')+'</ul>'+
+    '<div class="acts"><button class="btn line small" type="button" data-a="up-ask" data-id="'+esc(u.id)+'">Ask about this</button></div></li>';
+}
+function upCard(){
+  var U=S.upgrades;if(!U||!U.list||!U.list.length)return '';
+  var list=UPALL?U.list:U.list.slice(0,3);
+  return '<div class="feature" id="upgrades"><h3>Upgrades for you</h3><p>What you could add, ranked by how well it fits your business, and why.</p><ul class="uplist">'+list.map(upItem).join('')+'</ul>'+
+    (U.list.length>3?'<div class="acts"><button class="btn ghost small" type="button" data-a="up-all">'+(UPALL?'Show fewer':'See all '+U.list.length)+'</button></div>':'')+
+    '<details style="margin-top:8px"><summary class="fine">How the fit is worked out</summary><p class="fine">'+esc(U.how)+'</p></details></div>';
 }
 function mapCard(){
   var m=S.map;if(!m)return '';
@@ -683,6 +699,8 @@ document.addEventListener('click',function(e){
   else if(a==='usever'){var vv=(VERS[id]||[])[+t.dataset.i];if(vv){EDIT[id]=vv.text;delete VERS[id];render();var ta2=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta2)ta2.focus();}}
   else if(a==='save'){var tx=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');var v=tx?tx.value.trim():'';if(!v){toast('The text is empty.');return;}EDIT[id]=v;decide(id,'approve',v);}
   else if(a==='skip'){if(t.classList.contains('sure'))decide(id,'skip','');else{t.classList.add('sure');t.textContent='Tap again to skip';setTimeout(function(){if(t.isConnected){t.classList.remove('sure');t.textContent='Skip';}},4000);}}
+  else if(a==='up-all'){UPALL=!UPALL;render();}
+  else if(a==='up-ask'){var uu=((S.upgrades||{}).list||[]).filter(function(x){return x.id===id;})[0];if(uu)askAbout(uu.name,uu.ask);}
   else if(a==='cb-done'||a==='cb-later'){t.disabled=true;post('callbacks',{action:a==='cb-done'?'done':'later',id:+id}).then(function(res){toast(res.j.message||res.j.error||'Done.');load();}).catch(function(){t.disabled=false;toast('No connection.');});}
   else if(a==='inst-x'){store('ao_inst_x','1');render();}
   else if(a==='inst'){if(DEFER){DEFER.prompt();DEFER=null;render();}}
