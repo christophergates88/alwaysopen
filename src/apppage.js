@@ -116,6 +116,7 @@ a.btn{color:inherit}
 .tile em{font-style:normal;font:500 12.5px var(--mono);margin-top:4px}
 .up{color:var(--ok)}.down{color:var(--slate)}
 .note{color:var(--slate);font-size:13.5px;margin:10px 2px 0}
+.gm{margin:6px 0 0;font:400 12px Roboto,system-ui,-apple-system,sans-serif;letter-spacing:normal;color:#FFFFFF;white-space:nowrap}
 .cblist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}.cbrow{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.cbrow .fine{display:block}.cbrow .acts{display:flex;flex-wrap:wrap;gap:8px}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}

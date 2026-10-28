@@ -2,12 +2,11 @@
 // watch: each business gets an attractiveness score from its public Google rating and review count, and the client's
 // estimated share is its score over the sum. It is a model estimate, shown as a range, never a market-share fact and
 // never a promise. Factors are stated as facts ("5 fewer reviews than the nearest rival"), never as advice.
-// Google content rule (the owner's): raw competitor numbers are kept under 7 days; only place IDs and the client's own
-// computed estimate are kept longer.
+// Google's terms: nothing from Google is kept. The numbers come from a check the owner starts, and this estimate is worked
+// out on the spot from them and shown, never saved.
 const ALPHA = 1.5;            // how strongly differences in score turn into differences in share
 const RATING_W = 2.0;         // rating matters a lot: (r/5)^2
 const VOLUME_W = 1.0;         // review count on a log scale: more reviews, diminishing returns
-export const KEEP_RAW_DAYS = 5;
 
 export function attractiveness(row) {
   const r = Math.max(0, Math.min(5, +row.rating || 0)), n = Math.max(0, +row.reviews || 0);
@@ -41,38 +40,6 @@ export function estimate(rows) {
 }
 
 export function assumptionsText(regulated) {
-  return 'How this is estimated: each business in your competitor watch gets a score from its public Google rating and how many reviews it has (rating counts most; reviews count on a sliding scale, so the hundredth review matters less than the tenth). Your estimated potential share is your score as a part of the total. It is a model estimate for the businesses on this list, not a measured market share, and it says nothing about what will happen. ' +
+  return 'How this is estimated: each business in your competitor watch gets a score from its public Google rating and how many reviews it has (rating counts most; reviews count on a sliding scale, so the hundredth review matters less than the tenth). Your estimated potential share is your score as a part of the total. The numbers are looked up from Google Maps when you check and are not kept. It is a model estimate for the businesses on this list, not a measured market share, and it says nothing about what will happen. ' +
     (regulated ? 'For your field we compare rating and review count only, like for like.' : 'Prices, hours and distance are not in the estimate yet; when a public price is available for your kind of business it will be stated as a fact, never guessed.');
-}
-
-let ready = false;
-export async function ensureShare(env) {
-  if (ready) return;
-  await env.DB.prepare('CREATE TABLE IF NOT EXISTS share_hist (client_id TEXT NOT NULL, week TEXT NOT NULL, pct INTEGER, lo INTEGER, hi INTEGER, compared INTEGER, factors TEXT DEFAULT \'[]\', at TEXT, PRIMARY KEY (client_id, week))').run();
-  ready = true;
-}
-
-export async function saveShare(env, cid, week, est) {
-  if (!est) return;
-  await ensureShare(env);
-  await env.DB.prepare('INSERT OR REPLACE INTO share_hist (client_id, week, pct, lo, hi, compared, factors, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, week, est.pct, est.lo, est.hi, est.compared, JSON.stringify(est.factors), new Date().toISOString()).run();
-}
-
-// For the app: this week's estimate, what moved since the last check, the factors, and the assumptions.
-export async function shareState(env, cid, week, rows, regulated) {
-  await ensureShare(env);
-  const est = estimate(rows);
-  if (est) await saveShare(env, cid, week, est);
-  const prev = await env.DB.prepare('SELECT pct, week FROM share_hist WHERE client_id = ?1 AND week < ?2 ORDER BY week DESC LIMIT 1').bind(cid, week).first().catch(() => null);
-  if (!est) return null;
-  const moved = prev ? est.pct - (+prev.pct || 0) : null;
-  return { pct: est.pct, lo: est.lo, hi: est.hi, range: est.range, compared: est.compared, factors: est.factors,
-    moved: moved == null ? '' : (moved === 0 ? 'Same as the last check.' : (moved > 0 ? 'Up ' + moved + ' points since the last check.' : 'Down ' + (-moved) + ' points since the last check.')),
-    assumptions: assumptionsText(regulated) };
-}
-
-// Every run: clear raw competitor numbers older than KEEP_RAW_DAYS (place IDs and the client's own estimate stay).
-export async function cleanupRaw(env) {
-  const cut = new Date(Date.now() - KEEP_RAW_DAYS * 864e5).toISOString();
-  try { const r = await env.DB.prepare('UPDATE rival_snap SET rating = NULL, reviews = NULL WHERE at < ?1 AND (rating IS NOT NULL OR reviews IS NOT NULL)').bind(cut).run(); return (r && r.meta && r.meta.changes) || 0; } catch (e) { return 0; }
 }

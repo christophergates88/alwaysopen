@@ -1,7 +1,7 @@
 // Always Open on Cloudflare: serves the website (public/), and receives the website form.
 // Each request is checked for spam, saved to D1, pushed to Christopher's phone (ntfy) and emailed to him.
 // The Always Open check (scheduled task) reads new requests from that email, or from /leads with a key.
-import { rivalsWeekly, ensureRivals, isoWeek as rivalWeek } from './rivals.js';
+import { rivalsWeekly, ensureRivals, purgeGoogle, isoWeek as rivalWeek } from './rivals.js';
 import { ensureReviews } from './reviews.js';
 import { seedDemo } from './demo.js';
 import { handleOpsBoard, boardWeekly } from './opsboard.js';
@@ -19,7 +19,6 @@ import { handleOptOut } from './past.js';
 import { sendText } from './sms.js';
 import { callbackCron } from './callbacks.js';
 import { checkinCron } from './checkin.js';
-import { cleanupRaw } from './share.js';
 import { fullMaxCron } from './fullmax.js';
 import { handleMapApi, mapCron } from './map.js';
 import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
@@ -130,7 +129,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(cleanupRaw(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 

@@ -138,7 +138,8 @@ export async function handleAudit(req, env, url, h) {
     if (!env.LEADS_KEY || !(await h.sameKey(req.headers.get('x-key') || '', env.LEADS_KEY))) return h.json({ ok: false, error: 'Wrong key.' }, 403);
     try {
       const a = await runAudit(env, q, town);
-      if (a.found) await env.DB.prepare('INSERT INTO audits (at, q, town, kind, score, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(a.at, q, town, 'full', a.score, JSON.stringify(a)).run();
+      // Only our own score is kept; the Google details in the audit are shown and sent, never stored (Google's terms).
+      if (a.found) await env.DB.prepare('INSERT INTO audits (at, q, town, kind, score, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(a.at, q, town, 'full', a.score, JSON.stringify({ score: a.score, grade: a.grade })).run();
       return h.json({ ok: true, audit: a }, 200);
     } catch (e) { return h.json({ ok: false, error: String((e && e.message) || e) }, 502); }
   }
@@ -152,7 +153,7 @@ export async function handleAudit(req, env, url, h) {
     try {
       const a = await runAudit(env, q, town);
       await env.DB.prepare('INSERT INTO audits (at, q, town, kind, ip_hash, score, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-        .bind(new Date().toISOString(), q, town, 'score', ip, a.found ? a.score : null, a.found ? JSON.stringify({ name: a.business.name, score: a.score, grade: a.grade, top: a.findings.slice(0, 3).map(x => x.title) }) : '{}').run();
+        .bind(new Date().toISOString(), q, town, 'score', ip, a.found ? a.score : null, a.found ? JSON.stringify({ score: a.score, grade: a.grade }) : '{}').run();
       if (!a.found) return h.json({ ok: true, found: false }, 200);
       return h.json({ ok: true, found: true, name: a.business.name, address: a.business.address, rating: a.business.rating, reviews: a.business.reviews,
         score: a.score, grade: a.grade, areas: a.areas.map(x => ({ label: x.label, grade: x.grade })), top: a.findings.slice(0, 3).map(x => ({ title: x.title, saw: x.saw })), more: Math.max(0, a.findings.length - 3) }, 200);
