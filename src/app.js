@@ -677,6 +677,13 @@ async function apiDevice(req, env, c) {
     await env.DB.prepare('DELETE FROM app_devices WHERE token = ?1 AND client_id = ?2').bind(tok, c.client_id).run();
     return aj({ ok: true, removed: true });
   }
+  // Live Activity tokens: 'start' (push-to-start, one per phone) or 'update' (one per running activity, tied to a call).
+  if (b.live === 'start' || b.live === 'update') {
+    await ensureLive(env);
+    await env.DB.prepare("INSERT INTO app_live (token, client_id, kind, call_sid, env, updated) VALUES (?1,?2,?3,?4,?5,?6) ON CONFLICT(token) DO UPDATE SET client_id = ?2, kind = ?3, call_sid = ?4, env = ?5, updated = ?6")
+      .bind(tok, c.client_id, b.live, String(b.call || '').slice(0, 64), b.env === 'sandbox' ? 'sandbox' : 'production', new Date().toISOString()).run();
+    return aj({ ok: true });
+  }
   const now = new Date().toISOString();
   await env.DB.prepare("INSERT INTO app_devices (token, client_id, platform, env, created, last_seen) VALUES (?1, ?2, 'ios', ?3, ?4, ?4) ON CONFLICT(token) DO UPDATE SET client_id = ?2, env = ?3, last_seen = ?4")
     .bind(tok, c.client_id, b.env === 'sandbox' ? 'sandbox' : 'production', now).run();
@@ -831,6 +838,44 @@ async function apnsSend(env, dev, payload) {
       if (r.status === 410 || /BadDeviceToken|DeviceTokenNotForTopic/.test(t)) await env.DB.prepare('DELETE FROM app_devices WHERE token = ?1').bind(dev.token).run();
     }
   } catch (e) { /* one bad send never stops the rest */ }
+}
+
+let liveReady = false;
+async function ensureLive(env) {
+  if (liveReady) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_live (token TEXT PRIMARY KEY, client_id TEXT NOT NULL, kind TEXT NOT NULL, call_sid TEXT DEFAULT '', env TEXT DEFAULT 'production', updated TEXT)").run();
+  liveReady = true;
+}
+// Live Activity push (lock screen and Dynamic Island while Max is on a call). event: start | update | end.
+async function liveSend(env, dev, event, state, attrs, alert, dismissAt) {
+  try {
+    const host = dev.env === 'sandbox' ? 'https://api.sandbox.push.apple.com' : 'https://api.push.apple.com';
+    const aps = { timestamp: Math.floor(Date.now() / 1000), event, 'content-state': state };
+    if (event === 'start') { aps['attributes-type'] = 'CallAttributes'; aps.attributes = attrs; }
+    if (alert) aps.alert = alert;
+    if (dismissAt) aps['dismissal-date'] = Math.floor(dismissAt / 1000);
+    const r = await fetch(host + '/3/device/' + dev.token, { method: 'POST', headers: { authorization: 'bearer ' + await apnsJwt(env), 'apns-topic': BUNDLE + '.push-type.liveactivity', 'apns-push-type': 'liveactivity', 'apns-priority': '10', 'content-type': 'application/json' }, body: JSON.stringify({ aps }) });
+    if (r.status === 410 || r.status === 400) { const t = await r.text(); if (r.status === 410 || /BadDeviceToken|DeviceTokenNotForTopic/.test(t)) await env.DB.prepare('DELETE FROM app_live WHERE token = ?1').bind(dev.token).run(); }
+    return r.ok;
+  } catch (e) { return false; }
+}
+// A call just started on this client's line: light up the lock screen on every phone that gave us a push-to-start token.
+export async function liveCallStart(env, cid, callId, business, callerText) {
+  if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
+  await ensureLive(env);
+  const devs = ((await env.DB.prepare("SELECT token, env FROM app_live WHERE client_id = ?1 AND kind = 'start'").bind(cid).all()).results) || [];
+  for (const d of devs) await liveSend(env, d, 'start', { name: '', reason: 'Max has the call', caller: callerText || '', status: 'live' }, { business: business || '', callId }, { title: 'Max has a call', body: (callerText ? 'From ' + callerText + '. ' : '') + 'Keep going.' });
+  return devs.length;
+}
+// The call ended: show the name, what they wanted, and let it fade after a few minutes.
+export async function liveCallEnd(env, cid, callId, name, reason, summary, outcome) {
+  if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
+  await ensureLive(env);
+  const devs = ((await env.DB.prepare("SELECT token, env FROM app_live WHERE client_id = ?1 AND kind = 'update' AND call_sid = ?2").bind(cid, callId).all()).results) || [];
+  const st = { name: name || '', reason: reason || '', caller: '', status: outcome === 'hangup' ? 'hungup' : (outcome === 'failed' ? 'failed' : 'done'), summary: String(summary || '').slice(0, 240) };
+  for (const d of devs) await liveSend(env, d, 'end', st, null, null, Date.now() + 10 * 60e3);
+  await env.DB.prepare("DELETE FROM app_live WHERE kind = 'update' AND call_sid = ?1").bind(callId).run().catch(() => {});
+  return devs.length;
 }
 
 // For the AI phone line: push a note to every phone signed in to this client's app. Returns how many phones.

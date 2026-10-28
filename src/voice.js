@@ -14,7 +14,7 @@ import { neighborsFor, neighborsText, startHandoff, handedFrom, markHandoff } fr
 import { checkinTwiml, checkinGather, checkinStatus } from './checkin.js';
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 import { DurableObject } from 'cloudflare:workers';
-import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
+import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
 
 const SITE = 'https://alwaysopenoffice.com';
@@ -112,6 +112,7 @@ async function incoming(env, f) {
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', ?8, 0, ?9)")
     .bind(sid, line.client_id, to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
   if (limited) return twiml(say('Thanks for calling ' + biz + '. We have your number and will call you back as soon as we can. Goodbye.') + '<Hangup/>');
+  if (!tester && f.get('AoTest') !== '1' && line.client_id !== OWN_ID) liveCallStart(env, line.client_id, sid, line.business || '', spokenNumber(from, true)).catch(() => {});
   const t = await callToken(env, sid);
   const hints = hintsFor(line);
   const vv = voiceFor(line);
@@ -761,6 +762,7 @@ async function writeUp(env, sid, s, why) {
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
   if (outcome === 'spam' || call.test) return true;
+  if (call.client_id !== OWN_ID) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
   if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});
   if (note && note.booked === 'no' && note.lost && line && !+line.regulated && call.client_id !== OWN_ID) await recordLost(env, call.client_id, sid, note.lost, note.lostNote).catch(() => {});
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
