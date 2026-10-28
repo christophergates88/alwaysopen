@@ -56,6 +56,7 @@ export async function healthChecks(env) {
   } else out.push({ name: 'stripe', ok: false, why: 'Stripe key missing' });
   // Max's line: the call room, the voice key and a way to think must all be there, and the voice log must show the line is alive.
   const miss = [];
+  out.push({ name: 'email', ok: !!(env.EMAIL && env.MAIL_FROM && env.MAIL_TO), why: 'The email connection is missing, so website requests and alerts are not being emailed (the deploy likely fell back to wrangler.noemail.toml)' });
   out.push({ name: 'texting', ok: !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN), why: 'Twilio account SID or auth token missing' });
   if (!env.CALLROOM) miss.push('call room');
   if (!env.VOICE_KEY) miss.push('voice key');

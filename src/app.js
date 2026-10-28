@@ -951,7 +951,11 @@ export async function mailOwner(env, subject, text) {
     'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'
   ].join('\r\n') + '\r\n\r\n' + text;
-  try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; } catch (e) { return 'failed: ' + String((e && e.message) || e).slice(0, 180); }
+  try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; } catch (e) {
+    const why = String((e && e.message) || e).slice(0, 180);
+    try { await (await import('./ops.js')).opsAlert(env, 'mail-send', '', 'An email to you could not be sent: ' + why); } catch (x) {}
+    return 'failed: ' + why;
+  }
 }
 export async function opsPing(env, title, body, priority, tags, click) { return ntfy(env, title, body, priority, tags, click); }
 
