@@ -563,6 +563,54 @@ test('after the call: one card with three switches, check-ins on by default for 
   assert.equal(world.texts.at(-1).Body, 'Dana from Sinclair Plumbing is on the way, about 20 minutes out. Reply STOP to end texts.');
 });
 
+test('hard callers: a robocall is ended in one line, two asks for a person get a transfer, an upset caller gets "I hear you" and an urgent note, a rambler gets one question, a wrong number is hidden', async () => {
+  const extraOf = () => { const sys = world.aiSeen.at(-1).system; return sys.length > 1 ? sys[sys.length - 1].text : ''; };
+  // Robocall: no AI at all, one line, marked spam, never shown to the owner.
+  const seen = world.aiSeen.length;
+  const r = await startCall('+18005550199'); await openRoom(r.sid, '+18005550199');
+  await say(r.sid, 'This is a recorded message. Your Google business listing is about to be suspended. Press one to speak to a specialist.');
+  assert.equal(world.aiSeen.length, seen, 'Max did not ask the AI what to say to a robocall');
+  assert.match(heard(r.sid), /pass that along\. Goodbye/);
+  await hook('after', { CallSid: r.sid, SessionDuration: '8', SessionStatus: 'ended' }); await site.settle();
+  assert.equal((await get('SELECT outcome FROM app_calls WHERE id = ?1', r.sid)).outcome, 'spam');
+  assert.equal((await site.call(A('/api/state'))).json().calls.some(c => c.id === r.sid), false);
+
+  // Wants a person, twice: the second time Max is told to stop and put them through.
+  await site.call(A('/api/line'), { json: { transferTo: '478 555 0109', transferWhen: 'urgent', by: 'Dana' } });
+  const p = await startCall('+14785550181'); await openRoom(p.sid, '+14785550181');
+  world.aiScript = ['I can take care of most things. What do you need?'];
+  await say(p.sid, 'Can I talk to a real person please?');
+  assert.doesNotMatch(extraOf(), /asked for a person twice/);
+  world.aiScript = ['Sure, connecting you now. [TRANSFER]'];
+  await say(p.sid, 'No, I want to speak to a real person.');
+  assert.match(extraOf(), /asked for a person twice.*\[TRANSFER\]/);
+  assert.equal(wsOf(p.sid).store.get('s').transfer, true, 'the call is being put through');
+  const tw = await hook('after', { CallSid: p.sid, SessionDuration: '20', SessionStatus: 'ended', HandoffData: '{"reason":"transfer"}' });
+  assert.match(tw.text, /<Dial[^>]*><Number[^>]*>\+14785550109<\/Number><\/Dial>/);
+  await site.settle();
+
+  // Upset: the reaction is "I hear you." or "I understand.", Max is told not to argue, and the owner's note is urgent.
+  const u = await startCall('+14785550182'); await openRoom(u.sid, '+14785550182');
+  world.aiScript = ['I am sorry. I will make sure Dana calls you personally today. What is the best number?'];
+  world.aiNote = { name: 'Gus', callback: '+14785550182', reason: 'No call back about a leak', details: '', when: '', urgent: false, callback_wanted: true, booked: '', spam: false, summary: 'Gus is upset nobody called back.', upset: true };
+  await say(u.sid, 'This is the third time I have called and nobody ever calls me back. This is ridiculous.');
+  const first = wsOf(u.sid).ws.sent.filter(m => m.type === 'text')[0].token;
+  assert.match(first, /^(I hear you\.|I understand\.)$/);
+  assert.match(extraOf(), /caller is upset/);
+  await hook('after', { CallSid: u.sid, SessionDuration: '50', SessionStatus: 'ended' }); await site.settle();
+  assert.equal((await get('SELECT urgency FROM app_calls WHERE id = ?1', u.sid)).urgency, 'urgent');
+
+  // A rambler: one question back.
+  const m = await startCall('+14785550183'); await openRoom(m.sid, '+14785550183');
+  world.aiScript = ['Got it. Is the water shut off right now?'];
+  await say(m.sid, ('So we bought the house last spring and the previous owners had done some work on the bathroom and ever since then the water heater has been making this noise and my husband thinks it is the element but I think it might be the tank because there was a little water on the floor last week and then it dried up so we were not sure and now ').repeat(2));
+  assert.match(extraOf(), /said a lot at once/);
+  world.aiNote = { name: '', callback: '', reason: 'Wrong number', details: '', when: '', urgent: false, callback_wanted: false, booked: '', spam: false, summary: 'They wanted the pizza place.', wrong_number: true };
+  await hook('after', { CallSid: m.sid, SessionDuration: '40', SessionStatus: 'ended' }); await site.settle();
+  const wn = await get('SELECT outcome, reason FROM app_calls WHERE id = ?1', m.sid);
+  assert.deepEqual([wn.outcome, wn.reason], ['spam', 'Wrong number'], 'a wrong number is kept out of the owner’s list');
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));

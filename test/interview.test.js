@@ -46,3 +46,11 @@ test('industry defaults: trades get intake and urgent questions; regulated kinds
   assert.equal(tradeDefaults('').intake, '');
   assert.equal(isTrade('plumbing'), true); assert.equal(isTrade('salon'), false);
 });
+
+test('robocall openers are caught; real customers mentioning Google or a warranty are not', async () => {
+  const { register } = await import('node:module');
+  register('./rehearsal/hooks.mjs', import.meta.url);
+  const { looksRobo } = await import('../src/voice.js');
+  for (const t of ['This is a recorded message about your Google business listing. Press one to speak to a specialist.', 'We are calling about your extended car warranty', 'Your Google listing is about to be suspended', 'Congratulations, you qualify for a business line of credit']) assert.equal(looksRobo(t), true, t);
+  for (const t of ['Your Google listing is wrong, it says you close at five', 'Do you do warranty work on water heaters?', 'I found you on Google', 'Is this still under warranty?', 'Press the reset button?']) assert.equal(looksRobo(t), false, t);
+});
