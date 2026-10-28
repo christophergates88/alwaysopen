@@ -79,6 +79,7 @@ export async function boardItems(env) {
     items.push({ key: 'gbp-connect', group: 'One tap so the worker can watch Google', title: 'Connect Always Open’s Google account', detail: 'Open https://alwaysopenoffice.com/google/gbp-hq?t=' + (await boardToken(env)) + ' and sign in as hello@alwaysopenoffice.com (the account clients invite as Manager). The worker then checks every hour and turns everything on by itself the day Google approves' });
   }
   const sys = [
+    ['Always Open check (reviews and leads)', await (await import('./funding.js')).checkRunLine(env)],
     ['Twilio balance', await fundingStateLine(env)],
     ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],

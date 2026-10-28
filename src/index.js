@@ -82,6 +82,18 @@ export default {
       }
       return json({ ok: true, numbers: out }, 200);
     }
+    if (path === '/ops/heartbeat') {
+      // Scheduled tasks outside the worker say they ran: POST {task:"check"} with the key.
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      let b = {}; try { b = await req.json(); } catch (e) {}
+      const task = String(b.task || '').replace(/[^a-z0-9-]/g, '').slice(0, 30);
+      if (!task) return json({ ok: false, error: 'task needed' }, 400);
+      const f = await import('./funding.js');
+      await f.ensureHeartbeats(env);
+      await env.DB.prepare('INSERT OR REPLACE INTO heartbeats (task, at) VALUES (?1, ?2)').bind(task, new Date().toISOString()).run();
+      return json({ ok: true, task }, 200);
+    }
     if (path === '/ops/launch-check') {
       // HQ: check Google and Meta now (normally hourly) and say where each stands.
       const k = req.headers.get('x-key') || '';

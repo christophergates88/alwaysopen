@@ -106,6 +106,33 @@ export function renewalsDue(spec, now) {
   return out;
 }
 
+// The Always Open check (a scheduled task outside the worker) writes a heartbeat each run. If it stops, reviews stop
+// being drafted and leads stop being filed with nobody told, so the hourly pass watches for it.
+const CHECK_WARN_H = 14, CHECK_URGENT_H = 30;
+export async function ensureHeartbeats(env) {
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS heartbeats (task TEXT PRIMARY KEY, at TEXT)').run();
+}
+export function checkLevel(lastIso, now) {
+  const t = Date.parse(lastIso || '');
+  if (!t) return { level: 'unknown', hours: 0 };
+  const h = (now - t) / 3600e3;
+  return { level: h >= CHECK_URGENT_H ? 'urgent' : (h >= CHECK_WARN_H ? 'warn' : 'ok'), hours: h };
+}
+const etTime = iso => new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+async function checkHeartbeat(env) {
+  await ensureHeartbeats(env);
+  const r = await env.DB.prepare("SELECT at FROM heartbeats WHERE task = 'check'").first();
+  const lv = checkLevel(r && r.at, Date.now());
+  if (lv.level === 'unknown') return { check: 'no heartbeat yet' };
+  if (lv.level === 'ok') { await fundAlert(env, 'check-run', 'ok'); return { check: 'ok' }; }
+  await fundAlert(env, 'check-run', lv.level, lv.level === 'urgent' ? 'Always Open: the review check has stopped' : 'Always Open: the review check hasn’t run lately',
+    'The Always Open check last ran ' + etTime(r.at) + ' (' + Math.floor(lv.hours) + ' hours ago). Until it runs, new Google reviews aren’t drafted and website and phone leads aren’t filed in HQ. The usual cause is the Claude plan’s usage limit; it runs again on its own once that resets. Check the scheduled task list at claude.ai.');
+  return { check: lv.level };
+}
+export async function checkRunLine(env) {
+  try { await ensureHeartbeats(env); const r = await env.DB.prepare("SELECT at FROM heartbeats WHERE task = 'check'").first(); if (!r) return 'no run recorded yet'; const lv = checkLevel(r.at, Date.now()); return 'last ran ' + etTime(r.at) + (lv.level === 'ok' ? '' : (lv.level === 'urgent' ? ' (STOPPED)' : ' (late)')); } catch (e) { return 'unknown'; }
+}
+
 export async function fundingCron(env) {
   await ensure(env);
   // Hourly is enough; the worker cron runs every 10 minutes.
@@ -115,11 +142,12 @@ export async function fundingCron(env) {
   await env.DB.prepare('DELETE FROM funding_log WHERE at < ?1').bind(new Date(Date.now() - 30 * 864e5).toISOString()).run();
   const t = await twilio(env).catch(() => null);
   const c = await claudeHourly(env);
+  const hb = await checkHeartbeat(env).catch(() => null);
   for (const r of renewalsDue(env.RENEWALS, Date.now())) {
     await fundAlert(env, 'renew:' + r.name + ':' + r.bucket, r.days <= 1 ? 'urgent' : 'warn', 'Always Open: ' + r.name + ' renews ' + (r.days <= 1 ? 'tomorrow' : 'in ' + r.days + ' days'),
       r.name + ' renews on ' + r.date + '. Make sure the card on file works, or service stops.');
   }
-  return { twilio: t, claude: c };
+  return { twilio: t, claude: c, check: hb };
 }
 
 // For the HQ board.

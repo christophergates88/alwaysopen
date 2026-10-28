@@ -26,3 +26,12 @@ test('Claude credit errors are recognized', () => {
   assert.ok(isCreditError('Your credit balance is too low to access the Anthropic API.'));
   assert.ok(!isCreditError('overloaded'));
 });
+
+import { checkLevel } from '../src/funding.js';
+test('the review check alarm: fine under 14 hours, a warning after, urgent after 30', () => {
+  const now = Date.parse('2026-10-28T20:00:00Z');
+  assert.equal(checkLevel('', now).level, 'unknown');
+  assert.equal(checkLevel('2026-10-28T12:00:00Z', now).level, 'ok');
+  assert.equal(checkLevel('2026-10-28T04:00:00Z', now).level, 'warn');
+  assert.equal(checkLevel('2026-10-27T12:00:00Z', now).level, 'urgent');
+});
