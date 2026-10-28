@@ -203,7 +203,20 @@ export class CallRoom extends DurableObject {
   async rehearse() { return rehearse(this.env); }
 
   async load() { return (await this.ctx.storage.get('s')) || null; }
-  async keep(s) { await this.ctx.storage.put('s', s); }
+  async keep(s) { await this.ctx.storage.put('s', s); this.snapshot(s); }
+  // A small live snapshot for the owner's app (the pulsing card on Today): the last thing heard and said, a few times a
+  // call at most. Fire and forget; the call never waits on it.
+  snapshot(s) {
+    if (!s || !s.sid || !s.msgs || s.msgs.length === this.snapN || Date.now() - (this.snapAt || 0) < 1500) return;
+    this.snapN = s.msgs.length; this.snapAt = Date.now();
+    const last = r => { for (let i = s.msgs.length - 1; i >= 0; i--) if (s.msgs[i].r === r) return String(s.msgs[i].t || '').slice(0, 200); return ''; };
+    const env = this.env;
+    (async () => {
+      if (!this.snapTable) { await env.DB.prepare('CREATE TABLE IF NOT EXISTS call_live (id TEXT PRIMARY KEY, heard TEXT, said TEXT, turns INTEGER, updated TEXT)').run(); this.snapTable = true; }
+      await env.DB.prepare('INSERT INTO call_live (id, heard, said, turns, updated) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(id) DO UPDATE SET heard = ?2, said = ?3, turns = ?4, updated = ?5')
+        .bind(s.sid, last('u'), last('a'), s.turn || 0, new Date().toISOString()).run();
+    })().catch(() => {});
+  }
   out(o) { const ws = this.ctx.getWebSockets()[0]; if (ws) { try { ws.send(JSON.stringify(o)); } catch (e) { /* the caller hung up */ } } }
 
   async webSocketMessage(ws, raw) {
@@ -761,6 +774,7 @@ async function writeUp(env, sid, s, why) {
   await env.DB.prepare('UPDATE app_calls SET caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
+  env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
   if (outcome === 'spam' || call.test) return true;
   if (call.client_id !== OWN_ID) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
   if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});

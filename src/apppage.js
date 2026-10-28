@@ -24,7 +24,6 @@ export function appHtml({ base, business }) {
     '<nav class="tabs" aria-label="Sections">' +
     tab('home', 'Home', '<path d="M4 11.2L12 4.5l8 6.7V20h-5.2v-5.4H9.2V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     tab('approve', 'Approve', '<path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>') +
-    tab('reviews', 'Reviews', '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     tab('max', 'Max', '<path d="M6.6 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.9 5.9l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     tab('ask', 'Ask us', '<path d="M4.5 6.5h15v10h-8l-4.5 3.5v-3.5H4.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     '</nav>' +
@@ -66,6 +65,32 @@ h2{font:800 1.15rem/1.2 var(--display);font-stretch:92%;margin:26px 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:12px}
 .ch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .chip{font:600 12.5px var(--body);background:var(--panel);border-radius:99px;padding:3px 10px}
+/* swipe to approve */
+.card.swp{touch-action:pan-y;position:relative;will-change:transform;transition:transform .18s ease,opacity .18s}
+.card.swp.drag{transition:none}
+.card.swp .swhint{position:absolute;top:12px;font:800 13px var(--body);letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:9px;opacity:0;transition:opacity .12s;pointer-events:none}
+.card.swp .swhint.ok{left:12px;background:var(--ok);color:#fff}.card.swp .swhint.no{right:12px;background:var(--panel);color:var(--slate)}
+.card.swp.r .swhint.ok,.card.swp.l .swhint.no{opacity:1}
+.card.swp.gone{transform:translateX(120%) rotate(4deg);opacity:0}.card.swp.gone.l{transform:translateX(-120%) rotate(-4deg)}
+.swtip{font:500 12.5px var(--body);color:var(--slate);margin:-6px 0 12px;display:flex;gap:6px;align-items:center}
+/* filter chips */
+.fchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -2px 14px;padding:2px}.fchips button{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:6px 12px;font:600 13.5px var(--body);color:var(--ink)}.fchips button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}.fchips button i{font-style:normal;opacity:.7;margin-left:4px}
+/* tappable tiles and bars */
+button.tile{text-align:left;font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}button.tile:active{transform:scale(.97)}button.tile::after{content:'';justify-self:end;width:7px;height:7px;border-right:1.8px solid var(--slate);border-bottom:1.8px solid var(--slate);transform:rotate(-45deg);margin-top:-14px;opacity:.6}
+.bars{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;align-items:end;height:96px;margin:6px 0 2px;padding:0 2px}.bars button{border:0;background:none;padding:0;display:grid;align-content:end;justify-items:center;gap:4px;height:100%;font:600 11px var(--mono);color:var(--slate);cursor:pointer}.bars i{display:block;width:100%;max-width:36px;background:var(--line);border-radius:6px 6px 2px 2px;transition:height .35s ease,background .2s;min-height:3px}.bars button[aria-pressed=true] i{background:var(--sign)}.bars button b{font-weight:700;color:var(--ink)}
+.barsh{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px}.barsh b{font-size:15px}.barsh span{font-size:12.5px;color:var(--slate)}
+/* badges pop when they change */
+.badge{transition:transform .25s cubic-bezier(.3,1.6,.6,1)}.badge.pop{transform:scale(1.35)}
+/* pull to refresh */
+.ptr{height:0;overflow:hidden;display:grid;place-items:center;color:var(--slate);font:500 12.5px var(--mono);transition:height .2s}.ptr.on{height:34px}
+/* settings index */
+.sidx{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px}.sidx a{font:600 12.5px var(--body);color:var(--ink);background:var(--panel);border-radius:99px;padding:5px 11px;text-decoration:none}
+/* live call */
+.live{background:var(--card);border:2px solid var(--sign);border-radius:18px;padding:14px 16px;margin:0 0 14px;display:grid;gap:8px;box-shadow:var(--glow);animation:livePulse 2.2s ease-in-out infinite}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 1px rgba(255,106,94,.22),0 0 18px rgba(255,90,77,.25)}50%{box-shadow:0 0 0 1px rgba(255,106,94,.4),0 0 30px rgba(255,90,77,.5)}}
+@media (prefers-reduced-motion:reduce){.live{animation:none}}
+.live .lh{display:flex;align-items:center;gap:8px;font-weight:700}.live .dot{width:9px;height:9px;border-radius:99px;background:var(--sign);animation:dotp 1.1s ease-in-out infinite}@keyframes dotp{50%{opacity:.25}}
+.live .ln{font:500 12px var(--mono);color:var(--slate)}.live .lq{display:grid;gap:5px}.live .lq span{font-size:14px;padding:8px 11px;border-radius:14px;max-width:92%}.live .lq .u{background:var(--panel);justify-self:start;border-bottom-left-radius:4px}.live .lq .a{background:var(--ink);color:var(--paper);justify-self:end;border-bottom-right-radius:4px}
 .chip.storm{background:var(--warn-soft);color:var(--warn)}
 .stars{color:#E8A317;letter-spacing:1px;font-size:15px}
 .who{color:var(--slate);font-size:14px}
@@ -282,17 +307,22 @@ function render(){
   var hm=hasMax();if(S&&TAB==='max'&&!hm)TAB='home';
   var bs=document.querySelectorAll('.tab');for(var i=0;i<bs.length;i++){if(bs[i].dataset.tab===TAB)bs[i].setAttribute('aria-current','page');else bs[i].removeAttribute('aria-current');}
   var n=S&&S.items?S.items.length:0,bd=$('#badge');bd.hidden=!n;bd.textContent=n>99?'99+':n;
-  var ct=document.querySelector('.tab[data-tab="max"]');ct.hidden=!hm;document.querySelector('.tabs').classList.toggle('five',hm);
+  var ct=document.querySelector('.tab[data-tab="max"]');ct.hidden=!hm;document.querySelector('.tabs').classList.toggle('five',false);
   if(S&&S.line){var lb=ct.querySelector('span');if(lb)lb.textContent=S.line.name;}
   var nc=hm&&S?(S.calls||[]).filter(function(c){return c.status!=='handled';}).length:0,cb=$('#cbadge');cb.hidden=!nc;cb.textContent=nc>99?'99+':nc;
   if(!S)return;
-  var v={home:vHome,approve:vApprove,reviews:vReviews,max:vMax,ask:vAsk}[TAB]||vHome;
+  var v={home:vHome,approve:vApprove,max:vMax,ask:vAsk}[TAB]||vHome;
   // what they were typing survives a refresh
   var keep={},act=document.activeElement;KEEP.forEach(function(k){var el=document.getElementById(k);if(el)keep[k]={v:el.value,f:act===el};});
   $('#view').innerHTML=sampleBar()+v();
   KEEP.forEach(function(k){var el=document.getElementById(k);if(!el||!keep[k])return;if(k==='msg'||DIRTY)el.value=keep[k].v;if(keep[k].f)el.focus({preventScroll:true});});
   if(TAB==='ask'){var th=$('.thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
+  var si=$('#sidx');if(si){var hs=document.querySelectorAll('#view h2, #view .feature>h3');var out='';for(var j=0;j<hs.length;j++){var hd=hs[j],tt=hd.textContent.trim();if(!tt||tt.length>28)continue;hd.id=hd.id||('s-'+j);out+='<a href="#'+hd.id+'" data-a="jump" data-to="'+hd.id+'">'+esc(tt)+'</a>';}si.innerHTML=out;}
+  var nb=$('#badge');if(nb&&nb.textContent!==LASTB){if(LASTB!=null){nb.classList.add('pop');setTimeout(function(){nb.classList.remove('pop');},300);}LASTB=nb.textContent;}
+  livePoll();
 }
+var LASTB=null,LIVET=null;
+function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.live.length)?6000:(TAB==='home'&&SEG==='today'?30000:0);if(ms)LIVET=setTimeout(function(){if(!document.hidden)load(true);else livePoll();},ms);}
 
 /* ---------- Home ---------- */
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
@@ -344,10 +374,10 @@ function vHome(){
     return h;
   }
   if(SEG==='settings'){
-    h+=(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
+    h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  h+=install()+flCard()+bizTop()+heroCard();
+  h+=install()+flCard()+bizTop()+liveCard()+heroCard();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -426,6 +456,12 @@ function signTap(){
   if(L&&!L.onAir&&!L.paused){lineSave({onAir:true});return;}
   SIGN_FLIP=!SIGN_FLIP;render();
 }
+function liveCard(){
+  var L=S.live||[];if(!L.length)return '';
+  return L.map(function(c){var secs=Math.max(0,Math.round((Date.now()-Date.parse(c.at))/1000)),mm=Math.floor(secs/60),ss=secs%60;
+    return '<div class="live" aria-live="polite"><div class="lh"><span class="dot"></span>'+esc(S.line?S.line.name:'Max')+' is on a call'+(c.name?' with '+esc(c.name):'')+'</div><div class="ln">'+esc(c.numberText||'Unknown number')+' \\u00b7 '+mm+':'+(ss<10?'0':'')+ss+(c.turns?' \\u00b7 '+c.turns+(c.turns===1?' turn':' turns'):'')+'</div>'+
+      (c.heard||c.said?'<div class="lq">'+(c.heard?'<span class="u">'+esc(c.heard)+'</span>':'')+(c.said?'<span class="a">'+esc(c.said)+'</span>':'')+'</div>':'<div class="ln">Connecting\\u2026</div>')+'</div>';}).join('');
+}
 function heroCard(){
   var L=S.line,f=S.features||{};
   if(L){
@@ -437,6 +473,22 @@ function heroCard(){
   if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
   return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.'+(f.calls||S.client.regulated?'':' Max, your phone assistant, comes with your plan.')+'</span>'+
     (f.calls||S.client.regulated?'':'<div class="acts"><button class="btn ghost sm" type="button" data-a="ask-max">Set up Max for your calls</button></div>')+'</div></div>';
+}
+function revBars(ms,cur){
+  var list=ms.slice(0,8).reverse();if(list.length<2)return '';
+  var vals=list.map(function(x){return +((x.stats||{}).reviews)||0;}),mx=Math.max.apply(null,vals.concat([1]));
+  return '<div class="barsh"><b>New reviews by month</b><span>Tap a month</span></div><div class="bars" role="group" aria-label="New reviews by month">'+list.map(function(x,i){return '<button type="button" data-a="m" data-m="'+esc(x.month)+'" aria-pressed="'+(x.month===cur)+'" aria-label="'+esc(x.label)+': '+vals[i]+'"><b>'+vals[i]+'</b><i style="height:'+Math.max(4,Math.round(vals[i]/mx*62))+'px"></i>'+esc(String(x.label).slice(0,3))+'</button>';}).join('')+'</div>';
+}
+function tileSheet(k,month){
+  var m=(S.months||[]).filter(function(x){return x.month===month;})[0]||{},st=m.stats||{},lab=esc(m.label||'');
+  var inMonth=function(iso){return String(iso||'').slice(0,7)===month;};
+  var body='';
+  if(k==='reviews'){var rv=(S.reviews||[]).filter(function(r){return inMonth(r.at);});body=rv.length?rv.map(revCard).join(''):'<p class="fine">No reviews on file for '+lab+'. Google reported '+fmt('reviews',st.reviews)+'.</p>';}
+  else if(k==='replies'||k==='posts'){var dn=(S.done||[]).filter(function(d){return d.status==='approved'&&inMonth(d.at)&&(k==='posts'?d.kind==='post':d.kind!=='post');});body=dn.length?'<div class="done">'+dn.map(function(d){return '<div><i></i><p>'+esc(d.text||d.title)+'</p><span>Approved'+(d.by?' by '+esc(d.by):'')+(d.at?' \\u00b7 '+esc(when(d.at)):'')+'</span></div>';}).join('')+'</div>':'<p class="fine">Nothing approved from the app in '+lab+'. The count comes from your monthly record.</p>';}
+  else if(k==='calls'){var cs=(S.calls||[]).filter(function(c){return inMonth(c.at);});body=cs.length?cs.map(callCard).join(''):'<p class="fine">This number comes from your Google profile: calls placed from the Call button on Google. Max\\u2019s own calls are under '+esc(S.line?S.line.name:'Max')+'.</p>';}
+  else if(k==='rating')body='<p class="fine">Your Google rating at the end of '+lab+'. It moves with every new review, and the line on the reviews card shows it month to month.</p>';
+  else body='<p class="fine">'+(k==='clicks'?'People who tapped your website from your Google profile in '+lab+'.':'People who asked Google for directions to you in '+lab+'.')+' Google reports it; we can\\u2019t see who they were.</p>';
+  sheet('<h2>'+esc((TILES.filter(function(t){return t[0]===k;})[0]||['',''])[1])+' \\u00b7 '+lab+'</h2>'+body+'<div class="acts"><button class="btn ghost" type="button" data-close="1">Close</button></div>');
 }
 function monthBlock(){
   var ms=S.months||[];
@@ -450,7 +502,7 @@ function monthBlock(){
   var st=m.stats||{},pv=m.prev||null,pl=pv&&pv.label?pv.label.split(' ')[0]:'last month';
   h+='<div class="tiles">'+TILES.map(function(t){var v=st[t[0]],p=pv?pv[t[0]]:null,d='';
     if(v!=null&&v!==''&&p!=null&&p!==''&&!isNaN(+v)&&!isNaN(+p)){var df=+v-(+p);if(t[0]==='rating')df=Math.round(df*10)/10;d=df>0?'<em class="up">\\u25b2 '+(t[0]==='rating'?df.toFixed(1):df)+' from '+esc(pl)+'</em>':(df<0?'<em class="down">\\u25bc '+(t[0]==='rating'?Math.abs(df).toFixed(1):Math.abs(df))+' from '+esc(pl)+'</em>':'<em class="down">Same as '+esc(pl)+'</em>');}
-    return '<div class="tile"><b>'+fmt(t[0],v)+'</b><span>'+t[1]+'</span>'+d+'</div>';}).join('')+'</div>';
+    return '<button class="tile" type="button" data-a="tile" data-k="'+t[0]+'" data-m="'+esc(m.month)+'"><b>'+fmt(t[0],v)+'</b><span>'+t[1]+'</span>'+d+'</button>';}).join('')+'</div>'+revBars(ms,m.month);
   if(m.note)h+='<p class="note">'+esc(m.note)+'</p>';
   var ac=S.aiCheck;
   if(ac&&ac.line)h+='<div class="card"><b>What assistants say about you</b><p class="note" style="margin:4px 0 0">'+esc(ac.line)+(ac.fixing?' Some details they show are out of date ('+esc(ac.wrong.map(function(w){return w.field;}).join(', '))+'). We\u2019re fixing them where they come from.':' The details they show match yours.')+'</p></div>';
@@ -554,7 +606,7 @@ function revCard(r){
 function vReviews(){
   var f=S.features||{},rv=S.reviews||[];
   var rated=(S.months||[]).filter(function(m){return m.stats&&m.stats.rating!=null&&m.stats.rating!==''&&!isNaN(+m.stats.rating);}).slice().reverse();
-  var h='<h1>Reviews</h1><p class="lede">What customers say about '+esc(S.client.business||'you')+' on Google, and what we said back.</p>';
+  var h='<h2 style="margin-top:28px">Your reviews</h2><p class="note" style="margin:-4px 2px 12px">What customers say about '+esc(S.client.business||'you')+' on Google, and what we said back.</p>';
   if(rated.length){var last=rated[rated.length-1],r=+last.stats.rating,cnt=last.stats.count;
     h+='<div class="card score glow"><div class="big"><b>'+r.toFixed(1)+'</b><span class="stars" aria-label="'+r.toFixed(1)+' stars">'+stars(r)+'</span><span class="who">'+(cnt!=null&&cnt!==''&&!isNaN(+cnt)?esc((+cnt).toLocaleString('en-US'))+' reviews on Google':'Your Google rating')+'</span></div>'+chart(rated)+'</div>';}
   else h+='<div class="card score"><div class="big"><b>\\u2014</b><span class="who">Your star rating, and how it moves month to month, shows here once your Google profile is connected.</span></div></div>';
@@ -627,15 +679,22 @@ function card(it){
   var cg=it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
   var acts=ed!=null?'<button class="btn ok" type="button" data-a="save" data-id="'+esc(it.id)+'">Save and approve</button><button class="btn ghost" type="button" data-a="cancel" data-id="'+esc(it.id)+'">Cancel</button>':
     '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
-  return '<article class="card" id="c-'+esc(it.id)+'">'+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
+  return '<article class="card'+(ed!=null?'':' swp')+'" id="c-'+esc(it.id)+'" data-sw="'+esc(it.id)+'">'+(ed!=null?'':'<span class="swhint ok">Approve</span><span class="swhint no">Skip</span>')+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
 }
+var FILT='all';
+var FK={all:function(){return true;},reply:function(x){return x.kind!=='post'&&x.kind!=='reviewreq';},post:function(x){return x.kind==='post';},reviewreq:function(x){return x.kind==='reviewreq';}};
 function vApprove(){
-  var items=S.items||[],done=S.done||[];
+  var all=S.items||[],done=S.done||[];
+  var cnt=function(k){return all.filter(FK[k]).length;};
+  if(!cnt(FILT))FILT='all';
+  var items=all.filter(FK[FILT]);
   var h='<h1>To approve</h1><p class="lede">Replies to your reviews and posts for your Google page. Nothing goes out until you approve it.</p>'+install();
+  if(all.length>1)h+='<div class="fchips" role="group" aria-label="Show">'+[['all','All'],['reply','Replies'],['post','Posts'],['reviewreq','Review requests']].filter(function(f){return f[0]==='all'||cnt(f[0]);}).map(function(f){return '<button type="button" data-a="filt" data-k="'+f[0]+'" aria-pressed="'+(FILT===f[0])+'">'+f[1]+'<i>'+cnt(f[0])+'</i></button>';}).join('')+'</div>';
+  if(all.length&&!store('ao_swiped'))h+='<p class="swtip">'+ICON.check.replace('<svg','<svg width="16" height="16"')+'Swipe a card right to approve, left to skip.</p>';
   h+=items.length?items.map(card).join(''):'<div class="empty">'+ICON.check+'<b>You\\u2019re all caught up</b><span>New review replies and posts land here for your OK.</span></div>';
   if(done.length)h+='<h2>Recently handled</h2><div class="done">'+done.slice(0,12).map(function(d){var st=d.status==='approved'?'Approved':(d.status==='skipped'?'Skipped':'Handled by Always Open');return '<div><i class="'+(d.status==='approved'?'':'skip')+'"></i><p>'+esc(d.text||d.title)+'</p><span>'+st+(d.by&&d.status!=='closed'?' by '+esc(d.by):'')+(d.at?' \\u00b7 '+esc(when(d.at)):'')+'</span></div>';}).join('')+'</div>';
   h+='<p class="note">'+(name()?'You\\u2019re approving as '+esc(name())+'. <a href="#" data-a="rename" style="color:inherit">Change</a>':'')+'</p>';
-  return h;
+  return h+vReviews();
 }
 function decide(id,action,text){
   var it=(S.items||[]).filter(function(x){return x.id===id;})[0];if(!it)return;
@@ -798,6 +857,9 @@ document.addEventListener('click',function(e){
   else if(a==='line-toggle')lineToggle();
   else if(a==='line-on')lineSave({onAir:true});
   else if(a==='sign')signTap();
+  else if(a==='filt'){FILT=t.dataset.k;render();}
+  else if(a==='tile')tileSheet(t.dataset.k,t.dataset.m);
+  else if(a==='jump'){e.preventDefault();var el2=document.getElementById(t.dataset.to);if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});}
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
@@ -814,10 +876,29 @@ document.addEventListener('change',function(e){var t=e.target;if(t&&t.id==='lw')
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#scrim').hidden)close();});
 $('#refresh').addEventListener('click',function(){load();});
+/* swipe a card right to approve, left to skip */
+(function(){
+  var sx=0,sy=0,el=null,dx=0,axis='';
+  document.addEventListener('touchstart',function(e){var c=e.target.closest('.card.swp');if(!c||e.target.closest('button,textarea,a,input'))return;el=c;sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=0;axis='';},{passive:true});
+  document.addEventListener('touchmove',function(e){if(!el)return;var x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;if(!axis){if(Math.abs(x)<8&&Math.abs(y)<8)return;axis=Math.abs(x)>Math.abs(y)*1.3?'x':'y';if(axis==='x')el.classList.add('drag');}
+    if(axis!=='x')return;dx=x;el.style.transform='translateX('+dx+'px) rotate('+(dx/40)+'deg)';el.classList.toggle('r',dx>40);el.classList.toggle('l',dx<-40);},{passive:true});
+  function end(){if(!el)return;var c=el,d=dx;el=null;c.classList.remove('drag');c.style.transform='';
+    if(Math.abs(d)>=96){c.classList.add('gone');if(d<0)c.classList.add('l');store('ao_swiped','1');setTimeout(function(){decide(c.dataset.sw,d>0?'approve':'skip','');},160);}
+    else c.classList.remove('r','l');}
+  document.addEventListener('touchend',end);document.addEventListener('touchcancel',end);
+})();
+/* pull down at the top to refresh */
+(function(){
+  var ptr=document.createElement('div');ptr.className='ptr';ptr.textContent='Pull to refresh';var vw=$('#view');vw.parentNode.insertBefore(ptr,vw);
+  var y0=null,on=false;
+  document.addEventListener('touchstart',function(e){y0=window.scrollY<=0&&$('#scrim').hidden?e.touches[0].clientY:null;on=false;},{passive:true});
+  document.addEventListener('touchmove',function(e){if(y0==null)return;var d=e.touches[0].clientY-y0;if(d>70&&!on){on=true;ptr.classList.add('on');ptr.textContent='Release to refresh';}else if(d<=70&&on){on=false;ptr.classList.remove('on');}},{passive:true});
+  document.addEventListener('touchend',function(){if(on){ptr.textContent='Refreshing\\u2026';load();setTimeout(function(){ptr.classList.remove('on');ptr.textContent='Pull to refresh';},900);}y0=null;on=false;});
+})();
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();DEFER=e;if(S)render();});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')load(true);});
 setInterval(function(){if(document.visibilityState==='visible'&&$('#scrim').hidden&&!Object.keys(EDIT).length&&!DIRTY)load(true);},60000);
-var OLD={month:'home',record:'reviews',calls:'max'},TABS=['home','approve','reviews','max','ask'];
+var OLD={month:'home',record:'approve',reviews:'approve',calls:'max'},TABS=['home','approve','max','ask'];
 function fromHash(){var h=(location.hash||'').slice(1);if(OLD[h])h=OLD[h];return TABS.indexOf(h)>-1?h:'';}
 window.addEventListener('hashchange',function(){var h=fromHash();if(h&&h!==TAB){TAB=h;render();window.scrollTo(0,0);}});
 TAB=fromHash()||TAB;

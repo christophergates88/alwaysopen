@@ -411,6 +411,11 @@ async function apiState(env, c, ctx) {
   try { out.handoff = (c.regulated || c.staff) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
   try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
+  // Calls Max is on right now, for the live card on Today.
+  try {
+    const rows = f.calls ? ((await env.DB.prepare("SELECT c.id, c.at, c.caller, c.caller_name, l.heard, l.said, l.turns, l.updated FROM app_calls c LEFT JOIN call_live l ON l.id = c.id WHERE c.client_id = ?1 AND c.outcome = 'live' AND c.test = 0 AND c.at > ?2 ORDER BY c.at DESC LIMIT 3").bind(cid, new Date(Date.now() - 20 * 60000).toISOString()).all()).results || []) : [];
+    out.live = rows.map(r => ({ id: r.id, at: r.at, numberText: fmtNum(r.caller || ''), name: r.caller_name || '', heard: r.heard || '', said: r.said || '', turns: +r.turns || 0, updated: r.updated || r.at }));
+  } catch (e) { out.live = []; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
