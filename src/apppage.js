@@ -84,6 +84,7 @@ mark{background:transparent;color:var(--sign);font-weight:700}
 .acts{display:flex;flex-wrap:wrap;gap:8px}
 .btn{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;border:2px solid transparent;padding:10px 18px;font-weight:700;font-size:16px;text-decoration:none;background:none}
 a.btn{color:inherit}
+.btn.small{min-height:38px;padding:6px 14px;font-size:14px}
 .btn.ok{background:var(--ok);color:var(--on-ok);flex:1 1 auto}
 .btn.red{background:var(--sign);color:var(--on-sign)}
 .btn.line{border-color:var(--ink)}
@@ -115,6 +116,7 @@ a.btn{color:inherit}
 .tile em{font-style:normal;font:500 12.5px var(--mono);margin-top:4px}
 .up{color:var(--ok)}.down{color:var(--slate)}
 .note{color:var(--slate);font-size:13.5px;margin:10px 2px 0}
+.cblist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}.cbrow{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.cbrow .fine{display:block}.cbrow .acts{display:flex;flex-wrap:wrap;gap:8px}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
 .feature p{margin:0;color:var(--slate);font-size:15px}
@@ -306,10 +308,20 @@ function vHome(){
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
+  h+=cbCard();
   h+=lostCard();
   h+=guardCard();
   h+=referCard();
   return h;
+}
+function cbCard(){
+  var C=S.callbacks;if(!C||!C.list||!C.list.length)return '';
+  var rows=C.list.map(function(r){
+    var st=r.status==='asap'?'Wants a call as soon as you are free':(r.status==='missed'?'Missed. Max is setting a new time.':(r.status==='noanswer'?'Missed. Max could not reach them.':'Promised for '+esc(r.dueText)));
+    return '<li class="cbrow"><div><b>'+esc(r.name||r.phoneText)+'</b>'+(r.name?'<span class="fine"> '+esc(r.phoneText)+'</span>':'')+'<span class="fine">'+(r.reason?esc(r.reason)+'. ':'')+st+'</span></div>'+
+      '<div class="acts"><a class="btn line small" href="tel:+1'+esc(r.phone.replace(/\D/g,'').slice(-10))+'">Call</a><button class="btn small" type="button" data-a="cb-done" data-id="'+r.id+'">Done</button>'+(r.status==='pending'?'<button class="btn line small" type="button" data-a="cb-later" data-id="'+r.id+'">30 more minutes</button>':'')+'</div></li>';
+  }).join('');
+  return '<div class="feature"><h3>Call-backs you promised</h3><p>Max told these callers when you would call. Tap Done when you have, or give yourself thirty more minutes and Max tells them.</p><ul class="cblist">'+rows+'</ul><p class="fine">If a time passes with nothing, Max calls them once to set a new one.</p></div>';
 }
 function lostCard(){
   var L=S.lost;if(!L||!L.month||!L.month.total)return '';
@@ -663,6 +675,7 @@ document.addEventListener('click',function(e){
   else if(a==='usever'){var vv=(VERS[id]||[])[+t.dataset.i];if(vv){EDIT[id]=vv.text;delete VERS[id];render();var ta2=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta2)ta2.focus();}}
   else if(a==='save'){var tx=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');var v=tx?tx.value.trim():'';if(!v){toast('The text is empty.');return;}EDIT[id]=v;decide(id,'approve',v);}
   else if(a==='skip'){if(t.classList.contains('sure'))decide(id,'skip','');else{t.classList.add('sure');t.textContent='Tap again to skip';setTimeout(function(){if(t.isConnected){t.classList.remove('sure');t.textContent='Skip';}},4000);}}
+  else if(a==='cb-done'||a==='cb-later'){t.disabled=true;post('callbacks',{action:a==='cb-done'?'done':'later',id:+id}).then(function(res){toast(res.j.message||res.j.error||'Done.');load();}).catch(function(){t.disabled=false;toast('No connection.');});}
   else if(a==='inst-x'){store('ao_inst_x','1');render();}
   else if(a==='inst'){if(DEFER){DEFER.prompt();DEFER=null;render();}}
   else if(a==='rename'){e.preventDefault();store('ao_by',null);needName(function(){render();});}

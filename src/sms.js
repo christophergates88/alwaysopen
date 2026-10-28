@@ -58,8 +58,10 @@ export async function sendText(env, o) {
   if (await optedOut(env, cid, to10)) { await log('skipped', 'opted out'); return { ok: false, why: 'opted out' }; }
   if (!ANYTIME.has(kind)) { const h = hourIn(o.tz); if (h < 8 || h >= 21) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; } }
   const form = new URLSearchParams({ To: '+1' + to10, Body: body });
-  if (env.TWILIO_MESSAGING_SID) form.set('MessagingServiceSid', env.TWILIO_MESSAGING_SID);
-  else { const from = await fromFor(env, cid); if (!from) { await log('skipped', 'no number'); return { ok: false, why: 'no number to send from' }; } form.set('From', from); }
+  // The A2P campaign lives on a Messaging Service; the text still goes out from the client's own number so replies reach their line.
+  const from = await fromFor(env, cid);
+  if (env.TWILIO_MESSAGING_SID) { form.set('MessagingServiceSid', env.TWILIO_MESSAGING_SID); if (from) form.set('From', from); }
+  else { if (!from) { await log('skipped', 'no number'); return { ok: false, why: 'no number to send from' }; } form.set('From', from); }
   let r, j = {};
   try {
     r = await fetch(TWILIO + env.TWILIO_ACCOUNT_SID + '/Messages.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
