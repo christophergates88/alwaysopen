@@ -8,7 +8,8 @@ const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const META_REDIRECT = SITE + '/meta/callback';
 const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,instagram_basic,instagram_content_publish,business_management';
-export const TEXTING_ON = false;   // flips on when the Twilio campaign is approved
+export { TEXTING_ON } from './sms.js';
+import { TEXTING_ON, sendText } from './sms.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const val = (f, k, n) => String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, n);
@@ -184,7 +185,7 @@ export async function sendInvoiceReminder(env, c, it, text, mailer) {
   if (!inv || inv.status === 'paid') return 'none';
   let out = [];
   if (inv.email && mailer) out.push('email:' + await mailer(inv.email, 'Invoice reminder from ' + (c.business || ''), text));
-  if (TEXTING_ON && inv.sms_ok && inv.phone) out.push('text:queued');
+  if (TEXTING_ON && inv.sms_ok && inv.phone) { const r = await sendText(env, { clientId: c.client_id, to: inv.phone, body: text, kind: 'invoice' }); out.push('text:' + (r.ok ? 'sent' : (r.why || 'failed'))); }
   return out.join(',') || 'manual';
 }
 

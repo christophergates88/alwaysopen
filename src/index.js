@@ -16,6 +16,7 @@ import { referralCron } from './referral.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron, ensureInvoices } from './extras.js';
 import { handleOptOut } from './past.js';
+import { sendText } from './sms.js';
 import { handleMapApi, mapCron } from './map.js';
 import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
 
@@ -41,6 +42,13 @@ export default {
     }
     if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
     if (path === '/api/map') return handleMapApi(req, env, url, ctx);
+    if (path === '/ops/text-test') {
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      let b = {}; try { b = await req.json(); } catch (e) {}
+      const r = await sendText(env, { clientId: String(b.client || 'always-open'), to: String(b.to || ''), body: String(b.body || 'Always Open texting is on. This is the only test.'), kind: 'test' });
+      return json(r, r.ok ? 200 : 400);
+    }
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
@@ -66,6 +74,7 @@ export default {
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
     if (path === '/locations') { const k = req.headers.get('x-key') || ''; return handleLocations(req, env, !!env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)); }
+    if (path.startsWith('/voice/sms/')) return handleVoice(req, env, ctx, url);
     if (path.startsWith('/google/')) return handleGoogle(req, env, url);
     if (path === '/app' || path.startsWith('/app/')) return handleApp(req, env, ctx, url);
     if (path.startsWith('/p/')) return photoGet(env, url);

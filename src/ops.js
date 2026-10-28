@@ -56,6 +56,7 @@ export async function healthChecks(env) {
   } else out.push({ name: 'stripe', ok: false, why: 'Stripe key missing' });
   // Max's line: the call room, the voice key and a way to think must all be there, and the voice log must show the line is alive.
   const miss = [];
+  out.push({ name: 'texting', ok: !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN), why: 'Twilio account SID or auth token missing' });
   if (!env.CALLROOM) miss.push('call room');
   if (!env.VOICE_KEY) miss.push('voice key');
   if (!env.ANTHROPIC_API_KEY && !env.AI) miss.push('model');

@@ -3,7 +3,8 @@
 // marked as OK to contact (never to anyone who opted out). Regulated businesses never hand over customer data, so none of this runs for them.
 // Tables create themselves on first use.
 import { mailTo } from './app.js';
-import { TEXTING_ON, page } from './extras.js';
+import { page } from './extras.js';
+import { TEXTING_ON, sendText } from './sms.js';
 import { ensureBiz, logAct } from './biz.js';
 
 const SITE = 'https://alwaysopenoffice.com';
@@ -425,7 +426,11 @@ export async function apiRevive(req, env, c) {
       res.push('email:' + r); if (r === 'sent') sent = true;
     }
     let status = sent ? 'sent' : 'queued';
-    if (ph10(row.phone) && TEXTING_ON) { res.push('text:queued'); status = sent ? 'sent' : 'queued'; }
+    if (ph10(row.phone) && TEXTING_ON) {
+      const cr2 = await env.DB.prepare('SELECT business FROM app_clients WHERE client_id = ?1').bind(cid).first();
+      const tr = await sendText(env, { clientId: cid, to: row.phone, body: text + ' Reply STOP to end texts from ' + ((cr2 && cr2.business) || 'us') + '.', kind: 'revive' });
+      res.push('text:' + (tr.ok ? 'sent' : (tr.why || 'failed'))); if (tr.ok) sent = true; status = sent ? 'sent' : (tr.retry ? 'queued' : status);
+    }
     else if (!sent) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');
     await env.DB.prepare('UPDATE biz_revive SET status = ?1, result = ?2, draft = ?3, updated = ?4 WHERE id = ?5').bind(status, res.join(','), text, now(), id).run();
     await logAct(env, c, 'Approved a message to ' + cl(row.name, 60));

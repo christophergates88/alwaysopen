@@ -1,7 +1,8 @@
 // The owner's weekly checklist: what only Christopher can do this week. Page at /ops (key or the link in the Monday email)
 // and a Monday email. Reads our own tables only; nothing here changes a client's data.
 import { EmailMessage } from 'cloudflare:email';
-import { TEXTING_ON, metaReady } from './extras.js';
+import { metaReady } from './extras.js';
+import { TEXTING_ON, textingReady } from './sms.js';
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
@@ -51,7 +52,7 @@ export async function boardItems(env) {
   const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");
   for (const r of refs) items.push({ key: 'referral:' + r.id, group: 'Referral credits to give', title: r.referrer, detail: 'Sent us ' + r.referred + ' (signed up ' + String(r.created || '').slice(0, 10) + '). Check they have paid three months, then give ' + r.referrer + ' one free month. Tick Done once it is applied' });
   const sys = [
-    ['Twilio texting', TEXTING_ON ? 'on' : 'off, waiting for the carrier campaign to be approved'],
+    ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],
     ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],
     ['Google Business Profile API', env.GBP_ON ? 'on' : 'off, waiting for Google approval'],
     ['Competitor lookups (Google Places)', env.PLACES_KEY ? 'key is set' : 'key not set']

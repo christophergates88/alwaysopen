@@ -7,6 +7,7 @@
 // text for Twilio to speak. When the call ends, the CallRoom writes a short note to D1
 // (app_calls), pushes it to the owner's phone (the Always Open app), and HQ reads it for the calls list and the cost meter.
 // Nothing here records audio. The written transcript is kept so the owner and Always Open can see what was said.
+import { handleSms, sendText, TEXTING_ON } from './sms.js';
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
 import { opsAlert } from './ops.js';
@@ -62,6 +63,7 @@ export async function handleVoice(req, env, ctx, url) {
   const form = new URLSearchParams(body);
   if (env.TWILIO_AUTH_TOKEN && !(await twilioSigOk(env.TWILIO_AUTH_TOKEN, url.href, form, req.headers.get('x-twilio-signature')))) return txt('Forbidden', 403);
   try {
+    if (kind === 'sms') return await handleSms(req, env, form, true);
     if (kind === 'in') return await incoming(env, form);
     if (kind === 'after') return await afterRelay(env, ctx, form);
     if (kind === 'dial') return await afterDial(env, form);
@@ -740,6 +742,16 @@ async function writeUp(env, sid, s, why) {
   const title = outcome === 'failed' ? 'Missed call from ' + who : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who);
   const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so they did not leave a message. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
+  // Missed-call text-back: they hung up or the line failed, so the business texts them once, right away. Not on regulated lines.
+  if ((outcome === 'hangup' || outcome === 'failed') && TEXTING_ON && line && !+line.regulated && E164.test(call.caller || '')) {
+    const os = (() => { try { return JSON.parse(line.owner_set || '{}'); } catch (e) { return {}; } })();
+    if (os.textback !== false) {
+      const biz = line.business || 'the business';
+      const tb = await sendText(env, { clientId: call.client_id, to: call.caller, kind: 'textback',
+        body: 'Sorry we missed you. This is ' + biz + '. Reply here with what you need, or call back any time and Max will take it. Reply STOP to end texts.' });
+      if (tb.ok) await env.DB.prepare("UPDATE app_calls SET summary = CASE WHEN summary = '' OR summary IS NULL THEN 'We texted them back.' ELSE summary || ' We texted them back.' END WHERE sid = ?1").bind(sid).run().catch(() => {});
+    }
+  }
   if (outcome === 'failed') await opsPing(env, 'AI line problem: ' + ((line && line.business) || call.client_id), 'Call ' + sid + ' from ' + (call.caller || 'unknown') + ' could not start. The owner was told to call them back.', 'high', 'warning');
   return true;
 }

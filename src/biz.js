@@ -1,7 +1,8 @@
 // Jobs, quotes, Stripe Connect payments, the shared inbox, review insights, team roles, onboarding and the weekly summary.
 // Tables create themselves on first use. Nothing is sent to a customer or posted without the owner (or their team) tapping it.
 import { pushClient, sha256hex, mailTo } from './app.js';
-import { page, ensureInvoices, invOut, TEXTING_ON } from './extras.js';
+import { page, ensureInvoices, invOut } from './extras.js';
+import { TEXTING_ON, replyText } from './sms.js';
 import { buildRevive } from './past.js';
 import { rivalLine } from './rivals.js';
 
@@ -421,7 +422,7 @@ export async function inbox(env, c) {
     const list = threads[k], last = list[0], lastIn = list.find(x => x.dir === 'in');
     if (last.channel === 'text' && !TEXTING_ON) continue;
     out.push({ id: 'msg-' + last.channel + '-' + last.thread, channel: last.channel === 'facebook' ? 'facebook' : 'text', at: last.at, name: (lastIn && lastIn.name) || last.name || '', text: last.text || '', open: last.dir === 'in' && last.status === 'new',
-      canReply: last.channel === 'facebook' && !!lastIn && Date.now() - Date.parse(lastIn.at) < 24 * 3600e3, thread: list.slice(0, 12).reverse().map(x => ({ dir: x.dir, text: x.text, at: x.at, by: x.by || '' })) });
+      canReply: last.channel === 'text' ? TEXTING_ON : (last.channel === 'facebook' && !!lastIn && Date.now() - Date.parse(lastIn.at) < 24 * 3600e3), thread: list.slice(0, 12).reverse().map(x => ({ dir: x.dir, text: x.text, at: x.at, by: x.by || '' })) });
   }
   for (const r of await q("SELECT id, title, context, stars, status, created FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') AND created > ?2 ORDER BY created DESC LIMIT 30", cid, since))
     out.push({ id: 'rev-' + r.id, channel: 'google', at: r.created, name: r.title || '', text: (r.stars ? r.stars + '★ ' : '') + (r.context || ''), open: r.status === 'pending', canReply: false });
@@ -436,6 +437,15 @@ export async function apiInbox(req, env, c) {
   if (b.action === 'read') {
     const k = /^msg-(facebook|text)-(.+)$/.exec(String(b.id || ''));
     if (k) await env.DB.prepare("UPDATE biz_msgs SET status = 'read' WHERE client_id = ?1 AND channel = ?2 AND thread = ?3").bind(c.client_id, k[1], k[2]).run();
+    return aj({ ok: true });
+  }
+  const tm = /^msg-text-(\d{10})$/.exec(String(b.id || ''));
+  if (b.action === 'reply' && tm) {
+    const text = cl(b.text, 1000);
+    if (!text) return aj({ ok: false, error: 'Type a reply first.' }, 400);
+    const r = await replyText(env, c, tm[1], text);
+    if (!r.ok) return aj(r, 409);
+    await logAct(env, c, 'Replied to a text');
     return aj({ ok: true });
   }
   if (b.action !== 'reply' || !m) return aj({ ok: false, error: 'Bad request' }, 400);

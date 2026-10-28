@@ -16,7 +16,7 @@ function pastBlock(){
 function pcReload(then){
   return api('state').then(function(res){if(res.j&&res.j.ok){S=res.j;render();}if(then)then();});
 }
-function pcWhen(i){return i.status==='sent'?'Sent':(i.status==='queued'?(i.result.indexOf('waiting')>-1?'Ready to send when texting is on':'Queued'):(i.status==='copied'?'You’re sending it yourself':'Skipped'));}
+function pcWhen(i){return i.status==='sent'?'Sent':(i.status==='queued'?((i.result.indexOf('waiting')>-1||i.result.indexOf('after hours')>-1)?'Held until morning':'Queued'):(i.status==='copied'?'You’re sending it yourself':'Skipped'));}
 function reviveSheet(){
   var rv=(S.past&&S.past.revive)||{items:[]},all=rv.items||[];
   var pend=all.filter(function(i){return i.status==='pending';}),done=all.filter(function(i){return i.status!=='pending';});
@@ -87,7 +87,7 @@ function pastAct(a,id,t){
     var ta=document.getElementById('pc-t-'+id);t.disabled=true;
     post('revive',{action:'approve',id:+id,text:ta?ta.value:''}).then(function(r){
       t.disabled=false;
-      if(r.j.ok){toast(r.j.status==='sent'?'Sent.':'Saved. It goes out when texting is on.');pcReload(reviveSheet);}
+      if(r.j.ok){toast(r.j.status==='sent'?'Sent.':'Saved. It goes out in the morning.');pcReload(reviveSheet);}
       else toast(r.j.error||'Could not send. Try again.');
     });
   }
