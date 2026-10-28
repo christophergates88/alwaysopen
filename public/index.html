@@ -395,8 +395,8 @@ footer .legal a:focus-visible{outline:3px solid var(--night-sign);outline-offset
 /* the "what you get" lists fold away on phones; the summary is invisible on wide screens */
 details.more>summary{list-style:none;cursor:pointer;display:none;font:600 .95rem var(--body);color:var(--sign);padding:8px 0}
 details.more>summary::-webkit-details-marker{display:none}
-details.more>summary::after{content:" +"}
-details.more[open]>summary::after{content:" \2212"}
+details.more>summary::after{content:" \25BE"}
+details.more[open]>summary::after{content:" \25B4"}
 /* sticky section label on phones */
 .seclabel{display:none}
 @media (max-width:760px){
@@ -470,10 +470,17 @@ a.chip:hover{border-color:var(--ink)}
 .check-out{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
 .check-score{display:flex;align-items:center;gap:14px}
 .check-score b{font:850 2.4rem/1 var(--display,inherit);color:var(--sign);border:3px solid var(--sign);border-radius:14px;padding:6px 12px;box-shadow:0 0 14px rgba(217,45,32,.25)}
+.g-A,.g-B{--gc:#1C6B54}.g-C{--gc:#B7791F}.g-D,.g-F{--gc:#D92D20}
+.check-score b.gl{color:var(--gc);border-color:var(--gc);box-shadow:0 0 14px rgba(0,0,0,.08)}
+.grades{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.gr{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:6px 12px 6px 8px;font:600 .92rem var(--body);color:var(--ink);background:var(--card)}
+.gr i{font:850 1.35rem/1 var(--display,inherit);font-style:normal;color:var(--gc);min-width:1.1em;text-align:center}
+.mock .grades{margin:2px 0 8px;gap:6px}.mock .gr{background:transparent;border-color:var(--m-line,#E4E2DB);color:inherit;padding:4px 9px 4px 7px;font-size:.84rem;gap:6px}.mock .gr i{font-size:1.15rem}
 .check-out p{margin:0}.check-out .find{padding-left:12px;border-left:3px solid var(--sign)}
 .check-out .muted{color:var(--slate);font-size:.95rem}
 @media (max-width:560px){.check-row{grid-template-columns:1fr}}
 .soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
+.copy li>.soon{grid-column:2;justify-self:start;margin:-2px 0 0}
 </style>
 
 <meta property="og:title" content="Always Open: your business, always open">
@@ -507,8 +514,8 @@ a.chip:hover{border-color:var(--ink)}
       <div>
         <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
         <h1>Your business, <em>always</em> open.</h1>
-        <p class="scene hero-scene">3:14 AM. Your kid finally fell asleep on your chest. A customer is calling about a burst pipe. Max took the address. Don’t move.</p>
-        <p class="lede">The name, number and address are on your phone for the morning. Reviews get answered. Quotes and invoices get followed up. You stay where you are, and we handle the rest.</p>
+        <p class="scene hero-scene">Bottom of the ninth. Your kid is up. A customer is calling. Max has it. Look up.</p>
+        <p class="lede">Max doesn’t just take a message. He answers real questions about your hours, your area and the prices you’ve approved, takes the job details, and tries your phone if it’s urgent. Reviews get answered. Quotes and invoices get followed up. You stay where you are, and we handle the rest.</p>
         <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
         <p class="promise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
         <p class="fine">No setup fee · Month to month · Spanish replies included</p>
@@ -561,7 +568,6 @@ a.chip:hover{border-color:var(--ink)}
 <main>
 <section class="day band" id="day" data-label="One ordinary day">
   <div class="inner">
-    <p class="scene">5:01 PM. The office just closed. The customer’s problem did not.</p>
     <p class="eyebrow">One ordinary day</p>
     <h2>The work keeps moving while you’re on a roof.</h2>
     <p class="sub">Most small businesses lose jobs in the gaps: the call after hours, the review nobody answered, the quote nobody followed up. Here is what happens in those gaps now.</p>
@@ -580,17 +586,15 @@ a.chip:hover{border-color:var(--ink)}
 
     <div data-label="Get found" class="row reveal">
       <div class="copy">
-        <p class="scene">Christmas morning. Everyone is closed. Your phone number is not.</p>
-        <p class="payoff">Your hours, photos and posts are kept current by our team, so the search shows a business that’s alive.</p>
         <p class="eyebrow">Get found</p>
         <h2>Look open, current and trusted when they search.</h2>
         <p class="lead">Customers decide in seconds. Once you invite us onto your Google profile, we keep it accurate and active.</p>
-        <details class="more" open><summary>What you get</summary><ul>
+        <ul class="get">
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current: hours, photos, a weekly post</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Same name, address, phone and hours on Apple Maps, Bing, Facebook and Yelp<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts made from your job photos<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A review request after every job, written for you, sent from your phone in one tap</li>
-        </ul></details>
+        </ul>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample business profile showing current hours, a recent post and a checklist of kept-current items">
         <span class="mtag">Sample</span>
@@ -604,18 +608,19 @@ a.chip:hover{border-color:var(--ink)}
 
     <div data-label="Answer everyone" class="row reveal flip">
       <div class="copy">
-        <p class="scene">Bottom of the ninth. Your kid is up. A customer is calling. Max has it. Look up.</p>
-        <p class="payoff">With Max on your line, the caller’s name, number and reason are on your phone. Read it after the inning.</p>
         <p class="eyebrow">Answer everyone</p>
         <h2>Nobody waits for a reply.</h2>
         <p class="lead">Calls, reviews, quote requests and bookings all land in one place, and each gets an answer fast, from your own number once texting is approved.</p>
-        <details class="more" open><summary>What you get</summary><ul>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed call, instant text<span class="soon">Coming soon</span></li>
+        <p class="lead"><strong>Voicemail takes a message. Max takes the call.</strong></p>
+        <ul class="get">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Answers real questions: your hours, your service area and the prices you’ve approved, in English or Spanish</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Takes the job: name, number, address and what’s wrong, on your phone in seconds, and he recognizes repeat callers</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Urgent call? He tries your phone while the caller waits, once you’ve told him what counts as urgent</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Books the visit on your Google calendar, set up with you<span class="soon">On request</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every review answered, bad ones flagged the same day</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Online booking and quote requests, any hour</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Appointment confirmations and reminders<span class="soon">Coming soon</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Spanish replies on every plan</li>
-        </ul></details>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>A booking and quote page, open any hour</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed-call texts and appointment reminders<span class="soon">Coming soon</span></li>
+        </ul>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample activity inbox: a call answered by Max, a new quote request, a booking and a review reply waiting for approval">
         <span class="mtag">Sample</span>
@@ -631,16 +636,14 @@ a.chip:hover{border-color:var(--ink)}
 
     <div data-label="Get paid" class="row reveal">
       <div class="copy">
-        <p class="scene">Your daughter is telling you about her day. It’s the most she’s said all week. The phone buzzes. Max has it. Keep listening.</p>
-        <p class="payoff">The invoice reminder is drafted and waiting for your OK. It can wait until she’s done.</p>
         <p class="eyebrow">Get paid</p>
         <h2>Quotes and invoices don’t go quiet.</h2>
         <p class="lead">Most unpaid money isn’t refused. It’s forgotten. We write the follow-up, in your voice, and you send it with one tap.</p>
-        <details class="more" open><summary>What you get</summary><ul>
+        <ul class="get">
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Invoice and payment reminders with a pay link</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote follow-up, written for you, one tap to send</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Past-customer reminders and referral asks<span class="soon">Coming soon</span></li>
-        </ul></details>
+        </ul>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample money-waiting list with three invoices and a payment reminder text">
         <span class="mtag">Sample</span>
@@ -656,16 +659,14 @@ a.chip:hover{border-color:var(--ink)}
 
     <div data-label="Prove it works" class="row reveal flip">
       <div class="copy">
-        <p class="scene">12:15 PM. Everyone is on a job. The phone is ringing. It has been answered.</p>
-        <p class="payoff">Every call, review and request lands in one report, so you can see what the gaps used to cost.</p>
         <p class="eyebrow">Prove it works</p>
         <h2>One page a month shows what changed.</h2>
         <p class="lead">No dashboards to learn. You get a short report with calls, reviews, your rating and what we did, plus how you compare with the businesses near you.</p>
-        <details class="more" open><summary>What you get</summary><ul>
+        <ul class="get">
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A one-page monthly report</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead logged: who called, what they wanted, quoted, booked or lost</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Competitor watch on rating and review count</li>
-        </ul></details>
+        </ul>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample monthly report with calls, direction requests, new reviews, rating change and a bar chart of reviews per month rising from 2 in May to 14 in October">
         <span class="mtag">Sample · made-up numbers</span>
@@ -693,17 +694,15 @@ a.chip:hover{border-color:var(--ink)}
 
     <div data-label="Stay on the record" class="row reveal">
       <div class="copy">
-        <p class="scene">You’re out sick. The business isn’t.</p>
-        <p class="payoff">Every reply and post is saved with its date and who approved it. The record is there when you’re back.</p>
         <p class="eyebrow">Stay on the record</p>
         <h2>Everything we do is written down.</h2>
         <p class="lead">Every review reply, post, lead and text is saved with its date and who approved it. Once a month you get a record file to keep, hand to a compliance officer, or pull out when someone says nobody called them back.</p>
-        <details class="more" open><summary>What you get</summary><ul>
+        <ul class="get">
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every reply and post saved with its date and your approval</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead and call logged</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A monthly record file on every plan</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Nothing goes out in your name without your OK</li>
-        </ul></details>
+        </ul>
       </div>
       <div class="stage"><div class="mock" role="img" aria-label="Sample monthly record listing a posted review reply, a Google post, a missed-call text and a logged lead, each with its date">
         <span class="mtag">Sample</span>
@@ -719,17 +718,7 @@ a.chip:hover{border-color:var(--ink)}
     </div>
 
   </div>
-  <div class="inner moments-wrap">
-    <p class="eyebrow">More moments</p>
-    <div class="moments" role="list" aria-label="More moments">
-      <div class="moment" role="listitem"><p>5:40 PM. Sun’s going down. You told them you’d be home for dinner. A customer is calling. Max has it. Go home.</p><small>The details are on your phone. Call back after dinner.</small></div>
-      <div class="moment" role="listitem"><p>Hole 14. Nine feet for birdie. First round in a month. A customer just booked a job. You’ll read it after the putt. Take your time.</p><small>Booked from your booking page. It’s on your calendar.</small></div>
-      <div class="moment" role="listitem"><p>Your dad is blowing out seventy candles. A customer is calling. Max has it. Be there.</p><small>Name, number and reason, waiting on your phone.</small></div>
-      <div class="moment" role="listitem"><p>Sunday, 11:12 PM. A customer’s water heater just quit. They called three places. One answered.</p><small>Max picked up in your name and took the address.</small></div>
-      <div class="moment" role="listitem"><p>Storm warning, 2 AM. Your customers are awake. So is Max.</p><small>Every call answered. A storm-day post ready for your OK by morning.</small></div>
-    </div>
-    <p class="closer">Always Open. Be wherever you’d rather be.</p>
-  </div>
+
 </section>
 
 <section class="sec band" id="all" data-label="Everything we handle">
@@ -745,13 +734,13 @@ a.chip:hover{border-color:var(--ink)}
     <div class="copy">
       <p class="eyebrow">Start here</p>
       <h2>A free audit of how you look online.</h2>
-      <p class="lead">Send us your business name and town. Within two business days you get a one-page report: your rating next to your top competitors, reviews nobody answered, and details that don't match across the web.</p>
+      <p class="lead">Send us your business name and town. Within two business days you get a one-page report with a grade for your reviews, your Google profile and your website, your rating next to your top competitors, and the details that don't match across the web.</p>
       <p class="lead">It's yours to keep, even if you never hire us.</p>
       <form class="check" id="check" novalidate>
         <p class="check-h">Or check your business right now</p>
         <div class="check-row"><label class="sr" for="c-q">Business name</label><input id="c-q" placeholder="Business name" autocomplete="organization" required>
         <label class="sr" for="c-town">Town</label><input id="c-town" placeholder="Town, state"></div>
-        <button class="btn primary" type="submit">Check my score</button>
+        <button class="btn primary" type="submit">Check my grade</button>
         <div class="check-out" id="check-out" aria-live="polite"></div>
       </form>
       <div class="ctas"><a class="btn line" href="#contact">Request my full audit</a></div>
@@ -760,6 +749,7 @@ a.chip:hover{border-color:var(--ink)}
     <div class="stage" style="background:var(--panel)"><div class="mock" style="max-width:520px" role="img" aria-label="Sample audit report with made-up numbers: a roofing company at 4.1 stars with 38 reviews against competitors at 4.4 to 4.7 stars">
       <span class="mtag">Sample · made-up numbers</span>
       <div class="mh"><b>Sample Roofing Co.</b><small>Online audit</small></div>
+      <div class="grades" role="group" aria-label="Sample grades: overall C, reviews D, Google profile B, website C"><span class="gr g-C"><i>C</i>Overall</span><span class="gr g-D"><i>D</i>Reviews</span><span class="gr g-B"><i>B</i>Google profile</span><span class="gr g-C"><i>C</i>Website</span></div>
       <div class="bars">
         <div class="bar you"><span>Sample Roofing</span><span class="track"><span class="fill" style="width:17%"></span></span><b>4.1 · 38</b></div>
         <div class="bar"><span>Competitor A</span><span class="track"><span class="fill" style="width:100%"></span></span><b>4.7 · 212</b></div>
@@ -1312,7 +1302,8 @@ a.chip:hover{border-color:var(--ink)}
   fetch('/audit/score',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({q:q,town:town})}).then(function(r){return r.json()}).then(function(d){b.disabled=false;
   if(!d.ok){out.innerHTML='<p class="muted">'+esc(d.error)+'</p>';return}
   if(!d.found){out.innerHTML='<p class="muted">Google did not find that one. Try the exact name and town, or request the full audit and we will find it.</p>';return}
-  out.innerHTML='<div class="check-score"><b>'+d.score+'</b><div><strong>'+esc(d.name)+'</strong><br><span class="muted">'+esc(d.address)+'</span></div></div>'+
+  out.innerHTML='<div class="check-score"><b class="gl g-'+esc(d.grade)+'">'+esc(d.grade)+'</b><div><strong>'+esc(d.name)+'</strong><br><span class="muted">'+esc(d.address)+'</span><br><span class="muted">Score '+d.score+' out of 100</span></div></div>'+
+  (d.areas&&d.areas.length?'<div class="grades">'+d.areas.map(function(a){return'<span class="gr g-'+esc(a.grade)+'"><i>'+esc(a.grade)+'</i>'+esc(a.label)+'</span>'}).join('')+'</div>':'')+
   (d.top.length?'<p><strong>The biggest things to fix:</strong></p>'+d.top.map(function(t){return'<p class="find"><strong>'+esc(t.title)+'.</strong> '+esc(t.saw)+'</p>'}).join(''):'<p>Nothing major. You are in good shape.</p>')+
   (d.more?'<p class="muted">Plus '+d.more+' more in the full audit, with how you compare to your top competitors.</p>':'')+
   '<a class="btn primary" href="#contact" id="check-go">Send me the full audit</a>';

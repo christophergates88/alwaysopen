@@ -47,6 +47,19 @@ async function checkSite(url, phone) {
   return out;
 }
 
+// Letter grades. The overall grade comes from the score. Each area (reviews, Google profile, website) is graded on its own
+// problems: nothing wrong is an A; the heavier the problems, the lower the letter.
+export function gradeOf(score) { return score >= 90 ? 'A' : score >= 78 ? 'B' : score >= 62 ? 'C' : score >= 40 ? 'D' : 'F'; }
+function areaGrade(weight) { return weight <= 0 ? 'A' : weight < 7 ? 'B' : weight < 14 ? 'C' : weight < 25 ? 'D' : 'F'; }
+const AREAS = [['reviews', 'Reviews'], ['profile', 'Google profile'], ['website', 'Website']];
+function areaOf(title) { return /review|rating/i.test(title) ? 'reviews' : /closed|hours|photos/i.test(title) ? 'profile' : 'website'; }
+export function gradeAreas(findings) {
+  return AREAS.map(([key, label]) => {
+    const mine = findings.filter(x => areaOf(x.title) === key);
+    return { key, label, grade: areaGrade(mine.reduce((t, x) => t + x.weight, 0)), issues: mine.length };
+  });
+}
+
 export async function runAudit(env, q, town) {
   if (!env.PLACES_KEY) throw new Error('The Google key is not set up yet.');
   const hits = await places(env, 'places:searchText', { textQuery: q + (town ? ' in ' + town : ''), pageSize: 1 }, PLACE_FIELDS);
@@ -107,7 +120,7 @@ export async function runAudit(env, q, town) {
   if (me.rating >= 4.5) fine.push('Rating of ' + me.rating.toFixed(1));
   if (site.ok && site.mobile) fine.push('Website works on phones');
   if (site.ok && site.tapToCall) fine.push('Tap-to-call on the website');
-  return { found: true, at: new Date(now).toISOString(), business: me, rivals, site, findings: f, fine, score };
+  return { found: true, at: new Date(now).toISOString(), business: me, rivals, site, findings: f, fine, score, grade: gradeOf(score), areas: gradeAreas(f) };
 }
 
 // ---------- endpoints ----------
@@ -139,10 +152,10 @@ export async function handleAudit(req, env, url, h) {
     try {
       const a = await runAudit(env, q, town);
       await env.DB.prepare('INSERT INTO audits (at, q, town, kind, ip_hash, score, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-        .bind(new Date().toISOString(), q, town, 'score', ip, a.found ? a.score : null, a.found ? JSON.stringify({ name: a.business.name, score: a.score, top: a.findings.slice(0, 3).map(x => x.title) }) : '{}').run();
+        .bind(new Date().toISOString(), q, town, 'score', ip, a.found ? a.score : null, a.found ? JSON.stringify({ name: a.business.name, score: a.score, grade: a.grade, top: a.findings.slice(0, 3).map(x => x.title) }) : '{}').run();
       if (!a.found) return h.json({ ok: true, found: false }, 200);
       return h.json({ ok: true, found: true, name: a.business.name, address: a.business.address, rating: a.business.rating, reviews: a.business.reviews,
-        score: a.score, top: a.findings.slice(0, 3).map(x => ({ title: x.title, saw: x.saw })), more: Math.max(0, a.findings.length - 3) }, 200);
+        score: a.score, grade: a.grade, areas: a.areas.map(x => ({ label: x.label, grade: x.grade })), top: a.findings.slice(0, 3).map(x => ({ title: x.title, saw: x.saw })), more: Math.max(0, a.findings.length - 3) }, 200);
     } catch (e) { return h.json({ ok: false, error: 'The checker is not available right now. Ask for the free audit below.' }, 503); }
   }
   return h.json({ ok: false, error: 'Not found' }, 404);
@@ -171,6 +184,9 @@ button.line{background:transparent;color:var(--ink);border:2px solid var(--ink);
 .mono{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--slate)}
 .score{border:3px solid var(--red);border-radius:16px;padding:10px 18px;text-align:center;color:var(--red);box-shadow:0 0 16px rgba(217,45,32,.25)}
 .score b{display:block;font:850 2.6rem/1 var(--display)}
+.g-A,.g-B{--gc:#1C6B54}.g-C{--gc:#B7791F}.g-D,.g-F{--gc:#D92D20}
+.score.g{border-color:var(--gc);color:var(--gc);box-shadow:none}
+.grades{display:flex;gap:10px;flex-wrap:wrap}.gr{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:8px 14px 8px 10px;font-weight:600}.gr i{font:850 1.5rem/1 var(--display);font-style:normal;color:var(--gc);min-width:1.1em;text-align:center}
 table{width:100%;border-collapse:collapse;font-size:15px}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--slate)}
 .me td{font-weight:700}
 .f{display:grid;gap:4px;padding:12px 14px;border-left:4px solid var(--red);background:#FBF4F2;border-radius:0 10px 10px 0}
@@ -195,11 +211,12 @@ if(!d.audit.found){m.textContent='Google did not find that business. Try the exa
 function draw(a){var b=a.business,date=new Date(a.at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 var rows='<tr class="me"><td>'+esc(b.name)+'</td><td>'+(b.rating?b.rating.toFixed(1):'none')+'</td><td>'+b.reviews+'</td></tr>'+a.rivals.map(function(r){return'<tr><td>'+esc(r.name)+'</td><td>'+(r.rating?r.rating.toFixed(1):'none')+'</td><td>'+r.reviews+'</td></tr>'}).join('');
 var f=a.findings.map(function(x){return'<div class="f"><b>'+esc(x.title)+'</b><span>'+esc(x.saw)+'</span><span class="fix">'+esc(x.fix)+'</span></div>'}).join('')||'<p>Nothing major. This business is in good shape.</p>';
-document.getElementById('out').innerHTML='<div class="doc"><div class="top"><div><div class="mono">Free audit · '+esc(date)+'</div><h2>'+esc(b.name)+'</h2><div>'+esc(b.address)+(b.type?' · '+esc(b.type):'')+'</div></div><div class="score"><span class="mono">Score</span><b>'+a.score+'</b>out of 100</div></div>'+
+document.getElementById('out').innerHTML='<div class="doc"><div class="top"><div><div class="mono">Free audit · '+esc(date)+'</div><h2>'+esc(b.name)+'</h2><div>'+esc(b.address)+(b.type?' · '+esc(b.type):'')+'</div></div><div class="score g g-'+(a.grade||'')+'"><span class="mono">Grade</span><b>'+esc(a.grade||'')+'</b>'+a.score+' out of 100</div></div>'+
+(a.areas&&a.areas.length?'<div class="grades">'+a.areas.map(function(x){return'<span class="gr g-'+esc(x.grade)+'"><i>'+esc(x.grade)+'</i>'+esc(x.label)+'</span>'}).join('')+'</div>':'')+
 '<div><h3>You and the busiest nearby competitors</h3><table><tr><th>Business</th><th>Rating</th><th>Reviews</th></tr>'+rows+'</table></div>'+
 '<div style="display:grid;gap:10px"><h3>What we found</h3>'+f+'</div>'+
 (a.fine.length?'<div><h3>Checked and fine</h3><p class="fine">'+a.fine.map(esc).join(' · ')+'</p></div>':'')+
 '<div><h3>What Always Open does</h3><p>Every review answered, your Google profile kept current, missed calls handled by Max, follow-ups on quotes and invoices, and a one-page report each month. Try it for a month; if it is not worth it, you do not pay. alwaysopenoffice.com · (706) 460-2226</p></div>'+
 '<div class="actions"><button onclick="print()">Save as PDF</button><button class="line" onclick="copyText()">Copy as text</button></div></div>';window.__a=a}
-function copyText(){var a=window.__a,b=a.business,t='Free audit for '+b.name+' (score '+a.score+'/100)\\n\\n'+a.findings.map(function(x,i){return(i+1)+'. '+x.title+': '+x.saw+' '+x.fix}).join('\\n')+'\\n\\nAlways Open · alwaysopenoffice.com · (706) 460-2226';navigator.clipboard.writeText(t).then(function(){document.getElementById('msg').textContent='Copied.'})}
+function copyText(){var a=window.__a,b=a.business,t='Free audit for '+b.name+' (grade '+(a.grade||'')+', score '+a.score+'/100'+(a.areas?'; '+a.areas.map(function(x){return x.label+' '+x.grade}).join(', '):'')+')\\n\\n'+a.findings.map(function(x,i){return(i+1)+'. '+x.title+': '+x.saw+' '+x.fix}).join('\\n')+'\\n\\nAlways Open · alwaysopenoffice.com · (706) 460-2226';navigator.clipboard.writeText(t).then(function(){document.getElementById('msg').textContent='Copied.'})}
 </script></body></html>`;
