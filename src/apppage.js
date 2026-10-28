@@ -383,9 +383,10 @@ function vHome(){
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
   if(due)att.push(row('fu',ICON.cal,due+(due===1?' follow-up':' follow-ups')+' due','Tap to text them'));
   h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We’ll buzz your phone when something does.</span></div>';
+  h+=moreCard();
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=cbCard()+fuBlock()+fwCard()+moreCard();
+  h+=cbCard()+fuBlock()+fwCard();
   return h;
 }
 var UPALL=false;
