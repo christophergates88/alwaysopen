@@ -117,6 +117,10 @@ export function installFetch(world, env) {
       }
       const gs = p.match(/^checkout\/sessions\/(.+)$/);
       if (method === 'GET' && gs) { const s = world.sessions.get(gs[1]); return s ? json(s) : json({ error: { message: 'No such checkout.session' } }, 404); }
+      if (method === 'POST' && p === 'accounts') { world.stripeAccounts = (world.stripeAccounts || []).concat([body]); if (world.fail.connectOff) return json({ error: { message: 'You can only create new accounts if you\u2019ve signed up for Connect' } }, 400); return json({ id: 'acct_' + world.id('', 16) }); }
+      if (method === 'POST' && p === 'account_links') return json({ url: 'https://connect.stripe.com/setup/s/' + world.id('', 12) });
+      if (method === 'GET' && /^accounts\/acct_/.test(p)) return json({ id: p.slice(9), charges_enabled: false });
+      if (method === 'POST' && p === 'webhook_endpoints') return json({ id: 'we_test2', secret: 'whsec_x' });
       if (method === 'POST' && p === 'products') return json({ id: 'prod_' + world.id('', 10) });
       const sub = p.match(/^subscriptions\/([^?]+)/);
       if (sub && method === 'GET') return json({ id: sub[1], items: { data: [{ id: 'si_main', price: { product: { name: 'Always Open Growth' } } }] } });

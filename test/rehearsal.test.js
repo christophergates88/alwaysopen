@@ -389,6 +389,28 @@ test('next month, the first report is written once, from what actually happened,
   assert.ok(st.months.some(x => x.month === key && x.record), 'the report shows in the app with its record');
 });
 
+test('card payments: when Connect is off the owner sees "coming soon"; once it is on, Connect makes an account Stripe carries the risk on', async () => {
+  world.fail.connectOff = true;
+  let r = await site.call(A('/api/stripe'), { json: { action: 'connect' } });
+  assert.equal(r.status, 503); assert.equal(r.json().comingSoon, true);
+  let st = (await site.call(A('/api/state'))).json();
+  assert.equal(st.stripe.available, false, 'the step hides while Connect is off');
+  // a day later it checks again by itself
+  await DB.prepare("UPDATE billing_config SET v = ?1 WHERE k = 'connect_off_at'").bind(new Date(Date.now() - 25 * 3600e3).toISOString()).run();
+  st = (await site.call(A('/api/state'))).json();
+  assert.equal(st.stripe.available, true, 'after a day the step comes back');
+  world.fail.connectOff = false;
+  r = await site.call(A('/api/stripe'), { json: { action: 'connect' } });
+  assert.equal(r.status, 200, r.text); assert.match(r.json().url, /^https:\/\/connect\.stripe\.com\//);
+  const made = new URLSearchParams(world.stripeAccounts.at(-1));
+  assert.equal(made.get('controller[losses][payments]'), 'stripe', 'Stripe, not Always Open, carries chargebacks and negative balances');
+  assert.equal(made.get('controller[fees][payer]'), 'account');
+  assert.equal(made.get('controller[stripe_dashboard][type]'), 'full', 'the owner gets their own full Stripe dashboard');
+  assert.equal(made.get('type'), null);
+  assert.equal(made.get('metadata[ao_client]'), cid);
+  assert.equal(await get("SELECT v FROM billing_config WHERE k = 'connect_off'"), null);
+});
+
 test('a month written by HQ with a label inside its numbers still reaches the iPhone app as numbers only', async () => {
   // Lake Country Foam Party's October row looked like this; the app reads stats as numbers and threw the whole state away.
   const data = { label: 'August 2026', stats: { label: 'August 2026', reviews: 0, rating: null, count: null, replies: 0, posts: 0, calls: null, clicks: null, directions: null },

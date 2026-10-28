@@ -334,7 +334,9 @@ export async function apiStripe(req, env, c) {
   try {
     if (!row) {
       const bill = await env.DB.prepare('SELECT email FROM billing WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
-      const a = await sx(env, 'POST', 'accounts', { type: 'express', country: 'US', email: bill && bill.email ? bill.email : undefined, business_profile: { name: c.business || undefined, url: undefined }, capabilities: { card_payments: { requested: 'true' }, transfers: { requested: 'true' } }, metadata: { ao_client: c.client_id } });
+      // The client's own Stripe account, like a Standard account: they get the full Stripe Dashboard, Stripe charges them its fees directly,
+      // and Stripe (not Always Open) carries refunds, chargebacks and negative balances.
+      const a = await sx(env, 'POST', 'accounts', { controller: { fees: { payer: 'account' }, losses: { payments: 'stripe' }, stripe_dashboard: { type: 'full' } }, country: 'US', email: bill && bill.email ? bill.email : undefined, business_profile: { name: c.business || undefined, url: undefined }, capabilities: { card_payments: { requested: 'true' }, transfers: { requested: 'true' } }, metadata: { ao_client: c.client_id } });
       await env.DB.prepare("INSERT INTO biz_stripe (client_id, account, ready, checked, created) VALUES (?1,?2,0,'',?3)").bind(c.client_id, a.id, now()).run();
       row = { account: a.id };
       await env.DB.prepare("DELETE FROM billing_config WHERE k IN ('connect_off', 'connect_off_at')").run();
