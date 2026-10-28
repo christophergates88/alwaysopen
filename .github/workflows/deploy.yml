@@ -9,6 +9,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
+      - name: Check the site on phones
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+          node tools/phonecheck.mjs
       - name: Deploy worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

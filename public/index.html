@@ -7,7 +7,7 @@
 <title>Always Open</title><link rel="canonical" href="https://alwaysopenoffice.com/">
 <meta name="description" content="Always Open keeps businesses across the U.S. always open: missed calls get a text, reviews get answered, leads get followed up, and a monthly report shows what happened.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"></noscript>
 <style>
 /* Layout: dark hero with a glowing OPEN sign and a stack of live-looking notifications; a dark day-in-the-life band; four alternating product rows, each with a screen mock; sample audit, pricing, comparison, rules, FAQ, request form. */
 :root{
@@ -555,8 +555,8 @@ a.chip:hover{border-color:var(--ink)}
         <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
         <h1>Your business, <em>always</em> open.</h1>
         <p class="scene hero-scene">Bottom of the ninth. Your kid is up. A customer is calling. Max has it. Look up.</p>
-        <p class="lede">Max doesn’t just take a message. He answers real questions about your hours, your area and the prices you’ve approved, takes the job details, and tries your phone if it’s urgent. Reviews get answered. Quotes and invoices get followed up. You stay where you are, and we handle the rest.</p>
-        <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
+        <p class="lede">Max doesn’t just take a message. He answers real questions about your hours, your area and the prices you’ve approved, takes the job details, and tries your phone if it’s urgent. Reviews get answered. Quotes and invoices get followed up. You stay where you are, and we handle the rest.</p><p class="lede-ph">Max answers your calls, reviews get answered, and quotes get followed up. You approve it all from your phone.</p>
+        <div class="ctas"><a class="btn primary ph-only" href="#go-grade">Check my grade</a><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
         <p class="promise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
         <p class="fine">No setup fee · Month to month · Spanish replies included</p>
         <a class="onlylink" href="#only">Six things nobody else does for a business like yours <span aria-hidden="true">&darr;</span></a>
@@ -579,8 +579,17 @@ a.chip:hover{border-color:var(--ink)}
     </div>
   </div>
 </header>
+<!--ao:front-->
+<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">
+<div class="aos-head"><h2 id="aos-h">What nobody else does. Tap to try it.</h2><p>Swipe through. Each card plays out a call, a text or a post for a made-up plumber.</p></div>
+<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, 7 cards"><article class="aos-card" id="aos-max" aria-roledescription="slide" aria-label="1 of 7: Max answers"><div class="aos-top"><h3>Max answers</h3><span class="aos-tag e">Every plan</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b sys">Sun 11:12 PM · call to Sinclair Plumbing</div><div class="aos-b out">Thanks for calling Sinclair Plumbing. I’m Max, an automated assistant, and this call may be recorded. How can I help?</div><div class="aos-b in">My water heater just quit, and there’s water in the garage.</div><div class="aos-path" data-p="0"><div class="aos-b in">What does it cost to come out?</div><div class="aos-b out">The service call is $89, and it goes toward the repair. Sam can be there at 8 tomorrow morning. Want that time?</div><div class="aos-b in">Yes, 8 works.</div><div class="aos-note ok"><small>On Sam’s phone · new job</small><b>Marcus Hill · water heater</b><span>Tomorrow 8:00 AM · water in the garage</span></div></div><div class="aos-path" data-p="1" hidden><div class="aos-b in">Can I talk to a real person?</div><div class="aos-b out">Sure. I’m trying Sam’s cell now. If he can’t pick up, he’ll call you back first thing in the morning.</div><div class="aos-b sys">Ringing Sam · 11:12 PM</div><div class="aos-note hot"><small>On Sam’s phone · urgent</small><b>Marcus Hill · water heater</b><span>Water in the garage. Wants a person tonight.</span></div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Ask what it costs</button><button type="button" data-p="1" aria-pressed="false">Ask for a person</button></div><p class="aos-why">Max answers in your business’s name, gives the prices you’ve approved, and sends you the job. Callers hear up front that he isn’t a person. <a href="tel:+17064602226">Call the real Max</a></p></article><article class="aos-card" id="aos-handoff" aria-roledescription="slide" aria-label="2 of 7: Hand-offs between businesses"><div class="aos-top"><h3>Hand-offs between businesses</h3><span class="aos-tag p">Pro</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b in">Do y’all do electrical? My water heater keeps tripping the breaker.</div><div class="aos-b out">We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?</div><div class="aos-path" data-p="0"><div class="aos-b in">Yeah, please.</div><div class="aos-b sys">Put through to Lane Electric · 2:14 PM</div><div class="aos-note ok"><small>The next week</small><b>Lane Electric sent you a job</b><span>A water heater swap two streets over. They sent the caller to you.</span></div></div><div class="aos-path" data-p="1" hidden><div class="aos-b in">No thanks.</div><div class="aos-b out">No problem. Lane Electric is at 478-555-0177 if you change your mind.</div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Put me through</button><button type="button" data-p="1" aria-pressed="false">No thanks</button></div><p class="aos-why">A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back.</p></article><article class="aos-card" id="aos-check" aria-roledescription="slide" aria-label="3 of 7: The three-day check-in"><div class="aos-top"><h3>The three-day check-in</h3><span class="aos-tag p">Pro</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b sys">Max called Dana · Thursday 11:20 AM</div><div class="aos-b out">Hi Dana, it’s Max with Sinclair Plumbing. Quick one: did the water heater hold up? Press 1 if it did, 2 if something’s not right.</div><div class="aos-path" data-p="0"><div class="aos-b sys">Dana pressed 1</div><div class="aos-b out">Glad to hear it. Thanks, Dana.</div><div class="aos-note ok"><small>Next</small><b>Review request sent to Dana</b><span>One text, because she said yes to texts.</span></div></div><div class="aos-path" data-p="1" hidden><div class="aos-b sys">Dana pressed 2</div><div class="aos-b out">I’m sorry. I’m letting Sam know right now, and he’ll call you today.</div><div class="aos-note hot"><small>On Sam’s phone · urgent</small><b>Dana: the water heater is leaking again.</b><span>Call her before it turns into a review.</span></div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Press 1</button><button type="button" data-p="1" aria-pressed="false">Press 2</button></div><p class="aos-why">Three days after the job, Max calls: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.</p></article><article class="aos-card" id="aos-cb" aria-roledescription="slide" aria-label="4 of 7: Call-backs with a time on them"><div class="aos-top"><h3>Call-backs with a time on them</h3><span class="aos-tag p">Pro</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b in">Can the owner call me back?</div><div class="aos-b out">Sam’s under a house in Greensboro. He’ll call you at 4:15. Does that work?</div><div class="aos-path" data-p="0"><div class="aos-b in">4:15 is fine.</div><div class="aos-note ok"><small>On Sam’s phone</small><b>Call Priya at 4:15 PM</b><span>Breaker tripping · 478-555-0142</span></div></div><div class="aos-path" data-p="1" hidden><div class="aos-b in">Could it be after 6?</div><div class="aos-b out">Sure. Sam will call you at 6:15.</div><div class="aos-note ok"><small>On Sam’s phone</small><b>Call Priya at 6:15 PM</b><span>Breaker tripping · moved from 4:15</span></div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">4:15 works</button><button type="button" data-p="1" aria-pressed="false">Ask for later</button></div><p class="aos-why">No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.</p></article><article class="aos-card" id="aos-fill" aria-roledescription="slide" aria-label="5 of 7: Fill my week"><div class="aos-top"><h3>Fill my week</h3><span class="aos-tag p">Pro</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b sys">Thursday is wide open on Sam’s calendar</div><div class="aos-b out">Hi Dana, this is Sinclair Plumbing. Sam has Thursday at 9 AM open and thought of you: your water heater is due for its yearly flush. Want it? Reply YES or a better time.</div><div class="aos-path" data-p="0"><div class="aos-b in">YES</div><div class="aos-b sys">Booked · Thursday at 9 AM · on your Google calendar</div></div><div class="aos-path" data-p="1" hidden><div class="aos-b in">Could Friday afternoon work?</div><div class="aos-b out">Friday at 2 PM works. You’re booked, Dana.</div><div class="aos-b sys">Booked · Friday at 2 PM · on your Google calendar</div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Reply YES</button><button type="button" data-p="1" aria-pressed="false">Ask for another day</button></div><p class="aos-why">A day is wide open. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.</p></article><article class="aos-card" id="aos-storm" aria-roledescription="slide" aria-label="6 of 7: Storm Desk"><div class="aos-top"><h3>Storm Desk</h3><span class="aos-tag g">Growth</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b sys">Severe thunderstorm warning · Putnam County · 3:12 PM</div><div class="aos-note"><small>Post · waiting for your OK</small><b>Storm tonight in Putnam County</b><span>If a limb takes out a line or a pipe bursts, we’re answering the phone all night. Stay safe and call us any time.</span></div><div class="aos-path" data-p="0"><div class="aos-b sys">You tapped Approve · 3:13 PM</div><div class="aos-note ok"><small>Sinclair Plumbing on Google · just now</small><b>Storm tonight in Putnam County</b><span>Live where people search tonight.</span></div></div><div class="aos-path" data-p="1" hidden><div class="aos-b sys">You added one line</div><div class="aos-note"><small>Post · edited</small><b>Storm tonight in Putnam County</b><span>If a limb takes out a line or a pipe bursts, we’re answering the phone all night. Stay safe and call us any time. Sump pump questions too.</span></div><div class="aos-b sys">Posted to your Google profile · 3:15 PM</div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Approve</button><button type="button" data-p="1" aria-pressed="false">Edit first</button></div><p class="aos-why">When a weather warning hits your county, a storm-day post is drafted that minute. You approve it from wherever you are.</p></article><article class="aos-card" id="aos-ai" aria-roledescription="slide" aria-label="7 of 7: What assistants say about you"><div class="aos-top"><h3>What assistants say about you</h3><span class="aos-tag g">Growth</span></div><div class="aos-scn" aria-live="polite"><div class="aos-b sys">A customer asks an answer assistant</div><div class="aos-b in">What’s the number for Sinclair Plumbing in Eatonton?</div><div class="aos-b ai"><small>Assistant</small>478-555-0100, according to Yelp.</div><div class="aos-path" data-p="0"><div class="aos-note hot"><small>This month’s check</small><b>Wrong phone on Yelp</b><span>That’s the old number. We fixed it on Yelp.</span></div><div class="aos-b in">Who’s a good plumber in Eatonton?</div><div class="aos-b ai"><small>Assistant</small>Sinclair Plumbing, 478-555-0142. They answer around the clock.</div></div></div><div class="aos-ch" role="group" aria-label="What happens next"><button type="button" data-p="0" aria-pressed="false">Run this month’s check</button></div><p class="aos-why">Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.</p></article></div>
+<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>
+<div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p><form data-grade="" novalidate><label for="g-q">Business name</label><input id="g-q" name="q" autocomplete="organization" enterkeyhint="next" placeholder="As it shows on Google" required><label for="g-town">Town</label><input id="g-town" name="town" autocomplete="address-level2" enterkeyhint="go" placeholder="Eatonton, GA"><button class="aog-go" type="submit">Check my grade</button><div class="aog-out" aria-live="polite"></div></form></div>
+<div class="aos-also"><p>Also only here</p><details><summary>Compliance Guard</summary><p>Every word is checked before it goes out in your name, so insurance agencies and practices can use us too.</p></details><details><summary>The Always Open map</summary><p>Every Always Open business on one map, closest first. Nobody pays to be on it.</p></details><details><summary>Spanish on every plan</summary><p>Max and every reply answer in Spanish, with no add-on.</p></details></div>
+</section>
+<!--/ao:front-->
 
-<section class="try band" id="try" data-label="Call Max" aria-labelledby="try-h">
+<section class="try band" id="try" data-label="Call Max" aria-labelledby="try-h" data-fold="Our own line. Call it and test him.">
   <div class="inner try-grid">
     <div>
       <p class="eyebrow">The dare</p>
@@ -608,7 +617,7 @@ a.chip:hover{border-color:var(--ink)}
 </div></section>
 
 <main>
-<section class="day band" id="day" data-label="One ordinary day">
+<section class="day band" id="day" data-label="One ordinary day" data-fold="What happens at 2 AM, 7 AM and 4:45 PM while you work.">
   <div class="inner">
     <p class="eyebrow">One ordinary day</p>
     <h2>The work keeps moving while you’re on a roof.</h2>
@@ -624,7 +633,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="only band" id="only" data-label="Only here">
+<section class="only band" id="only" data-label="Only here" data-fold="The cards above, written out in full, plus what you can add.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Only here</p><h2>Six things nobody else does.</h2><p>Answering reviews and calls is table stakes. These are the parts we built because small businesses kept losing the same jobs the same way.</p></div>
     <div class="onlygrid">
@@ -649,7 +658,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="what">
+<section class="sec band" id="what" data-fold="Reviews, your Google profile, posts and follow-ups, in detail.">
   <div class="inner rows">
 
     <div data-label="Get found" class="row reveal">
@@ -796,7 +805,7 @@ a.chip:hover{border-color:var(--ink)}
 
 </section>
 
-<section class="sec band" id="all" data-label="Everything we handle">
+<section class="sec band" id="all" data-label="Everything we handle" data-fold="Everything that comes with every plan, in one list.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Everything we handle</p><h2>One team behind the scenes, not one more app.</h2><p>Here is everything we take off your plate, the plan that includes it, and an honest tag on anything that isn’t ready yet.</p></div>
     <details class="more allfold"><summary>Show everything</summary><div class="allgrid"><div class="allitem"><span class="tag ">Starter</span><b>Every review answered</b><p>Google and Facebook, with bad reviews flagged the same day.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Google profile kept current</b><p>Hours, holiday hours, photos and a weekly post.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Monthly report and record</b><p>One page of results, plus a record of everything we did.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Spanish replies</b><p>For every customer who writes in Spanish.</p></div><div class="allitem"><span class="tag ">Starter</span><b>Your own app</b><p>On your phone: approve replies and posts with one tap, see your month, keep your records, message us.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Review requests after every job</b><p>Every customer asked once, never only the happy ones.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Posts from your photos</b><p>Google posts with captions written for you. Facebook and Instagram coming soon.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Listings that match<span class="soon">Coming soon</span></b><p>Same details on Apple Maps, Bing, Facebook and Yelp.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Booking and quote requests</b><p>Taken any hour, sent straight to you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Competitor watch</b><p>How you stack up against the businesses near you.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Storm Desk</b><p>When a weather warning hits your county, a storm-day post is ready for you to approve.</p></div><div class="allitem"><span class="tag g">Growth</span><b>Replies in your voice</b><p>Written the way you talk. Tell us once how you sound.</p></div><div class="allitem"><span class="tag g">Growth</span><b>What assistants say about you</b><p>Each month our team asks the big answer assistants about your business, by hand, and fixes wrong hours or phone numbers.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Missed-call text-back</b><p>A text in seconds, from your own number.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Quote, invoice and appointment follow-up</b><p>Today: we remind you the day one is due, with the text written.</p></div><div class="allitem"><span class="tag p">Pro</span><b>Seasonal and past-customer reminders</b><p>Tune-ups, openings and checkups, plus referral asks.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Max, your phone assistant</b><p>Answers calls you miss and sends you the details in seconds.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Google Ads management</b><p>Set up, run and reported every month.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>A new website</b><p>A fast, simple site with a request form that reaches you.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Website chat</b><p>Visitors ask a question, and you get it by text.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Help-wanted posts</b><p>Your job openings on Google, Indeed and Facebook.</p></div><div class="allitem"><span class="tag a">Add-on</span><b>Review alerts beyond Google</b><p>Facebook, Yelp, the BBB, Angi and Nextdoor.</p></div></div></details>
@@ -804,7 +813,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band alt" id="audit" data-label="Free audit">
+<section class="sec band alt" id="audit" data-label="Free audit" data-fold="What the free audit covers, with a sample report.">
   <div class="inner audit-grid">
     <div class="copy">
       <p class="eyebrow">Start here</p>
@@ -814,7 +823,7 @@ a.chip:hover{border-color:var(--ink)}
       <form class="check" id="check" novalidate>
         <p class="check-h">Or check your business right now</p>
         <div class="check-row"><label class="sr" for="c-q">Business name</label><input id="c-q" placeholder="Business name" autocomplete="organization" required>
-        <label class="sr" for="c-town">Town</label><input id="c-town" placeholder="Town, state"></div>
+        <label class="sr" for="c-town">Town</label><input id="c-town" autocomplete="address-level2" placeholder="Town, state"></div>
         <button class="btn primary" type="submit">Check my grade</button>
         <div class="check-out" id="check-out" aria-live="polite"></div>
       </form>
@@ -849,7 +858,7 @@ a.chip:hover{border-color:var(--ink)}
       <h2>Try it for a month. If it’s not worth it, you don’t pay for it.</h2>
       <p>No contract and no setup fee. Starter is about $5 a day. Cancel from the app, and change plans any month. <a href="#worth" style="color:inherit;text-underline-offset:3px">Is it worth it? Do the math.</a></p>
     </div>
-    <div class="plans">
+    <div class="plans" data-swipe>
       <div class="plan">
         <h3>Starter</h3>
         <div class="price"><b>$149</b><span>/ month</span></div>
@@ -910,12 +919,14 @@ a.chip:hover{border-color:var(--ink)}
     </div>
     <div class="setup"><b>No setup fee</b><span>Your audit, request link, booking link and app work the first day. Once you invite us onto your Google profile, we clean it up. Included in every plan.</span></div>
 
+    <div class="ao-addons" id="addons-all" data-fold="Google Ads, a new website, more Max minutes and more.">
+    <div class="ao-addons" id="addons-all">
     <div class="addons-head" id="addons">
       <p class="eyebrow">Add to any plan</p>
       <h3 class="addons-h">Extra hands, when you want them.</h3>
       <p class="addons-sub">Add-ons are optional services on top of any plan. Each is set up for your business by our team and billed separately. Ask any time, and nothing starts, or costs anything, until we’ve confirmed a date with you.</p>
     </div>
-    <div class="addons">
+    <div class="addons" data-swipe>
       <div class="addon">
         <span class="avail">Add-on · set up on request</span>
         <h3>More Max minutes</h3>
@@ -990,12 +1001,14 @@ a.chip:hover{border-color:var(--ink)}
       </div>
     </div>
     <p class="fine" style="margin-top:14px;color:var(--slate)">Add-ons are set up per business. We confirm a start date with you first, and you pay nothing until they’re running.</p>
+    </div>
+    </div>
 
     <div class="guarantee"><b>30 days, no risk.</b><p>If the first month isn't worth it, tell us and we refund it. No forms, no argument. And there’s no setup fee.</p></div>
   </div>
 </section>
 
-<section class="sec band alt" id="worth" data-label="Is it worth it?">
+<section class="sec band alt" id="worth" data-label="Is it worth it?" data-fold="Put in what one job is worth and see what covers a month.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Is it worth it?</p><h2>One new customer can cover the whole month.</h2><p>Fair question. Here's the honest math, with your own numbers.</p></div>
     <div class="worth-grid">
@@ -1032,7 +1045,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="compare" data-label="Compared">
+<section class="sec band" id="compare" data-label="Compared" data-fold="How we differ from software you have to run yourself.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Compared</p><h2>Software you run, or a team that runs it.</h2></div>
     <div class="tablewrap">
@@ -1050,7 +1063,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="rules" data-label="How we work">
+<section class="sec band" id="rules" data-label="How we work" data-fold="No fake reviews, every customer asked, you approve what matters.">
   <div class="inner">
     <div class="head"><p class="eyebrow">How we work</p><h2>Three rules we don't bend.</h2></div>
     <div class="rules">
@@ -1061,7 +1074,7 @@ a.chip:hover{border-color:var(--ink)}
   </div>
 </section>
 
-<section class="sec band" id="regulated" data-label="Regulated businesses">
+<section class="sec band" id="regulated" data-label="Regulated businesses" data-fold="How insurance agencies and practices use us safely.">
   <div class="inner">
     <div class="regbox">
       <div class="head">
@@ -1104,7 +1117,7 @@ a.chip:hover{border-color:var(--ink)}
 </section>
 
 
-<section class="sec band alt" id="faq" data-label="Questions">
+<section class="sec band alt" id="faq" data-label="Questions" data-fold="Contracts, cancelling, who you’re dealing with, and more.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Questions</p><h2>Things owners ask first.</h2></div>
     <div class="faq">
@@ -1138,12 +1151,12 @@ a.chip:hover{border-color:var(--ink)}
       <form class="lead" id="lead" novalidate>
         <div class="row2">
           <label for="f-name">Your name<input id="f-name" name="name" autocomplete="name" required></label>
-          <label for="f-phone">Phone<input id="f-phone" name="phone" type="tel" autocomplete="tel"></label>
+          <label for="f-phone">Phone<input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></label>
         </div>
         <label for="f-email">Email<input id="f-email" name="email" type="email" autocomplete="email" required></label>
         <div class="row2">
           <label for="f-biz">Business name<input id="f-biz" name="business" autocomplete="organization"></label>
-          <label for="f-town">Town<input id="f-town" name="town" placeholder="Eatonton, GA"></label>
+          <label for="f-town">Town<input id="f-town" name="town" autocomplete="address-level2" placeholder="Eatonton, GA"></label>
         </div>
         <div class="row2">
           <label for="f-type">What kind of business?<select id="f-type" name="type"><option>Contractor or trade</option><option>Dock, marine or outdoor</option><option>Salon, spa or fitness</option><option>Restaurant or shop</option><option>Medical, dental or vet</option><option>Insurance agency</option><option>Real estate or rentals</option><option>Other</option></select></label>
@@ -1220,7 +1233,7 @@ a.chip:hover{border-color:var(--ink)}
     f.setAttribute('aria-hidden', off ? 'true' : 'false');
     f.tabIndex = off ? -1 : 0;
   }, { threshold: 0.05 });
-  ['header.hero', '#try', '#contact', 'footer'].forEach(function (q) { var el = document.querySelector(q); if (el) io.observe(el); });
+  ['header.hero', '#go', '#try', '#contact', 'footer'].forEach(function (q) { var el = document.querySelector(q); if (el) io.observe(el); });
 })();
 </script>
 
@@ -1390,5 +1403,274 @@ a.chip:hover{border-color:var(--ink)}
   document.getElementById('check-go').addEventListener('click',function(){var bz=document.getElementById('f-biz'),tw=document.getElementById('f-town');if(bz&&!bz.value)bz.value=d.name;if(tw&&!tw.value)tw.value=town;});
   }).catch(function(){b.disabled=false;out.innerHTML='<p class="muted">No connection. Try again, or request the full audit below.</p>'})})})();
 </script>
+<!--ao:kit-->
+<style id="ao-phone">
+.aos,.ao-foldbar,.ao-dots,.lede-ph,.ph-only{display:none}
+@media (max-width:760px){
+/* hero: the headline, one line, two buttons */
+.hero .stack,.hero .desk,.hero .hero-scene,.hero .lede,.hero .fine,.hero .onlylink,.hero .promise,.hero .day,.hero .everyone,.hero-grid>.day{display:none!important}
+.hero .lede-ph{display:block;font-size:1.08rem;line-height:1.5;color:var(--night-mute);margin-top:16px;max-width:32em}
+.hero-grid{padding-block:6px 30px!important;gap:0!important}
+.hero .neon{margin-bottom:16px}
+.hero .ctas{margin-top:22px!important}
+.hero .ctas>a:not(.ph-only):not([href^="tel:"]){display:none!important}
+.hero .ctas>.ph-only{display:inline-flex;width:100%}
+.indlinks,#industries .sub{display:none}
+#industries h2{margin-bottom:16px}
+/* the playable cards */
+.aos{display:block;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);padding-top:6px;padding-bottom:40px;border-top:1px solid rgba(255,106,94,.28)}
+.aos-head{padding-top:26px}
+.aos-head h2{font-size:1.65rem;line-height:1.08;color:#ECEEF3}
+.aos-head p{margin-top:8px;color:#A3ACBF;font-size:15px}
+.aos-rail{display:grid;grid-auto-flow:column;grid-auto-columns:88%;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;margin:16px calc(-1*max(16px,env(safe-area-inset-left,0px))) 0;padding:2px max(16px,env(safe-area-inset-left,0px)) 4px;scroll-padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.aos-rail::-webkit-scrollbar{display:none}
+.aos-rail:focus-visible{outline:3px solid #FF6A5E;outline-offset:2px}
+.aos-card{scroll-snap-align:start;display:flex;flex-direction:column;gap:10px;background:#171C27;border:1px solid #262E40;border-radius:18px;padding:14px;min-width:0}
+.aos-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.aos-top h3{font-size:1.08rem;color:#ECEEF3}
+.aos-tag{flex:none;font:600 14px var(--body);padding:3px 9px;border-radius:999px;border:1px solid #3A4357;color:#C9D0DC}
+.aos-tag.p{border-color:rgba(255,106,94,.6);color:#FF8C82}
+.aos-tag.g{border-color:rgba(92,201,164,.55);color:#7FD8B9}
+.aos-scn{display:flex;flex-direction:column;justify-content:flex-end;gap:7px;background:#0B0F16;border:1px solid #1F2636;border-radius:14px;padding:12px 10px;min-height:250px}
+.js .aos-scn{height:256px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;justify-content:flex-start;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
+.aos-scn::-webkit-scrollbar{display:none}
+.aos-scn>:first-child{margin-top:auto}
+.aos-path{display:flex;flex-direction:column;gap:7px}
+.aos-live .aos-path{display:none}
+.aos-live .aos-path.on{display:flex}
+.aos-wait{display:none!important}
+.aos-b{max-width:86%;font-size:15px;line-height:1.38;padding:8px 12px;border-radius:16px}
+.aos-b.in{align-self:flex-start;background:#252C3D;color:#ECEEF3;border-bottom-left-radius:5px}
+.aos-b.out{align-self:flex-end;background:#3A1F22;color:#FFE5E1;border:1px solid rgba(255,106,94,.4);border-bottom-right-radius:5px}
+.aos-b.ai{align-self:flex-end;background:#1D2B40;color:#DCE8FA;border:1px solid #2F4566;border-bottom-right-radius:5px}
+.aos-b.draft{align-self:stretch;max-width:none;background:#1A2130;color:#ECEEF3;border:1px dashed #3A4357}
+.aos-b small{display:block;font:500 12px var(--mono);letter-spacing:.06em;color:#9AA6BC;margin-bottom:2px}
+.aos-b.sys{align-self:center;max-width:none;padding:2px 6px;font:500 13px var(--mono);letter-spacing:.02em;color:#9AA6BC;text-align:center}
+.aos-note{align-self:stretch;background:#F7F6F2;color:#171B26;border-radius:13px;padding:9px 12px;display:grid;gap:1px;box-shadow:0 6px 18px -10px rgba(0,0,0,.8)}
+.aos-note small{font:600 12.5px var(--body);color:#5B6475}
+.aos-note b{font-size:15px;line-height:1.3}
+.aos-note span{font-size:15px;line-height:1.35;color:#3B4252}
+.aos-note.hot{box-shadow:inset 4px 0 0 #D92D20,0 6px 18px -10px rgba(0,0,0,.8)}
+.aos-note.hot small{color:#B42318}
+.aos-note.ok{box-shadow:inset 4px 0 0 #1C6B54,0 6px 18px -10px rgba(0,0,0,.8)}
+.aos-ch{display:none;gap:8px}
+.js .aos-ch{display:flex}
+.aos-ch button{flex:1;min-height:46px;padding:8px 10px;border-radius:999px;border:1.5px solid rgba(255,106,94,.75);background:transparent;color:#ECEEF3;font:600 15px var(--body);cursor:pointer;line-height:1.15}
+.aos-ch button[aria-pressed="true"]{background:#FF6A5E;border-color:#FF6A5E;color:#1A0605}
+.aos-ch button:focus-visible{outline:3px solid #ECEEF3;outline-offset:2px}
+.aos-why{font-size:15px;line-height:1.45;color:#A3ACBF}
+.aos-why a{color:#FF8C82;font-weight:700;white-space:nowrap;text-underline-offset:3px}
+@media (prefers-reduced-motion:no-preference){.aos-live .aos-path.on>*{animation:aosIn .3s ease-out both}@keyframes aosIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
+.ao-dots{display:flex;justify-content:center;gap:0;margin-top:6px}
+.ao-dots button{width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;display:grid;place-items:center}
+.ao-dots button::after{content:"";width:8px;height:8px;border-radius:99px;background:var(--dot,#4A5368);transition:width .2s}
+.ao-dots button[aria-current="true"]::after{width:20px;background:var(--dot-on,#FF6A5E)}
+.aos .ao-dots{--dot:#4A5368;--dot-on:#FF6A5E}
+.aos .aos-also{margin-top:24px;border-top:1px solid #262E40}
+.aos-also>p{font:500 13px var(--mono);letter-spacing:.08em;color:#9AA6BC;padding:14px 0 4px}
+.aos .aos-also details{background:none;border:0;border-bottom:1px solid #262E40;border-radius:0;box-shadow:none;padding:0;margin:0}
+.aos .aos-also summary{min-height:48px;display:flex;align-items:center;padding:0;font:600 16px var(--body);cursor:pointer;list-style:none;color:#ECEEF3;background:none}
+.aos .aos-also summary::-webkit-details-marker{display:none}
+.aos .aos-also summary::after{content:"+";margin-left:auto;font:400 22px var(--body);color:#FF8C82}
+.aos .aos-also details[open] summary::after{content:"–"}
+.aos .aos-also details p{padding:0 0 14px;margin:0;color:#A3ACBF;font-size:15px}
+.aos-sample{margin-top:10px;font-size:15px;color:#8892A6}
+/* the instant grade */
+.aog{margin-top:30px;padding:20px 16px;border-radius:18px;background:#171C27;border:1px solid rgba(255,106,94,.45);box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px -8px rgba(255,90,77,.45)}
+.aog h3{font-size:1.4rem;line-height:1.1;color:#ECEEF3}
+.aog>p{margin-top:6px;color:#A3ACBF;font-size:15px}
+.aog form{display:grid;gap:6px;margin-top:14px}
+.aog label{font-weight:600;font-size:15px;color:#C9D0DC;margin-top:4px}
+.aog input{font:16px var(--body);min-height:50px;padding:10px 14px;border-radius:12px;border:1.5px solid #3A4357;background:#0B0F16;color:#ECEEF3;width:100%}
+.aog input::placeholder{color:#6F7A90}
+.aog input:focus-visible{outline:3px solid #FF6A5E;outline-offset:1px}
+.aog-go{margin-top:10px;min-height:52px;border:0;border-radius:12px;background:#FF5A4D;color:#1A0605;font:700 17px var(--body);cursor:pointer}
+.aog-go:disabled{opacity:.7}
+.aog-out:empty{display:none}
+.aog-out{margin-top:12px;display:grid;gap:10px;color:#ECEEF3;font-size:15px}
+.aog-msg{color:#A3ACBF}
+.aog-res{display:flex;gap:14px;align-items:center}
+.aog-gl{flex:none;width:68px;height:68px;border-radius:14px;display:grid;place-items:center;font:850 2.4rem/1 var(--display);background:#252C3D}
+.aog-gl.A,.aog-gl.B{background:#173229;color:#7FD8B9}.aog-gl.C{background:#3A2E12;color:#F2C46B}.aog-gl.D,.aog-gl.F{background:#3A1F22;color:#FF8C82}
+.aog-res div b{display:block;font-size:16px}.aog-res div span{display:block;color:#A3ACBF;font-size:15px}
+.aog-areas{display:flex;flex-wrap:wrap;gap:6px}
+.aog-areas span{padding:5px 10px;border-radius:999px;background:#252C3D;font-size:15px}
+.aog-areas i{font-style:normal;font-weight:800;margin-right:5px}
+.aog-find{padding-left:12px;border-left:3px solid #FF6A5E;color:#C9D0DC}
+.aog-find strong{color:#ECEEF3}
+.aog-full{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:12px;background:#FF5A4D;color:#1A0605;font-weight:700;text-decoration:none}
+/* folded sections: a heading and one line, opened with a tap */
+.js [data-fold]:not(.ao-open){padding-top:0!important;padding-bottom:0!important;border:0!important;background:var(--paper)!important;color:var(--ink)!important;box-shadow:none!important}
+.js [data-fold]:not(.ao-open)>:not(.ao-foldbar){display:none!important}
+.js [data-fold]+[data-fold]:not(.ao-open)>.ao-foldbar{border-top-color:var(--line)}
+.ao-foldbar{display:flex;align-items:center;gap:14px;width:100%;min-height:72px;padding:16px 0;margin:0;border:0;border-top:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.ao-open>.ao-foldbar{position:sticky;top:0;z-index:41;margin-bottom:18px;border-bottom:1px solid var(--line);box-shadow:0 8px 16px -14px rgba(0,0,0,.5);color:var(--ink);background:var(--paper)}
+.ao-foldbar .ao-ft{display:block;font:750 1.1rem/1.2 var(--display);font-stretch:92%}
+.ao-foldbar .ao-fs{display:block;margin-top:3px;font-size:15px;line-height:1.4;color:var(--slate)}
+.ao-foldbar svg{flex:none;margin-left:auto;width:22px;height:22px;color:var(--sign);transition:transform .2s}
+.ao-open>.ao-foldbar svg{transform:rotate(180deg)}
+.ao-foldbar:focus-visible{outline:3px solid var(--sign);outline-offset:-3px}
+/* plans and add-ons swipe sideways */
+[data-swipe]:not(.aos-rail){display:grid!important;grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:88%;gap:12px!important;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:6px max(16px,env(safe-area-inset-left,0px)) 6px;scroll-padding-inline:max(16px,env(safe-area-inset-left,0px));align-items:start;padding-top:16px!important}
+[data-swipe]:not(.aos-rail)::-webkit-scrollbar{display:none}
+[data-swipe]:not(.aos-rail)>*{scroll-snap-align:start;transform:none!important;margin:0!important;min-width:0}
+/* forms that behave on a phone */
+input,select,textarea{font-size:16px!important}
+.lead button[type=submit]{position:sticky;bottom:12px;width:100%;min-height:52px;z-index:5}
+.ao-typing .call-float{opacity:0!important;pointer-events:none!important}
+/* tap targets and type */
+.wordmark,.btn{min-height:44px}
+footer a,.legal a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px}
+footer span,footer a,footer .entity{font-size:15px}
+.lead label,.optin span,.optin a,.perday,.plan-note,.indtile span,.fineprint{font-size:15px}
+.optin input{width:24px;height:24px}
+.soon,.indtile em{font-size:12px}
+.plan-note{font-size:15px!important}
+.guarantee{display:block!important}.guarantee>*+*{margin-top:6px}
+.lead button[type=submit]{box-shadow:0 10px 24px -10px rgba(0,0,0,.55)}
+}
+</style>
+<script>(function () {
+  var d = document, root = d.documentElement;
+  root.classList.add('js');
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Folded sections: the heading and one line, opened with a tap. Links into a folded section open it first.
+  function bar(s) { return s.querySelector(':scope > .ao-foldbar'); }
+  function setFold(s, open) {
+    s.classList.toggle('ao-open', open);
+    var b = bar(s); if (b) { b.setAttribute('aria-expanded', String(open)); b.querySelector('.ao-fh').textContent = open ? 'Close' : 'Open'; }
+    if (!open && b && b.getBoundingClientRect().top < 0) b.scrollIntoView({ block: 'start' });
+  }
+  d.querySelectorAll('[data-fold]').forEach(function (s, i) {
+    if (bar(s)) return;
+    if (!s.id) s.id = 'ao-f' + i;
+    var h = s.querySelector('h2') || s.querySelector('h3');
+    var b = d.createElement('button');
+    b.type = 'button'; b.className = 'ao-foldbar'; b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', s.id);
+    var w = d.createElement('span'), t = d.createElement('span'), m = d.createElement('span'), hid = d.createElement('span');
+    t.className = 'ao-ft'; t.textContent = s.getAttribute('data-fold-title') || (h ? h.textContent : 'More');
+    m.className = 'ao-fs'; m.textContent = s.getAttribute('data-fold');
+    hid.className = 'ao-fh'; hid.hidden = true; hid.textContent = 'Open';
+    w.appendChild(t); w.appendChild(m); b.appendChild(w); b.appendChild(hid);
+    b.insertAdjacentHTML('beforeend', CHEV);
+    b.addEventListener('click', function () { setFold(s, !s.classList.contains('ao-open')); });
+    s.insertBefore(b, s.firstChild);
+  });
+  function openFor(id) {
+    var el = id && d.getElementById(id); if (!el) return null;
+    var f = el.closest('[data-fold]'); if (f && !f.classList.contains('ao-open')) setFold(f, true);
+    return el;
+  }
+  d.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href*="#"]'); if (!a) return;
+    var u; try { u = new URL(a.href, location.href); } catch (x) { return; }
+    if (u.pathname.replace(/index\.html$/, '') !== location.pathname.replace(/index\.html$/, '')) return;
+    openFor(decodeURIComponent(u.hash.slice(1)));
+  }, true);
+  window.addEventListener('hashchange', function () { var el = openFor(decodeURIComponent(location.hash.slice(1))); if (el) el.scrollIntoView(); });
+  if (location.hash) { var first = openFor(decodeURIComponent(location.hash.slice(1))); if (first) setTimeout(function () { first.scrollIntoView(); }, 0); }
+
+  // Rows that swipe sideways get dots under them.
+  d.querySelectorAll('[data-swipe]').forEach(function (rail) {
+    var kids = [].slice.call(rail.children); if (kids.length < 2) return;
+    var nav = d.createElement('div'); nav.className = 'ao-dots';
+    var dots = kids.map(function (k, i) {
+      var b = d.createElement('button'); b.type = 'button';
+      var name = k.getAttribute('aria-label') || ((k.querySelector('h3') || {}).textContent || '');
+      b.setAttribute('aria-label', 'Show ' + (i + 1) + ' of ' + kids.length + (name ? ': ' + name.replace(/^\d+ of \d+: /, '') : ''));
+      b.addEventListener('click', function () { rail.scrollTo({ left: k.offsetLeft - kids[0].offsetLeft, behavior: reduce ? 'auto' : 'smooth' }); });
+      nav.appendChild(b); return b;
+    });
+    rail.parentNode.insertBefore(nav, rail.nextSibling);
+    var cur = -1;
+    function mark() {
+      var x = rail.scrollLeft, best = 0, bd = 1e9;
+      kids.forEach(function (k, i) { var dd = Math.abs(k.offsetLeft - kids[0].offsetLeft - x); if (dd < bd) { bd = dd; best = i; } });
+      if (best === cur) return; cur = best;
+      dots.forEach(function (b, i) { b.setAttribute('aria-current', String(i === best)); });
+    }
+    var raf = 0; rail.addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; mark(); }); }, { passive: true });
+    mark();
+  });
+
+  // The playable cards: tap a choice and the scene plays out.
+  d.querySelectorAll('.aos-card').forEach(function (c) {
+    var scn = c.querySelector('.aos-scn'), paths = [].slice.call(c.querySelectorAll('.aos-path')), btns = [].slice.call(c.querySelectorAll('.aos-ch button')), timers = [];
+    var down = function () { scn.scrollTo({ top: scn.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }); };
+    c.classList.add('aos-live');
+    requestAnimationFrame(function () { scn.scrollTop = scn.scrollHeight; });
+    paths.forEach(function (p) { p.hidden = false; });
+    btns.forEach(function (b) { b.setAttribute('data-label', b.textContent); });
+    btns.forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        timers.forEach(clearTimeout); timers = [];
+        paths.forEach(function (p, j) { p.classList.toggle('on', j === i); [].forEach.call(p.children, function (x) { x.classList.add('aos-wait'); }); });
+        btns.forEach(function (x, j) { x.setAttribute('aria-pressed', String(j === i)); x.textContent = x.getAttribute('data-label'); });
+        [].forEach.call(paths[i].children, function (x, n) {
+          if (reduce || n === 0) { x.classList.remove('aos-wait'); down(); }
+          else timers.push(setTimeout(function () { x.classList.remove('aos-wait'); down(); }, n * 700));
+        });
+        if (btns.length === 1) timers.push(setTimeout(function () { b.textContent = 'Play it again'; }, reduce ? 0 : paths[i].children.length * 700));
+      });
+    });
+  });
+
+  // The floating "Call Max" button steps aside while someone types.
+  d.addEventListener('focusin', function (e) { if (e.target.matches && e.target.matches('input,textarea,select')) root.classList.add('ao-typing'); });
+  d.addEventListener('focusout', function () { root.classList.remove('ao-typing'); });
+
+  // The instant grade, right where it was asked.
+  function esc(x) { return String(x == null ? '' : x).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
+  d.querySelectorAll('form[data-grade]').forEach(function (f) {
+    var out = f.querySelector('.aog-out'), go = f.querySelector('button[type=submit]'), from = f.getAttribute('data-grade') || '';
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = f.q.value.trim(), town = f.town.value.trim();
+      if (q.length < 2) { out.innerHTML = '<p class="aog-msg">Type your business name first.</p>'; f.q.focus(); return; }
+      var label = go.textContent; go.disabled = true; go.textContent = 'Checking…';
+      out.innerHTML = '<p class="aog-msg">Checking Google and your website. This takes a few seconds.</p>';
+      var done = function () { go.disabled = false; go.textContent = label; };
+      fetch('/audit/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: q, town: town, from: from }) })
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          done();
+          if (!r.ok) { out.innerHTML = '<p class="aog-msg">' + esc(r.error || 'The checker is not available right now.') + '</p>'; return; }
+          if (!r.found) { out.innerHTML = '<p class="aog-msg">We could not find that listing. Try the name as it shows on Google, with the town.</p>'; return; }
+          var onHome = !!d.getElementById('lead');
+          var full = onHome ? '#contact' : '/?' + (from ? 'from=' + encodeURIComponent(from) + '&' : '') + 'biz=' + encodeURIComponent(r.name || q) + '&town=' + encodeURIComponent(town) + '#contact';
+          out.innerHTML = '<div class="aog-res"><b class="aog-gl ' + esc(r.grade) + '">' + esc(r.grade) + '</b><div><b>' + esc(r.name) + '</b><span>' + esc(r.address) + '</span><span>Score ' + esc(r.score) + ' out of 100</span></div></div>' +
+            (r.areas && r.areas.length ? '<div class="aog-areas">' + r.areas.map(function (a) { return '<span><i>' + esc(a.grade) + '</i>' + esc(a.label) + '</span>'; }).join('') + '</div>' : '') +
+            (r.top && r.top.length ? r.top.map(function (t) { return '<p class="aog-find"><strong>' + esc(t.title) + '.</strong> ' + esc(t.saw) + '</p>'; }).join('') : '<p>Nothing major. You’re in good shape.</p>') +
+            (r.more ? '<p class="aog-msg">Plus ' + esc(r.more) + ' more in the full audit, with how you compare to your top competitors.</p>' : '') +
+            '<a class="aog-full" href="' + full + '">Get the full audit, free</a>';
+          var a = out.querySelector('.aog-full');
+          if (onHome) a.addEventListener('click', function () { var bz = d.getElementById('f-biz'), tw = d.getElementById('f-town'); if (bz && !bz.value) bz.value = r.name || q; if (tw && !tw.value) tw.value = town; });
+        }, function () { done(); out.innerHTML = '<p class="aog-msg">No connection. Try again, or ask for the full audit.</p>'; });
+    });
+  });
+
+  // Arriving from an industry page: the request form knows the kind of business and what was already typed.
+  var lead = d.getElementById('lead');
+  if (lead) {
+    var qs = {}; location.search.replace(/^\?/, '').split('&').forEach(function (kv) { var i = kv.indexOf('='); if (i > 0) { try { qs[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); } catch (x) {} } });
+    var TYPES = {"plumbing":"Contractor or trade","hvac":"Contractor or trade","builders":"Contractor or trade","auto-repair":"Contractor or trade","marine":"Dock, marine or outdoor","salons":"Salon, spa or fitness","restaurants":"Restaurant or shop","dental":"Medical, dental or vet","insurance":"Insurance agency"};
+    var from = /^[a-z-]{3,20}$/.test(qs.from || '') && TYPES[qs.from] ? qs.from : '';
+    try { if (from) sessionStorage.setItem('ao_from', from); else from = sessionStorage.getItem('ao_from') || ''; } catch (x) {}
+    var put = function (id, v) { var el = d.getElementById(id); if (el && v && !el.value) el.value = String(v).slice(0, 120); };
+    put('f-biz', qs.biz); put('f-town', qs.town);
+    var sel = d.getElementById('f-type');
+    if (sel && from && TYPES[from]) for (var i = 0; i < sel.options.length; i++) if (sel.options[i].text === TYPES[from]) { sel.selectedIndex = i; break; }
+    if (from) d.addEventListener('submit', function (e) {
+      if (e.target !== lead) return;
+      var nt = d.getElementById('f-note'); if (!nt) return;
+      var tag = 'Came from the ' + from + ' page.';
+      if (nt.value.indexOf(tag) < 0) nt.value = (nt.value ? nt.value + '\n' : '') + tag;
+    }, true);
+  }
+})();
+</script>
+<!--/ao:kit-->
 </body>
 </html>
