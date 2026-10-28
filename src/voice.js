@@ -121,7 +121,8 @@ async function incoming(env, f) {
   const t = await callToken(env, sid);
   const hints = hintsFor(line);
   const vv = voiceFor(line);
-  return twiml('<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
+  const audio = (parse(line.facts) || {}).greetAudio;
+  return twiml((audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
     (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greeting(line)) + '" welcomeGreetingInterruptible="none" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
     // English-only lines use Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
     // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over.
@@ -931,6 +932,8 @@ async function diag(env) {
 // Kept short on purpose: a long scripted greeting is what makes a phone line sound like a robot.
 function greeting(line) {
   const f = (line && parse(line.facts)) || {};
+  // After the owner's own recorded greeting, Max says only the disclosure and the question.
+  if (f.greetAudio) return 'I\'m an S.I. assistant, and this call may be recorded.' + (+(line && line.spanish) ? ' Para español, oprima dos.' : '') + ' What can I do for you?';
   return greetingText((line && line.business) || 'our office', !!(line && +line.spanish), f.greeting);
 }
 // A line with its own greeting may add a second, lighter line right after the disclosure ("Yep, I said that part fast...").
@@ -976,7 +979,7 @@ export function lineView(line) {
     urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
     greeting: oneLine(String(f.greeting || '')).slice(0, 320), greeting2: greetingOk(f.greeting) ? moreText(f.greeting2) : '', name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30), goal: pick('goal'),
     aiJoke: moreText(f.aiJoke), owner: oneLine(String(f.owner || '')).replace(/[\[\]<>{}]/g, '').slice(0, 800),
-    role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80)
+    role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80), recorded: !!f.greetAudio
   };
 }
 
@@ -995,7 +998,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     : 'You cannot connect calls to anyone. If they ask for a person, say the team will call them back.';
   return [
     'You are ' + (L.name ? L.name + ', ' : '') + (L.role || 'the phone receptionist') + ' for ' + L.business + (L.town ? ', a local business in ' + L.town : '') + '.' + (L.goal ? '' : ' You answer when the team cannot get to the phone.') + (L.name ? ' ' + L.name + ' is the name you go by.' : ''),
-    'The caller has already heard: "' + greetingText(L.business, L.spanish, L.greeting) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + (L.heardQuiet ? ' ' + L.heardQuiet : '') + '" Do not repeat the greeting or the recording notice.',
+    'The caller has already heard: "' + (L.recorded ? '(the owner\'s own recorded greeting) I\'m an S.I. assistant, and this call may be recorded. What can I do for you?' : greetingText(L.business, L.spanish, L.greeting)) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + (L.heardQuiet ? ' ' + L.heardQuiet : '') + '" Do not repeat the greeting or the recording notice.',
     L.pitch ? 'If they sound annoyed or doubtful about talking to AI, own it lightly and keep going, in your own words, along the lines of: "' + L.pitch + '"' : '',
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
@@ -1534,16 +1537,18 @@ async function lineFor(env, number) {
 // (speed 0.7 to 1.2, the others 0 to 1), or "google:<voice name>" such as google:en-US-Journey-O.
 // Anything else is ignored and Twilio's default voice is used.
 const STEADY_VOICE = '1.0_0.6_0.8';   // speed_stability_similarity
+// No voice set on the line: Max's usual voice, with the steady settings below (not ElevenLabs' swingier defaults).
+const DEFAULT_VOICE_ID = 'UgBBYS2sOqTuMpoF3BR0';
 export function voiceFor(line) {
   const v = String((parse(line && line.facts) || {}).voice || '').trim();
   const g = v.match(/^google:([a-z]{2}-[A-Z]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,3})$/);
   if (g) return { provider: 'Google', voice: g[1] };
-  const m = v.match(/^([A-Za-z0-9]{20})(?:-(flash_v2_5|flash_v2|turbo_v2_5|turbo_v2))?(?:-(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?))?$/);
+  const m = (v || DEFAULT_VOICE_ID).match(/^([A-Za-z0-9]{20})(?:-(flash_v2_5|flash_v2|turbo_v2_5|turbo_v2))?(?:-(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?))?$/);
   if (!m) return '';
   if (m[3] != null) {
     const sp = +m[3], st = +m[4], si = +m[5];
     if (!(sp >= 0.7 && sp <= 1.2 && st >= 0 && st <= 1 && si >= 0 && si <= 1)) return '';
-    return { provider: 'ElevenLabs', voice: v };
+    return { provider: 'ElevenLabs', voice: v || m[0] };
   }
   // No settings on the line: ElevenLabs' own default stability (0.5) lets the pitch and mood swing from one sentence to the
   // next, which callers hear as fake; 0.85 flattened it into a monotone that sounded robotic. 0.6 keeps one voice for the

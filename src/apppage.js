@@ -645,6 +645,7 @@ function vMax(){
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     h+=teachCard(L);
+    if(L.voices)h+=voiceCard(L);
     if(L.booking)h+=bookCard(L);
     if(S.after)h+=afterCard(L);
   } else h+='<p class="lede">Calls your phone line answered.</p>';
@@ -675,6 +676,20 @@ function afterCard(L){
     sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.')+
     sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.')+
     (A.canText?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>';
+}
+function voiceCard(L){
+  return '<h2>Voice and greeting</h2><div class="card form">'+
+    '<label>Name<input type="text" id="vc-name" maxlength="30" value="'+esc(L.name)+'" placeholder="Max"></label>'+
+    '<label>Voice<select id="vc-voice">'+L.voices.map(function(v){return '<option value="'+esc(v.key)+'"'+sel(L.voice,v.key)+'>'+esc(v.label)+'</option>';}).join('')+'</select></label>'+
+    '<div class="acts"><button class="btn red" type="button" data-a="vc-save">Save</button><a class="btn line sm" href="tel:'+esc(L.number)+'">Call to hear it</a></div>'+
+    '<p class="fine" style="margin-top:12px"><b>Your own greeting.</b> Record up to 15 seconds in your own voice (WAV or MP3). Callers hear it first, then '+esc(L.name)+' says he is an automated assistant and the call may be recorded.</p>'+
+    (L.greetingAudio?'<audio controls src="'+esc(L.greetingAudio)+'" style="width:100%"></audio><div class="acts"><button class="btn ghost sm" type="button" data-a="vc-rm">Remove my recording</button></div>':'<label>Recording<input type="file" id="vc-file" accept="audio/wav,audio/x-wav,audio/mpeg,.wav,.mp3"></label><div class="acts"><button class="btn line sm" type="button" data-a="vc-up">Upload</button></div>')+
+    '</div>';
+}
+function voiceUpload(){
+  var f=$('#vc-file');f=f&&f.files&&f.files[0];if(!f){toast('Pick a WAV or MP3 file first.');return;}
+  var type=/\.mp3$/i.test(f.name)?'audio/mpeg':(/\.wav$/i.test(f.name)?'audio/wav':f.type);
+  api('greeting-audio',{method:'POST',headers:{'content-type':type},body:f}).then(function(res){if(res.j.ok){S.line=res.j.line;render();toast('Saved. Callers hear it on the next call.');}else toast(res.j.error||'Could not upload.');}).catch(function(){toast('No connection. Try again.');});
 }
 function bookSave(){
   var days={},on=function(id){var c=$('#bk-'+id+'-on');return c&&c.checked;},span=function(id){return [mins($('#bk-'+id+'-o').value),mins($('#bk-'+id+'-c').value)];};
@@ -922,6 +937,9 @@ document.addEventListener('click',function(e){
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
   else if(a==='facts-save')factsSave();
   else if(a==='bk-save')bookSave();
+  else if(a==='vc-save')lineSave({voice:$('#vc-voice').value,name:$('#vc-name').value});
+  else if(a==='vc-up')voiceUpload();
+  else if(a==='vc-rm')lineSave({action:'remove-greeting-audio'});
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});

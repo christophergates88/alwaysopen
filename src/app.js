@@ -32,6 +32,7 @@ import { lineStatus } from './provision.js';
 import { FACT_KEYS, cleanFacts, knowOut, startInterview, applyPending } from './interview.js';
 import { dialOut } from './callbacks.js';
 import { bookingOut, cleanBooking } from './availability.js';
+import { VOICES, voiceKeyOf, voicesOut, cleanName } from './voices.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -196,6 +197,8 @@ export async function handleApp(req, env, ctx, url) {
       return await apiMessage(req, env, ctx, c);
     } else if (sub === '/api/job' && meth === 'POST') {
       return await apiJob(req, env, ctx, c);
+    } else if (sub === '/api/greeting-audio' && meth === 'POST') {
+      return await apiGreetingAudio(req, env, c);
     } else if (sub === '/api/photo' && meth === 'POST') {
       return await apiPhoto(req, env, ctx, c, url);
     } else if (sub === '/api/device' && meth === 'POST') {
@@ -481,6 +484,10 @@ export function withOwner(row) {
   if (typeof o.owner === 'string') f.owner = o.owner;
   // What the owner told Max (typed on the Max tab, or approved after Max's interview call) wins over HQ's facts.
   if (o.facts && typeof o.facts === 'object') for (const k of FACT_KEYS) if (typeof o.facts[k] === 'string') f[k] = o.facts[k];
+  // The owner's pick of voice and name for the assistant, and their own recorded greeting.
+  if (o.voice && VOICES[o.voice] && voiceKeyOf(f.voice) !== o.voice) f.voice = VOICES[o.voice].id;   // same voice as HQ set: keep HQ's tuning
+  if (typeof o.name === 'string' && o.name) f.name = o.name;
+  if (typeof o.greetAudio === 'string' && /^[A-Za-z0-9]{32}$/.test(o.greetAudio)) f.greetAudio = o.greetAudio; else delete f.greetAudio;
   const out = Object.assign({}, row, { facts: JSON.stringify(f) });
   // Spanish: the owner can switch it on or off from the app (spanish_owner wins over HQ's setting).
   if (typeof o.spanish === 'boolean') out.spanish = o.spanish ? 1 : 0;
@@ -514,7 +521,8 @@ function lineOut(raw, c) {
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop(),
     ...knowOut(raw.facts, raw.owner_set),
-    booking: +raw.regulated ? null : bookingOut(l)
+    booking: +raw.regulated ? null : bookingOut(l),
+    voice: voiceKeyOf(f.voice), voices: voicesOut(), greetingAudio: f.greetAudio ? SITE + '/a/' + f.greetAudio : ''
   };
 }
 async function apiLine(req, env, ctx, c) {
@@ -538,6 +546,19 @@ async function apiLine(req, env, ctx, c) {
     if (!o.pending) return aj({ ok: true, unchanged: true, line: lineOut(raw, c) });
     const r = applyPending(o, b.action === 'keep-facts');
     changes.push(...r.changes);
+  }
+  if (b.voice != null) {
+    if (!VOICES[b.voice]) return aj({ ok: false, error: 'Pick one of the voices listed.' }, 422);
+    if (b.voice !== voiceKeyOf(f.voice)) { o.voice = b.voice; changes.push('voice: ' + VOICES[b.voice].label); }
+  }
+  if (b.name != null) {
+    const nm = cleanName(b.name);
+    if (b.name && !nm) return aj({ ok: false, error: 'Use letters only for the name.' }, 422);
+    if ((nm || 'Max') !== (oneLine(String(f.name || '')) || 'Max')) { o.name = nm; changes.push('name: ' + (nm || 'Max')); }
+  }
+  if (b.action === 'remove-greeting-audio' && o.greetAudio) {
+    await env.DB.prepare('DELETE FROM line_audio WHERE id = ?1 AND client_id = ?2').bind(o.greetAudio, c.client_id).run().catch(() => {});
+    delete o.greetAudio; changes.push('removed the recorded greeting');
   }
   if (b.after && typeof b.after === 'object' && !+raw.regulated) {
     // "After the call": promise a call-back time, text after a missed call, check in a few days after a job.
@@ -756,6 +777,34 @@ async function apiJob(req, env, ctx, c) {
   return aj({ ok: true, at, checkin, message: checkin ? 'Added. Max checks in with them in three days.' : undefined });
 }
 
+// The owner's own greeting, recorded on their phone (WAV or MP3, up to about 15 seconds). Twilio plays it first; Max still says
+// he is an S.I. and the call may be recorded right after it, because a recording can't be trusted to say so.
+const AUDIO_MAX = 700000;
+async function apiGreetingAudio(req, env, c) {
+  if (c.staff) return aj({ ok: false, error: 'Only the owner can change the greeting.' }, 403);
+  const raw = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
+  if (!raw) return aj({ ok: false, error: 'You don\u2019t have a phone line yet.' }, 403);
+  const type = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const mime = /^audio\/(wav|x-wav|wave)$/.test(type) ? 'audio/wav' : (/^audio\/(mpeg|mp3)$/.test(type) ? 'audio/mpeg' : '');
+  if (!mime) return aj({ ok: false, error: 'Send a WAV or MP3 recording.' }, 415);
+  const buf = await req.arrayBuffer();
+  if (buf.byteLength > AUDIO_MAX) return aj({ ok: false, error: 'That recording is too long. Keep it under 15 seconds.' }, 413);
+  if (buf.byteLength < 2000) return aj({ ok: false, error: 'That recording did not come through. Try again.' }, 400);
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS line_audio (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, mime TEXT, data BLOB, created TEXT)").run();
+  const o = parse(raw.owner_set) || {}, id = token(32), at = new Date().toISOString();
+  if (o.greetAudio) await env.DB.prepare('DELETE FROM line_audio WHERE id = ?1').bind(o.greetAudio).run().catch(() => {});
+  await env.DB.prepare('INSERT INTO line_audio (id, client_id, mime, data, created) VALUES (?1,?2,?3,?4,?5)').bind(id, c.client_id, mime, new Uint8Array(buf), at).run();
+  o.greetAudio = id; o.at = at;
+  await env.DB.prepare('UPDATE voice_lines SET owner_set = ?1 WHERE number = ?2').bind(JSON.stringify(o), raw.number).run();
+  return aj({ ok: true, line: lineOut(Object.assign({}, raw, { owner_set: JSON.stringify(o) }), c) });
+}
+export async function audioGet(env, url) {
+  const id = url.pathname.slice(3).replace(/\.(wav|mp3)$/, '');
+  if (!/^[A-Za-z0-9]{32}$/.test(id)) return new Response('Not found', { status: 404 });
+  const row = await env.DB.prepare('SELECT mime, data FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null);
+  if (!row || !row.data) return new Response('Not found', { status: 404 });
+  return new Response(new Uint8Array(row.data), { headers: { 'content-type': row.mime || 'audio/wav', 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff' } });
+}
 async function apiPhoto(req, env, ctx, c, url) {
   if (!features(c).photos) return aj({ ok: false, error: 'Posts from your photos come with the Growth and Pro plans.' }, 403);
   const type = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();

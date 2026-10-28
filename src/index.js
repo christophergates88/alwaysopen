@@ -8,7 +8,7 @@ import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
 import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
-import { handleApp, aasa, photoGet, appCron, handleQuote, handleLocations, opsPing } from './app.js';
+import { handleApp, aasa, photoGet, audioGet, appCron, handleQuote, handleLocations, opsPing } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
 import { handleAudit } from './audit.js';
 import { handleBilling, stripe as stripeCall } from './billing.js';
@@ -184,6 +184,7 @@ export default {
     if (path.startsWith('/google/')) return handleGoogle(req, env, url);
     if (path === '/app' || path.startsWith('/app/')) return handleApp(req, env, ctx, url);
     if (path.startsWith('/p/')) return photoGet(env, url);
+    if (path.startsWith('/a/')) return audioGet(env, url);
     if (path.startsWith('/q/')) return handleQuote(req, env, ctx, url);
     if (path.startsWith('/b/')) return handleBooking(req, env, ctx, url);
     if (/^\/i\/[A-Za-z0-9]{24}\/pay$/.test(path)) return handleInvoicePay(req, env, url);

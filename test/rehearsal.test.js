@@ -635,6 +635,40 @@ test('repeat callers: Dana is greeted as a question, a visit coming up comes fir
   await hook('after', { CallSid: l.sid, SessionDuration: '20', SessionStatus: 'ended' }); await site.settle();
 });
 
+test('the owner picks a voice, names the assistant and records a greeting; Max still says he is an S.I. right after it', async () => {
+  let st = (await site.call(A('/api/state'))).json();
+  assert.equal(st.line.voice, 'calm'); assert.deepEqual(st.line.voices.map(v => v.key), ['calm', 'warm']);
+  let r = await startCall('+14785550191');
+  assert.match(r.r.text, /voice="UgBBYS2sOqTuMpoF3BR0-flash_v2_5-1\.0_0\.6_0\.8"/, 'no voice set: Max’s usual voice with the steady settings');
+  await hook('after', { CallSid: r.sid, SessionDuration: '2', SessionStatus: 'ended' }); await site.settle();
+  const bad = await site.call(A('/api/line'), { json: { voice: 'robot', by: 'Dana' } });
+  assert.equal(bad.status, 422);
+  const set = await site.call(A('/api/line'), { json: { voice: 'warm', name: 'Rosie!!', by: 'Dana' } });
+  assert.equal(set.status, 200, set.text);
+  assert.equal(set.json().line.voice, 'warm'); assert.equal(set.json().line.name, 'Rosie');
+  // a short WAV file (header + silence) as the owner's recording
+  const wav = new Uint8Array(8044); wav.set(new TextEncoder().encode('RIFF'), 0); wav.set(new TextEncoder().encode('WAVE'), 8);
+  const up = await site.call(A('/api/greeting-audio'), { body: wav, headers: { 'content-type': 'audio/wav' } });
+  assert.equal(up.status, 200, up.text);
+  const audio = up.json().line.greetingAudio;
+  assert.match(audio, /^https:\/\/alwaysopenoffice\.com\/a\/[A-Za-z0-9]{32}$/);
+  const got = await site.call(audio.replace('https://alwaysopenoffice.com', ''));
+  assert.equal(got.status, 200);
+  r = await startCall('+14785550192');
+  assert.match(r.r.text, /^[\s\S]*<Play>https:\/\/alwaysopenoffice\.com\/a\/[A-Za-z0-9]{32}<\/Play><Connect/, 'the owner’s recording plays first');
+  assert.match(r.r.text, /voice="XrExE9yKIg1WjnnlVkGX/);
+  assert.match(r.r.text, /welcomeGreeting="I&apos;m an S\.I\. assistant, and this call may be recorded\./);
+  await openRoom(r.sid, '+14785550192');
+  world.aiScript = ['This is Rosie. What can I do for you?'];
+  await say(r.sid, 'Hi, who is this?');
+  assert.match(JSON.stringify(world.aiSeen.at(-1).system), /You are Rosie/);
+  await hook('after', { CallSid: r.sid, SessionDuration: '9', SessionStatus: 'ended' }); await site.settle();
+  const rm = await site.call(A('/api/line'), { json: { action: 'remove-greeting-audio', by: 'Dana' } });
+  assert.equal(rm.json().line.greetingAudio, '');
+  assert.equal((await site.call(audio.replace('https://alwaysopenoffice.com', ''))).status, 404);
+  await site.call(A('/api/line'), { json: { voice: 'calm', name: 'Max', by: 'Dana' } });
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));
