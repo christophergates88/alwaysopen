@@ -636,6 +636,7 @@ function vMax(){
     h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?' is answering':' is off')+'</b><span>'+(L.onAir?'Every call, day and night.':(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
+    if(S.maxStats&&S.maxStats.calls)h+='<p class="fine" style="margin:8px 2px 0">Last 30 days: '+S.maxStats.calls+(S.maxStats.calls===1?' call':' calls')+', '+S.maxStats.booked+' booked, '+S.maxStats.hungUp+' hung up early.</p>';
     h+='<h2>What '+esc(L.name)+' knows</h2><div class="card form">'+
       '<label>Your hours<input type="text" id="lh" maxlength="300" value="'+esc(L.hours)+'" placeholder="For example: Mon to Fri 8 to 5, Sat 9 to 1"></label>'+
       '<label>What should '+esc(L.name)+' tell callers?<textarea id="lo" maxlength="800" placeholder="Specials, how you book, areas you serve, anything to steer clear of.">'+esc(L.owner)+'</textarea></label>'+

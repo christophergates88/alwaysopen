@@ -58,6 +58,7 @@ export async function boardItems(env) {
   try { items.push(...await (await import('./provision.js')).provisionBoard(env)); } catch (e) {}
   try { items.push(...await (await import('./gbp.js')).gbpBoard(env)); } catch (e) {}
   try { items.push(...await (await import('./aicheck.js')).aiCheckBoard(env)); } catch (e) {}
+  try { items.push(...await (await import('./grades.js')).maxBoard(env)); } catch (e) {}
   const failed = await all(env, "SELECT client_id, business, plan, updated FROM billing WHERE status = 'past_due' AND client_id != ?1 ORDER BY updated DESC LIMIT 50", DEMO_ID);
   for (const f of failed) items.push({ key: 'pay:' + f.client_id + ':' + String(f.updated || '').slice(0, 10), group: 'Failed payments', title: f.business || f.client_id, detail: (f.plan || '') + ' plan. Stripe is retrying and emailing them; a call from you may help' });
   const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");

@@ -419,6 +419,7 @@ async function apiState(env, c, ctx) {
     out.live = rows.map(r => ({ id: r.id, at: r.at, numberText: fmtNum(r.caller || ''), name: r.caller_name || '', heard: r.heard || '', said: r.said || '', turns: +r.turns || 0, updated: r.updated || r.at }));
   } catch (e) { out.live = []; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
+  try { out.maxStats = (f.calls && line) ? await (await import('./grades.js')).ownerStats(env, cid) : null; } catch (e) { out.maxStats = null; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }

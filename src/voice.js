@@ -16,6 +16,7 @@ const logAct = async (...a) => { try { return await (await import('./biz.js')).l
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
+import { gradeOf, saveGrade, failuresOf, queueFromCall } from './grades.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
@@ -775,6 +776,15 @@ async function writeUp(env, sid, s, why) {
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
   env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
+  // Grade the call (counts and yes/no flags only); a call that went wrong is queued as a rehearsal from the caller's own lines.
+  if (!call.test) {
+    try {
+      const g = gradeOf({ outcome, heard, seconds: relay, lat: s && s.lat, note, booked: !!(s && s.booked && s.booked.ok) });
+      await saveGrade(env, call, g);
+      const f = failuresOf(g);
+      if (f.length) await queueFromCall(env, call, msgs, f);
+    } catch (e) { await vlog(env, 'grade-error', String((e && e.message) || e)); }
+  }
   if (outcome === 'spam' || call.test) return true;
   if (call.client_id !== OWN_ID) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
   if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});
@@ -997,6 +1007,9 @@ async function summarize(env, line, msgs, caller) {
     '"spam" (true for sales pitches, robocalls, surveys, wrong numbers with no message, or abuse' + (own ? '; someone testing the AI with an odd or off-topic question is not spam' : '') + '), ' +
     (own ? '"business" (the caller\'s business name, or ""), "kind" (what kind of business, a few words, or ""), "town" (their town, or ""), ' +
       '"plan" ("Starter", "Growth", "Pro" or "AI line" if they named one, else another service they asked about, or ""), ' : '') +
+    '"misheard" (true if the caller had to correct a name, number or address the receptionist got wrong), "asked_twice" (true if the receptionist asked for the same thing twice), ' +
+    '"offered_time" (true if the receptionist offered a specific day or time for a visit), "asked_person" (true if the caller asked to talk to a real person), ' +
+    '"upset" (true if the caller was angry or upset), "next_step" (true if the call ended with a next step the caller agreed to: a booked time, a promised call back, or the answer they wanted), ' +
     '"summary" (one or two plain sentences for the owner, at most 45 words, starting with the caller\'s name if known). ' +
     'Never include card, Social Security, account, policy or health details even if the caller said them. ' +
     (E164.test(caller || '') ? 'The phone showed the caller\'s number as ' + caller + '. ' : '');
@@ -1008,7 +1021,7 @@ async function summarize(env, line, msgs, caller) {
   if (/^\d{10}$/.test(cb)) cb = '+1' + cb;
   if (/^1\d{10}$/.test(cb)) cb = '+' + cb;
   return {
-    note: Object.assign({ name: s(j.name, 60), callback: E164.test(cb) ? cb : '', reason: s(j.reason, 80), details: s(j.details, 400), when: s(j.when, 80), urgent: j.urgent === true, spam: j.spam === true, summary: s(j.summary, 400) || 'They left a message.', booked: s(j.booked, 4), lost: s(j.lost, 20), lostNote: s(j.lost_note, 120), callbackWanted: j.callback_wanted === true, callbackAt: s(j.callback_at, 20) },
+    note: Object.assign({ name: s(j.name, 60), callback: E164.test(cb) ? cb : '', reason: s(j.reason, 80), details: s(j.details, 400), when: s(j.when, 80), urgent: j.urgent === true, spam: j.spam === true, summary: s(j.summary, 400) || 'They left a message.', booked: s(j.booked, 4), lost: s(j.lost, 20), lostNote: s(j.lost_note, 120), callbackWanted: j.callback_wanted === true, callbackAt: s(j.callback_at, 20), misheard: j.misheard === true, askedTwice: j.asked_twice === true, offeredTime: j.offered_time === true, askedPerson: j.asked_person === true, upset: j.upset === true, nextStep: j.next_step === true },
       own ? { business: s(j.business, 80), kind: s(j.kind, 60), town: s(j.town, 60), plan: s(j.plan, 40) } : {}),
     inTok: r.inTok, outTok: r.outTok, model: r.model
   };

@@ -31,6 +31,7 @@ import { autoCron } from './autotext.js';
 import { aiCheckCron } from './aicheck.js';
 import { monthReportCron } from './report.js';
 import { fillCron } from './fillweek.js';
+import { weeklyGrade, queueSet } from './grades.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
 export { CallRoom };
@@ -132,6 +133,12 @@ export default {
       const brands = ((await get('https://messaging.twilio.com/v1/a2p/BrandRegistrations?PageSize=50')).data || []).map(b => ({ sid: b.sid, status: b.status, profile: b.customer_profile_bundle_sid, type: b.brand_type }));
       return json({ ok: true, profiles: out, brands }, 200);
     }
+    if (path === '/ops/rehearse-set') {
+      // After a change to Max's instructions: replay the last 20 calls that went wrong. Results land in voice_log (kind 'rehearse').
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      return json({ ok: true, queued: await queueSet(env) }, 200);
+    }
     if (path === '/ops/sms-brand') {
       // HQ: record a client's own texting registration (their Messaging Service SID, once their brand and campaign are approved).
       const k = req.headers.get('x-key') || '';
@@ -201,7 +208,7 @@ export default {
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
-    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); }
+    if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); ctx.waitUntil(watched(env, 'maxweek', weeklyGrade(env, Date.now(), (t, b) => opsPing(env, t, b, 'default', 'telephone_receiver')))); }
     else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };

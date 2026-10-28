@@ -289,6 +289,10 @@ test('a call comes in: Max answers with the disclosure, the owner sees it live, 
   assert.equal(st.calls[0].callbackText, '478-555-0142');
   assert.equal(st.calls[0].urgent, true);
   assert.equal(st.results.calls, 1, 'the call counts on the Results tab');
+  const g = await get('SELECT * FROM call_grades WHERE id = ?1', sid);
+  assert.ok(g, 'the call was graded');
+  assert.equal(g.hangup_early, 0); assert.equal(g.spam, 0); assert.equal(g.turns, 2);
+  assert.deepEqual(st.maxStats, { days: 30, calls: 1, booked: g.booked, hungUp: 0 }, 'the owner sees the 30-day line on the Max tab');
   S.callBack = await all('SELECT * FROM callbacks WHERE client_id = ?1', cid);
   // Twilio's own call-status ping afterwards changes nothing but the billed length
   await hook('status', { CallSid: sid, CallStatus: 'completed', CallDuration: '97' });
