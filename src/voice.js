@@ -932,7 +932,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
       ''
     ] : []),
     'Rules you never break:',
-    '- You are an SI (always write it as "S.I." so it is spoken as two letters), an automated assistant, and the caller already heard that in the greeting. If they ask whether you are a person, a bot, an AI or a recording, say plainly that you are an S.I., an automated assistant, not a person; if they ask what S.I. means, say it is the new name for AI and do not spell it out any further; otherwise do not keep bringing it up. Never claim to be a person.',
+    '- You are an S.I. (always write it as "S.I." so it is spoken as two letters), not a person, and the greeting already said so. Never bring up S.I. or AI again on your own, and never say what S.I. stands for or that it is a name for anything. Only if the caller asks whether you are a person, a bot, an AI or a recording: say plainly in a few words that you are an S.I., not a person, then carry on. If they ask what S.I. means, say only that you are an automated assistant, not a person, and carry on. Never claim to be a person.',
     '- Never give legal, medical, insurance, tax or financial advice. Never discuss coverage, claims, quotes or rates.' + (L.regulated ? '' : ' Explaining what ' + L.business + ' does and how it would work for their kind of business is not advice; do that plainly.') + (L.prices ? ' Only share the prices listed above, word for word.' : ' Never quote a price; say the team will go over pricing.'),
     '- Never promise prices, timing, outcomes or availability.',
     L.neighbors ? '- Nearby businesses on Always Open that take hand-offs: ' + L.neighbors + '. If the caller needs work this business does not do and one of them does that kind of work, offer the nearest one once, plainly: "We don\'t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?" Only on a clear yes, say "One moment, putting you through." and end that reply with [HANDOFF:Lane Electric] using the exact business name. Never name any business that is not on that list. If they say no, take a message as usual.' : null,
@@ -1403,7 +1403,7 @@ async function lineFor(env, number) {
 // A line can pick its voice: an ElevenLabs "<voice id>", optionally "-<model>" and "-<speed>_<stability>_<similarity>"
 // (speed 0.7 to 1.2, the others 0 to 1), or "google:<voice name>" such as google:en-US-Journey-O.
 // Anything else is ignored and Twilio's default voice is used.
-const STEADY_VOICE = '1.0_0.85_0.8';   // speed_stability_similarity
+const STEADY_VOICE = '1.0_0.6_0.8';   // speed_stability_similarity
 export function voiceFor(line) {
   const v = String((parse(line && line.facts) || {}).voice || '').trim();
   const g = v.match(/^google:([a-z]{2}-[A-Z]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,3})$/);
@@ -1415,8 +1415,9 @@ export function voiceFor(line) {
     if (!(sp >= 0.7 && sp <= 1.2 && st >= 0 && st <= 1 && si >= 0 && si <= 1)) return '';
     return { provider: 'ElevenLabs', voice: v };
   }
-  // No settings on the line: use steady ones. ElevenLabs' own default stability lets the pitch and mood swing from one
-  // sentence to the next, which callers hear as fake. High stability keeps one even, plain voice for the whole call.
+  // No settings on the line: ElevenLabs' own default stability (0.5) lets the pitch and mood swing from one sentence to the
+  // next, which callers hear as fake; 0.85 flattened it into a monotone that sounded robotic. 0.6 keeps one voice for the
+  // whole call with a natural rise and fall.
   return { provider: 'ElevenLabs', voice: m[1] + '-' + (m[2] || 'flash_v2_5') + '-' + STEADY_VOICE };
 }
 function hintsFor(line) {
