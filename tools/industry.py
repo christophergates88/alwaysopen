@@ -47,6 +47,22 @@ def build(key, d):
         s = rep(s, 'When a job wraps up, tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed. Send us a photo, and it comes back as a Google post written for you, ready for your OK.',
                 'When a review comes in, the reply is drafted from wording you approved once, checked by Compliance Guard, and waits for your OK. It never confirms that someone is a patient, and it never mentions a visit or treatment.')
         s = rep(s, 'aria-label="Sample: a finished-job request for a customer who agreed to one text, and a job photo of a new deck turned into a post waiting for approval."', 'aria-label="Sample: a five-star review and the reply drafted for it, checked by Compliance Guard and waiting for approval."')
+    # only here: three Pro scenes, reworded for the trade; regulated practices get none of them (all three are Pro)
+    if d.get('regulated'):
+        s = re.sub(r'<section class="sec band alt only" id="only".*?</section>\n\n', '', s, count=1, flags=re.S)
+        s = rep(s, '<a href="#only">Only here</a>', '')
+    else:
+        o = d.get('only', {})
+        s = rep(s, 'Three things nobody else does for builders.', 'Three things nobody else does for ' + o.get('who', d['who']) + '.')
+        s = rep(s, 'These are the parts built for the jobs builders kept losing the same way.', 'These are the parts built for the jobs ' + o.get('who', d['who']) + ' kept losing the same way.')
+        s = s.replace('Do y’all do electrical? My panel keeps tripping.', o.get('ask', 'Do y’all do electrical? My panel keeps tripping.'))
+        s = s.replace('We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.', o.get('answer', 'We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.'))
+        s = s.replace('Put through to Lane Electric', 'Put through to ' + o.get('to', 'Lane Electric'))
+        s = s.replace('does not do electrical and puts them through to Lane Electric', 'does not do ' + o.get('trade', 'electrical') + ' and puts them through to ' + o.get('to', 'Lane Electric'))
+        s = s.replace('did the deck hold up?', 'did the ' + o.get('job', 'deck') + ' hold up?')
+        s = s.replace('three days after a deck job', 'three days after a ' + o.get('job', 'deck') + ' job')
+        s = s.replace('Sam’s on a job in Greensboro. He’ll call you at 4:15.', o.get('busy', 'Sam’s on a job in Greensboro.') + ' ' + o.get('will', 'He’ll call you at 4:15.'))
+        s = s.replace('Panel tripping · 478-555-0142', o.get('cb', 'Panel tripping') + ' · 478-555-0142')
     # the math
     s = rep(s, '<h2>One job can cover the whole year.</h2>', '<h2>' + d['m_h2'] + '</h2>')
     s = rep(s, 'Your jobs are big, so the math is short. Put in your own numbers.', d['m_lead'])
@@ -111,6 +127,7 @@ def fu(kind, tag, name, amt, note, acts, bub):
 
 PAGES = {
  'hvac': dict(
+  only=dict(who='heating and air companies', ask='Do y’all do electrical? My breaker keeps tripping.', answer='We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.', job='new system', busy='Sam’s on a call in Greensboro.', cb='Breaker tripping'),
   title='HVAC companies', who='heating and air companies', biz='Sample Heating and Air', rivals='HVAC companies', plans_for='heating and air', ask_who='HVAC owners',
   meta='Always Open for HVAC companies: Max answers the calls you miss on a service call, maintenance and estimate follow-ups go out on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
   h1='July. 98 degrees. Their AC quit at 6 PM. They called four companies. One answered.',
@@ -130,6 +147,7 @@ PAGES = {
   m_h2='One system can cover the whole year.', m_lead='A replacement is a big ticket, so the math is short. Put in your own numbers.', m_label='A typical system replacement', m_job=8500, m_margin=30, m_one='One replacement like that leaves you',
  ),
  'plumbing': dict(
+  only=dict(who='plumbers', ask='Do y’all do electrical? My water heater keeps tripping the breaker.', answer='We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.', job='water heater', busy='Sam’s under a house in Greensboro.', cb='Breaker tripping'),
   title='Plumbers', who='plumbers and drain companies', biz='Sample Plumbing', rivals='plumbers', plans_for='plumbers', ask_who='plumbers',
   meta='Always Open for plumbers: Max answers the calls you miss under a sink, estimates get a follow-up on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
   h1='Sunday, 11:12 PM. A customer’s water heater just quit. They called three places. One answered.',
@@ -180,6 +198,7 @@ PAGES = {
          ('Posts for Google, Facebook and Instagram from your job photos<span class="soon" data-launch="meta">Coming soon</span>', 'Holiday hours and closures posted on Google, after your OK')],
  ),
  'auto-repair': dict(
+  only=dict(who='auto repair shops', ask='Do y’all do windshields? Mine’s got a crack across it.', answer='We don’t do glass, but Lake Auto Glass, two miles from here, is on Always Open too.', to='Lake Auto Glass', trade='glass', job='brake job', busy='Sam’s got a car on the lift.', cb='Cracked windshield'),
   title='Auto repair shops', who='auto repair shops', biz='Sample Auto', rivals='shops', plans_for='auto repair', ask_who='shop owners',
   meta='Always Open for auto repair shops: Max answers the calls you miss with your hands in an engine bay, estimates get a follow-up on the day you pick, and every finished repair turns into a review request. You approve it all from your phone.',
   h1='Her car won’t start in the school pickup line. She’s calling you.',
@@ -199,6 +218,7 @@ PAGES = {
   m_h2='A few repairs can cover the whole year.', m_lead='Tickets are smaller than a roof, so count a few. Put in your own numbers.', m_label='A typical repair ticket', m_job=900, m_margin=45, m_one='One ticket like that leaves you',
  ),
  'marine': dict(
+  only=dict(who='dock builders and marinas', ask='Do y’all do seawalls? Mine’s washing out.', answer='We don’t do seawalls, but Oconee Shoreline, two miles from here, is on Always Open too.', to='Oconee Shoreline', trade='seawalls', job='lift repair', busy='Sam’s out on the water.', cb='Seawall washing out'),
   title='Docks and marine', who='dock builders, boat repair shops and marinas', biz='Sample Marine', rivals='marine businesses', plans_for='docks and marine', ask_who='marine owners',
   meta='Always Open for dock builders, boat repair shops and marinas: Max answers the calls you miss out on the water, dock and repair quotes get a follow-up on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
   h1='Memorial Day weekend. Their lift jammed with the boat on it. They called three marinas. One answered.',
@@ -222,6 +242,7 @@ PAGES = {
          ('<span>Seasonal and past-customer reminders</span>', '<span>Spring launch, winterizing and past-customer reminders</span>')],
  ),
  'salons': dict(
+  only=dict(who='salons and studios', ask='Do y’all do lash extensions?', answer='We don’t do lashes, but Lake Lash Studio, two doors down, is on Always Open too.', to='Lake Lash Studio', trade='lashes', job='color', busy='Jess is mid-color.', will='She’ll call you at 4:15.', cb='Lash extensions'),
   title='Salons, spas and gyms', who='salons, spas, gyms and groomers', biz='Sample Salon', rivals='salons', plans_for='salons and studios', ask_who='salon and studio owners',
   meta='Always Open for salons, spas, gyms and groomers: Max answers the calls you miss mid-appointment, appointments get a confirmation on the day you pick, and every visit can turn into a review request. You approve it all from your phone.',
   h1='Your hands are full. The phone rings. That’s a new regular, if someone answers.',
@@ -254,6 +275,7 @@ PAGES = {
          ('Your hours, service area and the best number for urgent calls.', 'Your hours, your services and prices, and the best number for urgent calls.')],
  ),
  'restaurants': dict(
+  only=dict(who='restaurants and shops', ask='Do y’all do wedding cakes?', answer='We don’t do cakes, but Oconee Bakery, two blocks over, is on Always Open too.', to='Oconee Bakery', trade='cakes', job='catering order', busy='Sam’s on the line for lunch.', cb='Wedding cake'),
   title='Restaurants and shops', who='restaurants, cafes and shops', biz='Sample Kitchen', rivals='restaurants', plans_for='restaurants and shops', ask_who='restaurant and shop owners',
   meta='Always Open for restaurants, cafes and shops: Max answers the calls you miss in the rush, catering and large-order quotes get a follow-up on the day you pick, and every review gets an answer. You approve it all from your phone.',
   h1='Friday, 7 PM. Every table is full. The phone is ringing about lunch for forty.',

@@ -43,6 +43,29 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{o
 .btn.small{padding:10px 16px;font-size:15px}
 .mark{width:34px;height:34px;flex:none}
 .sec{padding-block:88px}
+/* only here: three phone scenes nobody else offers */
+.only .head{max-width:640px;margin-bottom:30px}
+.onlygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.scene{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.scene .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.scene h3{font:800 1.12rem/1.2 var(--display);margin:0}
+.scene .tag{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;background:#171B26;color:#fff;white-space:nowrap}
+.scene .why{color:var(--slate);font-size:.95rem;margin:0}
+.scn{background:#F4F3EF;color:#171B26;border:1px solid #E4E2DB;border-radius:14px;padding:12px;display:grid;gap:7px}
+.scn .b{max-width:92%;padding:8px 11px;border-radius:15px;font-size:13.5px;line-height:1.35}
+.scn .b.in{background:#fff;border:1px solid #E4E2DB;border-bottom-left-radius:4px}
+.scn .b.out{justify-self:end;background:#171B26;color:#fff;border-bottom-right-radius:4px}
+.scn .b.sys{justify-self:center;max-width:100%;background:transparent;color:#5B6475;font:500 11.5px var(--mono);padding:2px 0;text-align:center}
+.scn .c{background:#fff;border:1px solid #E4E2DB;border-radius:12px;padding:10px 12px;display:grid;gap:3px;font-size:13.5px}
+.scn .c b{font-size:14px}
+.scn .c small{font:500 11px var(--mono);color:#5B6475;letter-spacing:.04em}
+.scn .ac{display:flex;gap:6px;margin-top:4px}
+.scn .ac span{font:700 12px var(--body);padding:5px 10px;border-radius:9px;background:#171B26;color:#fff}
+.scn .ac span.alt{background:transparent;color:#171B26;border:1px solid #E4E2DB}
+.only .sample{font:500 12px var(--mono);color:var(--slate);margin-top:14px}
+.only .more{margin-top:18px;color:var(--slate);font-size:.97rem}.only .more a{color:inherit;font-weight:600;text-underline-offset:3px}
+@media (max-width:980px){.onlygrid{grid-template-columns:1fr}}
+
 .lead{color:var(--slate);font-size:1.1rem;max-width:34em}
 .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 .sample{font:400 12px var(--mono);color:var(--slate)}
@@ -270,7 +293,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
     <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what matters most to restaurants, cafes and shops. <a href="index.html">See everything we do</a></p>
     <div class="top">
       <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-      <nav aria-label="Main"><a href="#calls">Calls</a><a href="#quotes">Catering</a><a href="#finished">Reviews and posts</a><a href="#math">The math</a><a href="#plans">Plans</a><a class="btn primary small" href="index.html#contact">Free audit</a></nav>
+      <nav aria-label="Main"><a href="#calls">Calls</a><a href="#quotes">Catering</a><a href="#finished">Reviews and posts</a><a href="#only">Only here</a><a href="#math">The math</a><a href="#plans">Plans</a><a class="btn primary small" href="index.html#contact">Free audit</a></nav>
     </div>
     <div class="hero-grid">
       <div>
@@ -359,6 +382,19 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
         <div class="photo"><span>Your photo</span></div>
         <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">Thursday’s special: shrimp and grits with a cup of gumbo, 11 to 2. Call ahead for orders of ten or more.</p></div></div></div>
     </div>
+  </div>
+</section>
+
+<section class="sec band alt only" id="only" data-label="Only here">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Only here</p><h2>Three things nobody else does for restaurants and shops.</h2><p>Answering calls and reviews is table stakes. These are the parts built for the jobs restaurants and shops kept losing the same way.</p></div>
+    <div class="onlygrid">
+      <div class="scene"><div class="top"><h3>Hand-offs between businesses</h3><span class="tag">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max tells a caller the business does not do cakes and puts them through to Oconee Bakery, a nearby business on Always Open."><div class="b in">Do y’all do wedding cakes?</div><div class="b out">We don’t do cakes, but Oconee Bakery, two blocks over, is on Always Open too. Want me to put you through?</div><div class="b in">Yeah, please.</div><div class="b sys">Put through to Oconee Bakery · 2:14 PM</div></div><p class="why">A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back. Both of you have to turn it on.</p></div>
+      <div class="scene"><div class="top"><h3>The three-day check-in</h3><span class="tag">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max calls a customer three days after a catering order job, she presses 1 for held up, and a review request goes out."><div class="b sys">Max called Dana · Thursday 11:20 AM</div><div class="b out">Quick one: did the catering order hold up? Press 1 if it did, 2 if something’s not right.</div><div class="b sys">Pressed 1</div><div class="c"><small>Next</small><b>Review request sent to Dana</b><span>One text, because she said yes to texts.</span></div></div><p class="why">Three days after the job, Max calls the customer: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.</p></div>
+      <div class="scene"><div class="top"><h3>Call-backs with a time on them</h3><span class="tag">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max offers a caller a 4:15 PM call-back from the owner, the caller agrees, and the owner gets a call-back card."><div class="b in">Can the owner call me back?</div><div class="b out">Sam’s on the line for lunch. He’ll call you at 4:15. Does that work?</div><div class="b in">4:15 is fine.</div><div class="c"><small>On your phone</small><b>Call Priya at 4:15 PM</b><span>Wedding cake · 478-555-0142</span><div class="ac"><span>Call now</span><span class="alt">Move it</span></div></div></div><p class="why">No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.</p></div>
+    </div>
+    <p class="sample">Sample: made-up business, customers and callers.</p>
+    <p class="more">Also here, on Growth and Pro: Storm Desk, and a monthly check of what answer assistants say about you. On every plan: Compliance Guard and the Always Open map. <a href="index.html#only">See all of it</a>.</p>
   </div>
 </section>
 

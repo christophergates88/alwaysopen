@@ -43,6 +43,29 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{o
 .btn.small{padding:10px 16px;font-size:15px}
 .mark{width:34px;height:34px;flex:none}
 .sec{padding-block:88px}
+/* only here: three phone scenes nobody else offers */
+.only .head{max-width:640px;margin-bottom:30px}
+.onlygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.scene{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.scene .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.scene h3{font:800 1.12rem/1.2 var(--display);margin:0}
+.scene .tag{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;background:#171B26;color:#fff;white-space:nowrap}
+.scene .why{color:var(--slate);font-size:.95rem;margin:0}
+.scn{background:#F4F3EF;color:#171B26;border:1px solid #E4E2DB;border-radius:14px;padding:12px;display:grid;gap:7px}
+.scn .b{max-width:92%;padding:8px 11px;border-radius:15px;font-size:13.5px;line-height:1.35}
+.scn .b.in{background:#fff;border:1px solid #E4E2DB;border-bottom-left-radius:4px}
+.scn .b.out{justify-self:end;background:#171B26;color:#fff;border-bottom-right-radius:4px}
+.scn .b.sys{justify-self:center;max-width:100%;background:transparent;color:#5B6475;font:500 11.5px var(--mono);padding:2px 0;text-align:center}
+.scn .c{background:#fff;border:1px solid #E4E2DB;border-radius:12px;padding:10px 12px;display:grid;gap:3px;font-size:13.5px}
+.scn .c b{font-size:14px}
+.scn .c small{font:500 11px var(--mono);color:#5B6475;letter-spacing:.04em}
+.scn .ac{display:flex;gap:6px;margin-top:4px}
+.scn .ac span{font:700 12px var(--body);padding:5px 10px;border-radius:9px;background:#171B26;color:#fff}
+.scn .ac span.alt{background:transparent;color:#171B26;border:1px solid #E4E2DB}
+.only .sample{font:500 12px var(--mono);color:var(--slate);margin-top:14px}
+.only .more{margin-top:18px;color:var(--slate);font-size:.97rem}.only .more a{color:inherit;font-weight:600;text-underline-offset:3px}
+@media (max-width:980px){.onlygrid{grid-template-columns:1fr}}
+
 .lead{color:var(--slate);font-size:1.1rem;max-width:34em}
 .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 .sample{font:400 12px var(--mono);color:var(--slate)}
