@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PAGES = ['hvac', 'plumbing', 'dental', 'auto-repair', 'builders', 'insurance', 'index'];
+const PAGES = ['hvac', 'plumbing', 'dental', 'auto-repair', 'marine', 'salons', 'restaurants', 'builders', 'insurance', 'index'];
 let chromium = null;
 try { ({ chromium } = await import('playwright')); } catch (e) { chromium = null; }
 
@@ -24,7 +24,7 @@ test('industry pages: words and samples', () => {
 test('industry pages render at 390px without sideways scroll', { skip: !chromium && 'playwright not installed' }, async () => {
   const browser = await chromium.launch();
   try {
-    for (const p of ['hvac', 'plumbing', 'dental', 'auto-repair']) {
+    for (const p of ['hvac', 'plumbing', 'dental', 'auto-repair', 'marine', 'salons', 'restaurants', 'index']) {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await page.goto('file://' + path.resolve('public', p + '.html'));
       const w = await page.evaluate(() => document.documentElement.scrollWidth);

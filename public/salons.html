@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Salons, spas and gyms · Always Open</title><link rel="canonical" href="https://alwaysopenoffice.com/salons">
+<meta name="description" content="Always Open for salons, spas, gyms and groomers: Max answers the calls you miss mid-appointment, appointments get a confirmation on the day you pick, and every visit can turn into a review request. You approve it all from your phone.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* The builders page: a builder's day told through the work itself (the call Max took, the quote that got its follow-up,
+   the finished job that became a review request and a post), plus the math on one job. Samples are marked. */
+:root{
+  --paper:#F5F4F0; --card:#FFFFFF; --ink:#171B26; --slate:#586075; --line:#DCDAD3; --panel:#EAE8E1;
+  --sign:#D92D20; --on-sign:#FFFFFF; --sign-soft:#FBE9E7;
+  --ok:#1C6B54; --ok-soft:#E3F1EC;
+  --night:#0F131B; --night-2:#171D2C; --night-ink:#ECEEF3; --night-mute:#A3ACBF; --night-line:#262E40; --night-card:#171C27; --night-sign:#FF6A5E; --night-ok:#5CC9A4;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif; --body:"Instrument Sans",system-ui,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12151D; --card:#1A1F2B; --ink:#EEF0F4; --slate:#9AA3B5; --line:#2B3243; --panel:#1F2533;
+  --sign:#FF5A4D; --on-sign:#1A0605; --sign-soft:#3A1F22; --ok:#5CC9A4; --ok-soft:#173229; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55}
+.band{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-stretch:92%;margin:0;text-wrap:balance;letter-spacing:-.012em}
+h1{font-weight:850;font-size:clamp(2.6rem,6.2vw,4.8rem);line-height:.97}
+h2{font-weight:800;font-size:clamp(1.85rem,4.2vw,2.8rem);line-height:1.04}
+h3{font-weight:750;font-size:1.2rem;line-height:1.15}
+p{margin:0}
+a{color:var(--ink)}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;font:700 16px var(--body);padding:14px 22px;border-radius:11px;border:2px solid transparent;text-decoration:none;cursor:pointer;text-align:center}
+.btn.primary{background:var(--sign);color:var(--on-sign)}
+.btn.line{border-color:var(--ink);color:var(--ink);background:transparent}
+.btn.small{padding:10px 16px;font-size:15px}
+.mark{width:34px;height:34px;flex:none}
+.sec{padding-block:88px}
+.lead{color:var(--slate);font-size:1.1rem;max-width:34em}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.sample{font:400 12px var(--mono);color:var(--slate)}
+.chk{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.chk li{display:grid;grid-template-columns:22px 1fr;gap:10px}
+.chk svg{width:22px;height:22px;color:var(--ok);margin-top:2px}
+.chk li.plus{display:block;font-weight:650}
+
+/* ---------- hero: the job site, after hours of the office ---------- */
+.hero{color:var(--night-ink);background:
+  radial-gradient(760px 520px at 84% 12%,rgba(217,45,32,.22),transparent 62%),
+  linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px) 0 0/48px 48px,
+  linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px) 0 0/48px 48px,
+  linear-gradient(165deg,var(--night-2) 0%,var(--night) 72%)}
+.everyone{font-size:14px;line-height:1.45;color:var(--night-mute);padding-block:10px;border-bottom:1px solid var(--night-line)}
+.everyone a{color:var(--night-ink);text-underline-offset:3px;white-space:nowrap}
+.everyone a:focus-visible{outline-color:var(--night-sign)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px}
+.wordmark{display:flex;align-items:center;gap:11px;font:850 1.4rem var(--display);font-stretch:90%;letter-spacing:-.01em;text-decoration:none;color:inherit}
+.top nav{display:flex;gap:22px;align-items:center;font-size:15px}
+.top nav a{text-decoration:none;color:var(--night-mute)}
+.top nav a:hover{color:var(--night-ink)}
+.top nav .btn{color:var(--on-sign)}
+.hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:48px;align-items:center;padding-block:30px 88px}
+.for{font:600 15px var(--body);color:var(--night-sign);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.for::before{content:"";width:28px;height:2px;background:var(--night-sign);box-shadow:0 0 10px rgba(255,106,94,.8)}
+.hero .lede{font-size:1.2rem;color:var(--night-mute);max-width:31em;margin-top:24px}
+.hero .lede b{color:var(--night-ink);font-weight:600}
+.hero .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
+.promise{margin-top:22px;display:flex;gap:10px;align-items:flex-start;font:600 1rem/1.4 var(--body);color:var(--night-ink);max-width:32em}
+.promise svg{width:22px;height:22px;flex:none;color:var(--night-ok)}
+.promise span small{display:block;font-weight:400;color:var(--night-mute);font-size:.93rem;margin-top:2px}
+
+/* the day: three things that happened while the owner was building */
+.day{display:grid;gap:12px}
+.ev{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:start}
+.ev time{font:500 13px var(--mono);color:var(--night-sign);padding-top:16px;text-align:right}
+.card{background:#171C27;border:1px solid #262E40;border-radius:16px;padding:14px 16px;display:grid;gap:8px;color:#ECEEF3;box-shadow:0 24px 44px -30px rgba(0,0,0,.8)}
+.card.hot{border:2px solid #FF6A5E;box-shadow:0 0 0 1px rgba(255,106,94,.2),0 0 26px rgba(255,90,77,.25)}
+.card .k{display:flex;align-items:center;gap:8px;font:600 12.5px var(--body);color:#A3ACBF}
+.card .k em{font-style:normal;font:700 11px var(--body);border-radius:99px;padding:2px 9px;background:#173229;color:#5CC9A4}
+.card .k em.due{background:#FF6A5E;color:#1A0605}
+.card b.t{font:800 1.12rem/1.15 var(--display);font-stretch:92%}
+.card p{font-size:14px;line-height:1.4;color:#C9CED9}
+.card .acts{display:flex;gap:8px;margin-top:2px}
+.card .acts span{font:700 12.5px var(--body);padding:7px 13px;border-radius:9px;background:#5CC9A4;color:#06231A}
+.card .acts span.alt{background:transparent;border:1.5px solid #ECEEF3;color:#ECEEF3}
+.card .bub{background:#ECEEF3;color:#171B26;border-radius:14px 14px 14px 4px;padding:9px 12px;font-size:13.5px;line-height:1.4}
+.day .sample{color:var(--night-mute);padding-left:78px}
+@media (prefers-reduced-motion:no-preference){
+  .day .ev{animation:rise .55s cubic-bezier(.2,.8,.2,1) both}
+  .day .ev:nth-child(2){animation-delay:.35s}.day .ev:nth-child(3){animation-delay:.7s}
+}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+
+/* ---------- rows ---------- */
+.row{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+.row.flip .copy{order:2}
+.rows{display:grid;gap:96px}
+.copy{display:grid;gap:14px;align-content:start}
+.stage{background:var(--panel);border-radius:26px;padding:30px;display:grid;place-items:center;min-width:0}
+.mock{width:100%;max-width:420px;background:#FFFFFF;color:#171B26;border-radius:18px;padding:18px;display:grid;gap:12px;box-shadow:0 22px 40px -26px rgba(15,19,27,.55);position:relative;min-width:0}
+.mtag{position:absolute;top:-11px;right:16px;font:500 10.5px var(--mono);background:var(--ink);color:var(--paper);padding:3px 9px;border-radius:99px}
+.mock small{font:400 12px var(--mono);color:#5B6475}
+.mock .mh{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.mock .mh b{font-size:15px}
+.pill{font:700 11.5px var(--body);padding:3px 9px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:#E3F1EC;color:#1C6B54}.pill.warn{background:#FDF0D5;color:#9A5A00}.pill.red{background:#FBE9E7;color:#C42A1E}
+.fu{border:2px solid #D92D20;border-radius:14px;padding:14px;display:grid;gap:8px}
+.fu .h{display:flex;gap:8px;align-items:center;font-size:13px;color:#5B6475}
+.fu .n{display:flex;justify-content:space-between;align-items:baseline}
+.fu .n b{font:800 1.15rem var(--display);font-stretch:92%}
+.fu .n span{font:500 14px var(--mono);color:#5B6475}
+.fu .acts{display:flex;gap:8px}
+.fu .acts span{flex:1;text-align:center;font:700 13px var(--body);padding:9px 0;border-radius:10px;background:#1C6B54;color:#fff}
+.fu .acts span.alt{flex:none;padding:9px 14px;background:#fff;border:2px solid #171B26;color:#171B26}
+.sms{background:#F4F3EF;border-radius:14px;padding:12px;display:grid;gap:6px}
+.sms .bub{justify-self:end;max-width:90%;background:#1C6B54;color:#fff;border-radius:16px 16px 4px 16px;padding:9px 12px;font-size:13.5px;line-height:1.4}
+.sms small{justify-self:end}
+.lr{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid #E4E2DB}
+.lr:first-of-type{border-top:0}
+.lr i{width:10px;height:10px;border-radius:50%;background:#1C6B54}
+.lr i.w{background:#D98E04}.lr i.r{background:#C42A1E}
+.lr b{display:block;font-size:14.5px;line-height:1.25}
+.lr span{font-size:13px;color:#5B6475}
+.photo{height:150px;border-radius:12px;background:
+  linear-gradient(180deg,rgba(255,255,255,0) 55%,rgba(23,27,38,.45)),
+  repeating-linear-gradient(90deg,#B07A4A 0 26px,#9C6B3F 26px 28px),
+  #B07A4A;position:relative;overflow:hidden}
+.photo::before{content:"";position:absolute;inset:0 0 58% 0;background:linear-gradient(180deg,#8FB8D8,#CFE3EF)}
+.photo::after{content:"";position:absolute;left:0;right:0;top:40%;height:4px;background:#5E4128}
+.photo span{position:absolute;left:10px;bottom:9px;font:600 12px var(--body);color:#fff;background:rgba(15,19,27,.55);border-radius:99px;padding:3px 9px}
+.ask{background:#F4F3EF;border-radius:12px;padding:12px 14px;display:grid;gap:6px;font-size:13.5px}
+.ask label{display:flex;gap:8px;align-items:flex-start}
+.ask label i{flex:none;width:16px;height:16px;border-radius:4px;background:#1C6B54;margin-top:2px;display:grid;place-items:center}
+.ask label i svg{width:12px;height:12px;color:#fff}
+
+/* ---------- the math ---------- */
+.dark{background:var(--night);color:var(--night-ink)}
+.dark .lead{color:var(--night-mute)}
+.math-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:52px;align-items:center}
+.calc{background:var(--night-card);border:1px solid var(--night-line);border-radius:20px;padding:24px;display:grid;gap:18px}
+.calc label{display:grid;gap:8px;font-weight:600;font-size:15px}
+.calc .in{display:flex;align-items:center;gap:8px;background:var(--night);border:1.5px solid var(--night-line);border-radius:12px;padding:0 14px}
+.calc .in span{color:var(--night-mute);font-weight:600}
+.calc input{flex:1;min-width:0;width:100%;background:transparent;border:0;color:var(--night-ink);font:700 1.4rem var(--display);padding:12px 0;font-variant-numeric:tabular-nums}
+.calc input:focus{outline:none}
+.calc .in:focus-within{border-color:var(--night-sign)}
+.answer{border-top:1px solid var(--night-line);padding-top:16px;display:grid;gap:10px}
+.answer p{color:var(--night-mute)}
+.answer strong{display:block;font:850 clamp(1.8rem,4vw,2.4rem)/1.05 var(--display);font-stretch:92%;color:var(--night-ink)}
+.answer strong em{font-style:normal;color:var(--night-sign)}
+.answer small{font-size:13px;color:var(--night-mute)}
+
+/* ---------- plans, questions ---------- */
+.alt{background:var(--card);border-block:1px solid var(--line)}
+.plans{display:grid;grid-template-columns:1fr 1fr .9fr;gap:18px;align-items:start;margin-top:36px}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:14px;align-content:start}
+.plan.feat{border:2px solid var(--sign);box-shadow:0 24px 44px -30px var(--sign)}
+.plan.add{background:var(--paper);border-style:dashed}
+.price{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.price b{font:850 2.8rem/1 var(--display)}
+.price span{color:var(--slate);font-size:.95rem}
+.plan .who{color:var(--slate);font-size:.98rem}
+.plan .chk{font-size:.96rem;gap:8px}
+.plan .chk li{grid-template-columns:18px 1fr;gap:8px}
+.plan .chk svg{width:18px;height:18px;margin-top:3px}
+.plan .btn{justify-self:start}
+.plan-note{font-size:.88rem;color:var(--slate);border-top:1px dashed var(--line);padding-top:10px}
+.guarantee{margin-top:22px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;background:var(--ok-soft);border-radius:14px;padding:18px 20px}
+.guarantee b{font:850 1.35rem var(--display);color:var(--ok)}
+.guarantee p{font-size:.98rem}
+.also{margin-top:14px;font-size:.95rem;color:var(--slate);max-width:56em}
+.rules3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:34px}
+.rules3 div{border-top:3px solid var(--ink);padding-top:14px;display:grid;gap:6px;align-content:start}
+.rules3 p{color:var(--slate);font-size:.98rem}
+.faq{display:grid;gap:10px;max-width:800px;margin-top:30px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 18px}
+summary{cursor:pointer;font-weight:600;padding-block:15px}
+details p{padding-bottom:16px;color:var(--slate)}
+.final{text-align:center;padding-block:96px}
+.final h2{max-width:17em;margin:0 auto}
+.final .lead{margin:16px auto 0;color:var(--night-mute)}
+.final .ctas{justify-content:center}
+.final .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
+.neon{display:inline-grid;gap:3px;justify-items:center;padding:10px 20px 8px;border:3px solid var(--night-sign);border-radius:14px;margin-bottom:28px;color:var(--night-sign);box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 24px rgba(255,90,77,.45),inset 0 0 16px rgba(255,90,77,.22)}
+.neon b{font:850 1.9rem/1 var(--display);letter-spacing:.16em;margin-right:-.16em;text-shadow:0 0 14px rgba(255,106,94,.85)}
+.neon span{font:500 11px var(--mono);letter-spacing:.2em;margin-right:-.2em;opacity:.9}
+.neon-call{display:inline-grid;gap:5px;justify-items:center;margin-top:8px;padding:14px 26px 12px;border:3px solid var(--sign);border-radius:16px;color:var(--sign);text-decoration:none;box-shadow:0 0 0 1px rgba(217,45,32,.18),0 0 22px rgba(217,45,32,.25);justify-self:start}
+.neon-call span{font:600 13px var(--body)}
+.neon-call b{font:850 clamp(1.5rem,5vw,2.1rem)/1 var(--display);letter-spacing:.03em;white-space:nowrap}
+.callnote{font-size:.9rem;color:var(--slate);max-width:30em}
+footer{background:var(--night);color:var(--night-mute);padding-block:30px;font-size:14px;border-top:1px solid var(--night-line)}
+footer .inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center}
+footer .wordmark{font-size:1.15rem;color:var(--night-ink)}
+footer .mark{width:28px;height:28px}
+footer .legal a{color:var(--night-ink);text-underline-offset:3px}
+footer .entity{flex-basis:100%;font-size:13px}
+footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
+
+@media (max-width:980px){
+  .hero-grid,.row,.math-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+  .row.flip .copy{order:0}
+  .top nav a:not(.btn){display:none}
+  .plans,.rules3{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .sec{padding-block:60px}
+  .rows{gap:64px}
+  .hero-grid{padding-block:18px 64px}
+  .ev{grid-template-columns:1fr;gap:6px}
+  .ev time{text-align:left;padding-top:0}
+  .day .sample{padding-left:0}
+  .stage{padding:22px 14px}
+  .guarantee{grid-template-columns:1fr;gap:6px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.scene{font:600 1.22rem/1.35 var(--display);letter-spacing:-.005em;color:var(--ink);margin:0 0 10px;max-width:34ch}
+.hero-scene,.final .scene{color:var(--night-ink);max-width:30ch}
+.hero-scene{font-size:clamp(1.25rem,2.4vw,1.6rem);margin-bottom:14px}
+.final .scene{margin:18px auto 10px}
+.payoff{margin:0 0 20px;color:var(--slate);max-width:52ch}
+.seclabel{display:none}
+@media (max-width:760px){
+  .js .seclabel{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px max(16px,env(safe-area-inset-left,0px));font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--night-ink);background:rgba(15,19,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,106,94,.35);transform:translateY(-100%);transition:transform .25s ease}
+  .js .seclabel.show{transform:none}
+  .seclabel i{width:7px;height:7px;border-radius:50%;background:var(--night-sign);box-shadow:0 0 8px var(--night-sign)}
+  .rows{gap:0}
+  .row{padding:52px 0 56px;border-top:2px solid var(--sign);box-shadow:0 -1px 0 rgba(217,45,32,.18),0 -10px 24px -18px rgba(217,45,32,.6);gap:26px}
+  .row:first-child{border-top:0;box-shadow:none;padding-top:0}
+  .row:nth-child(even){background:var(--card);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .scene{font-size:1.35rem;max-width:none}
+  .js .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .js .reveal.in{opacity:1;transform:none}
+}
+@media (prefers-reduced-motion:reduce){.js .reveal{opacity:1;transform:none;transition:none}.seclabel{transition:none}}
+
+.soon{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--mono,ui-monospace,monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--slate);border:1px solid var(--line);vertical-align:2px;white-space:nowrap}
+</style>
+
+<meta property="og:title" content="Always Open: your business, always open">
+<meta property="og:description" content="Always Open for salons, spas, gyms and groomers: Max answers the calls you miss mid-appointment, appointments get a confirmation on the day you pick, and every visit can turn into a review request. You approve it all from your phone.">
+<meta property="og:image:alt" content="Always Open: your business, always open. Call Max, our phone assistant, at (706) 460-2226. A glowing OPEN 24 HOURS sign.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Always Open">
+<meta property="og:url" content="https://alwaysopenoffice.com/builders">
+<meta property="og:image" content="https://alwaysopenoffice.com/og3.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="1200">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://alwaysopenoffice.com/og2.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="chk" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></symbol>
+</svg>
+
+<div class="seclabel" id="seclabel" aria-hidden="true"><i></i><span></span></div>
+<header class="hero band">
+  <div class="inner">
+    <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what matters most to salons, spas, gyms and groomers. <a href="index.html">See everything we do</a></p>
+    <div class="top">
+      <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+      <nav aria-label="Main"><a href="#calls">Calls</a><a href="#quotes">Appointments</a><a href="#finished">After a visit</a><a href="#math">The math</a><a href="#plans">Plans</a><a class="btn primary small" href="index.html#contact">Free audit</a></nav>
+    </div>
+    <div class="hero-grid">
+      <div>
+        <p class="for">For salons, spas, gyms and groomers</p>
+        <h1>Your hands are full. The phone rings. That’s a new regular, if someone answers.</h1>
+        <p class="lede">Max answers your calls in your business’s name, gives your hours and the prices you set, takes the caller’s name, the service and the day they want, and sends it to your phone in seconds. Appointments get a confirmation on the day you pick, and every visit can turn into a review request and a post. <b>You approve it all from your phone.</b></p>
+        <div class="ctas"><a class="btn primary" href="index.html#contact">Get my free audit</a><a class="btn line" href="tel:+17064602226">Call Max: (706) 460-2226</a></div>
+        <p class="promise"><svg aria-hidden="true"><use href="#shield"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.<small>No setup fee and no contract. Spanish included.</small></span></p>
+      </div>
+      <div class="day" role="img" aria-label="Sample: three things on a salon owner’s phone during one day. At 11:20 AM Max took a call from Ana Ruiz who wants a color correction before a wedding. At 1:15 PM a confirmation for Maria’s Thursday appointment is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.">
+        <div class="ev"><time>11:20 AM</time><div class="card hot"><div class="k">Max took a call <em>New client</em></div><b class="t">Ana Ruiz</b><p>Wants a color correction before a wedding on the 14th. Saturday morning if possible, any stylist.</p><div class="acts"><span>Call back</span><span class="alt">Text</span></div></div></div>
+        <div class="ev"><time>1:15 PM</time><div class="card"><div class="k">Follow-up <em class="due">Due today</em></div><b class="t">Maria L. · Thursday 10 AM</b><div class="bub">Hi Maria, this is Jess at Sample Salon, confirming your appointment on Thursday at 10 AM. Reply here if you need to change it.</div><div class="acts"><span>Text her</span><span class="alt">Call</span></div></div></div>
+        <div class="ev"><time>4:30 PM</time><div class="card"><div class="k">Reply ready for your OK</div><b class="t">★★★★★ from Ana R.</b><p>“Fixed a color two other places would not touch. I finally like my hair again.”</p><div class="acts"><span>Approve</span><span class="alt">Edit</span></div></div></div>
+        <p class="sample">Sample: made-up business and customers.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="sec band" id="calls">
+  <div class="inner rows">
+    <div class="row reveal" data-label="Calls">
+      <div class="copy">
+        <h2>Every call answered, even in the middle of a cut.</h2>
+        <p class="lead"><strong>Voicemail takes a message. Max takes the call.</strong> When you can’t pick up, he answers in your company’s name, answers questions about your services, area and hours from what you tell him, takes the name, the service and the day they want, and sends it all to your phone in seconds.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Says up front that he’s an automated assistant and the call may be recorded</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Shares only the prices you give him, and never makes one up</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Urgent calls, like a bride whose appointment is today, can ring through to your cell</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Books the appointment on your Google calendar, set up with you (on request)</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Keep your number: missed calls forward to Max</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>On Pro, a missed call also gets a text back in seconds, from your own number once carriers approve it</span></li>
+        </ul>
+        <a class="neon-call" href="tel:+17064602226"><span>Hear him for yourself</span><b>(706) 460-2226</b></a>
+        <p class="callnote">That’s our own line, so Max talks about Always Open. On yours, he answers for your company.</p>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample lead log for a made-up salon: a new-client call taken by Max, an appointment confirmation due, a booked cut, and a hang-up that got a text back.">
+        <span class="mtag">Sample</span>
+        <div class="mh"><b>This week · Sample Salon</b><small>4 leads</small></div>
+        <div>
+                    <div class="lr"><i class="r"></i><div><b>Color correction · Ana Ruiz</b><span>Max took the call, 11:20 AM Tue</span></div><span class="pill red">New</span></div>
+          <div class="lr"><i class="w"></i><div><b>Confirm · Maria L.</b><span>Thursday 10 AM, text due today</span></div><span class="pill warn">Due</span></div>
+          <div class="lr"><i></i><div><b>Cut and style · J. Ortiz</b><span>Saturday, 9:30 AM</span></div><span class="pill ok">Booked</span></div>
+          <div class="lr"><i></i><div><b>Missed call · 706-555-0177</b><span>Hung up; texted back in seconds</span></div><span class="pill ok">Texted</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="row flip reveal" id="quotes" data-label="Quotes">
+      <div class="copy">
+        <h2>Fewer no-shows, fewer empty chairs.</h2>
+        <p class="lead">A forgotten appointment is an hour you can’t sell twice. Add the appointment in the app and pick the day to confirm. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Quotes, invoices and appointments, each with its own reminder</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>One tap opens Messages with the text ready, from your own phone</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Invoice and payment reminders, so money doesn’t sit</span></li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample follow-up in the Always Open app: Maria Lopez’s color and cut on Thursday, confirmation due today, with a drafted text ready to send.">
+        <span class="mtag">Sample</span>
+        <div class="fu">
+          <div class="h"><span class="pill red">Appointment</span><span>Due today</span></div>
+          <div class="n"><b>Maria Lopez</b><span>$180</span></div>
+          <small>Color and cut, Thursday 10 AM</small>
+          <div class="acts"><span>Text her</span><span class="alt">Call</span></div>
+        </div>
+        <div class="sms"><div class="bub">Hi Maria, this is Jess at Sample Salon, confirming your appointment on Thursday at 10 AM. Reply here if you need to change it.</div><small>Sent from your phone</small></div>
+      </div></div>
+    </div>
+
+    <div class="row reveal" id="finished" data-label="Finished jobs">
+      <div class="copy">
+        <h2>Every visit can turn into a review and a post.</h2>
+        <p class="lead">After a visit, tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed. Send us a photo, and it comes back as a Google post written for you, ready for your OK.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every customer asked, not just the happy ones</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every review answered, and bad ones flagged the same day</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Posts for Google, Facebook and Instagram from your photos<span class="soon" data-launch="meta">Coming soon</span></span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Storm Desk: when a warning hits your county, a storm-day post is ready</span></li>
+        </ul>
+      </div>
+      <div class="stage"><div class="mock" role="img" aria-label="Sample: a finished-job request for a customer who agreed to one text, and a photo of a finished color turned into a post waiting for approval.">
+        <span class="mtag">Sample</span>
+        <div class="ask"><b>Finished a job</b><span>Ana · 706-555-0148 · Color correction</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>She agreed to get one text from us.</span></label></div>
+        <div class="photo"><span>Your photo, with her OK</span></div>
+        <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">A color correction finished just in time for a wedding. If your color has gone brassy or uneven, book a consultation and we’ll talk it through.</p></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band dark" id="math" data-label="The math">
+  <div class="inner math-grid">
+    <div>
+      <h2>One new regular can cover months.</h2>
+      <p class="lead" style="margin-top:16px">Visits are small, but regulars come back all year. Put in your own numbers.</p>
+      <p class="lead" style="margin-top:14px;font-size:.98rem">This is math, not a promise. Your monthly report shows calls, leads and reviews, so you can judge it on your own numbers, and the first month is refundable.</p>
+    </div>
+    <div class="calc">
+      <label for="m-job">What a regular spends in a year<span class="in"><span>$</span><input id="m-job" type="number" inputmode="numeric" min="0" step="500" value="1200" size="8"></span></label>
+      <label for="m-margin">What you keep after costs<span class="in"><input id="m-margin" type="number" inputmode="numeric" min="0" max="100" step="1" value="50" size="4"><span>%</span></span></label>
+      <div class="answer" aria-live="polite">
+        <p>One new regular like that leaves you</p>
+        <strong id="m-keep">$600</strong>
+        <p id="m-cover">That covers <b>2 months</b> of Growth, or <b>1 month</b> of Pro.</p>
+        <small>Growth is $299 a month and Pro is $499 a month. Max comes with both, with 300 minutes a month.</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="plans" data-label="Plans">
+  <div class="inner">
+    <h2>Plans for salons and studios</h2>
+    <p class="lead" style="margin-top:14px">Month to month, with no setup fee. If the first month isn’t worth it, tell us and we refund it.</p>
+    <div class="plans">
+      <div class="plan feat">
+        <h3>Growth</h3>
+        <div class="price"><b>$299</b><span>/ month, about $10 a day</span></div>
+        <p class="who">Get found, get reviews and keep every lead.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every review answered, bad ones flagged the same day</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>A review request after every finished job</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Posts from your photos for Google, Facebook and Instagram<span class="soon" data-launch="meta">Coming soon</span></span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Booking requests taken any hour, and every lead logged</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Google profile kept current, the same details on every listing</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Competitor watch and Storm Desk</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>A one-page monthly report and your own app</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Why callers who didn’t book walked: price, timing or the drive, counted for you</span></li>
+        </ul>
+        <a class="btn primary" href="index.html#contact">Choose Growth</a>
+      </div>
+      <div class="plan">
+        <h3>Pro</h3>
+        <div class="price"><b>$499</b><span>/ month, about $16 a day</span></div>
+        <p class="who">Never lose a call, a quote or a payment.</p>
+        <ul class="chk">
+          <li class="plus">Everything in Growth, plus:</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Quote, invoice and appointment follow-ups, with the text written for you</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Your own business number, and a text back for every missed call</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Call-backs with a time on them. If you miss it, Max calls them to set a new one</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>A few days after a visit, Max calls the client: did it hold up? A yes becomes the review ask, a no reaches you first</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>A caller wants a service you don’t offer? Max can put them through to a business nearby on Always Open, and theirs can send you clients back. Both of you have to turn it on</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Rebooking and past-client reminders</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Fill my week: an open day on your calendar is offered to past customers who said yes to texts, and the first yes is booked</span></li>
+        </ul>
+        <p class="plan-note">Texting from your business number starts once carriers approve it, usually one to two weeks. Until then every text is written for you and sends from your own phone in one tap.</p>
+        <a class="btn line" href="index.html#contact">Choose Pro</a>
+      </div>
+      <div class="plan add">
+        <h3>More Max minutes</h3>
+        <div class="price"><b>$149</b><span>/ month, add to any plan</span></div>
+        <p class="who">Max comes with every plan, with 300 minutes a month. Add 300 more when your calls run past that. Past your minutes, 25¢ a minute.</p>
+        <ul class="chk">
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Answers when you can’t, day or night</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Change his hours and what he tells callers from the app</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Every call on your phone in seconds</span></li>
+        </ul>
+        <a class="btn line" href="tel:+17064602226">Call Max first</a>
+      </div>
+    </div>
+    <p class="also">Starting smaller? Starter is $149 a month: every review answered, your Google profile kept current, Max answering your calls, and a monthly report. Hiring? Help-wanted posts are $99 a month for up to two openings on Google, Indeed and Facebook.</p>
+    <div class="guarantee"><b>30 days, no risk.</b><p>If the first month isn’t worth it, tell us and we refund it. No forms, no argument.</p></div>
+  </div>
+</section>
+
+<section class="sec band alt" id="rules" data-label="How we work">
+  <div class="inner">
+    <h2>Three rules we don’t bend.</h2>
+    <div class="rules3">
+      <div><h3>No fake reviews</h3><p>Every review on your page comes from a real customer. We never write them, buy them or trade for them.</p></div>
+      <div><h3>Every customer gets asked</h3><p>Not just the ones who seem happy. It’s the fair way, and it’s what Google’s rules require. Nobody gets offered anything for a review.</p></div>
+      <div><h3>You approve what matters</h3><p>Replies, posts and anything sensitive come to your phone first. Nothing goes out in your name that you wouldn’t say yourself.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec band" id="questions" data-label="Questions">
+  <div class="inner">
+    <h2>What salon and studio owners ask first</h2>
+    <div class="faq">
+      <details><summary>Do I have to sit at a desk for this?</summary><p>No. Everything comes to your phone in the Always Open app. You tap Approve, or change the words first. Once a month you get a one-page report. You can read it between clients.</p></details>
+      <details><summary>What does Max say when someone asks what a service costs?</summary><p>He shares only the prices you give him, word for word, and never makes one up. Otherwise he takes what they want and a good time for you to call back.</p></details>
+      <details><summary>Will callers know Max isn’t a person?</summary><p>Yes. He says so at the start of every call, along with the fact that the call may be recorded. If someone wants a person, he takes a message, or puts urgent calls through to your cell if you choose.</p></details>
+      <details><summary>Can I keep my business number?</summary><p>Yes. When you can’t pick up, call forwarding sends the call to Max. We set it up with you, and most phone companies support it.</p></details>
+      <details><summary>Do you text my customers?</summary><p>Only people who reached out to you or agreed to it. A finished-job review request is one text, and only for customers who agreed. On Pro, quote follow-ups and appointment confirmations go out from your business number to customers who said yes, and someone who calls and can’t reach you gets one text back. Texting starts once carriers approve your business number, usually one to two weeks; until then the text is written for you and sends from your own phone.</p></details>
+      <details><summary>Will this get me to number one on Google?</summary><p>No promises. The honest options are doing nothing, hiring someone, or us. One of those has never moved a ranking. The report shows you which of the other two did.</p></details>
+      <details><summary>What do you need from me to start?</summary><p>Three things, about ten minutes. Your hours, your services and prices, and the best number for urgent calls. And a sample reply approved so we sound like you. Max’s number is ready the minute you sign up. Your audit, request link, booking link and app work the same day. Invite us onto your Google profile whenever you’re ready: you stay the owner, and you can remove us any time.</p></details>
+      <details><summary>Is there a contract?</summary><p>No. It’s month to month, there’s no setup fee, and the first month is refundable.</p></details>
+      <details><summary>Why pay for this when I could do it myself?</summary><p>You could. You won’t. Not because you’re lazy. You’re busy, and the work in front of you pays. Meanwhile the review from Tuesday sits there, Thursday’s call went to voicemail, and that customer called the next guy. We do it every day, including the days you’re booked solid. About what six hours of office help costs. You approve it. You’re the boss. We’re the ones who remember.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="band dark final" id="next" data-label="Free audit">
+  <div class="inner">
+    <div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div>
+    <h2>See what’s costing you calls before you spend a dollar.</h2>
+    <p class="lead">Ask for a free audit: your rating next to the salons you compete with, the reviews nobody answered, and the details that don’t match across the web. It’s yours to keep.</p>
+    <div class="ctas"><a class="btn primary" href="index.html#contact">Get my free audit</a><a class="btn line" href="index.html">Back to Always Open</a></div>
+  </div>
+</section>
+</main>
+
+<footer class="band">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
+    <span>Be wherever you’d rather be · Anywhere in the U.S.</span>
+    <span class="legal"><a href="tel:+17064602226">(706) 460-2226</a></span>
+    <span class="legal"><a href="/map">The Always Open map</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></span>
+    <span class="entity">Lake Country Foam Party, LLC, doing business as Always Open</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var job = document.getElementById('m-job'), mg = document.getElementById('m-margin');
+  var keep = document.getElementById('m-keep'), cover = document.getElementById('m-cover');
+  function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+  function months(n) { return n === 1 ? '1 month' : n + ' months'; }
+  function draw() {
+    var j = Math.max(0, +job.value || 0), m = Math.min(100, Math.max(0, +mg.value || 0)), k = j * m / 100;
+    keep.textContent = money(k);
+    var g = Math.floor(k / 299), p = Math.floor(k / 499);
+    if (k <= 0) { cover.textContent = 'Put in a job and what you keep.'; return; }
+    cover.innerHTML = g < 1 ? 'That’s most of a month of Growth.' : 'That covers <b>' + months(g) + '</b> of Growth' + (p >= 1 ? ', or <b>' + months(p) + '</b> of Pro.' : '.');
+  }
+  job.addEventListener('input', draw); mg.addEventListener('input', draw); draw();
+})();
+</script>
+<script>
+(function () {
+  document.documentElement.classList.add('js');
+  if (!window.matchMedia('(max-width:760px)').matches || !('IntersectionObserver' in window)) return;
+  var label = document.getElementById('seclabel'), txt = label && label.querySelector('span'), hero = document.querySelector('header.hero'), cur = '';
+  var heroIn = true, io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { cur = e.target.getAttribute('data-label') || ''; if (txt) txt.textContent = cur; } }); if (label) label.classList.toggle('show', !heroIn && !!cur); }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+  document.querySelectorAll('[data-label]').forEach(function (s) { io.observe(s); });
+  if (hero && label) new IntersectionObserver(function (es) { heroIn = es[0].isIntersecting; label.classList.toggle('show', !heroIn && !!cur); }, { threshold: 0.02 }).observe(hero);
+  var rv = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rv.unobserve(e.target); } }); }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (r) { rv.observe(r); });
+})();
+</script>
+</body>
+</html>

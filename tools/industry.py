@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the industry pages (hvac, plumbing, dental, auto-repair) from builders.html.
+"""Builds the industry pages (hvac, plumbing, dental, auto-repair, marine, salons, restaurants) from builders.html.
 Run from the repo root: python3 tools/industry.py. Every sample number stays labeled Sample."""
 import re, sys, pathlib
 
@@ -57,7 +57,10 @@ def build(key, d):
     keep = int(d['m_job'] * d['m_margin'] / 100)
     s = rep(s, '<strong id="m-keep">$5,000</strong>', '<strong id="m-keep">$' + format(keep, ',') + '</strong>')
     mo = lambda n: str(n) + (' month' if n == 1 else ' months')
-    s = rep(s, 'That covers <b>16 months</b> of Growth, or <b>10 months</b> of Pro.', 'That covers <b>' + mo(max(0, keep // 299)) + '</b> of Growth, or <b>' + mo(max(0, keep // 499)) + '</b> of Pro.')
+    g, p = keep // 299, keep // 499
+    cover = 'That’s most of a month of Growth.' if g < 1 else 'That covers <b>' + mo(g) + '</b> of Growth' + (', or <b>' + mo(p) + '</b> of Pro.' if p >= 1 else '.')
+    s = rep(s, 'That covers <b>16 months</b> of Growth, or <b>10 months</b> of Pro.', cover)
+    s = s.replace('a job photo of a new deck turned into a post', d.get('photo_of', 'a job photo') + ' turned into a post')   # regulated pages rewrote it already
     # plans and questions
     s = rep(s, '<h2>Plans for builders</h2>', '<h2>Plans for ' + d['plans_for'] + '</h2>')
     s = rep(s, '<h2>What builders ask first</h2>', '<h2>What ' + d['ask_who'] + ' ask first</h2>')
@@ -68,8 +71,8 @@ def build(key, d):
     if d.get('regulated'):
         s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>Call-backs with a time on them[^<]*</span></li>', '', s)
         s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>A caller needs the electrician[^<]*</span></li>', '', s)
-    for a, b in d.get('extra', []):
-        s = rep(s, a, b)
+    for e in d.get('extra', []):
+        s = rep(s, e[0], e[1], e[2] if len(e) > 2 else 1)
     if d.get('regulated'):
         s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>On Pro, a missed call also gets a text back[^<]*</span></li>', '', s)
         s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>Why callers who didn’t book walked[^<]*</span></li>', '', s)
@@ -194,6 +197,94 @@ PAGES = {
   f_h2='Finished repairs turn into reviews and posts.',
   f_mock='<div class="ask"><b>Finished a job</b><span>Priya · 706-555-0148 · No-start, starter</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>She agreed to get one text from us.</span></label></div>\n        <div class="photo"><span>Your photo</span></div>\n        <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">A starter swapped the same afternoon and a mom back in the pickup line by three. If yours cranks slow on cold mornings, that is the warning. Give us a call.</p></div>',
   m_h2='A few repairs can cover the whole year.', m_lead='Tickets are smaller than a roof, so count a few. Put in your own numbers.', m_label='A typical repair ticket', m_job=900, m_margin=45, m_one='One ticket like that leaves you',
+ ),
+ 'marine': dict(
+  title='Docks and marine', who='dock builders, boat repair shops and marinas', biz='Sample Marine', rivals='marine businesses', plans_for='docks and marine', ask_who='marine owners',
+  meta='Always Open for dock builders, boat repair shops and marinas: Max answers the calls you miss out on the water, dock and repair quotes get a follow-up on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
+  h1='Memorial Day weekend. Their lift jammed with the boat on it. They called three marinas. One answered.',
+  lede='Max answers your calls in your company’s name, gives your hours and service area, takes the boat, the dock and what’s wrong, and tries your phone if it can’t wait. Dock and repair quotes get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone.</b>',
+  day_aria='Sample: three things on a marine owner’s phone during one spring day. At 9:12 AM Max took a call from Greg Hollis whose boat lift jammed with the boat on it. At 1:15 PM a follow-up on a $22,400 dock and lift quote is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
+  day_cards=card('9:12 AM', 'Max took a call', 'Urgent', 'Greg Hollis', '<p>Boat lift stuck halfway up with the pontoon on it. Family is in for the holiday weekend. Asked if anyone can come out today.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
+            card('1:15 PM', 'Follow-up', 'Due today', 'The Wards · $22,400 dock', '<div class="bub">Hi Beth, this is Sam with Sample Marine. Checking in on the quote for the new dock and lift. Any questions I can answer?</div>', ['Text them', 'Call'], due=True) + '\n        ' +
+            card('4:30 PM', 'Reply ready for your OK', '', '★★★★★ from Greg H.', '<p>“Had the lift running by noon on a holiday weekend. Saved our trip.”</p>', ['Approve', 'Edit']),
+  calls_h2='Every call answered, even when you’re out on the water.', takes='the boat, the dock and what’s wrong', urgent='a lift stuck with a boat on it', books='the site visit',
+  log_aria='Sample lead log for a made-up marine company: a jammed lift call taken by Max, a dock quote followed up, a booked spring launch, and a hang-up that got a text back.',
+  log_rows='\n'.join([row('r', 'Lift stuck · Greg Hollis', 'Max took the call, 9:12 AM Sat', 'red', 'New'), row('w', 'Dock and lift · the Wards', 'Follow-up due today', 'warn', 'Due'), row('', 'Spring launch · J. Ortiz', 'Thursday, 8:00 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
+  nav_q='Quotes', nav_f='Finished jobs', q_h2='Dock quotes don’t go quiet.', q_lead='Most dock quotes aren’t turned down. They wait for the next weekend at the lake, then the one after. Add the quote in the app and pick a day. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
+  q_aria='Sample follow-up in the Always Open app: a quote for the Wards, $22,400, due today, with a drafted text ready to send.',
+  q_mock=fu('Quote', 'Due today', 'The Wards', '$22,400', 'Floating dock and a 10,000 lb lift', ['Text them', 'Call'], 'Hi Beth, this is Sam with Sample Marine. Checking in on the quote for the new dock and lift. Any questions I can answer?'),
+  f_h2='Finished jobs turn into reviews and posts.',
+  f_mock='<div class="ask"><b>Finished a job</b><span>Greg · 706-555-0148 · Lift repair</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>He agreed to get one text from us.</span></label></div>\n        <div class="photo"><span>Your photo</span></div>\n        <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">A jammed lift back in service by noon on a holiday weekend. If yours groans on the way up, have it looked at before the season gets busy. Give us a call.</p></div>',
+  m_h2='One dock can cover the whole year.', m_lead='Docks are big jobs, so the math is short. Put in your own numbers.', m_label='A typical dock or lift job', m_job=18000, m_margin=25, m_one='One job like that leaves you',
+  photo_of='a job photo of a repaired boat lift',
+  extra=[('including the days you’re under a house', 'including the days you’re under a dock'),
+         ('A caller needs the electrician, not you?', 'A caller needs a boat mechanic, not you?'),
+         ('<span>Seasonal and past-customer reminders</span>', '<span>Spring launch, winterizing and past-customer reminders</span>')],
+ ),
+ 'salons': dict(
+  title='Salons, spas and gyms', who='salons, spas, gyms and groomers', biz='Sample Salon', rivals='salons', plans_for='salons and studios', ask_who='salon and studio owners',
+  meta='Always Open for salons, spas, gyms and groomers: Max answers the calls you miss mid-appointment, appointments get a confirmation on the day you pick, and every visit can turn into a review request. You approve it all from your phone.',
+  h1='Your hands are full. The phone rings. That’s a new regular, if someone answers.',
+  lede='Max answers your calls in your business’s name, gives your hours and the prices you set, takes the caller’s name, the service and the day they want, and sends it to your phone in seconds. Appointments get a confirmation on the day you pick, and every visit can turn into a review request and a post. <b>You approve it all from your phone.</b>',
+  day_aria='Sample: three things on a salon owner’s phone during one day. At 11:20 AM Max took a call from Ana Ruiz who wants a color correction before a wedding. At 1:15 PM a confirmation for Maria’s Thursday appointment is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
+  day_cards=card('11:20 AM', 'Max took a call', 'New client', 'Ana Ruiz', '<p>Wants a color correction before a wedding on the 14th. Saturday morning if possible, any stylist.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
+            card('1:15 PM', 'Follow-up', 'Due today', 'Maria L. · Thursday 10 AM', '<div class="bub">Hi Maria, this is Jess at Sample Salon, confirming your appointment on Thursday at 10 AM. Reply here if you need to change it.</div>', ['Text her', 'Call'], due=True) + '\n        ' +
+            card('4:30 PM', 'Reply ready for your OK', '', '★★★★★ from Ana R.', '<p>“Fixed a color two other places would not touch. I finally like my hair again.”</p>', ['Approve', 'Edit']),
+  calls_h2='Every call answered, even in the middle of a cut.', takes='the name, the service and the day they want', urgent='a bride whose appointment is today', books='the appointment',
+  log_aria='Sample lead log for a made-up salon: a new-client call taken by Max, an appointment confirmation due, a booked cut, and a hang-up that got a text back.',
+  log_rows='\n'.join([row('r', 'Color correction · Ana Ruiz', 'Max took the call, 11:20 AM Tue', 'red', 'New'), row('w', 'Confirm · Maria L.', 'Thursday 10 AM, text due today', 'warn', 'Due'), row('', 'Cut and style · J. Ortiz', 'Saturday, 9:30 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
+  nav_q='Appointments', nav_f='After a visit', q_h2='Fewer no-shows, fewer empty chairs.', q_lead='A forgotten appointment is an hour you can’t sell twice. Add the appointment in the app and pick the day to confirm. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
+  q_aria='Sample follow-up in the Always Open app: Maria Lopez’s color and cut on Thursday, confirmation due today, with a drafted text ready to send.',
+  q_mock=fu('Appointment', 'Due today', 'Maria Lopez', '$180', 'Color and cut, Thursday 10 AM', ['Text her', 'Call'], 'Hi Maria, this is Jess at Sample Salon, confirming your appointment on Thursday at 10 AM. Reply here if you need to change it.'),
+  f_h2='Every visit can turn into a review and a post.',
+  f_mock='<div class="ask"><b>Finished a job</b><span>Ana · 706-555-0148 · Color correction</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>She agreed to get one text from us.</span></label></div>\n        <div class="photo"><span>Your photo, with her OK</span></div>\n        <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">A color correction finished just in time for a wedding. If your color has gone brassy or uneven, book a consultation and we’ll talk it through.</p></div>',
+  m_h2='One new regular can cover months.', m_lead='Visits are small, but regulars come back all year. Put in your own numbers.', m_label='What a regular spends in a year', m_job=1200, m_margin=50, m_one='One new regular like that leaves you',
+  photo_of='a photo of a finished color',
+  extra=[('When a job wraps up, tap Finished a job.', 'After a visit, tap Finished a job.'),
+         ('from your job photos', 'from your photos', -1),
+         ('Quote requests taken any hour, and every lead logged', 'Booking requests taken any hour, and every lead logged'),
+         ('Three days after the job, Max calls the customer: did it hold up?', 'A few days after a visit, Max calls the client: did it hold up?'),
+         ('A caller needs the electrician, not you? Max can put them through to one nearby on Always Open, and theirs can send you work back.', 'A caller wants a service you don’t offer? Max can put them through to a business nearby on Always Open, and theirs can send you clients back.'),
+         ('<span>Seasonal and past-customer reminders</span>', '<span>Rebooking and past-client reminders</span>'),
+         ('Need crews?', 'Hiring?'),
+         ('You can read it on the tailgate.', 'You can read it between clients.'),
+         ('including the days you’re under a house', 'including the days you’re booked solid'),
+         ('What does Max say when someone asks what a job costs?', 'What does Max say when someone asks what a service costs?'),
+         ('takes the details for an estimate and a good time for you to call back', 'takes what they want and a good time for you to call back'),
+         ('Your hours, service area and the best number for urgent calls.', 'Your hours, your services and prices, and the best number for urgent calls.')],
+ ),
+ 'restaurants': dict(
+  title='Restaurants and shops', who='restaurants, cafes and shops', biz='Sample Kitchen', rivals='restaurants', plans_for='restaurants and shops', ask_who='restaurant and shop owners',
+  meta='Always Open for restaurants, cafes and shops: Max answers the calls you miss in the rush, catering and large-order quotes get a follow-up on the day you pick, and every review gets an answer. You approve it all from your phone.',
+  h1='Friday, 7 PM. Every table is full. The phone is ringing about lunch for forty.',
+  lede='Max answers your calls in your business’s name, gives your hours, holiday hours and directions from what you tell him, takes large-party and catering requests, and sends them to your phone in seconds. Catering quotes get a follow-up on the day you pick, every review gets an answer, and your specials go up as Google posts. <b>You approve it all from your phone.</b>',
+  day_aria='Sample: three things on a restaurant owner’s phone during one day. At 7:08 PM Max took a call from Lauren Pike about an office lunch for 40. At 1:15 PM a follow-up on a $1,850 catering quote is due, with the text already written. At 4:30 PM a reply to a two-star review is ready for approval.',
+  day_cards=card('7:08 PM', 'Max took a call', 'Catering', 'Lauren Pike', '<p>Office lunch for 40 next Thursday, half vegetarian. Wants a quote by Monday.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
+            card('1:15 PM', 'Follow-up', 'Due today', 'Riverside Realty · $1,850', '<div class="bub">Hi Tom, this is Sam at Sample Kitchen. Checking in on the catering quote for your open house. Any questions I can answer?</div>', ['Text them', 'Call'], due=True) + '\n        ' +
+            card('4:30 PM', 'Reply ready for your OK', '', '★★ from Mark D.', '<p>“Food was great, but we waited 40 minutes for a table we had reserved.”</p>', ['Approve', 'Edit']),
+  calls_h2='Every call answered, even in the Friday rush.', takes='the date, the headcount and what they need', urgent='a catering order for today', books='tastings and event walkthroughs',
+  log_aria='Sample lead log for a made-up restaurant: a catering call taken by Max, a catering quote followed up, a booked event walkthrough, and a hang-up that got a text back.',
+  log_rows='\n'.join([row('r', 'Lunch for 40 · Lauren Pike', 'Max took the call, 7:08 PM Fri', 'red', 'New'), row('w', 'Catering · Riverside Realty', 'Follow-up due today', 'warn', 'Due'), row('', 'Rehearsal dinner · J. Ortiz', 'Walkthrough Thursday, 3:00 PM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
+  nav_q='Catering', nav_f='Reviews and posts', q_h2='Catering quotes don’t go quiet.', q_lead='Most catering quotes aren’t turned down. They get buried under the next event. Add the quote in the app and pick a day. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
+  q_aria='Sample follow-up in the Always Open app: a catering quote for Riverside Realty, $1,850, due today, with a drafted text ready to send.',
+  q_mock=fu('Quote', 'Due today', 'Riverside Realty', '$1,850', 'Open house lunch for 60, delivered Saturday', ['Text them', 'Call'], 'Hi Tom, this is Sam at Sample Kitchen. Checking in on the catering quote for your open house. Any questions I can answer?'),
+  f_h2='Every review answered. Every special posted.',
+  f_mock='<div class="ask"><b>Finished a job</b><span>Lauren · 706-555-0148 · Lunch for 40</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>She agreed to get one text from us.</span></label></div>\n        <div class="photo"><span>Your photo</span></div>\n        <div><small>Post · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">Thursday’s special: shrimp and grits with a cup of gumbo, 11 to 2. Call ahead for orders of ten or more.</p></div>',
+  m_h2='One catering order can cover a month.', m_lead='Plates are small, so count a catering order. Put in your own numbers.', m_label='A typical catering order', m_job=1500, m_margin=35, m_one='One order like that leaves you',
+  photo_of='a photo of a daily special',
+  extra=[('When a job wraps up, tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed. Send us a photo, and it comes back as a Google post written for you, ready for your OK.',
+          'Every review gets a reply written for you, and bad ones reach you the same day. After a catering order or a special-order pickup, tap Finished a job, and one tap sends a review request to a customer who agreed. Send us a photo of the special, and it comes back as a Google post, ready for your OK.'),
+         ('from your job photos', 'from your photos', -1),
+         ('Quote requests taken any hour, and every lead logged', 'Catering and large-party requests taken any hour, and every lead logged'),
+         ('\n          <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Three days after the job, Max calls the customer: did it hold up? A yes becomes the review ask, a no reaches you first</span></li>', ''),
+         ('A caller needs the electrician, not you? Max can put them through to one nearby on Always Open, and theirs can send you work back.', 'A caller wants something you don’t carry? Max can put them through to a business nearby on Always Open, and theirs can send you customers back.'),
+         ('<span>Seasonal and past-customer reminders</span>', '<span>Holiday, catering-season and past-customer reminders</span>'),
+         ('Need crews?', 'Hiring?'),
+         ('You can read it on the tailgate.', 'You can read it before the lunch rush.'),
+         ('including the days you’re under a house', 'including the Friday nights you’re on the line'),
+         ('What does Max say when someone asks what a job costs?', 'What does Max say when someone asks what catering costs?'),
+         ('takes the details for an estimate and a good time for you to call back', 'takes the date, the headcount and a good time for you to call back'),
+         ('Your hours, service area and the best number for urgent calls.', 'Your hours, holiday hours and the best number for urgent calls.')],
  ),
 }
 
