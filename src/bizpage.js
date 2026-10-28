@@ -71,6 +71,10 @@ function setBlock(){
   var h='<h2>Settings</h2><div class="card"><label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
   if(S.line)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-es"'+(S.line.spanish?' checked':'')+'> <span>'+esc(S.line.name)+' answers Spanish-speaking callers in Spanish</span></label>';
   if(S.map)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-map"'+(S.map.show?' checked':'')+'> <span>Show me on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+esc(mapNote())+' <button class="btn line sm" type="button" data-a="bz-map" style="margin-top:6px">Edit what it shows</button></p>';
+  if(S.handoff){var H=S.handoff;h+='<p class="note" style="margin:14px 0 4px"><b>Hand-offs between Always Open businesses</b></p>'+
+    '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:4px"><input type="checkbox" id="bz-ho-give"'+(H.give?' checked':'')+'> <span>When a caller needs work we don\u2019t do, Max may put them through to a nearby Always Open business that does</span></label>'+
+    '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ho-take"'+(H.take?' checked':'')+'> <span>Take callers that nearby Always Open businesses pass to us</span></label>'+
+    '<p class="note" style="margin:4px 0 0">'+(H.give?(H.nearby?H.nearby+' nearby business'+(H.nearby===1?'':'es')+' can take hand-offs right now.':'No nearby business takes hand-offs yet. Max will not offer any.'):'Off.')+(H.given||H.taken?' This month: sent '+H.given+', took '+H.taken+'.':'')+' Nearest first, never by plan. Only businesses on Always Open.</p>';}
   return h+'</div>';
 }
 function mapNote(){var m=S.map;if(!m)return '';if(!m.show)return m.regulated?'Off. Regulated businesses are only listed if they turn it on.':'Off. You are not on the public map.';
@@ -143,6 +147,7 @@ function bizAct(a,id,t){
 }
 document.addEventListener('change',function(e){var t=e.target;if(!t)return;
   if(t.id==='bz-weekly')post('prefs',{weekly:t.checked}).then(function(res){if(res.j.ok){S.weekly=t.checked;toast(t.checked?'Weekly summary on.':'Weekly summary off.');}});
+  if(t.id==='bz-ho-give'||t.id==='bz-ho-take'){var body={};body[t.id==='bz-ho-give'?'give':'take']=t.checked;post('handoff',body).then(function(res){if(res.j.ok){S.handoff.give=res.j.give;S.handoff.take=res.j.take;toast('Saved.');load();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
   if(t.id==='bz-map')post('map',{show:t.checked}).then(function(res){if(res.j.ok){S.map=res.j.map;toast(t.checked?'You are on the map.':'You are off the map.');render();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
   if(t.id==='bz-es')post('line',{spanish:t.checked}).then(function(res){if(res.j.ok){if(S.line)S.line.spanish=t.checked;toast(t.checked?'Spanish callers get Spanish.':'English only.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
 });

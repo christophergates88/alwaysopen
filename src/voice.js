@@ -10,6 +10,8 @@
 import { handleSms, sendText, TEXTING_ON } from './sms.js';
 import { recordLost } from './lost.js';
 import { slotForLine, createCallback, outboundTwiml, outboundGather, outboundStatus } from './callbacks.js';
+import { neighborsFor, neighborsText, startHandoff, handedFrom, markHandoff } from './handoff.js';
+const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
 import { opsAlert } from './ops.js';
@@ -66,6 +68,7 @@ export async function handleVoice(req, env, ctx, url) {
   if (env.TWILIO_AUTH_TOKEN && !(await twilioSigOk(env.TWILIO_AUTH_TOKEN, url.href, form, req.headers.get('x-twilio-signature')))) return txt('Forbidden', 403);
   try {
     if (kind === 'sms') return await handleSms(req, env, form, true);
+    if (kind === 'handdial') { const st = String(form.get('DialCallStatus') || ''); await markHandoff(env, form.get('CallSid') || '', st === 'completed' ? 'connected' : st); return twiml(st === 'completed' ? '<Hangup/>' : say('Sorry, they did not pick up. I will pass your number along. Goodbye.') + '<Hangup/>'); }
     if (kind === 'out') return await outboundTwiml(env, url, form);
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
@@ -129,6 +132,10 @@ async function afterRelay(env, ctx, f) {
   const line = await lineFor(env, call.number);
   const room = env.CALLROOM.get(env.CALLROOM.idFromName(sid));
   const failed = f.get('SessionStatus') === 'failed' || !!f.get('ErrorCode');
+  if (hand.reason === 'handoff' && E164.test(String(hand.to || ''))) {
+    ctx.waitUntil(room.finalize(sid, 'handoff').catch(() => {}));
+    return twiml('<Dial timeout="25" action="' + SITE + '/voice/handdial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '"><Number>' + xa(hand.to) + '</Number></Dial>');
+  }
   if (hand.reason === 'transfer' && line && E164.test(line.transfer_to || '')) {
     ctx.waitUntil(room.finalize(sid, 'transfer').catch(() => {}));
     return twiml('<Dial timeout="20" action="' + SITE + '/voice/dial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '">' +
@@ -285,6 +292,8 @@ export class CallRoom extends DurableObject {
     if (s.more) s.last += speakMs(s.more);
     if (!s.line.regulated && call.client_id !== OWN_ID) {
       try { const cs = await slotForLine(this.env, line); if (cs) { s.line.cbSlot = cs.spoken; s.line.cbBusy = cs.busyText; s.cbSlot = { at: cs.at }; } } catch (e) {}
+      try { const nb = await neighborsFor(this.env, call.client_id); if (nb.length) { s.neighbors = nb; s.line.neighbors = neighborsText(nb); } } catch (e) {}
+      try { const hf = await handedFrom(this.env, call.client_id, s.caller); if (hf) s.line.handedFrom = hf; } catch (e) {}
       try { const o = await openSlots(this.env, call.client_id, now, 6); if (o && o.slots.length) s.line.slots = o.slots; } catch (e) { /* no calendar: take a message */ }
     }
     // Repeat callers: what we already know about this number (never for regulated lines, never on Always Open's own line).
@@ -584,6 +593,10 @@ export class CallRoom extends DurableObject {
         await vlog(this.env, 'book', (ok ? 'booked ' : 'FAILED ') + cur.cid + ' ' + sl.say);
       }
     }
+    if (sp.flags.handoff && cur.neighbors) {
+      const n = await startHandoff(this.env, cur.cid, cur.sid, cur.caller, sp.flags.handoff, cur.neighbors, '').catch(() => null);
+      if (n) { cur.handoff = { id: n.id, number: n.number, business: n.business }; cur.endAt = Date.now() + speakMs(spoken) + 400; }
+    }
     if (sp.flags.transfer && cur.line.canTransfer) { cur.transfer = true; cur.endAt = Date.now() + speakMs(spoken) + 400; }
     else if (sp.flags.end || sp.flags.transfer) cur.endAt = Date.now() + speakMs(spoken) + 700;
     await this.keep(cur);
@@ -648,7 +661,7 @@ export class CallRoom extends DurableObject {
     if (s.endAt && now >= s.endAt) {
       s.done = true;
       await this.keep(s);
-      this.out({ type: 'end', handoffData: JSON.stringify({ reason: s.transfer ? 'transfer' : 'done' }) });
+      this.out({ type: 'end', handoffData: JSON.stringify(s.handoff ? { reason: 'handoff', to: s.handoff.number, biz: s.handoff.business } : { reason: s.transfer ? 'transfer' : 'done' }) });
       await this.ctx.storage.setAlarm(now + 20000); // in case Twilio never closes the socket
       return;
     }
@@ -733,6 +746,7 @@ async function writeUp(env, sid, s, why) {
   if (note && s && s.booked) note.when = (s.booked.ok ? 'Booked on your Google Calendar: ' : 'Tried to book (did not save, please confirm): ') + s.booked.at;
   // 'transferred' is only set by afterDial, once the owner actually picked up.
   let outcome = call.outcome === 'transferred' ? 'transferred' : (heard ? 'done' : (why === 'failed' ? 'failed' : 'hangup'));
+  if (why === 'handoff' && s && s.handoff) { outcome = 'handoff'; try { await logAct(env, { client_id: call.client_id, staff: 'Max' }, 'Sent a caller to ' + s.handoff.business); await logAct(env, { client_id: s.handoff.id, staff: 'Max' }, 'Took a caller from ' + ((line && line.business) || 'a nearby business')); } catch (e) {} }
   if (note && note.spam) outcome = 'spam';
   const relay = call.relay_seconds || (s && s.started ? Math.round((Date.now() - s.started) / 1000) : 0);
   const callback = note && E164.test(note.callback || '') ? note.callback : (E164.test(call.caller || '') ? call.caller : '');
@@ -915,6 +929,8 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- You are an SI (always write it as "S.I." so it is spoken as two letters), an automated assistant, and the caller already heard that in the greeting. If they ask whether you are a person, a bot, an AI or a recording, say plainly that you are an S.I., an automated assistant, not a person; if they ask what S.I. means, say it is the new name for AI and do not spell it out any further; otherwise do not keep bringing it up. Never claim to be a person.',
     '- Never give legal, medical, insurance, tax or financial advice. Never discuss coverage, claims, quotes or rates.' + (L.regulated ? '' : ' Explaining what ' + L.business + ' does and how it would work for their kind of business is not advice; do that plainly.') + (L.prices ? ' Only share the prices listed above, word for word.' : ' Never quote a price; say the team will go over pricing.'),
     '- Never promise prices, timing, outcomes or availability.',
+    L.neighbors ? '- Nearby businesses on Always Open that take hand-offs: ' + L.neighbors + '. If the caller needs work this business does not do and one of them does that kind of work, offer the nearest one once, plainly: "We don\'t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?" Only on a clear yes, say "One moment, putting you through." and end that reply with [HANDOFF:Lane Electric] using the exact business name. Never name any business that is not on that list. If they say no, take a message as usual.' : null,
+    L.handedFrom ? '- ' + L.handedFrom.business + ' just passed this caller over because they needed ' + (L.handedFrom.need || 'work that business does not do') + '. Open with that in one short line, then help as usual.' : null,
     L.cbSlot ? '- If the caller wants the owner to call them back, name a time rather than leaving it open. Say it plainly: "He is ' + L.cbBusy + '. He will call you at ' + L.cbSlot + '. Does that work?" If they want a different time during business hours, take theirs. Confirm the number to call.' : null,
     (L.regulated || L.lostOff || L.own) ? null : '- If the caller decides not to go ahead (they will think about it, it is not for them, they only wanted a price, or it is work the business does not do), ask once, plainly: "Before you go, was it the price, the timing, or the drive? It helps him." Take whatever they say, thank them, and let them go. Never argue, never offer anything, never ask twice.',
     '- Never ask for or accept card numbers, Social Security numbers, account or policy numbers, birth dates, passwords or health details. If they start to give one, stop them kindly and say the team will take care of it on the callback.',
@@ -1073,7 +1089,7 @@ async function sse(body, onData) {
 // Turns the AI's text stream into what Twilio speaks: strips the [END]/[TRANSFER] controls and anything
 // that should not be read aloud, and marks the last piece of each reply.
 export class Speaker {
-  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null }; this.stopped = false; }
+  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null, handoff: '' }; this.stopped = false; }
   push(tok) {
     if (this.stopped) return;
     this.buf += String(tok || '');
@@ -1086,6 +1102,7 @@ export class Speaker {
       const tag = this.buf.slice(1, j).trim().toUpperCase();
       if (tag === 'END') this.flags.end = true;
       else if (tag === 'TRANSFER') this.flags.transfer = true;
+      else if (tag.startsWith('HANDOFF')) this.flags.handoff = this.buf.slice(1, j).trim().slice(7).replace(/^[:\s]+/, '').trim();
       else if (tag.startsWith('BOOK')) { const raw = this.buf.slice(1, j).trim().slice(4).split('|').map(x => x.trim()); const n = parseInt(raw[0], 10); if (n > 0) this.flags.book = { n, name: (raw[1] || '').slice(0, 60), reason: (raw[2] || '').slice(0, 200) }; }
       this.buf = this.buf.slice(j + 1);
     }

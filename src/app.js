@@ -16,6 +16,7 @@ import { apiImport, apiRevive, pastState } from './past.js';
 import { apiRivals, rivalsState } from './rivals.js';
 import { lostState } from './lost.js';
 import { callbackState, apiCallbacks } from './callbacks.js';
+import { apiHandoff, handoffState } from './handoff.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -228,6 +229,9 @@ export async function handleApp(req, env, ctx, url) {
       return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
+    } else if (sub === '/api/handoff' && meth === 'POST') {
+      const r = await apiHandoff(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/callbacks' && meth === 'POST') {
       const ln = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
       const r = await apiCallbacks(req, env, c, ln);
@@ -373,6 +377,7 @@ async function apiState(env, c, ctx) {
   out.referrals = c.staff ? null : await referralState(env, c);
   try { out.lost = (c.regulated || tech) ? null : await lostState(env, cid); } catch (e) { out.lost = null; }
   try { out.callbacks = await callbackState(env, cid); } catch (e) { out.callbacks = null; }
+  try { out.handoff = (c.regulated || c.staff) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
