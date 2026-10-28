@@ -229,9 +229,10 @@ test('"finished a job" adds the customer once and needs their OK to be contacted
 const KEY = env.VOICE_KEY;
 let callN = 0;
 const newSid = () => 'CA' + String(++callN).padStart(32, '0').replace(/0/g, 'a').replace(/(\d)/g, '$1');
-function hook(kind, params) {
-  const href = 'https://alwaysopenoffice.com/voice/' + kind + '/' + KEY;
-  return site.call('/voice/' + kind + '/' + KEY, { form: params, headers: { 'x-twilio-signature': H.twilioSign(env.TWILIO_AUTH_TOKEN, href, params) } });
+function hook(kind, params, query) {
+  const q = query ? '?' + query : '';
+  const href = 'https://alwaysopenoffice.com/voice/' + kind + '/' + KEY + q;
+  return site.call('/voice/' + kind + '/' + KEY + q, { form: params, headers: { 'x-twilio-signature': H.twilioSign(env.TWILIO_AUTH_TOKEN, href, params) } });
 }
 const wsOf = sid => env.CALLROOM._rooms.get(sid);
 const say = async (sid, words) => { const r = wsOf(sid); await r.room.webSocketMessage(r.ws, JSON.stringify({ type: 'prompt', voicePrompt: words, last: true })); };
@@ -426,6 +427,66 @@ test('a month written by HQ with a label inside its numbers still reaches the iP
   for (const [k, v] of Object.entries(m.stats)) assert.ok(v === null || typeof v === 'number', 'stats.' + k + ' is a number or empty');
   assert.equal(m.label, 'August 2026');
   for (const mo of st.months) for (const v of Object.values(mo.stats)) assert.ok(v === null || typeof v === 'number');
+});
+
+test('Max calls the owner, asks about the business, and what he heard waits for the owner before he uses it', async () => {
+  let st = (await site.call(A('/api/state'))).json();
+  const teach = st.onboarding.steps.find(x => x.key === 'teach');
+  assert.ok(teach && !teach.done, 'a "Teach Max" setup step is waiting');
+  assert.ok(Array.isArray(st.line.know) && st.line.know.some(x => x.key === 'area'), 'the Max tab gets the questions as fields');
+  const before = world.dialed.length;
+  const r = await site.call(A('/api/line'), { json: { action: 'interview', phone: '478 555 0101', by: 'Dana' } });
+  assert.equal(r.status, 200, r.text);
+  const out = world.dialed[before];
+  assert.equal(out.To, '+14785550101'); assert.equal(out.From, lineNumber);
+  const id = /[?&]i=(\d+)/.exec(out.Url)[1];
+  const sid = out.sid;
+  const tw = await hook('iv', { CallSid: sid, From: lineNumber, To: '+14785550101', AnsweredBy: 'human' }, 'i=' + id);
+  assert.match(tw.text, /<ConversationRelay/); assert.match(tw.text, /few quick questions/); assert.match(tw.text, /S\.I\./, 'Max still says he is not a person');
+  world.aiNote = b => /phone interview/.test(JSON.stringify(b.system || '')) ? {
+    services: 'Plumbing repairs and water heaters. We don’t do septic.', area: 'Eatonton, Madison and Greensboro, about 30 miles out.', prices: '$89 service call, waived if we do the work.',
+    urgent: 'Water leaking now, or no water at all.', next: 'Dana calls back within the hour.', booking: 'Max books open times; jobs take about two hours.', intake: '', website: '', address: '',
+    spanish: true, book: 'book', slot_minutes: 120 } : { name: '', callback: '', reason: 'Asked about service area', details: '', when: '', urgent: false, callback_wanted: false, booked: '', spam: false, summary: 'They asked if we come to Greensboro.', next_step: true };
+  world.aiScript = ['Which towns do you cover, and how far out do you go?', 'Any prices you are happy for me to give callers?', 'Thanks, Dana. I will send this to your app so you can check it. Goodbye. [END]'];
+  await openRoom(sid, '+14785550101');
+  await say(sid, 'We do plumbing repairs and water heaters. No septic.');
+  assert.match(JSON.stringify(world.aiSeen.at(-1).system), /on the phone with the owner/, 'Max is in interview mode, not taking a customer call');
+  await say(sid, 'Eatonton, Madison and Greensboro, about thirty miles.');
+  await say(sid, 'Eighty-nine dollar service call, waived if we do the work.');
+  await hook('after', { CallSid: sid, SessionDuration: '150', SessionStatus: 'ended' });
+  await site.settle();
+  assert.equal((await get('SELECT outcome FROM app_calls WHERE id = ?1', sid)).outcome, 'interview');
+  st = (await site.call(A('/api/state'))).json();
+  assert.equal(st.line.pending.items.length, 6, 'what Max heard waits for the owner');
+  assert.equal(st.line.know.find(x => x.key === 'area').value, '', 'nothing Max heard is used until the owner says so');
+  assert.equal(st.calls.some(c => c.id === sid), false, 'the interview is not a customer call');
+  const keep = await site.call(A('/api/line'), { json: { action: 'keep-facts', by: 'Dana' } });
+  assert.equal(keep.status, 200, keep.text);
+  st = (await site.call(A('/api/state'))).json();
+  assert.equal(st.line.pending, null);
+  assert.match(st.line.know.find(x => x.key === 'area').value, /Greensboro/);
+  assert.equal(st.line.spanish, true, 'the owner said yes to Spanish');
+  assert.equal(st.onboarding.steps.find(x => x.key === 'teach').done, true);
+  const os = JSON.parse((await get('SELECT owner_set FROM voice_lines WHERE number = ?1', lineNumber)).owner_set);
+  assert.deepEqual(os.book, { mode: 'book', slotMin: 120 });
+
+  // A customer asks about the area: Max's instructions now hold the owner's answers and a plumber's intake questions.
+  world.aiScript = ['Yes, we come out to Greensboro. What is going on?'];
+  const c2 = await startCall('+14785550123');
+  await openRoom(c2.sid, '+14785550123');
+  await say(c2.sid, 'Hi, do you come out to Greensboro?');
+  const sys = JSON.stringify(world.aiSeen.at(-1).system);
+  assert.match(sys, /Where we work: Eatonton, Madison and Greensboro/);
+  assert.match(sys, /Prices we can share: \$89 service call/);
+  assert.match(sys, /is the water shut off/, 'a plumber’s intake question, since the owner gave none');
+  await hook('after', { CallSid: c2.sid, SessionDuration: '30', SessionStatus: 'ended' });
+  await site.settle();
+
+  // The same answers can be typed in; unknown fields are ignored, and what is typed is used at once.
+  const typed = await site.call(A('/api/line'), { json: { facts: { prices: '$99 service call', password: 'x' }, by: 'Dana' } });
+  assert.equal(typed.status, 200, typed.text);
+  assert.equal(typed.json().line.know.find(x => x.key === 'prices').value, '$99 service call');
+  assert.equal(JSON.parse((await get('SELECT owner_set FROM voice_lines WHERE number = ?1', lineNumber)).owner_set).facts.password, undefined);
 });
 
 test('peek: what the Home screen gets for the map and the upgrades', async t => {

@@ -644,12 +644,32 @@ function vMax(){
       '<label>Put callers through to that number<select id="lw"><option value="never"'+sel(L.transferWhen,'never')+'>Never, just take a message</option><option value="urgent"'+sel(L.transferWhen,'urgent')+'>Only if it\\u2019s urgent</option><option value="asked"'+sel(L.transferWhen,'asked')+'>When they ask, or it\\u2019s urgent</option></select></label>'+
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
+    h+=teachCard(L);
     if(S.calendar&&!S.client.regulated)h+='<h2>Booking</h2><div class="card"><div class="sw"><div><b>Google Calendar '+(S.calendar.connected?'connected':'not connected')+'</b><span>'+(S.calendar.connected?esc(L.name)+' offers open times on weekdays 9 to 5 and books them for callers.':'Connect it and '+esc(L.name)+' can book callers into open times.')+'</span></div></div><div class="acts">'+(S.calendar.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect</button>':'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
   } else h+='<p class="lede">Calls your phone line answered.</p>';
   if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p><p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p></div>':
     '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   if(f.calls)h+='<h2>Calls</h2>'+callsList();
   return h;
+}
+function teachCard(L){
+  if(!L.know||S.client.regulated)return '';
+  var h='<h2>Teach '+esc(L.name)+' about your business</h2>';
+  if(L.pending&&L.pending.items&&L.pending.items.length){
+    h+='<div class="card glow"><b>What '+esc(L.name)+' heard on your call</b><p class="fine">Check it. Nothing changes until you tap Looks right.</p><ul class="why">'+L.pending.items.map(function(x){return '<li><b>'+esc(x.label)+':</b> '+esc(x.value)+'</li>';}).join('')+'</ul>'+
+      '<div class="acts"><button class="btn red" type="button" data-a="facts-keep">Looks right</button><button class="btn ghost" type="button" data-a="facts-drop">Throw it away</button></div></div>';
+  }
+  h+='<div class="card form"><p class="fine" style="margin-top:0">'+esc(L.name)+' answers price, area and urgent questions with this, instead of only taking a message. Have '+esc(L.name)+' call you and ask (about three minutes), or type it in.</p>'+
+    '<div class="acts" style="margin-bottom:10px"><button class="btn line" type="button" data-a="facts-call">Have '+esc(L.name)+' call me</button></div>'+
+    L.know.map(function(x){return '<label>'+esc(x.label)+'<textarea id="kf-'+esc(x.key)+'" rows="2" maxlength="600" placeholder="'+esc(x.hint||'')+'">'+esc(x.value||'')+'</textarea></label>';}).join('')+
+    '<div class="acts"><button class="btn red" type="button" data-a="facts-save">Save</button></div></div>';
+  return h;
+}
+function factsSave(){var L=S.line,f={};(L.know||[]).forEach(function(x){var el=$('#kf-'+x.key);if(el)f[x.key]=el.value;});lineSave({facts:f});}
+function factsCall(){
+  var L=S.line;
+  sheet('<h2>'+esc(L.name)+' calls you</h2><p class="fine">'+esc(L.name)+' asks seven short questions and sends what he heard here for you to check. About three minutes.</p><label>Your number<input type="tel" id="iv-ph" inputmode="tel" maxlength="20" value="'+esc(S.client.phone||'')+'" placeholder="478 555 0142"></label><div class="acts"><button class="btn red" type="button" id="go">Call me now</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  $('#go').onclick=function(){var t=this;t.disabled=true;post('line',{action:'interview',phone:$('#iv-ph').value}).then(function(res){t.disabled=false;if(res.j.ok){close();toast(res.j.message||'Calling you now.');}else toast(res.j.error||'Could not call. Try again.');}).catch(function(){t.disabled=false;toast('No connection. Try again.');});};
 }
 function lineSave(body,done){
   needName(function(by){body.by=by;post('line',body).then(function(res){if(res.j.ok){S.line=res.j.line;if(body.hours!=null)DIRTY=false;render();toast(res.j.unchanged?'Nothing changed.':'Saved. '+S.line.name+' uses it on the next call.');if(done)done();}else toast(res.j.error||'Could not save. Try again.');}).catch(function(){toast('No connection. Try again.');});});
@@ -869,6 +889,9 @@ document.addEventListener('click',function(e){
   else if(a==='tile')tileSheet(t.dataset.k,t.dataset.m);
   else if(a==='jump'){e.preventDefault();var el2=document.getElementById(t.dataset.to);if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});}
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
+  else if(a==='facts-save')factsSave();
+  else if(a==='facts-call')factsCall();
+  else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');

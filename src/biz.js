@@ -562,6 +562,7 @@ function onboarding(p, s) {
   steps.push({ key: 'share', label: 'Share your request link', done: v('shared'), hint: 'Customers can ask for a quote or book without calling. Put it on your site, your Google profile and your texts.' });
   if (s.qr) steps.push({ key: 'qr', label: 'Print your review QR card', done: v('qr'), hint: 'One page for the counter, the truck or the invoice.', help: '/help/qr' });
   steps.push({ key: 'hours', label: 'Add your hours', done: !!s.hours, hint: 'So Max and your Google profile tell customers the right thing.' });
+  if (s.line && !s.regulated) steps.push({ key: 'teach', label: 'Teach Max about your business', done: !!s.taught, hint: 'What you do, where, prices you share and what counts as urgent. Max can call you and ask, or you can type it in. About three minutes.' });
   if (s.line) steps.push({ key: 'forward', label: 'Forward your missed calls to Max', done: v('forward'), hint: 'Your phone still rings first. Steps for Verizon, AT&T, T-Mobile and landlines.', help: '/help/forwarding' });
   if (s.line) steps.push({ key: 'max', label: 'Test Max by calling your line', done: !!s.called, hint: 'Call it and see what he says.' });
   if (s.texting && !s.texting.regulated) steps.push({ key: 'texting', label: 'Register texting under your business name', done: v('texting') || ['submitted', 'in_review', 'approved', 'needs_help'].includes(s.texting.status), hint: 'Carriers require it before we text your customers. One form; approval usually takes a few days.', help: '/texting' });
@@ -606,7 +607,7 @@ export function finishOnboarding(state, p) {
     const ob = onboarding(p || { onboard: {} }, {
       hours: !!(L && L.hours) || (state.messages || []).some(m => /^Hours change:/.test(m.text || '')),
       qr: !!(state.client && state.client.qr), calendar: !!(state.calendar && state.calendar.connected), meta: !!(state.meta && state.meta.connected), metaAvailable: !!(state.meta && state.meta.available),
-      stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called, map: state.map || null, texting: state.texting || null
+      taught: !!(L && L.knows), regulated: !!(state.client && state.client.regulated), stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called, map: state.map || null, texting: state.texting || null
     });
     return ob;
   } catch (e) { return null; }

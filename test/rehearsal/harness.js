@@ -63,6 +63,8 @@ export class World {
     this.mail = [];         // emails the worker sent (from EmailMessage)
     this.pushes = [];       // phone pushes to Christopher (ntfy)
     this.texts = [];        // texts sent through Twilio
+    this.dialed = [];       // outbound calls placed through Twilio
+    this.aiSeen = [];       // every streamed request to Claude (to read the instructions Max was given)
     this.bought = [];       // phone numbers bought through Twilio
     this.sessions = new Map();
     this.aiScript = [];     // what the AI answers, in order, for streamed call replies
@@ -142,6 +144,7 @@ export function installFetch(world, env) {
         return json({ sid: 'PN' + world.id('', 32).slice(0, 32).replace(/[^0-9a-f]/g, '0'), phone_number: f.get('PhoneNumber') }, 201);
       }
       if (/IncomingPhoneNumbers\/PN/.test(path) && method === 'DELETE') return new Response(null, { status: 204 });
+      if (/Calls\.json$/.test(path) && method === 'POST') { const f = form(); const sid = 'CA' + world.id('', 32).replace(/[^0-9a-f]/g, '0').slice(0, 32).padEnd(32, '0'); world.dialed.push(Object.assign({ sid }, Object.fromEntries(f))); return json({ sid, status: 'queued' }, 201); }
       if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(); world.texts.push(Object.fromEntries(f)); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);
     }
@@ -155,6 +158,7 @@ export function installFetch(world, env) {
         const txt = JSON.stringify(typeof world.aiNote === 'function' ? world.aiNote(b) : (world.aiNote || { name: '', callback: '', reason: 'Left a message', details: '', when: '', urgent: false, callback_wanted: false, booked: '', spam: false, summary: 'They left a message.' }));
         return json({ model: b.model, content: [{ type: 'text', text: txt }], usage: { input_tokens: 300, output_tokens: 80 }, stop_reason: 'end_turn' });
       }
+      world.aiSeen.push(b);
       const next = world.aiScript.length > 1 ? world.aiScript.shift() : (world.aiScript[0] || 'Okay, got it.');
       const text = typeof next === 'function' ? next(b) : next;
       return new Response(sseBody(text, b.model), { status: 200, headers: { 'content-type': 'text/event-stream' } });

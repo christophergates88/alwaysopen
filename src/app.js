@@ -29,6 +29,8 @@ import { apiMap, mapState } from './map.js';
 import { ensureAuto, autoReady, autoCron, autoNote } from './autotext.js';
 import { publishItem, mergeMonths } from './gbp.js';
 import { lineStatus } from './provision.js';
+import { FACT_KEYS, cleanFacts, knowOut, startInterview, applyPending } from './interview.js';
+import { dialOut } from './callbacks.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -371,7 +373,7 @@ async function apiState(env, c, ctx) {
     ok: true,
     now: new Date().toISOString(),
     client: {
-      business: c.business || '', first: c.owner_first || '', regulated: !!+c.regulated, tier: c.tier || '',
+      business: c.business || '', first: c.owner_first || '', regulated: !!+c.regulated, tier: c.tier || '', phone: c.staff ? '' : (c.phone || ''),
       reviewLink: /^https:\/\//.test(c.review_link || '') ? c.review_link : '',
       refLink: c.ref ? SITE + '/?ref=' + encodeURIComponent(c.ref) + '#contact' : SITE + '/#contact',
       qr: qrOut(c.qr)
@@ -475,6 +477,8 @@ export function withOwner(row) {
   f.hours = pick('hours', String(f.hours || ''));
   f.greeting = pick('greeting', String(f.greeting || ''));
   if (typeof o.owner === 'string') f.owner = o.owner;
+  // What the owner told Max (typed on the Max tab, or approved after Max's interview call) wins over HQ's facts.
+  if (o.facts && typeof o.facts === 'object') for (const k of FACT_KEYS) if (typeof o.facts[k] === 'string') f[k] = o.facts[k];
   const out = Object.assign({}, row, { facts: JSON.stringify(f) });
   // Spanish: the owner can switch it on or off from the app (spanish_owner wins over HQ's setting).
   if (typeof o.spanish === 'boolean') out.spanish = o.spanish ? 1 : 0;
@@ -497,7 +501,8 @@ function lineOut(raw, c) {
     hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')), spanish: !!+l.spanish,
     defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m an S.I., and this call may be recorded. What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
-    updated: [l.updated || '', l.owner_at || ''].sort().pop()
+    updated: [l.updated || '', l.owner_at || ''].sort().pop(),
+    ...knowOut(raw.facts, raw.owner_set)
   };
 }
 async function apiLine(req, env, ctx, c) {
@@ -511,6 +516,22 @@ async function apiLine(req, env, ctx, c) {
   if (n && n.n >= 30) return aj({ ok: false, error: 'That is a lot of changes in an hour. Please wait a bit, or message us in Ask us.' }, 429);
   const l = withOwner(raw), f = parse(l.facts) || {}, hq = parse(raw.facts) || {}, o = parse(raw.owner_set) || {};
   const changes = [];
+  // Max's interview: call the owner now, or keep/throw away what the last interview heard.
+  if (b.action === 'interview') {
+    if (c.role === 'tech') return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
+    const r = await startInterview(env, c, raw, b.phone || c.phone || '', dialOut, env.VOICE_KEY);
+    return aj(r, r.ok ? 200 : 422);
+  }
+  if (b.action === 'keep-facts' || b.action === 'drop-facts') {
+    if (!o.pending) return aj({ ok: true, unchanged: true, line: lineOut(raw, c) });
+    const r = applyPending(o, b.action === 'keep-facts');
+    changes.push(...r.changes);
+  }
+  if (b.facts && typeof b.facts === 'object') {
+    const nf = cleanFacts(b.facts), cur = parse(withOwner(raw).facts) || {};
+    o.facts = Object.assign({}, o.facts || {});
+    for (const k of Object.keys(nf)) if (nf[k] !== String(cur[k] || '')) { o.facts[k] = nf[k]; changes.push(k + ': ' + (nf[k] ? nf[k].slice(0, 120) : '(cleared)')); }
+  }
   let tTo = l.transfer_to, tWhen = l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never';
   if (typeof b.spanish === 'boolean' && (b.spanish ? 1 : 0) !== (+l.spanish ? 1 : 0)) { o.spanish = b.spanish; changes.push(b.spanish ? 'Answers Spanish-speaking callers in Spanish' : 'English only'); }
   if (typeof b.onAir === 'boolean' && (b.onAir ? 1 : 0) !== l.on_air) {

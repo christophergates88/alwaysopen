@@ -17,6 +17,8 @@ import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
 import { gradeOf, saveGrade, failuresOf, queueFromCall } from './grades.js';
+import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
+import { tradeDefaults } from './trades.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
@@ -78,6 +80,8 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
     if (kind === 'in') return await incoming(env, form);
+    if (kind === 'iv') return await interviewTwiml(env, url, form);
+    if (kind === 'ivstatus') return await interviewStatus(env, url, form);
     if (kind === 'after') return await afterRelay(env, ctx, form);
     if (kind === 'dial') return await afterDial(env, form);
     if (kind === 'whisper') return await whisper(env, url);
@@ -123,6 +127,38 @@ async function incoming(env, f) {
     // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over.
     (+line.spanish ? '' : ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000" partialPrompts="true"') +
     (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"/>' : '') + '</ConversationRelay></Connect>');
+}
+
+// Max's interview call to the owner (interview.js). Twilio asks what to say once the owner picks up.
+async function interviewTwiml(env, url, f) {
+  const row = await interviewById(env, url.searchParams.get('i'));
+  const sid = f.get('CallSid') || '';
+  if (!row || !SID_RE.test(sid)) return twiml('<Hangup/>');
+  const now = new Date().toISOString();
+  if (String(f.get('AnsweredBy') || '').startsWith('machine')) {
+    await env.DB.prepare("UPDATE line_interviews SET status = 'voicemail', updated = ?1 WHERE id = ?2").bind(now, row.id).run();
+    return twiml('<Hangup/>');
+  }
+  const line = await lineFor(env, row.number);
+  if (!line) return twiml('<Hangup/>');
+  await env.DB.prepare('UPDATE line_interviews SET sid = ?1, status = ?2, updated = ?3 WHERE id = ?4').bind(sid, 'talking', now, row.id).run();
+  // A test call in the books (no lead, no push, not counted), so the relay socket and the end-of-call write-up work as usual.
+  await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, 'Interview', 'live', 'new', 1, 0, 1)")
+    .bind(sid, row.client_id, row.number, now, row.phone).run();
+  const t = await callToken(env, sid);
+  const vv = voiceFor(line);
+  return twiml('<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
+    (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(interviewGreeting(lineView(line))) + '" welcomeGreetingInterruptible="speech" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" language="en-US"' +
+    ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000"></ConversationRelay></Connect>');
+}
+async function interviewStatus(env, url, f) {
+  const row = await interviewById(env, url.searchParams.get('i'));
+  const st = String(f.get('CallStatus') || '');
+  if (row && /^(busy|failed|no-answer|canceled)$/.test(st) && row.status === 'calling') {
+    await env.DB.prepare("UPDATE line_interviews SET status = 'missed', result = ?1, updated = ?2 WHERE id = ?3").bind(st, new Date().toISOString(), row.id).run();
+    await pushClient(env, row.client_id, { aps: { alert: { title: 'Max could not reach you', body: 'Tap to try the call again, or type the answers in on the Max tab.' }, sound: 'default' }, screen: 'max' }).catch(() => {});
+  }
+  return new Response('', { status: 204 });
 }
 
 // Twilio calls this when the relay session ends: a hand-off to the owner, a failure, or a normal goodbye.
@@ -302,21 +338,28 @@ export class CallRoom extends DurableObject {
     const line = await lineFor(this.env, call.number);
     if (!line) { this.out({ type: 'end', handoffData: '{"reason":"unknown"}' }); return; }
     const now = Date.now();
+    const iv = call.test ? await interviewFor(this.env, sid) : null;
     const s = {
       sid, cid: call.client_id, number: call.number, caller: E164.test(String(m.from || '')) ? String(m.from) : (call.caller || ''),
       started: now, last: now + speakMs(greeting(line)) + 1000, turn: 0, msgs: [{ r: 'a', t: greeting(line) }], aiIn: 0, aiOut: 0, model: '',
       lang: 'en-US', endAt: 0, transfer: false, nudged: 0, fails: 0, line: lineView(line), test: call.test ? 1 : 0,
       more: greetingMore(line), moreDone: 0, quiet: quietText(line)
     };
+    if (iv) {
+      // Max's interview with the owner: his own greeting, his own questions, none of the caller extras.
+      s.mode = 'interview'; s.more = ''; s.quiet = '';
+      s.msgs = [{ r: 'a', t: interviewGreeting(s.line) }];
+      s.last = now + speakMs(s.msgs[0].t) + 1000;
+    }
     if (s.more) s.last += speakMs(s.more);
-    if (!s.line.regulated && call.client_id !== OWN_ID) {
+    if (!iv && !s.line.regulated && call.client_id !== OWN_ID) {
       try { const cs = await slotForLine(this.env, line); if (cs) { s.line.cbSlot = cs.spoken; s.line.cbBusy = cs.busyText; s.cbSlot = { at: cs.at }; } } catch (e) {}
       try { const nb = await neighborsFor(this.env, call.client_id); if (nb.length) { s.neighbors = nb; s.line.neighbors = neighborsText(nb); } } catch (e) {}
       try { const hf = await handedFrom(this.env, call.client_id, s.caller); if (hf) s.line.handedFrom = hf; } catch (e) {}
       try { const o = await openSlots(this.env, call.client_id, now, 6); if (o && o.slots.length) s.line.slots = o.slots; } catch (e) { /* no calendar: take a message */ }
     }
     // Repeat callers: what we already know about this number (never for regulated lines, never on Always Open's own line).
-    if (!s.line.regulated && call.client_id !== OWN_ID && E164.test(s.caller || '')) {
+    if (!iv && !s.line.regulated && call.client_id !== OWN_ID && E164.test(s.caller || '')) {
       try { const mem = await callerMemory(this.env, call.client_id, s.caller, now); if (mem) s.line.memory = mem; } catch (e) { /* a new caller: carry on */ }
     }
     this.t0 = now; this.testCall = !!s.test; this.tl = [];
@@ -417,7 +460,7 @@ export class CallRoom extends DurableObject {
     const lead = skip ? null : leadIn(p.text, s.lang, s.leads);
     const heard = lead ? lead.text : (skip ? prev.lead : '');
     const chat = toChat(s.msgs.concat([{ r: 'u', t: p.text }]));
-    const sys = systemPrompt(s.line, s.caller, s.lang, Date.now() - s.started > WRAP_MS), extra = turnNote(heard, s.msgs);
+    const sys = promptFor(s, Date.now() - s.started > WRAP_MS), extra = turnNote(heard, s.msgs);
     const sp = { norm: p.norm, text: p.text, lead, skip, n: s.msgs.length, sys, chat: JSON.stringify(chat), extra, toks: [], sink: null, done: false, at: Date.now(), ctl: new AbortController() };
     sp.promise = brain(this.env, sys, chat, t => { if (sp.sink) sp.sink(t); else sp.toks.push(t); }, 200, extra, sp.ctl.signal)
       .then(r => { sp.done = true; return r; }, () => { sp.done = true; return null; });
@@ -548,7 +591,7 @@ export class CallRoom extends DurableObject {
       this.mark('B', b);
       this.out(textMsg(b, true, s.lang));
     }, FILLER_MS);
-    let sys = systemPrompt(s.line, s.caller, s.lang, elapsed > WRAP_MS);
+    let sys = promptFor(s, elapsed > WRAP_MS);
     // The first Spanish answer says, in Spanish, that this is the AI assistant and the call may be recorded.
     if (s.lang === 'es-US' && !s.esTold) { sys += '\n\n' + ES_DISCLOSE; s.esTold = true; }
     const chat = toChat(s.msgs);
@@ -557,7 +600,7 @@ export class CallRoom extends DurableObject {
     if (spec && (spec.sys !== sys || spec.chat !== JSON.stringify(chat) || spec.extra !== extra)) { this.dropSpec(); spec = null; }
     const ask = async x => { mine.ctl = new AbortController(); try { return await brain(this.env, sys, chat, onTok, 200, x, mine.ctl.signal); } catch (e) { return null; } };
     let r, r2 = null;
-    const fixed = s.lang === 'es-US' ? '' : fixedReply(s.line, lead, s.msgs);
+    const fixed = s.lang === 'es-US' || s.mode === 'interview' ? '' : fixedReply(s.line, lead, s.msgs);
     if (fixed) {
       this.dropSpec();
       onTok(fixed);
@@ -757,6 +800,12 @@ async function writeUp(env, sid, s, why) {
   const line = await lineFor(env, call.number);
   const msgs = (s && s.msgs) || [];
   const heard = msgs.filter(x => x.r === 'u').length;
+  if (call.test && (s && s.mode === 'interview')) {
+    const transcript = JSON.stringify(msgs.slice(0, 80).map(x => ({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) }))).slice(0, 24000);
+    await env.DB.prepare("UPDATE app_calls SET outcome = 'interview', transcript = ?1, turns = ?2, summary = 'Max interviewed the owner.' WHERE id = ?3").bind(transcript, heard, sid).run();
+    env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
+    return interviewWriteUp(env, call, msgs, line, brain, pushClient);
+  }
   let note = null, aiIn = (s && s.aiIn) || 0, aiOut = (s && s.aiOut) || 0, model = (s && s.model) || '';
   if (heard) {
     try { const r = await summarize(env, line, msgs, call.caller); if (r) { note = r.note; aiIn += r.inTok; aiOut += r.outTok; model = model || r.model; } } catch (e) { note = null; }
@@ -897,13 +946,16 @@ export function lineView(line) {
     business: line.business || 'the business', town: line.town || '', regulated: !!+line.regulated, industry: line.industry || '', spanish: !!+line.spanish,
     own: line.client_id === OWN_ID, lostOff: (() => { try { return JSON.parse(line.owner_set || '{}').lostAsk === false; } catch (e) { return false; } })(),
     canTransfer: E164.test(line.transfer_to || '') && line.transfer_when !== 'never', transferWhen: line.transfer_when || 'never',
-    services: pick('services'), area: pick('area'), hours: pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake'),
-    urgent: pick('urgent'), next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
+    services: pick('services'), area: pick('area'), hours: pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake') || tradeDefaults(line.industry).intake,
+    urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
     greeting: oneLine(String(f.greeting || '')).slice(0, 320), greeting2: greetingOk(f.greeting) ? moreText(f.greeting2) : '', name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30), goal: pick('goal'),
     aiJoke: moreText(f.aiJoke), owner: oneLine(String(f.owner || '')).replace(/[\[\]<>{}]/g, '').slice(0, 800),
     role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80)
   };
 }
+
+// The instructions for this call: Max's interview with the owner, or a normal caller.
+function promptFor(s, wrapUp) { return s.mode === 'interview' ? interviewPrompt(s.line, wrapUp) : systemPrompt(s.line, s.caller, s.lang, wrapUp); }
 
 export function systemPrompt(L, caller, lang, wrapUp) {
   const facts = [

@@ -11,7 +11,7 @@ function m2(n){return n==null?'':'$'+(+n||0).toLocaleString('en-US',{maximumFrac
 function bizTop(){
   var o=S.onboarding;if(!o||!o.show)return '';
   return '<div class="card ob"><b>Your first hour</b><p class="note" style="margin:4px 0 0">'+o.left+(o.left===1?' step':' steps')+' left. Each one ticks itself when it’s done.</p><ul>'+o.steps.map(function(s){
-    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',share:'bz-ob-share',map:'bz-map'}[s.key]||(s.help?'bz-ob-help':'');
+    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',teach:'bz-ob-teach',share:'bz-ob-share',map:'bz-map'}[s.key]||(s.help?'bz-ob-help':'');
     return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><div class="obt"><span>'+esc(s.label)+'</span>'+(s.hint&&!s.done?'<small>'+esc(s.hint)+'</small>':'')+'</div>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'"'+(s.help?' data-id="'+esc(s.help)+'"':'')+' style="margin-left:auto">'+(s.help?'Open':'Do it')+'</button>')+'</li>';}).join('')+'</ul><div class="acts"><button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
 }
 function bizBlocks(){
@@ -168,6 +168,7 @@ function bizAct(a,id,t){
   else if(a==='bz-ob-hours')hoursSheet();
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}
+  else if(a==='bz-ob-teach'){TAB='max';try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
   else if(a==='bz-ob-max'){if(S.line)location.href='tel:'+S.line.number;}
 }
 document.addEventListener('change',function(e){var t=e.target;if(!t)return;
