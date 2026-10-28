@@ -75,6 +75,24 @@ export default {
       }
       return json({ ok: true, numbers: out }, 200);
     }
+    if (path === '/ops/twilio-profiles') {
+      // HQ, read-only: the Trust Hub profiles on the account, so we can find the primary (ISV) profile.
+      const k = req.headers.get('x-key') || '';
+      if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return json({ ok: false, error: 'Twilio keys missing' }, 400);
+      const auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
+      const get = async u => { try { return await (await fetch(u, { headers: { authorization: auth } })).json(); } catch (e) { return {}; } };
+      const cps = (await get('https://trusthub.twilio.com/v1/CustomerProfiles?PageSize=50')).results || [];
+      const out = [];
+      for (const p of cps) {
+        const ents = (await get('https://trusthub.twilio.com/v1/CustomerProfiles/' + p.sid + '/EntityAssignments?PageSize=50')).results || [];
+        let identity = '', type = '', name = '';
+        for (const e of ents) { if (!/^IT/.test(e.object_sid || '')) continue; const eu = await get('https://trusthub.twilio.com/v1/EndUsers/' + e.object_sid); if (eu.type === 'customer_profile_business_information') { identity = (eu.attributes || {}).business_identity || ''; type = (eu.attributes || {}).business_type || ''; name = (eu.attributes || {}).business_name || ''; } }
+        out.push({ sid: p.sid, name: p.friendly_name, status: p.status, policy: p.policy_sid, business_name: name, business_identity: identity, business_type: type });
+      }
+      const brands = ((await get('https://messaging.twilio.com/v1/a2p/BrandRegistrations?PageSize=50')).data || []).map(b => ({ sid: b.sid, status: b.status, profile: b.customer_profile_bundle_sid, type: b.brand_type }));
+      return json({ ok: true, profiles: out, brands }, 200);
+    }
     if (path === '/ops/sms-brand') {
       // HQ: record a client's own texting registration (their Messaging Service SID, once their brand and campaign are approved).
       const k = req.headers.get('x-key') || '';
