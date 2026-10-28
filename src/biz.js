@@ -298,7 +298,12 @@ export async function stripeStatus(env, cid, refresh) {
   if (!env.STRIPE_KEY) return { available: false, connected: false, ready: false };
   try {
     await ensureBiz(env);
-    const off = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_off'").first().catch(() => null);
+    let off = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_off'").first().catch(() => null);
+    // "Coming soon" lasts a day, then the next owner who taps Connect checks with Stripe again (so turning on Connect needs no code change).
+    if (off && off.v) {
+      const at = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_off_at'").first().catch(() => null);
+      if (!at || !at.v || Date.now() - Date.parse(at.v) > 24 * 3600e3) { await env.DB.prepare("DELETE FROM billing_config WHERE k IN ('connect_off', 'connect_off_at')").run(); off = null; }
+    }
     const row = await env.DB.prepare('SELECT * FROM biz_stripe WHERE client_id = ?1').bind(cid).first();
     if (!row) return { available: !(off && off.v), connected: false, ready: false, note: off && off.v ? off.v : '' };
     if (!+row.ready && refresh && (!row.checked || Date.now() - Date.parse(row.checked) > 2 * 60e3)) {
@@ -332,7 +337,7 @@ export async function apiStripe(req, env, c) {
       const a = await sx(env, 'POST', 'accounts', { type: 'express', country: 'US', email: bill && bill.email ? bill.email : undefined, business_profile: { name: c.business || undefined, url: undefined }, capabilities: { card_payments: { requested: 'true' }, transfers: { requested: 'true' } }, metadata: { ao_client: c.client_id } });
       await env.DB.prepare("INSERT INTO biz_stripe (client_id, account, ready, checked, created) VALUES (?1,?2,0,'',?3)").bind(c.client_id, a.id, now()).run();
       row = { account: a.id };
-      await env.DB.prepare("DELETE FROM billing_config WHERE k = 'connect_off'").run();
+      await env.DB.prepare("DELETE FROM billing_config WHERE k IN ('connect_off', 'connect_off_at')").run();
     }
     await connectWebhook(env).catch(() => {});
     const link = await sx(env, 'POST', 'account_links', { account: row.account, refresh_url: SITE + '/stripe/again', return_url: SITE + '/stripe/done', type: 'account_onboarding' });
@@ -341,6 +346,7 @@ export async function apiStripe(req, env, c) {
     const msg = String(e.message || '');
     if (/connect/i.test(msg) && /(sign(ed)? up|enable|platform|not.*(activated|set up))/i.test(msg)) {
       await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('connect_off', ?1)").bind('Card payments are coming soon.').run();
+      await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('connect_off_at', ?1)").bind(new Date().toISOString()).run();
       return aj({ ok: false, comingSoon: true, error: 'Card payments are coming soon. For now, add your own pay link to each invoice.' }, 503);
     }
     return aj({ ok: false, error: 'Stripe did not answer. Please try again in a minute.' }, 502);
