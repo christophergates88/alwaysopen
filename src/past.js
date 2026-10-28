@@ -409,12 +409,22 @@ export async function apiRevive(req, env, c) {
     return aj({ ok: true });
   }
   if (b.action === 'approve') {
+    const r = await approveRevive(env, c, row, cl(b.text, 700));
+    return aj(r.body, r.status);
+  }
+  return aj({ ok: false, error: 'Bad request' }, 400);
+}
+
+// Sends one past-customer message (the owner's tap, or Full Max). Consent and opt-out are checked here every time.
+export async function approveRevive(env, c, row, edited) {
+  const cid = c.client_id, id = row.id, ts = now();
+  {
     const cu = await env.DB.prepare('SELECT agreed, optout, opt_token FROM biz_customers WHERE client_id = ?1 AND ckey = ?2').bind(cid, row.ckey).first();
-    if (cu && +cu.optout) { await env.DB.prepare("UPDATE biz_revive SET status = 'skipped', result = 'opted out', updated = ?1 WHERE id = ?2").bind(ts, id).run(); return aj({ ok: false, error: 'They asked us to stop, so nothing was sent.' }, 409); }
-    if (!cu || !+cu.agreed) return aj({ ok: false, needsOk: true, error: 'They haven’t said it’s OK to contact them. Mark them as OK first, or copy the message and reach out yourself.' }, 409);
-    const text = cl(b.text, 700) || row.draft;
+    if (cu && +cu.optout) { await env.DB.prepare("UPDATE biz_revive SET status = 'skipped', result = 'opted out', updated = ?1 WHERE id = ?2").bind(ts, id).run(); return { status: 409, body: { ok: false, error: 'They asked us to stop, so nothing was sent.' } }; }
+    if (!cu || !+cu.agreed) return { status: 409, body: { ok: false, needsOk: true, error: 'They haven’t said it’s OK to contact them. Mark them as OK first, or copy the message and reach out yourself.' } };
+    const text = edited || row.draft;
     const claim = await env.DB.prepare("UPDATE biz_revive SET status = 'sending', updated = ?1 WHERE id = ?2 AND client_id = ?3 AND status = 'pending'").bind(ts, id, cid).run();
-    if (!claim.meta.changes) return aj({ ok: false, error: 'Already handled.' }, 409);
+    if (!claim.meta.changes) return { status: 409, body: { ok: false, error: 'Already handled.' } };
     const res = [];
     let sent = false;
     if (row.email && EMAIL_RE.test(row.email)) {
@@ -434,10 +444,9 @@ export async function apiRevive(req, env, c) {
     else if (!sent) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');
     await env.DB.prepare('UPDATE biz_revive SET status = ?1, result = ?2, draft = ?3, updated = ?4 WHERE id = ?5').bind(status, res.join(','), text, now(), id).run();
     await logAct(env, c, 'Approved a message to ' + cl(row.name, 60));
-    return aj({ ok: true, status, result: res.join(',') });
+    return { status: 200, body: { ok: true, status, result: res.join(',') } };
   }
-  return aj({ ok: false, error: 'Bad request' }, 400);
-}
+  }
 
 // ---------------- opt-out link in every message ----------------
 export async function handleOptOut(req, env, url) {

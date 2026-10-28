@@ -19,6 +19,7 @@ import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { apiAnswer, answerState } from './answerrate.js';
+import { apiFullMax, fullMaxState } from './fullmax.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -231,6 +232,9 @@ export async function handleApp(req, env, ctx, url) {
       return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
+    } else if (sub === '/api/fullmax' && meth === 'POST') {
+      const r = await apiFullMax(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/answer' && meth === 'POST') {
       const r = await apiAnswer(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -388,6 +392,7 @@ async function apiState(env, c, ctx) {
   try { out.handoff = (c.regulated || c.staff) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
   try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
+  try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
@@ -574,18 +579,26 @@ async function apiDecide(req, env, ctx, c) {
     return aj({ ok: true, status: 'skipped', at: now });
   }
   const edited = b.text == null ? '' : clean(b.text, 3000);
+  const r = await approveItem(env, ctx, c, it, edited, by);
+  return aj(r.body, r.status);
+}
+
+// The one approve path: the owner's tap, the notification button, and Full Max all go through here. Guard runs every time.
+export async function approveItem(env, ctx, c, it, edited, by) {
+  const now = new Date().toISOString();
   const finalText = (edited || String(it.text || '')).trim();
-  if (!finalText) return aj({ ok: false, error: 'The text is empty.' }, 400);
+  if (!finalText) return { status: 400, body: { ok: false, error: 'The text is empty.' } };
   const hits = guard(finalText, c, it.kind);
-  if (hits.length) return aj({ ok: false, error: 'Please change the flagged words first.', hits }, 422);
+  if (hits.length) return { status: 422, body: { ok: false, error: 'Please change the flagged words first.', hits } };
   const r = await env.DB.prepare("UPDATE app_items SET status = 'approved', decided_text = ?1, decided_at = ?2, decided_by = ?3, hq_synced = 0, checked = ?4, updated = ?2 WHERE id = ?5 AND client_id = ?6 AND status = 'pending'")
-    .bind(finalText, now, by, 1, id, c.client_id).run();
-  if (!changed(r)) return aj({ ok: false, error: 'Already handled.' }, 409);
-  ctx.waitUntil(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));
-  if (it.kind === 'reviewreq') ctx.waitUntil(sendReviewRequest(env, c, it, finalText).catch(() => {}));
-  if (it.kind === 'invoice') ctx.waitUntil(sendInvoiceReminder(env, c, it, finalText, (to, s, x) => mailTo(env, to, s, x, c.business)).catch(() => {}));
-  if (it.kind === 'post' && /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(it.photo || '')) ctx.waitUntil(metaPublish(env, c.client_id, finalText, it.photo).catch(() => {}));
-  return aj({ ok: true, status: 'approved', at: now, edited: finalText !== String(it.text || '').trim() });
+    .bind(finalText, now, by, 1, it.id, c.client_id).run();
+  if (!changed(r)) return { status: 409, body: { ok: false, error: 'Already handled.' } };
+  const later = p => (ctx && ctx.waitUntil ? ctx.waitUntil(p) : p.catch(() => {}));
+  later(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));
+  if (it.kind === 'reviewreq') later(sendReviewRequest(env, c, it, finalText).catch(() => {}));
+  if (it.kind === 'invoice') later(sendInvoiceReminder(env, c, it, finalText, (to, s, x) => mailTo(env, to, s, x, c.business)).catch(() => {}));
+  if (it.kind === 'post' && /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(it.photo || '')) later(metaPublish(env, c.client_id, finalText, it.photo).catch(() => {}));
+  return { status: 200, body: { ok: true, status: 'approved', at: now, edited: finalText !== String(it.text || '').trim() } };
 }
 
 async function apiMessage(req, env, ctx, c) {
