@@ -145,6 +145,8 @@ console.table(report);
 if (problems.length) {
   console.log('\n' + problems.length + ' problem' + (problems.length === 1 ? '' : 's') + ' on phones:');
   [...new Set(problems)].slice(0, 200).forEach(p => console.log(' - ' + p));
+  // On GitHub, the first problems also show up on the run's summary page.
+  if (process.env.GITHUB_ACTIONS) [...new Set(problems)].slice(0, 10).forEach(p => console.log('::error title=Phone check::' + p));
   process.exit(1);
 }
 console.log('\nPhone check passed.');
