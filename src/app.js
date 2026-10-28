@@ -417,7 +417,7 @@ export function withOwner(row) {
   return out;
 }
 function fmtNum(e) { return /^\+1\d{10}$/.test(e || '') ? '(' + e.slice(2, 5) + ') ' + e.slice(5, 8) + '-' + e.slice(8) : ''; }
-function greetOk(g) { const t = oneLine(String(g || '')); return t.length >= 20 && t.length <= 320 && /\bAI\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t); }
+function greetOk(g) { const t = oneLine(String(g || '')); return t.length >= 20 && t.length <= 320 && /\b(AI|SI|S\.I)\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t); }
 function lineOut(raw, c) {
   if (!raw) return null;
   const l = withOwner(raw), f = parse(l.facts) || {};
@@ -425,7 +425,7 @@ function lineOut(raw, c) {
   return {
     number: l.number, numberText: fmtNum(l.number), onAir: !!l.on_air, paused: !l.hq_on, name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30) || 'Max',
     hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')), spanish: !!+l.spanish,
-    defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m the AI assistant here, and this call may be recorded. What can I do for you?',
+    defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m the automated assistant here, an S.I., and this call may be recorded. What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop()
   };
@@ -453,7 +453,7 @@ async function apiLine(req, env, ctx, c) {
   if (b.greeting != null) {
     const g0 = oneLine(clean(b.greeting, 320));
     // Every greeting must tell callers they are talking to an AI and that the call may be recorded. If theirs doesn't, we add that sentence.
-    const DISC = ' I’m an AI assistant, and this call may be recorded.';
+    const DISC = ' I’m an S.I., an automated assistant, and this call may be recorded.';
     const g = greetOk(g0) || !g0 ? g0 : (g0.slice(0, 320 - DISC.length).trim() + DISC);
     if (g && !greetOk(g)) return aj({ ok: false, error: 'That greeting is too short. Leave it empty for the standard one.' }, 422);
     if (g !== String(f.greeting || '')) { o.greeting = { v: g, base: String(hq.greeting || '') }; changes.push('greeting: ' + (g || '(back to the standard one)')); }

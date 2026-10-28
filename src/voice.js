@@ -815,7 +815,7 @@ function fixedReply(L, lead, msgs) {
 // A line may use its own greeting, but only one that still says it is AI and that calls are recorded; otherwise the default.
 export function greetingOk(g) {
   const t = oneLine(String(g || ''));
-  return t.length >= 20 && t.length <= 320 && /\bAI\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t);
+  return t.length >= 20 && t.length <= 320 && /\b(AI|SI|S\.I)\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t);
 }
 function greetingText(biz, spanish, custom) {
   const sp = spanish ? ' Para español, oprima dos.' : '';
@@ -823,7 +823,7 @@ function greetingText(biz, spanish, custom) {
     const t = oneLine(String(custom));
     return sp ? t.replace(/(\?|\.|!)?$/, m => m) + sp : t;
   }
-  return 'Hi, thanks for calling ' + biz + '. I\'m the AI assistant here, and this call may be recorded.' + sp + ' What can I do for you?';
+  return 'Hi, thanks for calling ' + biz + '. I\'m the automated assistant here, an S.I., and this call may be recorded.' + sp + ' What can I do for you?';
 }
 
 export function lineView(line) {
@@ -891,7 +891,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
       ''
     ] : []),
     'Rules you never break:',
-    '- You are an AI, and the caller already heard that in the greeting. If they ask whether you are a person, a bot or a recording, say plainly that you are an AI; otherwise do not keep bringing it up. Never claim to be a person.',
+    '- You are an SI (always write it as "S.I." so it is spoken as two letters; it stands for super intelligence), an automated assistant, and the caller already heard that in the greeting. If they ask whether you are a person, a bot, an AI or a recording, say plainly that you are an S.I., an automated assistant, not a person; if they ask what S.I. means, say super intelligence, the name for what used to be called AI; otherwise do not keep bringing it up. Never claim to be a person.',
     '- Never give legal, medical, insurance, tax or financial advice. Never discuss coverage, claims, quotes or rates.' + (L.regulated ? '' : ' Explaining what ' + L.business + ' does and how it would work for their kind of business is not advice; do that plainly.') + (L.prices ? ' Only share the prices listed above, word for word.' : ' Never quote a price; say the team will go over pricing.'),
     '- Never promise prices, timing, outcomes or availability.',
     '- Never ask for or accept card numbers, Social Security numbers, account or policy numbers, birth dates, passwords or health details. If they start to give one, stop them kindly and say the team will take care of it on the callback.',
@@ -1196,7 +1196,7 @@ function leadKindEn(raw, orig) {
   // wanting a person ("Can I talk to a real person?") is not asking what Max is: it gets "I hear you." and a real answer
   if (has(/\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b/)) return 'aimad';
   // "Are you AI?" gets a straight, playful yes right away; "Are you a real person?" a straight no
-  if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(robot|bot|ai|a i|computer|machine|automated)\b/)) return 'isai';
+  if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(robot|bot|ai|a i|si|s i|computer|machine|automated)\b/)) return 'isai';
   if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(human|person|recording)\b|\b(are you|is this) real\b/)) return 'ishuman';
   if (has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real )?(robot|bot|ai|human|person|computer|machine|recording|live person)\b|\b(real|live|actual) (person|human)\b|\b(talk|speak) (to|with) (a |an )?(human|person|someone real|somebody real)\b|\b(hate|can't stand|cannot stand|don't like|do not like) (talking to )?(robots?|bots?|ai|machines?|computers?|automated)\b/)) return isQ ? 'aiq' : 'aimad';
   if (has(/\b(prove it|show me|test you|try you)\b/)) return 'dare';
@@ -1260,8 +1260,8 @@ const ACK_MORE = {
   hi: ['hey', 'hi', 'hello', 'hey there', 'hi there', 'hello there', 'hola'],
   aimad: ['yeah'],
   // after "Guilty!" or "Nope, I'm the AI!", the AI saying it again is dropped (it already answered the question)
-  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'yes i am', 'that\'s right', 'you got me'],
-  ishuman: ['nope', 'no', 'i\'m the ai', 'i\'m an ai', 'i am an ai', 'nope i\'m the ai', 'no i\'m an ai', 'no i\'m the ai', 'nope ai here', 'ai here', 'not a person', 'i\'m not a person'],
+  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'i\'m an si', 'i am an si', 'yes i\'m an si', 'yes i am', 'that\'s right', 'you got me'],
+  ishuman: ['nope', 'no', 'i\'m the ai', 'i\'m an ai', 'i am an ai', 'i\'m an si', 'i am an si', 'no i\'m an si', 'nope i\'m the ai', 'no i\'m an ai', 'no i\'m the ai', 'nope ai here', 'ai here', 'not a person', 'i\'m not a person'],
   sing: ['you asked for it', 'okay you asked for it', 'alright you asked for it', 'you got it'],
   nicetry: ['nice try', 'oh nice try', 'good try', 'ha nice try'],
   private: ['hmm', 'hmm okay', 'ah'],
