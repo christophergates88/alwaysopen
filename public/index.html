@@ -442,7 +442,7 @@ a.chip:hover{border-color:var(--ink)}
 .indtile:hover{border-color:var(--ink)}
 .indtile[aria-pressed="true"]{border-color:var(--sign);background:var(--sign-soft)}
 .indtile em{position:absolute;top:-10px;right:10px;font:700 10.5px var(--body);font-style:normal;background:var(--ok);color:var(--card);padding:2px 8px;border-radius:99px;letter-spacing:.02em}
-.indpanel{margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:clamp(20px,3vw,32px);display:grid;grid-template-columns:1.35fr .65fr;gap:20px 32px;align-items:center}
+.indpanel .pg{margin:14px 0 0;font-weight:600}.indpanel .pg a{color:inherit;text-decoration:underline;text-underline-offset:3px}.indpanel{margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:clamp(20px,3vw,32px);display:grid;grid-template-columns:1.35fr .65fr;gap:20px 32px;align-items:center}
 .indpanel h3{font-size:1.45rem}
 .indpanel ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
 .indpanel li{display:grid;grid-template-columns:22px 1fr;gap:10px}
@@ -1208,7 +1208,8 @@ a.chip:hover{border-color:var(--ink)}
     var d=IND[k];if(!d||!indPanel)return;
     document.querySelectorAll('.indtile').forEach(function(t){t.setAttribute('aria-pressed',String(t.dataset.ind===k));});
     var ins=k==='insurance',reg=k==='health';
-    indPanel.innerHTML='<div><h3></h3><ul></ul></div><div class="go"><p></p><a class="btn primary" href="'+(ins?'insurance.html':'#contact')+'"></a>'+(reg?'<a class="btn line" href="#regulated">How we protect privacy</a>':'')+(k==='trades'?'<a class="btn line" href="builders.html">Builders and remodelers: see your page</a>':'')+'</div>';
+    var PG={trades:[['/hvac','Heating and air'],['/plumbing','Plumbers'],['/builders','Builders and remodelers'],['/auto-repair','Auto repair shops']],health:[['/dental','Dental practices']],insurance:[['/insurance','Insurance agencies']]}[k]||[];
+    indPanel.innerHTML='<div><h3></h3><ul></ul>'+(PG.length?'<p class="pg">'+(PG.length>1?'Pages written for your trade: ':'Your page: ')+PG.map(function(x){return '<a href="'+x[0]+'">'+x[1]+'</a>';}).join(' · ')+'</p>':'')+'</div><div class="go"><p></p><a class="btn primary" href="'+(ins?'insurance.html':'#contact')+'"></a>'+(reg?'<a class="btn line" href="#regulated">How we protect privacy</a>':'')+'</div>';
     indPanel.querySelector('h3').textContent='What Always Open does for '+d[0].toLowerCase();
     var ul=indPanel.querySelector('ul');d[2].forEach(function(t){var li=document.createElement('li');li.innerHTML='<svg aria-hidden="true"><use href="#chk"/></svg>';var sp=document.createElement('span');sp.textContent=t;li.appendChild(sp);ul.appendChild(li);});
     indPanel.querySelector('.go p').textContent=ins?'You still pick any plan. One quick question first tells us how to set up your texting.':'Pick any plan. Your free audit shows where to start.';

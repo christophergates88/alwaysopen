@@ -949,7 +949,7 @@ export async function mailOwner(env, subject, text) {
   ].join('\r\n') + '\r\n\r\n' + text;
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; } catch (e) { return 'failed: ' + String((e && e.message) || e).slice(0, 180); }
 }
-export async function opsPing(env, title, body, priority, tags) { return ntfy(env, title, body, priority, tags); }
+export async function opsPing(env, title, body, priority, tags, click) { return ntfy(env, title, body, priority, tags, click); }
 
 // ---------- pings to Christopher ----------
 async function decisionPing(env, c, it, what, by) {

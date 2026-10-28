@@ -43,7 +43,10 @@ def build(key, d):
     s = rep(s, '<h2>Finished jobs turn into reviews and posts.</h2>', '<h2>' + d['f_h2'] + '</h2>')
     s = re.sub(r'<div class="ask"><b>Finished a job</b>.*?</div></div>\n    </div>\n  </div>\n</section>', d['f_mock'] + '</div></div>\n    </div>\n  </div>\n</section>', s, count=1, flags=re.S)
     if d.get('regulated'):
-        s = rep(s, 'tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed.', 'tap Finished a visit. The review request is written, with no treatment details, and one tap sends it from your phone to a patient who agreed.')
+        # Regulated practices never hand us patient details: no review requests, follow-ups, texting or photos from the app.
+        s = rep(s, 'When a job wraps up, tap Finished a job. The review request is written, and one tap sends it from your phone to a customer who agreed. Send us a photo, and it comes back as a Google post written for you, ready for your OK.',
+                'When a review comes in, the reply is drafted from wording you approved once, checked by Compliance Guard, and waits for your OK. It never confirms that someone is a patient, and it never mentions a visit or treatment.')
+        s = rep(s, 'aria-label="Sample: a finished-job request for a customer who agreed to one text, and a job photo of a new deck turned into a post waiting for approval."', 'aria-label="Sample: a five-star review and the reply drafted for it, checked by Compliance Guard and waiting for approval."')
     # the math
     s = rep(s, '<h2>One job can cover the whole year.</h2>', '<h2>' + d['m_h2'] + '</h2>')
     s = rep(s, 'Your jobs are big, so the math is short. Put in your own numbers.', d['m_lead'])
@@ -53,7 +56,8 @@ def build(key, d):
     s = rep(s, '<p>One job like that leaves you</p>', '<p>' + d['m_one'] + '</p>')
     keep = int(d['m_job'] * d['m_margin'] / 100)
     s = rep(s, '<strong id="m-keep">$5,000</strong>', '<strong id="m-keep">$' + format(keep, ',') + '</strong>')
-    s = rep(s, 'That covers <b>16 months</b> of Growth, or <b>10 months</b> of Pro.', 'That covers <b>' + str(max(0, keep // 299)) + ' months</b> of Growth, or <b>' + str(max(0, keep // 499)) + ' months</b> of Pro.')
+    mo = lambda n: str(n) + (' month' if n == 1 else ' months')
+    s = rep(s, 'That covers <b>16 months</b> of Growth, or <b>10 months</b> of Pro.', 'That covers <b>' + mo(max(0, keep // 299)) + '</b> of Growth, or <b>' + mo(max(0, keep // 499)) + '</b> of Pro.')
     # plans and questions
     s = rep(s, '<h2>Plans for builders</h2>', '<h2>Plans for ' + d['plans_for'] + '</h2>')
     s = rep(s, '<h2>What builders ask first</h2>', '<h2>What ' + d['ask_who'] + ' ask first</h2>')
@@ -67,6 +71,17 @@ def build(key, d):
     for a, b in d.get('extra', []):
         s = rep(s, a, b)
     if d.get('regulated'):
+        s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>On Pro, a missed call also gets a text back[^<]*</span></li>', '', s)
+        s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>Why callers who didn’t book walked[^<]*</span></li>', '', s)
+        s = re.sub(r'\s*<div class="plan">\s*<h3>Pro</h3>.*?<a class="btn line" href="index.html#contact">Choose Pro</a>\s*</div>', '', s, count=1, flags=re.S)
+        s = re.sub(r'(<p id="m-cover">That covers <b>\d+ months?</b> of Growth), or <b>\d+ months?</b> of Pro\.', r'\1.', s, count=1)
+        s = rep(s, "(p >= 1 ? ', or <b>' + months(p) + '</b> of Pro.' : '.')", "'.'")
+        s = rep(s, '<small>Growth is $299 a month and Pro is $499 a month. Max comes with both, with 300 minutes a month.</small>', '<small>Growth is $299 a month, and Max comes with it, with 300 minutes a month.</small>')
+        s = rep(s, '<h3>Every customer gets asked</h3><p>Not just the ones who seem happy. It’s the fair way, and it’s what Google’s rules require. Nobody gets offered anything for a review.</p>',
+                '<h3>Replies that protect privacy</h3><p>Every reply comes from wording you approved, and never confirms that someone is a patient. Nobody is ever offered anything for a review.</p>')
+        s = re.sub(r'<details><summary>Do you text my customers\?</summary><p>.*?</p></details>',
+                   '<details><summary>Do you text my patients?</summary><p>No. Max takes messages, and you call or text patients back from your own phone. We never text for a practice and never handle patient records.</p></details>', s, count=1, flags=re.S)
+        s = rep(s, 'Your hours, service area and the best number for urgent calls. And a sample reply approved so we sound like you.', 'Your hours, the best number for urgent calls, and your reply wording approved once.')
         # regulated businesses never hand us customer data, so nothing is texted for them by us
         s = s.replace('<small>Sent from your phone, or by us for you</small>', '<small>Sent from your phone</small>')
         s = s.replace(' If they said yes to texts, we send it for you from your business number.', '')
@@ -136,26 +151,30 @@ PAGES = {
   meta='Always Open for dental practices: Max answers the calls the front desk misses, takes a message with no treatment details, and every review gets a careful reply checked by Compliance Guard. You approve it all from your phone.',
   h1='Monday, 7:50 AM. A cracked tooth. Your phones open at eight.',
   lede='Max answers your calls in your practice’s name, gives your hours and location, and takes a message with the caller’s name, number and what they need, nothing more. He never discusses fees, treatment or insurance. Every review gets a careful reply that Compliance Guard checks before you see it. <b>You approve it all from your phone.</b>',
-  day_aria='Sample: three things on a practice owner\'s phone during one day. At 7:50 AM Max took a call from a caller with a cracked tooth who wants the first opening. At 1:15 PM an appointment confirmation is due. At 4:30 PM a reply to a five-star review is ready for approval.',
+  day_aria='Sample: three things on a practice owner\'s phone during one day. At 7:50 AM Max took a call from a caller with a cracked tooth who wants the first opening. At 1:15 PM a message from a patient who wants to move a Thursday visit. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('7:50 AM', 'Max took a call', 'First opening', 'A caller with a cracked tooth', '<p>Asked for the first opening today. Left a name and number. No other details taken.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
-            card('1:15 PM', 'Confirmation', 'Due today', 'Thursday 9:00 AM visit', '<div class="bub">Hi, this is Sample Family Dental. A quick note that your visit is Thursday at 9:00 AM. Reply C to confirm, or call us to move it.</div>', ['Text them', 'Call'], due=True) + '\n        ' +
+            card('1:15 PM', 'Message', 'Taken by Max', 'Thursday 9:00 AM visit', '<p>Wants to move it to next week. Left a name and number, nothing else.</p>', ['Call back', 'Text'], due=True) + '\n        ' +
             card('4:30 PM', 'Reply ready for your OK', 'Guard: passed', '★★★★★ from a patient', '<p>“Gentle, on time, and they explained each step before doing it.”</p>', ['Approve', 'Edit']),
   calls_h2='Every call answered, even when the front desk is with a patient.', takes='a message with the caller’s name, number and what they need, nothing more', urgent='a knocked-out tooth', books='the visit',
-  log_aria='Sample call log for a made-up dental practice: a cracked-tooth call taken by Max, a confirmation due, a booked visit, and a hang-up that got a text back. No patient details.',
-  log_rows='\n'.join([row('r', 'Cracked tooth · first opening', 'Max took the call, 7:50 AM Mon', 'red', 'New'), row('w', 'Confirmation · Thursday 9:00 AM', 'Due today', 'warn', 'Due'), row('', 'New patient visit', 'Thursday, 9:00 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
-  nav_q='Confirmations', nav_f='Reviews', q_h2='Confirmations and reminders don’t get forgotten.', q_lead='Empty chairs are mostly forgotten appointments. Add the visit in the app and the confirmation goes out on the day you pick, to patients who agreed to texts. No treatment details, ever.',
-  q_aria='Sample confirmation in the Always Open app: a Thursday 9:00 AM visit, due today, with a drafted text ready to send. No treatment details.',
-  q_mock=fu('Confirmation', 'Due today', 'Thursday 9:00 AM', '', 'New patient visit', ['Text them', 'Call'], 'Hi, this is Sample Family Dental. A quick note that your visit is Thursday at 9:00 AM. Reply C to confirm, or call us to move it.'),
+  log_aria='Sample call log for a made-up dental practice: a cracked-tooth call, a patient moving a visit, a new-patient question, and a hang-up to call back. No patient details.',
+  log_rows='\n'.join([row('r', 'Cracked tooth · first opening', 'Max took the call, 7:50 AM Mon', 'red', 'New'), row('w', 'Wants to move · Thursday visit', 'Max took the message, 9:40 PM', 'warn', 'Call back'), row('', 'New patient · asking about cleanings', 'Max took the message, 6:15 PM', 'ok', 'New'), row('', 'Missed call · 706-555-0177', 'Hung up before leaving a message', 'warn', 'Call back')]),
+  nav_q='After hours', nav_f='Reviews', q_h2='After-hours calls about visits reach you, not voicemail.', q_lead='Patients who call after hours to confirm, move or cancel reach Max. He takes the name, number and what they need, nothing more, and it is on your phone in seconds. Your own reminder system keeps sending reminders; we never see patient records.',
+  q_aria='Sample message in the Always Open app: a patient who called after hours to move a Thursday 9:00 AM visit, with a call-back text ready to send from your phone. No treatment details.',
+  q_mock=fu('Message', 'Taken by Max', 'Thursday 9:00 AM visit', '', 'Wants to move it to next week', ['Call back', 'Text'], 'Hi, this is Sample Family Dental returning your call about Thursday. We can see you Tuesday at 10 or Wednesday at 2. Which works?'),
   f_h2='Every review gets a careful reply.',
-  f_mock='<div class="ask"><b>Finished a visit</b><span>A patient · 706-555-0148</span><label><i><svg aria-hidden="true"><use href="#chk"/></svg></i><span>They agreed to get one text from us.</span></label></div>\n        <div class="photo"><span>Your photo</span></div>\n        <div><small>Reply · Guard: passed · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">Thank you for the kind words. We are glad the visit went smoothly. We look forward to seeing you next time.</p></div>',
+  f_mock='<div class="ask"><b>New review</b><span>★★★★★ · “Gentle, on time, and they explained each step.”</span></div>\n        <div><small>Reply · Guard: passed · waiting for your OK</small><p style="font-size:14.5px;margin-top:4px">Thank you for the kind words. We are glad to hear it, and we look forward to seeing you next time.</p></div>',
   m_h2='One new patient a month can cover it.', m_lead='A practice is built on patients who stay. Put in your own numbers.', m_label='What a new patient is worth to you in a year', m_job=1200, m_margin=40, m_one='One new patient like that leaves you',
-  extra=[('data-label="Finished jobs"', 'data-label="Reviews"'), ('When a job wraps up, tap Finished a visit.', 'When a visit wraps up, tap Finished a visit.'),
-         ('A review request after every finished job', 'A review request after every visit, for patients who agreed'),
-         ('Posts from your job photos for Google, Facebook and Instagram', 'Posts from your office photos for Google, Facebook and Instagram'),
+  extra=[('data-label="Finished jobs"', 'data-label="Reviews"'),
+         ('A review request after every finished job', 'Replies from wording you approve once'),
+         ('Posts from your job photos for Google, Facebook and Instagram<span class="soon" data-launch="meta">Coming soon</span>', 'Holiday hours and closures posted on Google, after your OK'),
+         ('Quote requests taken any hour, and every lead logged', 'Visit requests taken any hour, and every message logged'),
+         ('<span>Quotes, invoices and appointments, each with its own reminder</span>', '<span>Every message on your phone in seconds, with the caller’s number</span>'),
+         ('<span>One tap opens Messages with the text ready, from your own phone</span>', '<span>One tap to call back or text, from your own phone</span>'),
+         ('<span>Invoice and payment reminders, so money doesn’t sit</span>', '<span>No treatment, insurance or billing details taken, ever</span>'),
          ('Three days after the job, Max calls the customer: did it hold up? A yes becomes the review ask, a no reaches you first', 'Review replies checked by Compliance Guard before they reach you'),
          ('Storm Desk: when a warning hits your county, a storm-day post is ready', 'A weather-closure post is ready when a warning hits your county'),
-         ('<span>Every customer asked, not just the happy ones</span>', '<span>Every patient who agreed is asked, not just the happy ones, and never with treatment details</span>'),
-         ('Posts for Google, Facebook and Instagram from your job photos', 'Posts for Google, Facebook and Instagram from your office photos, never patients')],
+         ('<span>Every customer asked, not just the happy ones</span>', '<span>Replies never confirm that someone is a patient</span>'),
+         ('Posts for Google, Facebook and Instagram from your job photos<span class="soon" data-launch="meta">Coming soon</span>', 'Holiday hours and closures posted on Google, after your OK')],
  ),
  'auto-repair': dict(
   title='Auto repair shops', who='auto repair shops', biz='Sample Auto', rivals='shops', plans_for='auto repair', ask_who='shop owners',

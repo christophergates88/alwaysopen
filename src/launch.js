@@ -103,10 +103,28 @@ async function tellOwners(env) {
   for (const r of rows) await pushClient(env, r.client_id, { aps: { alert: { title: 'Facebook and Instagram are ready', body: 'Connect your Page in the app and every photo post you approve goes there too.' }, sound: 'default' }, screen: 'settings' }).catch(() => {});
 }
 
+// Until Always Open's Google account is connected, Christopher gets the one-tap link on his phone (every 3 days).
+async function askToConnect(env, st) {
+  if (st.google.on || st.google.state !== 'needs_connect') return;
+  const gbp = await import('./gbp.js');
+  if (await gbp.connected(env).catch(() => false)) return;
+  const row = await env.DB.prepare("SELECT checked FROM launch WHERE k = 'google_ask'").first().catch(() => null);
+  if (row && Date.now() - Date.parse(row.checked) < 3 * 864e5) return;
+  const { boardToken } = await import('./opsboard.js');
+  const t = await boardToken(env);
+  if (!t) return;
+  const link = 'https://alwaysopenoffice.com/google/gbp-hq?t=' + t;
+  const body = 'Tap here, sign in with the Google account that clients invite as Manager (hello@alwaysopenoffice.com), and tap Allow. It only lets the site see when Google approves the access and then post what owners approve. One time.';
+  await pushOps(env, 'Always Open: connect Google (one time)', body, 'high', 'link', link);
+  await mailOps(env, 'Always Open: connect Google (one time)', body + '\n\n' + link);
+  await env.DB.prepare("INSERT INTO launch (k, on_, at, state, detail, checked) VALUES ('google_ask', 0, '', 'sent', '', ?1) ON CONFLICT(k) DO UPDATE SET checked = excluded.checked").bind(new Date().toISOString()).run();
+}
+
 // Hourly, from the 10-minute cron. Checks only what isn't on yet.
 export async function launchCron(env, opts) {
   await ensure(env);
   const st = await launchState(env);
+  try { await askToConnect(env, st); } catch (e) { /* the HQ board shows the link too */ }
   const out = {};
   for (const k of FEATURES) {
     if (st[k].on && st[k].state === 'live') { out[k] = 'on'; continue; }
