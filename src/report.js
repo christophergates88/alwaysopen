@@ -13,6 +13,31 @@ export function monthOf(now) {
 const day = iso => { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : ''; };
 const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
+// Was the client with us during the month? Their first sign of life (signup, first item, call or job) must come before
+// the month ended. Pure, for tests.
+export function wasClient(firstIso, m) {
+  const t = Date.parse(firstIso || '');
+  return !!t && t < Date.parse(m.end);
+}
+// Anything worth a push? An empty month is still written (the app shows it), but quietly.
+export function hasNews(data) {
+  const st = (data && data.stats) || {};
+  return !!(+st.reviews || +st.posts || +(data && data.note ? 1 : 0));
+}
+
+let ready = false;
+async function ensureRuns(env) {
+  if (ready) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS report_runs (client_id TEXT NOT NULL, month TEXT NOT NULL, at TEXT, result TEXT, PRIMARY KEY (client_id, month))").run();
+  ready = true;
+}
+async function firstSeen(env, cid) {
+  const one = async sql => { try { const r = await env.DB.prepare(sql).bind(cid).first(); return (r && r.t) || ''; } catch (e) { return ''; } };
+  const all = [await one('SELECT created AS t FROM billing WHERE client_id = ?1'), await one('SELECT MIN(created) AS t FROM app_items WHERE client_id = ?1'),
+    await one('SELECT MIN(at) AS t FROM app_calls WHERE client_id = ?1 AND test = 0'), await one('SELECT MIN(at) AS t FROM app_jobs WHERE client_id = ?1')].filter(x => Date.parse(x));
+  return all.sort((a, b) => Date.parse(a) - Date.parse(b))[0] || '';
+}
+
 // Is the row HQ (or we) already wrote for this month complete? Made after the month ended = complete.
 export function isComplete(data, m) {
   const r = data && data.record;
@@ -66,15 +91,18 @@ export async function monthReportCron(env, at) {
   if (new Date(now).getUTCDate() < 2) return { skipped: 'too early' };
   const m = monthOf(now);
   const { DEMO_ID } = await import('./demo.js');
-  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 WHERE c.active = 1 AND c.client_id != ?2').bind(m.key, DEMO_ID).all()).results) || [];
+  await ensureRuns(env);
+  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
+  const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
   let made = 0;
   for (const c of clients) {
-    if (made >= PER_PASS) break;
-    if (String(c.hash || '').startsWith('auto:')) continue;
     let d = null; try { d = JSON.parse(c.data || 'null'); } catch (e) {}
-    if (isComplete(d, m)) continue;
-    await oneClient(env, c, m, now);
+    if (String(c.hash || '').startsWith('auto:') || isComplete(d, m)) { await done(c.client_id, 'kept'); continue; }
+    if (!wasClient(await firstSeen(env, c.client_id), m)) { await done(c.client_id, 'not a client yet'); continue; }   // never a report for a month before they joined
+    const data = await oneClient(env, c, m, now);
     made++;
+    await done(c.client_id, hasNews(data) ? 'made' : 'made, quiet month');
+    if (!hasNews(data)) continue;
     try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
   }
   return { made, month: m.key };

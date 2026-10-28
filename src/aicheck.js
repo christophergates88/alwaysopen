@@ -67,6 +67,14 @@ async function ask(env, biz, kind, town) {
   return ans;
 }
 
+async function hasTown(env, cid) {
+  try {
+    const r = await env.DB.prepare("SELECT (SELECT b.town FROM billing b WHERE b.client_id = ?1) AS b, (SELECT v.town FROM voice_lines v WHERE v.client_id = ?1 LIMIT 1) AS v, (SELECT r.form FROM a2p_reg r WHERE r.client_id = ?1) AS f").bind(cid).first();
+    let f = {}; try { f = JSON.parse((r && r.f) || '{}'); } catch (e) {}
+    return !!(r && (r.b || r.v || f.city));
+  } catch (e) { return false; }
+}
+
 export async function checkOne(env, cid, month) {
   await ensureAiCheck(env);
   const c = await env.DB.prepare("SELECT c.client_id, c.business, c.phone, b.phone AS bphone, b.town AS btown, (SELECT v.town FROM voice_lines v WHERE v.client_id = c.client_id LIMIT 1) AS vtown, (SELECT v.industry FROM voice_lines v WHERE v.client_id = c.client_id LIMIT 1) AS kind, (SELECT r.form FROM a2p_reg r WHERE r.client_id = c.client_id) AS reg FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id WHERE c.client_id = ?1").bind(cid).first().catch(() => null);
@@ -88,11 +96,17 @@ export async function aiCheckCron(env, at) {
   await ensureAiCheck(env);
   const month = new Date(at || Date.now()).toISOString().slice(0, 7);
   const { DEMO_ID } = await import('./demo.js');
-  const due = ((await env.DB.prepare("SELECT c.client_id FROM app_clients c LEFT JOIN ai_checks a ON a.client_id = c.client_id AND a.month = ?1 WHERE c.active = 1 AND c.tier IN ('Growth', 'Pro') AND c.client_id != ?2 AND a.client_id IS NULL LIMIT ?3").bind(month, DEMO_ID, PER_RUN).all()).results) || [];
+  // Due: not checked this month, or a failed try more than a day old (at most 3 tries a month).
+  const dayAgo = new Date(Date.now() - 864e5).toISOString();
+  const due = ((await env.DB.prepare("SELECT c.client_id, a.data FROM app_clients c LEFT JOIN ai_checks a ON a.client_id = c.client_id AND a.month = ?1 WHERE c.active = 1 AND c.tier IN ('Growth', 'Pro') AND c.client_id != ?2 AND (a.client_id IS NULL OR (a.data LIKE '{\"error\"%' AND a.at < ?4 AND COALESCE(json_extract(a.data, '$.tries'), 1) < 3)) LIMIT ?3").bind(month, DEMO_ID, PER_RUN, dayAgo).all()).results) || [];
   let n = 0;
   for (const r of due) {
     const res = await checkOne(env, r.client_id, month).catch(() => null);
-    if (!res) await env.DB.prepare('INSERT OR REPLACE INTO ai_checks (client_id, month, at, data) VALUES (?1, ?2, ?3, ?4)').bind(r.client_id, month, new Date().toISOString(), JSON.stringify({ error: 'could not check this month' })).run();
+    if (!res) {
+      let prev = {}; try { prev = JSON.parse(r.data || '{}'); } catch (e) {}
+      const why = (await hasTown(env, r.client_id)) ? 'the assistant did not answer' : 'no town on file';
+      await env.DB.prepare('INSERT OR REPLACE INTO ai_checks (client_id, month, at, data) VALUES (?1, ?2, ?3, ?4)').bind(r.client_id, month, new Date().toISOString(), JSON.stringify({ error: why, tries: (+prev.tries || 0) + 1 })).run();
+    }
     else n++;
   }
   return { checked: n };

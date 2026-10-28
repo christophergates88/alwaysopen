@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { monthOf, isComplete, buildMonth } from '../src/report.js';
+import { monthOf, isComplete, buildMonth, wasClient, hasNews } from '../src/report.js';
 
 test('on November 2 the report is for October', () => {
   const m = monthOf(Date.parse('2026-11-02T14:00:00Z'));
@@ -25,4 +25,14 @@ test('the month reads plainly and shows who approved each reply', () => {
   assert.equal(d.record.revs[0].by, 'Approved by Sam in the app');
   assert.match(d.record.revs[1].t, /waiting/);
   assert.ok(!/!/.test(JSON.stringify(d)));
+});
+test('no report for a month before the client joined, and no push for an empty month', () => {
+  const m = monthOf(Date.parse('2026-10-28T17:30:00Z'));   // September
+  assert.equal(wasClient('2026-10-24T13:00:00Z', m), false);
+  assert.equal(wasClient('', m), false);
+  assert.equal(wasClient('2026-09-30T23:00:00Z', m), true);
+  const quiet = buildMonth({ business: 'X' }, m, { reviews: [], posts: [], posted: [], calls: 0 }, null, Date.now());
+  assert.equal(hasNews(quiet), false);
+  const calls = buildMonth({ business: 'X' }, m, { reviews: [], posts: [], posted: [], calls: 3 }, null, Date.now());
+  assert.equal(hasNews(calls), true);
 });
