@@ -17,6 +17,7 @@ import { apiRivals, rivalsState } from './rivals.js';
 import { lostState } from './lost.js';
 import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
+import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -229,6 +230,9 @@ export async function handleApp(req, env, ctx, url) {
       return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
+    } else if (sub === '/api/checkins' && meth === 'POST') {
+      const r = await apiCheckins(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/handoff' && meth === 'POST') {
       const r = await apiHandoff(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -378,6 +382,7 @@ async function apiState(env, c, ctx) {
   try { out.lost = (c.regulated || tech) ? null : await lostState(env, cid); } catch (e) { out.lost = null; }
   try { out.callbacks = await callbackState(env, cid); } catch (e) { out.callbacks = null; }
   try { out.handoff = (c.regulated || c.staff) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
+  try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
@@ -632,7 +637,9 @@ async function apiJob(req, env, ctx, c) {
   await env.DB.prepare('INSERT INTO app_jobs (client_id, at, first, phone, job, by, consent, hq_synced) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 0)')
     .bind(c.client_id, at, first, phone, job, by).run();
   ctx.waitUntil(throttledPing(env, c, 'Finished job from ' + (c.business || 'a client'), 'A review request is waiting in Always Open HQ, Reviews.'));
-  return aj({ ok: true, at });
+  let checkin = false;
+  if (b.callOk === true) { try { checkin = !!(await scheduleCheckin(env, c, first, phone, job)); } catch (e) {} }
+  return aj({ ok: true, at, checkin, message: checkin ? 'Added. Max checks in with them in three days.' : undefined });
 }
 
 async function apiPhoto(req, env, ctx, c, url) {

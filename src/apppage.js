@@ -357,6 +357,7 @@ function monthBlock(){
   if(!ms.length)return '<h2>Your month</h2><div class="empty slim"><b>Your first month is on its way</b><span>Your numbers show up here in the first days of next month.</span></div>';
   var m=ms.filter(function(x){return x.month===MONTH;})[0]||ms[0];
   var h='<h2>Your month</h2>';
+  if(S.checkins&&S.checkins.line)h+='<p class="note" style="margin:-4px 2px 10px">'+esc(S.checkins.line)+'</p>';
   if(ms.length>1)h+='<div class="months" role="group" aria-label="Month">'+ms.map(function(x){return '<button type="button" class="mchip" data-a="m" data-m="'+esc(x.month)+'" aria-pressed="'+(x.month===m.month)+'">'+esc(x.label)+'</button>';}).join('')+'</div>';
   else h+='<p class="note" style="margin:-4px 2px 10px">'+esc(m.label)+'</p>';
   var st=m.stats||{},pv=m.prev||null,pl=pv&&pv.label?pv.label.split(' ')[0]:'last month';
@@ -633,11 +634,11 @@ function hoursSheet(){
   $('#go').onclick=function(){var d=$('#hd').value.trim(),t=$('#hh').value.trim();if(!d||!t){toast('Add the days and the hours.');return;}send('hours',d+': '+t+'.',close);};
 }
 function jobSheet(){
-  sheet('<h2>Finished a job</h2><p class="fine">They get one note asking for a Google review: a text, or an email you approve first. Add every customer, not just the happy ones.</p><label>Customer\\u2019s first name<input type="text" id="jf" maxlength="40" autocomplete="off"></label><label>Their cell number<input type="tel" id="jp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>Or their email<input type="email" id="je" maxlength="120" inputmode="email" autocomplete="off" placeholder="name@example.com"></label><label>What was the job? (optional)<input type="text" id="jj" maxlength="80"></label><label class="check"><input type="checkbox" id="jc"><span>They agreed to hear from us once, by text or email.</span></label><div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  sheet('<h2>Finished a job</h2><p class="fine">They get one note asking for a Google review: a text, or an email you approve first. Add every customer, not just the happy ones.</p><label>Customer\\u2019s first name<input type="text" id="jf" maxlength="40" autocomplete="off"></label><label>Their cell number<input type="tel" id="jp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>Or their email<input type="email" id="je" maxlength="120" inputmode="email" autocomplete="off" placeholder="name@example.com"></label><label>What was the job? (optional)<input type="text" id="jj" maxlength="80"></label><label class="check"><input type="checkbox" id="jc"><span>They agreed to hear from us once, by text or email.</span></label>'+(S.checkins&&S.checkins.on?'<label class="check"><input type="checkbox" id="jcc"><span>They are OK with a quick call from Max in a few days to check the work held up.</span></label>':'')+'<div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
   setTimeout(function(){$('#jf').focus();},60);
   $('#go').onclick=function(){
     var b=this;if(!$('#jc').checked){toast('Only add people who agreed to hear from you.');return;}
-    needName(function(by){b.disabled=true;post('job',{first:$('#jf').value,phone:$('#jp').value,email:$('#je').value,job:$('#jj').value,consent:true,by:by}).then(function(res){b.disabled=false;if(res.j.ok){close();toast(res.j.duplicate?res.j.message:(res.j.draft?res.j.message:'Added. Their review request goes out soon.'));}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
+    needName(function(by){b.disabled=true;post('job',{first:$('#jf').value,phone:$('#jp').value,email:$('#je').value,job:$('#jj').value,consent:true,callOk:!!($('#jcc')&&$('#jcc').checked),by:by}).then(function(res){b.disabled=false;if(res.j.ok){close();toast(res.j.duplicate?res.j.message:((res.j.draft||res.j.checkin)?res.j.message:'Added. Their review request goes out soon.'));}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
   };
 }
 function photoSheet(){

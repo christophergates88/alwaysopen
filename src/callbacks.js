@@ -182,18 +182,26 @@ export async function placeCall(env, line, row, kind, extra) {
   if (!callHoursOk(tz, Date.now())) return { ok: false, why: 'after hours' };
   if ((+row.attempts || 0) >= 2) return { ok: false, why: 'tried twice' };
   const q = new URLSearchParams({ id: String(row.id), k: kind, n: extra && extra.newText ? extra.newText : '' });
-  const form = new URLSearchParams({ To: row.phone, From: line.number, Url: SITE + '/voice/out/' + env.VOICE_KEY + '?' + q.toString(), Method: 'POST',
-    StatusCallback: SITE + '/voice/outstatus/' + env.VOICE_KEY + '?id=' + row.id, StatusCallbackMethod: 'POST', Timeout: '25', MachineDetection: 'Enable' });
+  const d = await dialOut(env, line, row.phone, '/voice/out/' + env.VOICE_KEY + '?' + q.toString(), '/voice/outstatus/' + env.VOICE_KEY + '?id=' + row.id);
+  await env.DB.prepare("UPDATE callbacks SET attempts = attempts + 1, last_result = ?1 WHERE id = ?2").bind(d.ok ? 'calling' : 'failed: ' + String(d.why || '').slice(0, 80), row.id).run().catch(() => {});
+  if (!d.ok) return d;
+  const j = { sid: d.sid };
+  try { await logAct(env, { client_id: line.client_id, staff: 'Max' }, 'Max called ' + (row.name || fmtPhone(row.phone)) + (kind === 'later' ? ' about the new time' : ' to set a new time')); } catch (e) {}
+  return { ok: true, sid: j.sid };
+}
+
+// The one door for an outbound call. Callers check the rules first (asked for it, hours, attempts, opt-out, regulated).
+export async function dialOut(env, line, to, path, statusPath) {
+  const form = new URLSearchParams({ To: to, From: line.number, Url: SITE + path, Method: 'POST', StatusCallback: SITE + statusPath, StatusCallbackMethod: 'POST', Timeout: '25', MachineDetection: 'Enable' });
   let r, j = {};
   try {
     r = await fetch(TWILIO + env.TWILIO_ACCOUNT_SID + '/Calls.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
     j = await r.json().catch(() => ({}));
   } catch (e) { return { ok: false, why: 'Twilio unreachable' }; }
-  await env.DB.prepare("UPDATE callbacks SET attempts = attempts + 1, last_result = ?1 WHERE id = ?2").bind(j.sid ? 'calling' : 'failed: ' + String(j.message || r.status).slice(0, 80), row.id).run().catch(() => {});
   if (!r.ok || !j.sid) return { ok: false, why: String(j.message || ('Twilio answered ' + r.status)).slice(0, 120) };
-  try { await logAct(env, { client_id: line.client_id, staff: 'Max' }, 'Max called ' + (row.name || fmtPhone(row.phone)) + (kind === 'later' ? ' about the new time' : ' to set a new time')); } catch (e) {}
   return { ok: true, sid: j.sid };
 }
+export { callOptedOut, fmtPhone, xml, xa };
 
 const xa = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const xml = s => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + s + '</Response>', { headers: { 'content-type': 'text/xml' } });

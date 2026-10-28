@@ -11,6 +11,7 @@ import { handleSms, sendText, TEXTING_ON } from './sms.js';
 import { recordLost } from './lost.js';
 import { slotForLine, createCallback, outboundTwiml, outboundGather, outboundStatus } from './callbacks.js';
 import { neighborsFor, neighborsText, startHandoff, handedFrom, markHandoff } from './handoff.js';
+import { checkinTwiml, checkinGather, checkinStatus } from './checkin.js';
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner } from './app.js';
@@ -69,6 +70,9 @@ export async function handleVoice(req, env, ctx, url) {
   try {
     if (kind === 'sms') return await handleSms(req, env, form, true);
     if (kind === 'handdial') { const st = String(form.get('DialCallStatus') || ''); await markHandoff(env, form.get('CallSid') || '', st === 'completed' ? 'connected' : st); return twiml(st === 'completed' ? '<Hangup/>' : say('Sorry, they did not pick up. I will pass your number along. Goodbye.') + '<Hangup/>'); }
+    if (kind === 'ci') return await checkinTwiml(env, url, form);
+    if (kind === 'cig') return await checkinGather(env, url, form);
+    if (kind === 'cistatus') return await checkinStatus(env, url, form);
     if (kind === 'out') return await outboundTwiml(env, url, form);
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
