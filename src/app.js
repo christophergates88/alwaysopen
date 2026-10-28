@@ -31,6 +31,7 @@ import { publishItem, mergeMonths } from './gbp.js';
 import { lineStatus } from './provision.js';
 import { FACT_KEYS, cleanFacts, knowOut, startInterview, applyPending } from './interview.js';
 import { dialOut } from './callbacks.js';
+import { bookingOut, cleanBooking } from './availability.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -502,7 +503,8 @@ function lineOut(raw, c) {
     defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m an S.I., and this call may be recorded. What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop(),
-    ...knowOut(raw.facts, raw.owner_set)
+    ...knowOut(raw.facts, raw.owner_set),
+    booking: +raw.regulated ? null : bookingOut(l)
   };
 }
 async function apiLine(req, env, ctx, c) {
@@ -526,6 +528,10 @@ async function apiLine(req, env, ctx, c) {
     if (!o.pending) return aj({ ok: true, unchanged: true, line: lineOut(raw, c) });
     const r = applyPending(o, b.action === 'keep-facts');
     changes.push(...r.changes);
+  }
+  if (b.booking && typeof b.booking === 'object' && !+raw.regulated) {
+    const nb = cleanBooking(b.booking, o.book);
+    if (JSON.stringify(nb) !== JSON.stringify(o.book || {})) { o.book = nb; changes.push('booking: ' + ({ book: 'Max books open times', hold: 'Max pencils in a time for you to confirm', off: 'Max takes a message' })[nb.mode || 'hold'] + ', ' + (nb.slotMin || 60) + '-minute visits'); }
   }
   if (b.facts && typeof b.facts === 'object') {
     const nf = cleanFacts(b.facts), cur = parse(withOwner(raw).facts) || {};

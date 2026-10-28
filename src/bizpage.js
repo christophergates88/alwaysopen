@@ -33,7 +33,7 @@ function jobsBlock(){
   h+='<div class="list" style="margin-top:8px">'+list.slice(0,25).map(function(j){
     return '<article class="card"><b>'+esc(j.name||'Customer')+'</b>'+(j.amount?'<span class="tag" style="float:right">'+m2(j.amount)+'</span>':'')+'<p class="note" style="margin:4px 0">'+esc(j.title||'')+(j.phone?' · '+esc(j.phone):'')+'</p><div class="chips">'+
       STG.map(function(s){if(isTech()&&s[0]==='paid')return '';return '<button class="chip" type="button" data-a="bz-stage" data-id="'+j.id+'" data-s="'+s[0]+'" aria-pressed="'+(j.stage===s[0])+'">'+s[1]+'</button>';}).join('')+'</div>'+
-      (isTech()?'':'<div class="acts" style="margin-top:6px"><button class="btn ghost sm" type="button" data-a="bz-amt" data-id="'+j.id+'">Set amount</button>'+(j.quoteId?'':'<button class="btn line sm" type="button" data-a="bz-quote" data-id="'+j.id+'">Write estimate</button>')+'</div>')+'</article>';}).join('')+'</div>';
+      (isTech()?'':'<div class="acts" style="margin-top:6px"><button class="btn ghost sm" type="button" data-a="bz-amt" data-id="'+j.id+'">Set amount</button>'+(j.quoteId?'':'<button class="btn line sm" type="button" data-a="bz-quote" data-id="'+j.id+'">Write estimate</button>')+(j.source==='call'&&/\([^)]*\d[^)]*\)$/.test(j.title||'')&&!/cancelled\)$/.test(j.title||'')?'<button class="btn ghost sm" type="button" data-a="bz-cancelbk" data-id="'+j.id+'">Cancel visit</button>':'')+'</div>')+'</article>';}).join('')+'</div>';
   if(!list.length)h+='<div class="empty slim"><b>Nothing here</b><span>New requests, bookings and calls show up as jobs on their own.</span></div>';
   return h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="bz-job-add">Add a job</button></div>';
 }
@@ -169,6 +169,7 @@ function bizAct(a,id,t){
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-teach'){TAB='max';try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
+  else if(a==='bz-cancelbk'){t.disabled=true;post('work',{action:'cancel-booking',id:+id}).then(function(res){t.disabled=false;if(res.j.ok){toast(res.j.told?'Cancelled. We texted them.':'Cancelled. The time is open again.');load(true);}else toast(res.j.error||'Could not cancel.');});}
   else if(a==='bz-ob-max'){if(S.line)location.href='tel:'+S.line.number;}
 }
 document.addEventListener('change',function(e){var t=e.target;if(!t)return;

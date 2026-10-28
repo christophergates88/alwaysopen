@@ -136,6 +136,18 @@ export function spokenSlot(tz, at) {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at).replace(':00', '');
 }
 
+// Busy stretches on the owner's calendar between two moments, or null when no calendar is connected (availability.js).
+export async function busyTimes(env, cid, from, to) {
+  const a = await access(env, cid);
+  if (!a) return null;
+  const q = new URLSearchParams({ timeMin: new Date(from).toISOString(), timeMax: new Date(to).toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '250' });
+  const r = await fetch(API + '?' + q, { headers: { authorization: 'Bearer ' + a.token } });
+  if (!r.ok) return null;
+  const j = await r.json();
+  const busy = (j.items || []).filter(e => e.status !== 'cancelled' && e.transparency !== 'transparent').map(e => [Date.parse((e.start || {}).dateTime || (e.start || {}).date), Date.parse((e.end || {}).dateTime || (e.end || {}).date)]);
+  return { tz: j.timeZone || a.tz, busy };
+}
+
 // Up to `max` one-hour openings over the next 7 days, weekdays 9 to 5 in the calendar's zone, at least 2 hours out.
 export async function openSlots(env, cid, now, max) {
   const a = await access(env, cid);

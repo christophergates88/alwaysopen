@@ -19,6 +19,7 @@ import { opsAlert } from './ops.js';
 import { gradeOf, saveGrade, failuresOf, queueFromCall } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
+import { slotsFor, bookFor } from './availability.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
@@ -55,7 +56,6 @@ const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // Always Open's own number. Its callers are business owners asking about Always Open, so each call reaches Chris the way a
 // website lead does (a phone push, and an email the daily check turns into a Pipeline prospect), not a client's app.
 export const OWN_ID = 'always-open';
-import { openSlots, bookSlot } from './gcal.js';
 import { callerMemory } from './past.js';
 
 // ---------- HTTP: Twilio webhooks and the relay socket ----------
@@ -356,7 +356,7 @@ export class CallRoom extends DurableObject {
       try { const cs = await slotForLine(this.env, line); if (cs) { s.line.cbSlot = cs.spoken; s.line.cbBusy = cs.busyText; s.cbSlot = { at: cs.at }; } } catch (e) {}
       try { const nb = await neighborsFor(this.env, call.client_id); if (nb.length) { s.neighbors = nb; s.line.neighbors = neighborsText(nb); } } catch (e) {}
       try { const hf = await handedFrom(this.env, call.client_id, s.caller); if (hf) s.line.handedFrom = hf; } catch (e) {}
-      try { const o = await openSlots(this.env, call.client_id, now, 6); if (o && o.slots.length) s.line.slots = o.slots; } catch (e) { /* no calendar: take a message */ }
+      try { const o = await slotsFor(this.env, line, now, 6); if (o && o.slots.length) { s.line.slots = o.slots; s.line.bookMode = o.mode; } } catch (e) { await vlog(this.env, 'slots-error', String((e && e.message) || e)); }
     }
     // Repeat callers: what we already know about this number (never for regulated lines, never on Always Open's own line).
     if (!iv && !s.line.regulated && call.client_id !== OWN_ID && E164.test(s.caller || '')) {
@@ -650,8 +650,10 @@ export class CallRoom extends DurableObject {
       const sl = cur.line.slots[sp.flags.book.n - 1];
       if (sl) {
         let ok = false;
-        try { ok = await bookSlot(this.env, cur.cid, sl, { name: sp.flags.book.name, phone: cur.caller, reason: sp.flags.book.reason }); } catch (e) { /* noted below */ }
-        cur.booked = { at: sl.say, ok };
+        let res = { ok: false };
+        try { res = await bookFor(this.env, await lineFor(this.env, cur.number), sl, { name: sp.flags.book.name, phone: cur.caller, reason: sp.flags.book.reason, callId: cur.sid }); } catch (e) { /* noted below */ }
+        ok = !!res.ok;
+        cur.booked = { at: sl.say, ok, held: !!res.held, taken: !!res.taken };
         await vlog(this.env, 'book', (ok ? 'booked ' : 'FAILED ') + cur.cid + ' ' + sl.say);
       }
     }
@@ -811,7 +813,7 @@ async function writeUp(env, sid, s, why) {
     try { const r = await summarize(env, line, msgs, call.caller); if (r) { note = r.note; aiIn += r.inTok; aiOut += r.outTok; model = model || r.model; } } catch (e) { note = null; }
     if (!note) note = { name: '', callback: '', reason: 'Left a message', details: msgs.filter(x => x.r === 'u').map(x => x.t).join(' ').slice(0, 300), when: '', urgent: false, spam: false, summary: 'They left a message. Read what they said below.' };
   }
-  if (note && s && s.booked) note.when = (s.booked.ok ? 'Booked on your Google Calendar: ' : 'Tried to book (did not save, please confirm): ') + s.booked.at;
+  if (note && s && s.booked) note.when = (s.booked.ok ? (s.booked.held ? 'Penciled in, please confirm with them: ' : 'Booked: ') : (s.booked.taken ? 'They picked a time someone else just took, please call them: ' : 'Tried to book (did not save, please confirm): ')) + s.booked.at;
   // 'transferred' is only set by afterDial, once the owner actually picked up.
   let outcome = call.outcome === 'transferred' ? 'transferred' : (heard ? 'done' : (why === 'failed' ? 'failed' : 'hangup'));
   if (why === 'handoff' && s && s.handoff) { outcome = 'handoff'; try { await logAct(env, { client_id: call.client_id, staff: 'Max' }, 'Sent a caller to ' + s.handoff.business); await logAct(env, { client_id: s.handoff.id, staff: 'Max' }, 'Took a caller from ' + ((line && line.business) || 'a nearby business')); } catch (e) {} }
@@ -840,9 +842,18 @@ async function writeUp(env, sid, s, why) {
   if (note && note.booked === 'no' && note.lost && line && !+line.regulated && call.client_id !== OWN_ID) await recordLost(env, call.client_id, sid, note.lost, note.lostNote).catch(() => {});
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
   const who = (note && note.name) || (callback ? spokenNumber(callback, true) : 'a caller');
-  const title = outcome === 'failed' ? 'Missed call from ' + who : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who);
+  const bookedOk = !!(s && s.booked && s.booked.ok);
+  const title = outcome === 'failed' ? 'Missed call from ' + who : (bookedOk ? (s.booked.held ? 'To confirm: ' : 'Booked: ') + who + ', ' + s.booked.at : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who));
   const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so they did not leave a message. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
+  // Booked or penciled in: one text to the caller with the time (only once the business can text under its own name).
+  if (bookedOk && TEXTING_ON && line && !+line.regulated && E164.test(callback || '')) {
+    const biz = line.business || 'us';
+    const body = s.booked.held
+      ? 'Thanks for calling ' + biz + '. We have you penciled in for ' + s.booked.at + ' and will confirm shortly. Reply here with any questions, or STOP to end texts.'
+      : 'Booked: ' + s.booked.at + ' with ' + biz + '. Reply CHANGE to pick another time, or STOP to end texts.';
+    await sendText(env, { clientId: call.client_id, to: callback, kind: 'booking', body }).catch(() => {});
+  }
   // Missed-call text-back: they hung up or the line failed, so the business texts them once, right away. Not on regulated lines.
   if ((outcome === 'hangup' || outcome === 'failed') && TEXTING_ON && line && !+line.regulated && E164.test(call.caller || '')) {
     const os = (() => { try { return JSON.parse(line.owner_set || '{}'); } catch (e) { return {}; } })();
@@ -993,7 +1004,9 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     (L.goal ? '2. Once they want a call back or are clearly interested, and not before, get their name and the best number.' : '2. Get their name and the best number for a callback.') + (callerSaid ? ' They are calling from ' + callerSaid + '. Ask if that is the best number; if not, get the right one and read it back.' : ' Read the number back to check it.'),
     '3. Get the details the team needs' + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '.',
     L.slots && L.slots.length
-      ? '4. If they want an appointment or a visit, offer one or two of these open times (numbered): ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Once they clearly pick one and you have their name, read the day and time back, and when they say yes, end that reply with [BOOK n | their name | short reason], where n is the number of the time. Then tell them it is on the calendar and they will get a call if anything changes. Book only once, and only one of these times; if none work, take their preferred time and say the team will confirm.'
+      ? '4. If they want an appointment or a visit, these times are open (numbered): ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Offer the first two, in one short sentence. If neither works, offer the next two, then the last two. Once they clearly pick one and you have their name, read the day and time back, and when they say yes, end that reply with [BOOK n | their name | short reason], where n is the number of the time. ' +
+        (L.bookMode === 'hold' ? 'Then tell them it is penciled in and the team will text or call to confirm it shortly. Never say it is booked or confirmed.' : 'Then tell them it is booked and they will hear from the team if anything changes.') +
+        ' Book only once, and only one of these times; if none work, take their preferred time and say the team will confirm.'
       : '4. If they want an appointment or a visit, ask what day and time work best and say the team will confirm the time. Never say a time is booked.',
     '5. Tell them what happens next: ' + (L.next || 'someone from the team will call them back soon.') + ' Then thank them and say goodbye.',
     '',

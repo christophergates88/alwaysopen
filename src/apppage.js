@@ -645,12 +645,33 @@ function vMax(){
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     h+=teachCard(L);
-    if(S.calendar&&!S.client.regulated)h+='<h2>Booking</h2><div class="card"><div class="sw"><div><b>Google Calendar '+(S.calendar.connected?'connected':'not connected')+'</b><span>'+(S.calendar.connected?esc(L.name)+' offers open times on weekdays 9 to 5 and books them for callers.':'Connect it and '+esc(L.name)+' can book callers into open times.')+'</span></div></div><div class="acts">'+(S.calendar.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect</button>':'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
+    if(L.booking)h+=bookCard(L);
   } else h+='<p class="lede">Calls your phone line answered.</p>';
   if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p><p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p></div>':
     '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   if(f.calls)h+='<h2>Calls</h2>'+callsList();
   return h;
+}
+function hhmm(m){m=+m||0;var h=Math.floor(m/60),mm=m%60;return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm;}
+function mins(v){var p=String(v||'').split(':');return (+p[0]||0)*60+(+p[1]||0);}
+function bookCard(L){
+  var B=L.booking,d=B.days||{},wk=d.Mon||d.Tue||d.Wed||d.Thu||d.Fri||[480,1020];
+  var row=function(id,label,v){return '<div class="sw" style="gap:8px"><label style="flex:1">'+label+'<span style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bk-'+id+'-on"'+(v?' checked':'')+' aria-label="Open '+label+'"><input type="time" id="bk-'+id+'-o" value="'+hhmm(v?v[0]:480)+'"> to <input type="time" id="bk-'+id+'-c" value="'+hhmm(v?v[1]:1020)+'"></span></label></div>';};
+  var cal=S.calendar||{};
+  return '<h2>Booking</h2><div class="card form">'+
+    '<label>When a caller wants a visit<select id="bk-mode"><option value="book"'+sel(B.mode,'book')+'>'+esc(L.name)+' books an open time</option><option value="hold"'+sel(B.mode,'hold')+'>'+esc(L.name)+' pencils in a time, we confirm by text</option><option value="off"'+sel(B.mode,'off')+'>'+esc(L.name)+' takes a message</option></select></label>'+
+    '<label>A visit takes<select id="bk-len">'+[30,60,90,120,180,240].map(function(m){return '<option value="'+m+'"'+(B.slotMin===m?' selected':'')+'>'+(m<60?m+' minutes':(m/60)+(m===60?' hour':' hours'))+'</option>';}).join('')+'</select></label>'+
+    '<label>Time between visits<select id="bk-buf">'+[0,15,30,60].map(function(m){return '<option value="'+m+'"'+(B.bufferMin===m?' selected':'')+'>'+(m?m+' minutes':'None')+'</option>';}).join('')+'</select></label>'+
+    row('wk','Weekdays',wk)+row('sat','Saturday',d.Sat)+row('sun','Sunday',d.Sun)+
+    '<p class="fine">'+esc(L.name)+' offers two times at a time, at least two hours out, and never the same time twice.'+(cal.connected?' Your Google Calendar is connected, so busy times there are skipped too.':' Connect Google Calendar (optional) so '+esc(L.name)+' never double-books with your own plans.')+'</p>'+
+    '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
+}
+function bookSave(){
+  var days={},on=function(id){var c=$('#bk-'+id+'-on');return c&&c.checked;},span=function(id){return [mins($('#bk-'+id+'-o').value),mins($('#bk-'+id+'-c').value)];};
+  if(on('wk'))['Mon','Tue','Wed','Thu','Fri'].forEach(function(k){days[k]=span('wk');});
+  if(on('sat'))days.Sat=span('sat');
+  if(on('sun'))days.Sun=span('sun');
+  lineSave({booking:{mode:$('#bk-mode').value,slotMin:+$('#bk-len').value,bufferMin:+$('#bk-buf').value,days:days}});
 }
 function teachCard(L){
   if(!L.know||S.client.regulated)return '';
@@ -890,6 +911,7 @@ document.addEventListener('click',function(e){
   else if(a==='jump'){e.preventDefault();var el2=document.getElementById(t.dataset.to);if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});}
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
   else if(a==='facts-save')factsSave();
+  else if(a==='bk-save')bookSave();
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});

@@ -489,6 +489,56 @@ test('Max calls the owner, asks about the business, and what he heard waits for 
   assert.equal(JSON.parse((await get('SELECT owner_set FROM voice_lines WHERE number = ?1', lineNumber)).owner_set).facts.password, undefined);
 });
 
+test('Max books a visit with no calendar connected: the owner gets a job with the time, the caller gets a text, nobody gets the same time twice', async () => {
+  // The owner chose "book" on the interview call (2-hour visits). Two callers are on the line at once and both want the first time.
+  const ca = await startCall('+14785550161'), cb = await startCall('+14785550162');
+  await openRoom(ca.sid, '+14785550161'); await openRoom(cb.sid, '+14785550162');
+  const offered = JSON.parse(JSON.stringify(wsOf(ca.sid).store.get('s').line.slots));
+  assert.ok(offered.length >= 2, 'Max has open times to offer without any calendar');
+  const sys = () => JSON.stringify(world.aiSeen.at(-1).system);
+  world.aiNote = { name: 'Rita', callback: '+14785550161', reason: 'Clogged drain', details: '', when: '', urgent: false, callback_wanted: false, booked: 'yes', spam: false, summary: 'Rita booked a visit for a clogged drain.', next_step: true };
+  world.aiScript = ['Great, Rita. You are booked for ' + offered[0].say + '. [BOOK 1 | Rita | Clogged drain]'];
+  await say(ca.sid, 'Yes, the first one works. This is Rita, my kitchen drain is clogged.');
+  assert.match(sys(), /Offer the first two/); assert.match(sys(), /tell them it is booked/);
+  world.aiScript = ['Okay, Ben. You are booked for ' + offered[0].say + '. [BOOK 1 | Ben | Running toilet]'];
+  await say(cb.sid, 'The first time is good, I am Ben, toilet keeps running.');
+  const textsBefore = world.texts.length;
+  await hook('after', { CallSid: ca.sid, SessionDuration: '60', SessionStatus: 'ended' });
+  world.aiNote = { name: 'Ben', callback: '+14785550162', reason: 'Running toilet', details: '', when: '', urgent: false, callback_wanted: false, booked: 'yes', spam: false, summary: 'Ben wanted the same time.', next_step: false };
+  await hook('after', { CallSid: cb.sid, SessionDuration: '60', SessionStatus: 'ended' });
+  await site.settle();
+  const books = await all("SELECT * FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled'", cid);
+  assert.equal(books.filter(b => b.start === offered[0].start).length, 1, 'one booking for that time');
+  const ja = await get("SELECT * FROM biz_jobs WHERE source = 'call' AND source_id = ?1", ca.sid);
+  assert.equal(ja.stage, 'booked'); assert.ok(ja.title.includes(offered[0].say));
+  assert.match((await get('SELECT wants FROM app_calls WHERE id = ?1', ca.sid)).wants, /^Booked: /);
+  assert.match((await get('SELECT wants FROM app_calls WHERE id = ?1', cb.sid)).wants, /someone else just took/, 'the owner is told to call the second caller');
+  const sent = world.texts.slice(textsBefore);
+  assert.equal(sent.length, 1, 'only the caller who got the time is texted');
+  assert.equal(sent[0].To, '+14785550161'); assert.match(sent[0].Body, /^Booked: .* with Sinclair Plumbing\. Reply CHANGE/);
+
+  // The owner cancels from the job card: the time opens again and the customer hears about it.
+  const cancel = await site.call(A('/api/work'), { json: { action: 'cancel-booking', id: ja.id, by: 'Dana' } });
+  assert.equal(cancel.status, 200, cancel.text); assert.equal(cancel.json().told, true);
+  assert.match(world.texts.at(-1).Body, /is cancelled/);
+  assert.equal((await get("SELECT status FROM line_bookings WHERE call_id = ?1", ca.sid)).status, 'cancelled');
+  assert.equal((await get('SELECT stage FROM biz_jobs WHERE id = ?1', ja.id)).stage, 'new');
+
+  // Pencil-in mode, set from the app: Max never says booked, the job waits for the owner to confirm.
+  const set = await site.call(A('/api/line'), { json: { booking: { mode: 'hold', slotMin: 60 }, by: 'Dana' } });
+  assert.equal(set.status, 200, set.text); assert.equal(set.json().line.booking.mode, 'hold');
+  const cc = await startCall('+14785550163'); await openRoom(cc.sid, '+14785550163');
+  world.aiNote = { name: 'Lou', callback: '+14785550163', reason: 'Leak', details: '', when: '', urgent: false, callback_wanted: false, booked: 'yes', spam: false, summary: 'Lou penciled in a visit.', next_step: true };
+  world.aiScript = ['Okay, Lou, you are penciled in and the team will confirm. [BOOK 1 | Lou | Leak]'];
+  await say(cc.sid, 'First one please, this is Lou, a leak under the sink.');
+  assert.match(sys(), /penciled in/); assert.match(sys(), /Never say it is booked/);
+  await hook('after', { CallSid: cc.sid, SessionDuration: '40', SessionStatus: 'ended' });
+  await site.settle();
+  assert.equal((await get("SELECT status FROM line_bookings WHERE call_id = ?1", cc.sid)).status, 'held');
+  assert.equal((await get("SELECT stage FROM biz_jobs WHERE source = 'call' AND source_id = ?1", cc.sid)).stage, 'new');
+  assert.match(world.texts.at(-1).Body, /penciled in/);
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));

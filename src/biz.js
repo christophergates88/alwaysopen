@@ -170,6 +170,20 @@ export async function apiWork(req, env, c) {
     }
     return aj({ ok: !!r.meta.changes });
   }
+  if (b.action === 'cancel-booking') {
+    // A visit Max booked from a call: the time opens up again, the job goes back to new, and the customer is told (when texting is on).
+    const j = await env.DB.prepare("SELECT * FROM biz_jobs WHERE id = ?1 AND client_id = ?2").bind(id, c.client_id).first();
+    if (!j || j.source !== 'call') return aj({ ok: false, error: 'That job was not booked by Max.' }, 400);
+    const { cancelForCall } = await import('./availability.js');
+    const bk = await cancelForCall(env, c.client_id, j.source_id);
+    if (!bk) return aj({ ok: false, error: 'That visit is already cancelled.' }, 409);
+    await env.DB.prepare("UPDATE biz_jobs SET stage = 'new', title = ?1, updated = ?2 WHERE id = ?3").bind(String(j.title || '').replace(/\s*\([^)]*\)\s*$/, '') + ' (visit cancelled)', ts, id).run();
+    let told = false;
+    if (b.tell !== false && /^\+1\d{10}$/.test(bk.phone || '')) {
+      try { const { sendText } = await import('./sms.js'); const r = await sendText(env, { clientId: c.client_id, to: bk.phone, kind: 'booking', body: 'Your ' + bk.say + ' visit with ' + (c.business || 'us') + ' is cancelled. Reply here or call to set a new time. Reply STOP to end texts.' }); told = !!r.ok; } catch (e) {}
+    }
+    return aj({ ok: true, told });
+  }
   if (b.action === 'amount') {
     if (!money) return aj({ ok: false, error: 'Not allowed' }, 403);
     const r = await env.DB.prepare('UPDATE biz_jobs SET amount = ?1, updated = ?2 WHERE id = ?3 AND client_id = ?4').bind(cents(b.amount), ts, id, c.client_id).run();
