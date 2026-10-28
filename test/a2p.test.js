@@ -9,7 +9,7 @@ test('the form is checked before anything is sent', () => {
   assert.equal(checkForm(good).form.state, 'GA');
   assert.equal(checkForm(Object.assign({}, good, { agree: '' })).ok, false);
   assert.equal(checkForm(Object.assign({}, good, { ein: '123' })).ok, false);
-  assert.equal(checkForm(Object.assign({}, good, { ein: '', noEin: 'on' })).ok, true);
+  assert.equal(checkForm(Object.assign({}, good, { ein: '', noEin: 'on', btype: 'Sole Proprietorship' })).ok, true);
   assert.equal(checkForm(Object.assign({}, good, { website: 'sinclair' })).ok, false);
   assert.equal(checkForm(Object.assign({}, good, { btype: 'LLC' })).ok, false);
 });
@@ -70,4 +70,42 @@ test('a registration walks every step to approved, wipes the EIN, and turns text
   assert.ok(calls.some(c => /EntityAssignments/.test(c)));
   assert.ok(calls.some(c => /BrandRegistrations$/.test(c.split(' ')[1])));
   assert.equal(calls.filter(c => /^POST .*BrandRegistrations$/.test(c)).length, 1, 'one brand, never two');
+});
+
+test('a sole proprietor without an EIN registers on its own and is asked to reply YES once', async () => {
+  const solo = Object.assign({}, good, { ein: '', noEin: 'on', btype: 'Sole Proprietorship' });
+  assert.equal(checkForm(solo).ok, true);
+  assert.equal(checkForm(Object.assign({}, solo, { btype: 'Limited Liability Corporation' })).ok, false, 'an LLC needs its EIN');
+  const { env, rows, brands } = fakeEnv();
+  rows.a2p.form = JSON.stringify(checkForm(solo).form);
+  rows.a2p.step = 'sp_profile';
+  const calls = [];
+  let n = 0, brandReads = 0;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url), m = (init && init.method) || 'GET';
+    calls.push(m + ' ' + u + ' ' + ((init && init.body) || ''));
+    const sid = p => p + String(++n).padStart(32, '0');
+    const body = u.includes('/Evaluations') ? { status: 'compliant' }
+      : /BrandRegistrations\/BN[^/]+$/.test(u) && m === 'GET' ? (++brandReads < 3 ? { status: 'APPROVED', identity_status: 'UNVERIFIED' } : { status: 'APPROVED', identity_status: 'VERIFIED' })
+      : /Compliance\/Usa2p$/.test(u) && m === 'GET' ? { compliance: [{ campaign_status: 'VERIFIED' }] }
+      : /Compliance\/Usa2p$/.test(u) ? { sid: sid('QE') }
+      : /IncomingPhoneNumbers\.json\?/.test(u) ? { incoming_phone_numbers: [{ sid: 'PN1' }] }
+      : /CustomerProfiles$|TrustProducts$/.test(u) ? { sid: sid('BU') }
+      : /EndUsers$/.test(u) ? { sid: sid('IT') }
+      : /Addresses\.json$/.test(u) ? { sid: sid('AD') }
+      : /SupportingDocuments$/.test(u) ? { sid: sid('RD') }
+      : /BrandRegistrations$/.test(u) ? { sid: sid('BN') }
+      : /v1\/Services$/.test(u) ? { sid: 'MG' + 'b'.repeat(32) }
+      : {};
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  let st;
+  for (let i = 0; i < 14 && st !== 'approved'; i++) st = await advance(env, 'c1');
+  assert.equal(st, 'approved');
+  assert.ok(calls.some(c => /RN806dd6cd175f314e1f96a9727ee271f4/.test(c)), 'starter profile policy');
+  assert.ok(calls.some(c => /sole_proprietor_information/.test(c)));
+  assert.ok(calls.some(c => /BrandType=SOLE_PROPRIETOR/.test(c)));
+  assert.ok(calls.some(c => /UsAppToPersonUsecase=SOLE_PROPRIETOR/.test(c)));
+  assert.ok(!calls.some(c => /business_registration_number/.test(c)), 'no EIN fields at all');
+  assert.deepEqual(brands.c1, { mg: 'MG' + 'b'.repeat(32), status: 'approved' });
 });

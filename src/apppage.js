@@ -407,6 +407,8 @@ function monthBlock(){
     if(v!=null&&v!==''&&p!=null&&p!==''&&!isNaN(+v)&&!isNaN(+p)){var df=+v-(+p);if(t[0]==='rating')df=Math.round(df*10)/10;d=df>0?'<em class="up">\\u25b2 '+(t[0]==='rating'?df.toFixed(1):df)+' from '+esc(pl)+'</em>':(df<0?'<em class="down">\\u25bc '+(t[0]==='rating'?Math.abs(df).toFixed(1):Math.abs(df))+' from '+esc(pl)+'</em>':'<em class="down">Same as '+esc(pl)+'</em>');}
     return '<div class="tile"><b>'+fmt(t[0],v)+'</b><span>'+t[1]+'</span>'+d+'</div>';}).join('')+'</div>';
   if(m.note)h+='<p class="note">'+esc(m.note)+'</p>';
+  var ac=S.aiCheck;
+  if(ac&&ac.line)h+='<div class="card"><b>What assistants say about you</b><p class="note" style="margin:4px 0 0">'+esc(ac.line)+(ac.fixing?' Some details they show are out of date ('+esc(ac.wrong.map(function(w){return w.field;}).join(', '))+'). We\u2019re fixing them where they come from.':' The details they show match yours.')+'</p></div>';
   return h+'<p class="note">Calls, clicks and direction requests come from your Google profile. A dash means Google had not reported it yet.</p>';
 }
 

@@ -228,10 +228,12 @@ export async function publishItem(env, c, it, text) {
   return r.ok ? 'posted' : 'failed:' + r.err;
 }
 
-// ---------------- drafts for reviews nobody drafted ----------------
-// The email check normally drafts each review within hours. If a review still has no reply and no draft after this long,
-// the worker drafts it. GBP_DRAFTS=primary in wrangler.toml (when the email check skips these clients) shortens the wait.
-const draftAfterH = env => String(env.GBP_DRAFTS || '').toLowerCase() === 'primary' ? 1 : 12;
+// ---------------- reviews nobody drafted ----------------
+// Today the Always Open check drafts each review from Google's email within hours, so the worker only watches: a review
+// with no reply and no draft after 12 hours gets Christopher a push. Once the check is told to leave API clients to the
+// worker (GBP_DRAFTS=primary in wrangler.toml), the worker drafts them itself an hour after they come in.
+const primary = env => String(env.GBP_DRAFTS || '').toLowerCase() === 'primary';
+const draftAfterH = env => primary(env) ? 1 : 12;
 const SYS = 'You write the reply a small business posts under its own name to a Google review. Return only the reply text. ' +
   'One to three sentences, warm, plain and specific, written as the business. Thank the reviewer by first name. For 4 or 5 stars, mention one specific thing from their review. ' +
   'Under 4 stars: apologize sincerely without arguing, blaming, making excuses or admitting fault; give no details about the job or the customer; invite them to contact the business directly. ' +
@@ -273,6 +275,11 @@ export async function safetyDrafts(env, now) {
     for (const rv of waiting.slice(0, 5)) {
       if (await env.DB.prepare('SELECT 1 AS x FROM gbp_seen WHERE review = ?1').bind(rv.name).first()) continue;
       if (items.some(it => reviewScore(rv, it) >= 4)) { await env.DB.prepare('INSERT OR IGNORE INTO gbp_seen (review, client_id, item_id, at) VALUES (?1,?2,?3,?4)').bind(rv.name, c.client_id, '', new Date(t).toISOString()).run(); continue; }
+      if (!primary(env)) {   // watch only: tell Christopher once, the email check drafts it
+        await env.DB.prepare('INSERT OR IGNORE INTO gbp_seen (review, client_id, item_id, at) VALUES (?1,?2,?3,?4)').bind(rv.name, c.client_id, 'alerted', new Date(t).toISOString()).run();
+        missed.push(c.business);
+        continue;
+      }
       const draft = await writeDraft(env, c, rv, voice).catch(() => '');
       if (!draft || guard(draft, c, 'reply').length) { missed.push(c.business); continue; }
       const id = 'g:' + await shortId(rv.name), at = new Date(t).toISOString();
@@ -288,7 +295,7 @@ export async function safetyDrafts(env, now) {
     const { opsPing } = await app();
     await opsPing(env, 'Always Open: ' + (made ? made + (made === 1 ? ' review reply drafted' : ' review replies drafted') : 'reviews need a draft'),
       (made ? 'These reviews had no draft after ' + draftAfterH(env) + ' hours, so the worker wrote them from Google. They are in the owners’ apps for approval. ' : '') +
-      (missed.length ? 'Could not draft for: ' + [...new Set(missed)].join(', ') + '. Draft those in HQ.' : ''), 'default', 'memo');
+      (missed.length ? (primary(env) ? 'Could not draft for: ' : 'Google reviews with no reply and no draft after ' + draftAfterH(env) + ' hours, for: ') + [...new Set(missed)].join(', ') + '. Draft those in HQ (the Always Open check may not have run).' : ''), 'default', 'memo');
   }
   return { made, missed: missed.length };
 }

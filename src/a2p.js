@@ -10,6 +10,11 @@ const TH = 'https://trusthub.twilio.com/v1/';
 const MSG = 'https://messaging.twilio.com/v1/';
 const SECONDARY_POLICY = 'RNdfbf3fae0e1107f8aded0e7cead80bf5';
 const A2P_POLICY = 'RNb0d4771c2c98518d916a3d4cd70a8f8b';
+// Sole proprietors (no EIN): a starter profile and a sole-proprietor bundle instead, then the owner confirms by replying
+// YES to one text from the carriers' registry. https://www.twilio.com/docs/sms/a2p-10dlc/onboarding-isv-api-sole-prop-new
+const STARTER_POLICY = 'RN806dd6cd175f314e1f96a9727ee271f4';
+const SOLE_POLICY = 'RN670d5d2e282a6130ae063b234b6019c8';
+export const OTP_FROM = '(915) 278-2000';
 export const BUSINESS_TYPES = ['Limited Liability Corporation', 'Corporation', 'Partnership', 'Sole Proprietorship', 'Co-operative', 'Non-profit Corporation'];
 export const INDUSTRIES = { CONSTRUCTION: 'Home services and construction', AUTOMOTIVE: 'Auto repair and automotive', HEALTHCARE: 'Health and dental', INSURANCE: 'Insurance', FOOD_AND_BEVERAGE: 'Food and drink', RETAIL: 'Retail', REAL_ESTATE: 'Real estate', PROFESSIONAL_SERVICES: 'Professional services', HOSPITALITY: 'Hospitality and events', TRANSPORTATION: 'Transportation', LEGAL: 'Legal', CONSUMER: 'Other consumer services' };
 export const POSITIONS = ['CEO', 'GM', 'Director', 'VP', 'CFO', 'General Counsel', 'Other'];
@@ -51,6 +56,7 @@ export function checkForm(b) {
   if (f.legal.length < 2) return { ok: false, error: 'Add the legal business name, exactly as the IRS has it.' };
   if (!BUSINESS_TYPES.includes(f.btype)) return { ok: false, error: 'Pick the kind of business entity.' };
   if (!f.noEin && !/^\d{9}$/.test(f.ein)) return { ok: false, error: 'The EIN is nine digits, like 12-3456789.' };
+  if (f.noEin && f.btype !== 'Sole Proprietorship') return { ok: false, error: 'Without an EIN, carriers only register sole proprietors. If the business is an LLC, corporation or partnership, add its EIN.' };
   if (!INDUSTRIES[f.industry]) return { ok: false, error: 'Pick the closest industry.' };
   if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(f.website)) return { ok: false, error: 'Add your website or your Google Business link, starting with https://' };
   if (!f.street || !f.city || !/^[A-Z]{2}$/.test(f.state) || !/^\d{5}(-\d{4})?$/.test(f.zip)) return { ok: false, error: 'Add the full business address: street, city, two-letter state and ZIP.' };
@@ -157,8 +163,8 @@ async function stepCampaign(env, row, f, sids, ctx) {
   const biz = f.legal;
   if (!sids.mg) sids.mg = (await tw(env, 'POST', MSG + 'Services', { FriendlyName: biz + ' (Always Open texting)', InboundRequestUrl: SITE + '/voice/sms/' + env.VOICE_KEY, InboundMethod: 'POST', UseInboundWebhookOnNumber: 'false' })).sid;
   if (!sids.campaign) {
-    let usecase = 'LOW_VOLUME';
-    try { const u = await tw(env, 'GET', MSG + 'Services/' + sids.mg + '/Compliance/Usa2p/Usecases?BrandRegistrationSid=' + sids.brand); const codes = (u.us_app_to_person_usecases || []).map(x => x.code); if (!codes.includes('LOW_VOLUME')) usecase = codes.includes('MIXED') ? 'MIXED' : (codes[0] || 'MIXED'); } catch (e) {}
+    let usecase = f.noEin ? 'SOLE_PROPRIETOR' : 'LOW_VOLUME';
+    if (!f.noEin) try { const u = await tw(env, 'GET', MSG + 'Services/' + sids.mg + '/Compliance/Usa2p/Usecases?BrandRegistrationSid=' + sids.brand); const codes = (u.us_app_to_person_usecases || []).map(x => x.code); if (!codes.includes('LOW_VOLUME')) usecase = codes.includes('MIXED') ? 'MIXED' : (codes[0] || 'MIXED'); } catch (e) {}
     const t = campaignText(biz, ctx && ctx.ref);
     const c = await tw(env, 'POST', MSG + 'Services/' + sids.mg + '/Compliance/Usa2p', Object.assign({ BrandRegistrationSid: sids.brand, UsAppToPersonUsecase: usecase, HasEmbeddedLinks: 'true', HasEmbeddedPhone: 'false', PrivacyPolicyUrl: SITE + '/privacy', TermsAndConditionsUrl: SITE + '/terms' }, t), { 'X-Twilio-Api-Version': 'v1.2' });
     sids.campaign = c.sid || 'created';
@@ -185,7 +191,59 @@ async function stepNumber(env, row, f, sids) {
   await setBrand(env, row.client_id, sids.mg, 'approved');
   return { done: true };
 }
-const STEPS = { profile: stepProfile, wait_profile: stepWaitProfile, trust: stepTrust, brand: stepBrand, wait_brand: stepWaitBrand, campaign: stepCampaign, wait_campaign: stepWaitCampaign, number: stepNumber };
+// ---------------- sole proprietors ----------------
+async function stepSpProfile(env, row, f, sids) {
+  const who = (f.first + ' ' + f.last).trim();
+  if (!sids.profile) sids.profile = (await tw(env, 'POST', TH + 'CustomerProfiles', { FriendlyName: f.legal + ' (Always Open client, sole proprietor)', Email: env.MAIL_TO, PolicySid: STARTER_POLICY })).sid;
+  if (!sids.starterEU) {
+    sids.starterEU = (await tw(env, 'POST', TH + 'EndUsers', { Type: 'starter_customer_profile_information', FriendlyName: who + ' starter profile', Attributes: { first_name: f.first, last_name: f.last, email: f.email, phone_number: '+1' + f.phone } })).sid;
+    await assign(env, 'CustomerProfiles', sids.profile, sids.starterEU);
+  }
+  if (!sids.address) sids.address = (await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Addresses.json', { CustomerName: who || f.legal, Street: f.street, City: f.city, Region: f.state, PostalCode: f.zip, IsoCountry: 'US', FriendlyName: f.legal })).sid;
+  if (!sids.doc) {
+    sids.doc = (await tw(env, 'POST', TH + 'SupportingDocuments', { Type: 'customer_profile_address', FriendlyName: f.legal + ' address', Attributes: { address_sids: sids.address } })).sid;
+    await assign(env, 'CustomerProfiles', sids.profile, sids.doc);
+  }
+  if (!sids.primaryAssigned) { await assign(env, 'CustomerProfiles', sids.profile, env.TWILIO_PRIMARY_PROFILE_SID); sids.primaryAssigned = 1; }
+  const ev = await tw(env, 'POST', TH + 'CustomerProfiles/' + sids.profile + '/Evaluations', { PolicySid: STARTER_POLICY });
+  if (ev.status !== 'compliant') return { fix: evalWhy(ev) };
+  await tw(env, 'POST', TH + 'CustomerProfiles/' + sids.profile, { Status: 'pending-review' });
+  return { next: 'sp_trust' };
+}
+async function stepSpTrust(env, row, f, sids) {
+  if (!sids.trust) sids.trust = (await tw(env, 'POST', TH + 'TrustProducts', { FriendlyName: f.legal + ' sole proprietor A2P', Email: env.MAIL_TO, PolicySid: SOLE_POLICY })).sid;
+  if (!sids.soleEU) {
+    sids.soleEU = (await tw(env, 'POST', TH + 'EndUsers', { Type: 'sole_proprietor_information', FriendlyName: f.legal + ' sole proprietor', Attributes: { brand_name: f.legal, mobile_phone_number: '+1' + f.phone } })).sid;
+    await assign(env, 'TrustProducts', sids.trust, sids.soleEU);
+    await assign(env, 'TrustProducts', sids.trust, sids.profile);
+  }
+  const ev = await tw(env, 'POST', TH + 'TrustProducts/' + sids.trust + '/Evaluations', { PolicySid: SOLE_POLICY });
+  if (ev.status !== 'compliant') return { fix: evalWhy(ev) };
+  await tw(env, 'POST', TH + 'TrustProducts/' + sids.trust, { Status: 'pending-review' });
+  return { next: 'sp_brand' };
+}
+async function stepSpBrand(env, row, f, sids) {
+  if (!sids.brand) sids.brand = (await tw(env, 'POST', MSG + 'a2p/BrandRegistrations', { CustomerProfileBundleSid: sids.profile, A2PProfileBundleSid: sids.trust, BrandType: 'SOLE_PROPRIETOR' })).sid;
+  return { next: 'sp_wait_brand' };
+}
+// The brand is approved first, then the registry texts the owner's cell; it is verified once they reply YES.
+async function stepSpWaitBrand(env, row, f, sids) {
+  const b = await tw(env, 'GET', MSG + 'a2p/BrandRegistrations/' + sids.brand);
+  if (b.status === 'FAILED') return { fix: 'The registration was turned down' + (b.failure_reason ? ': ' + String(b.failure_reason).slice(0, 200) : '.') + ' Check the details and send the form again.' };
+  if (b.status !== 'APPROVED') return { wait: true };
+  if (String(b.identity_status || '').toUpperCase() === 'VERIFIED') return { next: 'campaign' };
+  const told = Date.parse(sids.otpTold || '') || 0, n = +sids.otpSent || 0;
+  if (!told || (Date.now() - told > 20 * 3600e3 && n < 4)) {
+    if (told) await tw(env, 'POST', MSG + 'a2p/BrandRegistrations/' + sids.brand + '/SmsOtp', {}).catch(() => {});   // the first text goes out by itself; later ones are resent
+    sids.otpTold = new Date().toISOString(); sids.otpSent = n + 1;
+    return { tell: 'Reply YES to the text from ' + OTP_FROM + ' to finish your texting registration. It’s from the carriers’ registry, and the code is good for 24 hours.' };
+  }
+  if (n >= 4 && Date.now() - told > 20 * 3600e3) return { fix: 'The carriers’ text to your cell was never answered. Message us in Ask us and we’ll send a new one.' };
+  return { wait: true };
+}
+
+const STEPS = { profile: stepProfile, wait_profile: stepWaitProfile, trust: stepTrust, brand: stepBrand, wait_brand: stepWaitBrand, campaign: stepCampaign, wait_campaign: stepWaitCampaign, number: stepNumber,
+  sp_profile: stepSpProfile, sp_trust: stepSpTrust, sp_brand: stepSpBrand, sp_wait_brand: stepSpWaitBrand };
 const LABELS = { none: 'Not started', needs_help: 'We’ll register it with you', submitted: 'Sent, starting', in_review: 'Carriers are reviewing it', approved: 'Approved. Texting is on.', needs_fix: 'Needs a fix', failed: 'We’re looking at it' };
 
 // Advance one client by one step. Returns the new status.
@@ -221,6 +279,11 @@ export async function advance(env, cid) {
     await opsPing(env, 'Texting approved: ' + ((c && c.business) || cid), 'Their number is in its own Messaging Service.', 'default', 'white_check_mark');
     return 'approved';
   }
+  if (r.tell) {
+    await env.DB.prepare('UPDATE a2p_reg SET sids = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(sids), now(), cid).run();
+    await pushClient(env, cid, { aps: { alert: { title: 'One step left for texting', body: r.tell }, sound: 'default' }, screen: 'home' });
+    return row.status;
+  }
   if (r.wait) { await env.DB.prepare('UPDATE a2p_reg SET updated = ?1 WHERE client_id = ?2').bind(now(), cid).run(); return row.status; }
   await save('in_review', r.next, '', f);
   return 'in_review';
@@ -238,9 +301,10 @@ export async function a2pCron(env) {
 export async function textingState(env, c) {
   if (c.staff) return null;
   await ensureA2p(env);
-  const r = await env.DB.prepare('SELECT status, error, updated FROM a2p_reg WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
+  const r = await env.DB.prepare('SELECT status, step, sids, error, updated FROM a2p_reg WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
   const status = r ? r.status : 'none';
-  return { status, label: LABELS[status] || status, error: r && r.status === 'needs_fix' ? r.error : '', regulated: !!+c.regulated };
+  let yes = false; try { yes = !!(r && r.step === 'sp_wait_brand' && JSON.parse(r.sids || '{}').otpTold); } catch (e) {}
+  return { status, label: yes ? 'Reply YES to the text from ' + OTP_FROM : (LABELS[status] || status), error: r && r.status === 'needs_fix' ? r.error : '', regulated: !!+c.regulated, replyYes: yes };
 }
 
 // ---------------- the owner's form: /app/<code>/texting ----------------
@@ -264,16 +328,17 @@ export async function textingPage(env, c, base, req) {
     else if (row && ['submitted', 'in_review', 'approved'].includes(row.status)) err = 'This is already on its way.';
     else {
       const f = chk.form;
-      const status = f.noEin ? 'needs_help' : 'submitted';
-      await env.DB.prepare("INSERT INTO a2p_reg (client_id, status, step, form, sids, error, tries, created, updated) VALUES (?1,?2,?3,?4,'{}','',0,?5,?5) ON CONFLICT(client_id) DO UPDATE SET status = excluded.status, step = excluded.step, form = excluded.form, sids = '{}', error = '', tries = 0, updated = excluded.updated")
-        .bind(c.client_id, status, f.noEin ? '' : 'profile', JSON.stringify(f), now()).run();
+      await env.DB.prepare("INSERT INTO a2p_reg (client_id, status, step, form, sids, error, tries, created, updated) VALUES (?1,'submitted',?2,?3,'{}','',0,?4,?4) ON CONFLICT(client_id) DO UPDATE SET status = excluded.status, step = excluded.step, form = excluded.form, sids = '{}', error = '', tries = 0, updated = excluded.updated")
+        .bind(c.client_id, f.noEin ? 'sp_profile' : 'profile', JSON.stringify(f), now()).run();
       try { const { markOnboard } = await import('./biz.js'); await markOnboard(env, c.client_id, 'texting'); } catch (e) {}
-      await opsPing(env, (f.noEin ? 'Texting registration needs a sole-proprietor setup: ' : 'Texting registration sent: ') + (c.business || c.client_id), f.noEin ? 'No EIN. Register them as a sole proprietor in Twilio by hand.' : 'The registration runs on its own; HQ shows each step.', 'default', 'memo');
-      const msg = f.noEin ? '<h1>Got it.</h1><p class="sub">Without an EIN, carriers use a different, simpler registration. We’ll set it up with you and message you in the app. It needs a code sent to your cell.</p>'
+      await opsPing(env, 'Texting registration sent: ' + (c.business || c.client_id), (f.noEin ? 'Sole proprietor (no EIN). ' : '') + 'The registration runs on its own; HQ shows each step.', 'default', 'memo');
+      const msg = f.noEin ? '<h1>Sent.</h1><p class="sub">Without an EIN, carriers use a simpler sole-proprietor registration. Once they approve it, the carriers’ registry texts your cell from ' + OTP_FROM + '. <b>Reply YES to that text</b> within 24 hours to finish. We’ll remind you in the app when it arrives.</p>'
         : '<h1>Sent.</h1><p class="sub">Carriers review every business that texts. It usually takes a few days, sometimes a couple of weeks. You’ll get a note in the app when it’s approved, or if anything needs fixing. Calls, Max and email all work in the meantime.</p>';
       return new Response(shell('Texting', msg + back), { headers: H });
     }
   }
+  let waitingYes = false; try { waitingYes = !!(row && row.step === 'sp_wait_brand' && JSON.parse(row.sids || '{}').otpTold); } catch (e) {}
+  if (waitingYes && !err) return new Response(shell('Texting', '<h1>One step left.</h1><p class="sub">The carriers’ registry texted your cell from ' + OTP_FROM + '. <b>Reply YES to that text</b> and texting turns on a few days later. If you can’t find it, message us in Ask us and we’ll send a new one.</p>' + back), { headers: H });
   if (row && ['submitted', 'in_review'].includes(row.status) && !err) return new Response(shell('Texting', '<h1>Carriers are reviewing it.</h1><p class="sub">Started ' + esc(String(row.created || '').slice(0, 10)) + '. It usually takes a few days. You’ll get a note in the app when it’s approved.</p>' + back), { headers: H });
   if (row && row.status === 'approved') return new Response(shell('Texting', '<h1>Texting is on.</h1><p class="sub">Carriers approved texting for your business. Texts go out from your Always Open number with your business name first, and replies come back to your inbox.</p>' + back), { headers: H });
   if (row && row.status === 'needs_help' && !err) return new Response(shell('Texting', '<h1>We’re setting it up with you.</h1><p class="sub">Without an EIN, carriers use a sole-proprietor registration. We’ll message you in the app.</p>' + back), { headers: H });
@@ -290,7 +355,7 @@ export async function textingPage(env, c, base, req) {
     '<label>Legal business name, exactly as the IRS has it<input name="legal" required maxlength="120" value="' + v('legal') + '"></label>' +
     '<div class="row"><label>Kind of entity' + sel('btype', BUSINESS_TYPES, prev.btype) + '</label><label>Industry' + sel('industry', Object.entries(INDUSTRIES), ind) + '</label></div>' +
     '<label>EIN (federal tax ID)<input name="ein" inputmode="numeric" autocomplete="off" maxlength="11" placeholder="12-3456789"></label>' +
-    '<label class="check"><input type="checkbox" name="noEin" value="1"' + (prev.noEin ? ' checked' : '') + '> <span>I don’t have an EIN (sole proprietor using my Social Security number). We’ll set this up with you instead; never type an SSN here.</span></label>' +
+    '<label class="check"><input type="checkbox" name="noEin" value="1"' + (prev.noEin ? ' checked' : '') + '> <span>I don’t have an EIN (a sole proprietor). Carriers then use a simpler registration and text your cell once to confirm. Never type a Social Security number here.</span></label>' +
     '<label>Website or Google Business link<input name="website" type="url" required maxlength="200" placeholder="https://" value="' + v('website') + '"></label>' +
     '<h2>Business address</h2>' +
     '<label>Street<input name="street" required maxlength="120" autocomplete="street-address" value="' + v('street') + '"></label>' +

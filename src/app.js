@@ -415,6 +415,7 @@ async function apiState(env, c, ctx) {
   try { out.share = c.staff || cid === 'demo-plumbing' ? null : await shareState(env, c, out.client && out.client.refLink); } catch (e) { out.share = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   try { out.autoText = f.followups ? await autoReady(env, c) : false; } catch (e) { out.autoText = false; }
+  try { out.aiCheck = (c.tier === 'Growth' || c.tier === 'Pro') ? await (await import('./aicheck.js')).aiCheckState(env, cid) : null; } catch (e) { out.aiCheck = null; }
   try { const ls = line ? null : await lineStatus(env, cid); out.lineSetup = ls ? ls.status : ''; } catch (e) { out.lineSetup = ''; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);

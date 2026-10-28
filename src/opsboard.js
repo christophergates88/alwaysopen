@@ -57,6 +57,7 @@ export async function boardItems(env) {
   for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups (the Always Open check adds them to HQ)', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) + '. Max’s line: ' + (s.line === 'live' ? 'live at ' + String(s.number || '').replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : (s.line || 'not started')) });
   try { items.push(...await (await import('./provision.js')).provisionBoard(env)); } catch (e) {}
   try { items.push(...await (await import('./gbp.js')).gbpBoard(env)); } catch (e) {}
+  try { items.push(...await (await import('./aicheck.js')).aiCheckBoard(env)); } catch (e) {}
   const failed = await all(env, "SELECT client_id, business, plan, updated FROM billing WHERE status = 'past_due' AND client_id != ?1 ORDER BY updated DESC LIMIT 50", DEMO_ID);
   for (const f of failed) items.push({ key: 'pay:' + f.client_id + ':' + String(f.updated || '').slice(0, 10), group: 'Failed payments', title: f.business || f.client_id, detail: (f.plan || '') + ' plan. Stripe is retrying and emailing them; a call from you may help' });
   const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");
@@ -70,7 +71,7 @@ export async function boardItems(env) {
   try {
     const regs = await all(env, "SELECT r.client_id, COALESCE(c.business, r.client_id) AS biz, r.status, r.step, r.error, r.updated FROM a2p_reg r LEFT JOIN app_clients c ON c.client_id = r.client_id WHERE r.status != 'approved' ORDER BY r.updated DESC LIMIT 40");
     const say = { submitted: 'sent, starting', in_review: 'with Twilio and the carriers', needs_fix: 'needs a fix from the owner', needs_help: 'no EIN: register as a sole proprietor by hand in Twilio', failed: 'stuck, look in Twilio' };
-    for (const r of regs) items.push({ key: 'a2p:' + r.client_id + ':' + r.status + ':' + r.step, group: 'Texting registrations', title: r.biz, detail: (say[r.status] || r.status) + (r.step && r.status === 'in_review' ? ' (step: ' + r.step.replace('_', ' ') + ')' : '') + (r.error ? '. ' + r.error : '') });
+    for (const r of regs) items.push({ key: 'a2p:' + r.client_id + ':' + r.status + ':' + r.step, group: 'Texting registrations', title: r.biz, detail: (r.step === 'sp_wait_brand' ? 'waiting for the owner to reply YES to the registry’s text' : (say[r.status] || r.status) + (r.step && r.status === 'in_review' ? ' (step: ' + r.step.replace(/^sp_/, 'sole proprietor ').replace('_', ' ') + ')' : '')) + (r.error ? '. ' + r.error : '') });
   } catch (e) {}
   let launch = { google: 'not checked yet', meta: 'not checked yet' }, gst = {};
   try { const L = await import('./launch.js'); launch = await L.launchLines(env); gst = (await L.launchState(env)).google || {}; } catch (e) {}
