@@ -191,6 +191,7 @@ a.btn{color:inherit}
 .sign b{font:800 1.4rem/1 var(--display);letter-spacing:.14em;margin-right:-.14em;text-shadow:0 0 12px rgba(255,106,94,.9)}
 .sign span{font:500 9.5px var(--mono);letter-spacing:.22em;margin-right:-.22em;white-space:nowrap}
 .hero.off .sign{color:var(--slate);border-color:var(--line);box-shadow:none}.hero.off .sign b{text-shadow:none}
+button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s}button.sign:active{transform:scale(.95)}button.sign:focus-visible{outline:2px solid var(--sign);outline-offset:3px}
 @keyframes aoOn{0%{opacity:.35}8%{opacity:1}14%{opacity:.2}30%{opacity:.95}38%{opacity:.3}52%,100%{opacity:1}}@keyframes aoBreath{0%,100%{box-shadow:0 0 14px rgba(255,90,77,.4),inset 0 0 9px rgba(255,90,77,.18)}50%{box-shadow:0 0 22px rgba(255,90,77,.55),inset 0 0 12px rgba(255,90,77,.26)}}@media (prefers-reduced-motion:no-preference){.hero:not(.off) .sign{animation:aoOn 1.1s linear 1,aoBreath 4.4s ease-in-out 1.4s infinite}}
 .hero-t{display:grid;gap:4px;min-width:0}
 .hero-t b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}
@@ -403,14 +404,38 @@ function guardCard(){
     '<details><summary>What it checks</summary><ul>'+li(g.base)+(g.strict&&g.strict.length?li(g.strict):'')+'</ul>'+(g.regulated?'<p class="fine">Extra rules apply because you work in a regulated field.</p>':'')+'<p class="fine">'+esc(g.note||'')+'</p></details></div>';
 }
 function offText(L){return L.transferTo?'calls ring through to '+L.transferText:'callers hear a short message';}
+var SIGN_FLIP=false;
+// Tap the OPEN sign: it flickers back on and the card turns over to today's numbers. An OFF sign turns Max back on.
+function todayCalls(){var d=new Date();d.setHours(0,0,0,0);var t=d.getTime();return (S.calls||[]).filter(function(c){var x=Date.parse(c.at);return x&&x>=t;});}
+function clock(iso){try{return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}catch(e){return '';}}
+function signBack(L){
+  var R=S.results||{};
+  if(L){
+    var cs=todayCalls(),n=cs.length,u=cs.filter(function(c){return c.urgency==='urgent';}).length;
+    return '<b>'+(n?esc(L.name)+' took '+n+(n===1?' call':' calls')+' today':'No calls yet today')+'</b><span>'+(n?'Last one at '+esc(clock(cs[0].at))+(u?' \\u00b7 '+u+' urgent':''):esc(L.name)+' is listening, day and night.')+'</span>'+
+      (R.calls!=null?'<span>This month: '+(+R.calls||0)+((+R.calls||0)===1?' call':' calls')+'</span>':'')+
+      '<div class="acts"><button class="btn line sm" type="button" data-tab="max">See calls</button><button class="btn ghost sm" type="button" data-a="sign">Back</button></div>';
+  }
+  return '<b>This month so far</b><span>'+(+R.reviews||0)+((+R.reviews||0)===1?' new review':' new reviews')+' \\u00b7 '+(+R.requests||0)+((+R.requests||0)===1?' request':' requests')+'</span><div class="acts"><button class="btn ghost sm" type="button" data-a="sign">Back</button></div>';
+}
+function signBtn(on,label){
+  return '<button class="sign" type="button" data-a="sign" aria-pressed="'+(SIGN_FLIP?'true':'false')+'" aria-label="'+label+'" title="'+label+'"><b>'+(on?'OPEN':'OFF')+'</b><span>'+(on?'24 HOURS':'LINE OFF')+'</span></button>';
+}
+function signTap(){
+  var L=S.line;
+  if(L&&!L.onAir&&!L.paused){lineSave({onAir:true});return;}
+  SIGN_FLIP=!SIGN_FLIP;render();
+}
 function heroCard(){
   var L=S.line,f=S.features||{};
   if(L){
     var on=L.onAir;
-    return '<div class="hero'+(on?'':' off')+'"><div class="sign"><b>'+(on?'OPEN':'OFF')+'</b><span>'+(on?'24 HOURS':'LINE OFF')+'</span></div><div class="hero-t"><b>'+esc(L.name)+(on?' is answering':(L.paused?' is paused':' is off'))+'</b><span>'+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
+    if(on&&SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back to '+esc(L.name))+'<div class="hero-t">'+signBack(L)+'</div></div>';
+    return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+esc(L.name)+(on?' is answering':(L.paused?' is paused':' is off'))+'</b><span>'+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
       (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+'<button class="btn ghost sm" type="button" data-tab="max">Settings</button></div></div></div>';
   }
-  return '<div class="hero"><div class="sign"><b>OPEN</b><span>24 HOURS</span></div><div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.'+(f.calls||S.client.regulated?'':' Max, your phone assistant, comes with your plan.')+'</span>'+
+  if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
+  return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.'+(f.calls||S.client.regulated?'':' Max, your phone assistant, comes with your plan.')+'</span>'+
     (f.calls||S.client.regulated?'':'<div class="acts"><button class="btn ghost sm" type="button" data-a="ask-max">Set up Max for your calls</button></div>')+'</div></div>';
 }
 function monthBlock(){
@@ -772,6 +797,7 @@ document.addEventListener('click',function(e){
   else if(a==='fu-copy'){var fx=(S.followups||[]).filter(function(x){return String(x.id)===String(id);})[0];if(fx){var tx2=fuText(fx);try{navigator.clipboard.writeText(tx2).then(function(){toast('Text copied. Paste it in a message.');},function(){toast(tx2);});}catch(x2){toast(tx2);}}}
   else if(a==='line-toggle')lineToggle();
   else if(a==='line-on')lineSave({onAir:true});
+  else if(a==='sign')signTap();
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
