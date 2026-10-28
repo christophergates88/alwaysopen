@@ -193,7 +193,7 @@ ${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p
 <div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
 <div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
-<li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>
+<li>Choose your business, then <b>More → Business Profile settings → People and access → Add</b>.</li>
 <li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol><p class="fine">Everything above works without this. Once you invite us, we can answer your reviews and keep your profile current.</p></div>
 <div class="card"><h2>What happens next</h2><p>Once you invite us to your Google profile (above), a reply to each new review shows up in the app for your OK. Questions? Message us from Ask us in the app.</p></div>`);
 }

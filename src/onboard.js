@@ -59,7 +59,7 @@ export async function helpPage(env, c, which, back) {
   }
   if (which === 'google') {
     return shell('Invite us to your Google profile', '<h1>Invite us to your Google profile</h1><p class="sub">This one is optional. Your app, your request link and your hours work without it. Once you invite us, we can answer your reviews and keep your profile current. You stay the owner, and you can remove us any time.</p>' +
-      '<div class="card"><ol><li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li><li>Choose your business, then <b>Business Profile settings</b>, then <b>Managers</b>, then <b>Add</b>.</li><li>Enter this address and choose <b>Manager</b>:<br><span class="code">hello@alwaysopenoffice.com</span></li><li>Send the invite. We accept it on our side.</li></ol></div>' +
+      '<div class="card"><ol><li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li><li>Choose your business, then <b>More</b>, <b>Business Profile settings</b>, <b>People and access</b>, then <b>Add</b>.</li><li>Enter this address and, under Access, choose <b>Manager</b>:<br><span class="code">hello@alwaysopenoffice.com</span></li><li>Send the invite. We accept it on our side.</li></ol></div>' +
       '<p class="fine">Don’t see Managers? You may be signed in with a different Google account than the one that owns the profile. Message us in Ask us and we’ll walk through it.</p>', back);
   }
   return null;
