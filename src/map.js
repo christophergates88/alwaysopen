@@ -4,6 +4,7 @@
 // or street address only if the owner added one for the map. Nothing from Google is shown here (Google's terms don't allow its
 // content on a non-Google map). The list is sorted by distance only, never by plan or payment. A viewer's location is used for
 // one request and never stored. An area with fewer than 5 listed businesses within about 50 miles shows "Coming to your area".
+import { publicLines } from './answerrate.js';
 const MIN_NEARBY = 5;
 const RADIUS_MI = 50;
 const UA = 'AlwaysOpen map (hello@alwaysopenoffice.com)';
@@ -87,7 +88,9 @@ export async function nearby(env, lat, lng) {
   const all = (await eligible(env)).filter(r => r.lat != null && r.lng != null && isFinite(+r.lat) && isFinite(+r.lng));
   const near = all.map(r => ({ r, d: milesBetween(lat, lng, +r.lat, +r.lng) })).filter(x => x.d <= RADIUS_MI).sort((a, b) => a.d - b.d || String(a.r.business).localeCompare(String(b.r.business)));
   if (near.length < MIN_NEARBY) return { ok: true, enough: false };
-  return { ok: true, enough: true, radius: RADIUS_MI, businesses: near.slice(0, 200).map(x => card(x.r, [lat, lng])) };
+  const top = near.slice(0, 200);
+  let lines = {}; try { lines = await publicLines(env, top.map(x => x.r.client_id)); } catch (e) {}
+  return { ok: true, enough: true, radius: RADIUS_MI, businesses: top.map(x => { const o = card(x.r, [lat, lng]); if (lines[x.r.client_id]) o.answered = lines[x.r.client_id]; return o; }) };
 }
 
 // GET /api/map?lat=&lng= (from "Near me"), or without them the rough area Cloudflare already knows for this request.

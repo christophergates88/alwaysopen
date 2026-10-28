@@ -71,6 +71,7 @@ function setBlock(){
   var h='<h2>Settings</h2><div class="card"><label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
   if(S.line)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-es"'+(S.line.spanish?' checked':'')+'> <span>'+esc(S.line.name)+' answers Spanish-speaking callers in Spanish</span></label>';
   if(S.map)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-map"'+(S.map.show?' checked':'')+'> <span>Show me on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+esc(mapNote())+' <button class="btn line sm" type="button" data-a="bz-map" style="margin-top:6px">Edit what it shows</button></p>';
+  if(S.answer){var A=S.answer;h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ans"'+(A.show?' checked':'')+'> <span>Show my after-hours answer rate on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+(A.publicLine?'Showing: "'+esc(A.publicLine)+'". ':'Shows once a month has '+A.minCalls+' or more after-hours calls. ')+'After hours means evenings, nights and weekends. Real calls, counted, never estimated.'+(A.paste?' <button class="btn line sm" type="button" data-a="bz-ans-copy" style="margin-top:6px">Copy a line for your Google profile</button>':'')+'</p>';}
   if(S.checkins){h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ci"'+(S.checkins.on?' checked':'')+'> <span>Check-in calls: three days after a job, Max calls the customer once to ask if the work held up. Only customers who said a call is OK. A yes becomes the review ask; a no reaches you first.</span></label>';}
   if(S.handoff){var H=S.handoff;h+='<p class="note" style="margin:14px 0 4px"><b>Hand-offs between Always Open businesses</b></p>'+
     '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:4px"><input type="checkbox" id="bz-ho-give"'+(H.give?' checked':'')+'> <span>When a caller needs work we don\u2019t do, Max may put them through to a nearby Always Open business that does</span></label>'+
@@ -139,6 +140,7 @@ function bizAct(a,id,t){
   else if(a==='bz-ob-hide')post('prefs',{onboard:'dismiss'}).then(function(){S.onboarding.show=false;render();});
   else if(a==='bz-ob-share'){if(S.quoteLink){copyText(S.bookLink&&S.calendar&&S.calendar.connected?S.bookLink:S.quoteLink,'Link copied. Put it on your site, Google profile and texts.');post('prefs',{onboard:'shared'}).then(function(){load(true);});}}
   else if(a==='bz-ob-help'){if(id)location.href=BASE+id;}
+  else if(a==='bz-ans-copy'){var tx=S.answer&&S.answer.paste||'';if(tx&&navigator.clipboard)navigator.clipboard.writeText(tx).then(function(){toast('Copied.');},function(){toast(tx);});else toast(tx||'Nothing to copy yet.');}
   else if(a==='bz-map')mapSheet();
   else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{show:$('#mp-show').checked,phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Map listing saved.');load(true);}else toast(res.j.error||'Could not save.');});}
   else if(a==='bz-ob-hours')hoursSheet();
@@ -148,6 +150,7 @@ function bizAct(a,id,t){
 }
 document.addEventListener('change',function(e){var t=e.target;if(!t)return;
   if(t.id==='bz-weekly')post('prefs',{weekly:t.checked}).then(function(res){if(res.j.ok){S.weekly=t.checked;toast(t.checked?'Weekly summary on.':'Weekly summary off.');}});
+  if(t.id==='bz-ans'){post('answer',{show:t.checked}).then(function(res){if(res.j.ok){S.answer.show=res.j.show;toast(res.j.message||'Saved.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
   if(t.id==='bz-ci'){post('checkins',{on:t.checked}).then(function(res){if(res.j.ok){S.checkins.on=res.j.on;toast(res.j.message||'Saved.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
   if(t.id==='bz-ho-give'||t.id==='bz-ho-take'){var body={};body[t.id==='bz-ho-give'?'give':'take']=t.checked;post('handoff',body).then(function(res){if(res.j.ok){S.handoff.give=res.j.give;S.handoff.take=res.j.take;toast('Saved.');load();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
   if(t.id==='bz-map')post('map',{show:t.checked}).then(function(res){if(res.j.ok){S.map=res.j.map;toast(t.checked?'You are on the map.':'You are off the map.');render();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});

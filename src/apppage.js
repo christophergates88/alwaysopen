@@ -357,6 +357,7 @@ function monthBlock(){
   if(!ms.length)return '<h2>Your month</h2><div class="empty slim"><b>Your first month is on its way</b><span>Your numbers show up here in the first days of next month.</span></div>';
   var m=ms.filter(function(x){return x.month===MONTH;})[0]||ms[0];
   var h='<h2>Your month</h2>';
+  if(S.answer&&S.answer.line)h+='<p class="note" style="margin:-4px 2px 6px">'+esc(S.answer.line)+(S.answer.lastLine?' Last month: '+esc(S.answer.lastLine.replace(/^After hours \w+: /,''))+'':'')+'</p>';
   if(S.checkins&&S.checkins.line)h+='<p class="note" style="margin:-4px 2px 10px">'+esc(S.checkins.line)+'</p>';
   if(ms.length>1)h+='<div class="months" role="group" aria-label="Month">'+ms.map(function(x){return '<button type="button" class="mchip" data-a="m" data-m="'+esc(x.month)+'" aria-pressed="'+(x.month===m.month)+'">'+esc(x.label)+'</button>';}).join('')+'</div>';
   else h+='<p class="note" style="margin:-4px 2px 10px">'+esc(m.label)+'</p>';

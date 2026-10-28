@@ -78,6 +78,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
   .soon{min-height:360px}
 }
 @media (prefers-reduced-motion:no-preference){.pin{transition:background .15s,box-shadow .15s}}
+.answered{margin-top:6px;font-size:13px;color:var(--night-sign,#FF6A5E)}
 </style>
 </head>
 <body>
@@ -105,7 +106,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       <button class="x" type="button" id="sheetx" aria-label="Close">×</button>
       <h2 id="sh-name"></h2>
       <p id="sh-kind"></p>
-      <p id="sh-hours"></p>
+      <p id="sh-hours"></p><p id="sh-answered" class="answered"></p>
       <div class="row" id="sh-acts"></div>
     </div>
     <div class="soon" id="soon" hidden>
@@ -172,6 +173,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
     $('#sh-name').textContent = b.name;
     $('#sh-kind').textContent = [b.kind, b.exact && b.address ? b.address : (b.town ? 'Serves ' + b.town : '')].filter(Boolean).join(' · ');
     $('#sh-hours').textContent = b.hours ? 'Hours: ' + b.hours : '';
+    $('#sh-answered').textContent = b.answered ? b.answered + '. Real calls, counted by Always Open.' : '';
     var acts = '';
     if (b.tel) acts += '<a class="btn solid" href="tel:' + esc(b.tel) + '">Call ' + esc(b.phone) + '</a>';
     if (b.exact && b.address) acts += '<a class="btn" href="https://maps.apple.com/?daddr=' + encodeURIComponent(b.address) + '" target="_blank" rel="noopener">Directions</a>';
