@@ -5,6 +5,7 @@ import { TEXTING_ON, metaReady } from './extras.js';
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
+import { mapAdmin, setShow } from './map.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
@@ -66,6 +67,13 @@ function groups(items) {
   return g;
 }
 
+function mapSection(rows) {
+  if (!rows.length) return '';
+  return '<section><h2>The Always Open map</h2>' + rows.map(r => '<div class="it"><div><b>' + esc(r.business) + '</b><span>' +
+    esc(r.listed ? (r.placed ? 'On the map' : 'On the map once we find their town or address') : (r.regulated ? 'Off (regulated: only if they ask)' : (r.paying ? 'Off' : 'Off (not billed through Stripe)'))) +
+    '</span></div><button type="button" data-map="' + esc(r.id) + '" data-show="' + (r.listed ? '0' : '1') + '">' + (r.listed ? 'Take off' : 'Put on') + '</button></div>').join('') + '</section>';
+}
+
 export function boardText(items, link) {
   if (!items.length) return 'Nothing waiting on you this week.\n\n' + link;
   let t = 'What only you can do this week:\n';
@@ -73,7 +81,7 @@ export function boardText(items, link) {
   return t + '\nTick things off here: ' + link + '\n';
 }
 
-function boardHtml(items, tok) {
+function boardHtml(items, tok, map) {
   const g = groups(items);
   const sec = [...g].map(([name, list]) => '<section><h2>' + esc(name) + '</h2>' + list.map(x => '<div class="it" data-k="' + esc(x.key) + '"><div><b>' + esc(x.title) + '</b><span>' + esc(x.detail) + '</span></div><button type="button">Done</button></div>').join('') + '</section>').join('');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>This week</title>' +
@@ -81,7 +89,8 @@ function boardHtml(items, tok) {
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:640px;margin:0 auto;padding:24px 16px 60px}h1{font-size:26px;margin:0 0 4px}h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:26px 0 8px}p{color:var(--slate);margin:0}' +
     '.it{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-bottom:8px}.it span{display:block;color:var(--slate);font-size:14px}button{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;cursor:pointer}</style></head><body><main><h1>This week</h1><p>What only you can do. Tap Done when it is handled.</p>' +
     (sec || '<section><h2>All clear</h2><p>Nothing is waiting on you.</p></section>') +
-    '<script>var T=' + JSON.stringify(tok || '') + ';document.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var r=b.closest(".it");b.disabled=true;fetch("/ops/done",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,k:r.dataset.k})}).then(function(x){return x.json()}).then(function(j){if(j.ok)r.remove();else b.disabled=false}).catch(function(){b.disabled=false})});</script></main></body></html>';
+    mapSection(map || []) +
+    '<script>var T=' + JSON.stringify(tok || '') + ';document.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;if(b.dataset.map){b.disabled=true;fetch("/ops/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,id:b.dataset.map,show:b.dataset.show==="1"})}).then(function(r){if(r.ok)location.reload();else b.disabled=false});return;}var r=b.closest(".it");b.disabled=true;fetch("/ops/done",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,k:r.dataset.k})}).then(function(x){return x.json()}).then(function(j){if(j.ok)r.remove();else b.disabled=false}).catch(function(){b.disabled=false})});</script></main></body></html>';
 }
 
 export async function handleOpsBoard(req, env, url) {
@@ -96,6 +105,16 @@ export async function handleOpsBoard(req, env, url) {
     if (/^referral:\d+$/.test(k)) { try { await markCredited(env, +k.slice(9)); } catch (e) { /* the tick stands */ } }
     return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
+  if (path === '/ops/map') {
+    // HQ's switch for the public map: { t, id, show: true | false | null } (null = back to the default).
+    let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
+    if (req.method !== 'POST' || !(await allowed(req, env, url, String(b.t || '')))) return new Response('{"ok":false}', { status: 403, headers: { 'content-type': 'application/json' } });
+    const id = String(b.id || '').slice(0, 60);
+    const ex = id && await env.DB.prepare('SELECT client_id FROM app_clients WHERE client_id = ?1').bind(id).first();
+    if (!ex) return new Response('{"ok":false}', { status: 404, headers: { 'content-type': 'application/json' } });
+    await setShow(env, id, b.show === true ? true : (b.show === false ? false : null));
+    return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  }
   if (!(await allowed(req, env, url))) return new Response('Not found', { status: 404 });
   if (path === '/ops/compliance-pack') {
     try { return new Response(buildPack(new Date().toISOString().slice(0, 10)), { headers: { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="compliance-guard-rules.pdf"', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } }); }
@@ -103,7 +122,8 @@ export async function handleOpsBoard(req, env, url) {
   }
   const items = await boardItems(env);
   const tok = url.searchParams.get('t') || await boardToken(env);
-  return new Response(boardHtml(items, tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+  let map = []; try { map = await mapAdmin(env); } catch (e) { map = []; }
+  return new Response(boardHtml(items, tok, map), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
 }
 
 // Monday email to MAIL_TO. Once per week.

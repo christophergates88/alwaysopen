@@ -548,6 +548,7 @@ function onboarding(p, s) {
   steps.push({ key: 'calendar', label: 'Connect Google Calendar', done: !!s.calendar, hint: 'Lets Max book real open times.' });
   if (s.metaAvailable) steps.push({ key: 'facebook', label: 'Connect Facebook', done: !!s.meta });
   if (s.stripeAvailable) steps.push({ key: 'stripe', label: 'Connect Stripe for card payments', done: !!s.stripe });
+  if (s.map) steps.push({ key: 'map', label: 'Check your Always Open map listing', done: v('map'), hint: s.map.regulated ? 'Off unless you turn it on. If you do, it shows your name, type and town, plus a business number or address only if you add one.' : 'You are on the public Always Open map by default: your name, type and town. Add a business number or address, or turn it off, in Settings.' });
   steps.push({ key: 'google', label: 'Invite us to your Google profile (optional)', done: v('google'), hint: 'Everything above works without it. Once you invite us, we answer reviews and keep your profile current.', help: '/help/google' });
   const left = steps.filter(x => !x.done).length;
   return { steps, left, show: left > 0 && !p.onboard.dismissed };
@@ -585,7 +586,7 @@ export function finishOnboarding(state, p) {
     const ob = onboarding(p || { onboard: {} }, {
       hours: !!(L && L.hours) || (state.messages || []).some(m => /^Hours change:/.test(m.text || '')),
       qr: !!(state.client && state.client.qr), calendar: !!(state.calendar && state.calendar.connected), meta: !!(state.meta && state.meta.connected), metaAvailable: !!(state.meta && state.meta.available),
-      stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called
+      stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called, map: state.map || null
     });
     return ob;
   } catch (e) { return null; }

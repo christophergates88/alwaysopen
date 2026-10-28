@@ -11,7 +11,7 @@ function m2(n){return n==null?'':'$'+(+n||0).toLocaleString('en-US',{maximumFrac
 function bizTop(){
   var o=S.onboarding;if(!o||!o.show)return '';
   return '<div class="card ob"><b>Your first hour</b><p class="note" style="margin:4px 0 0">'+o.left+(o.left===1?' step':' steps')+' left. Each one ticks itself when it’s done.</p><ul>'+o.steps.map(function(s){
-    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',share:'bz-ob-share'}[s.key]||(s.help?'bz-ob-help':'');
+    var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',share:'bz-ob-share',map:'bz-map'}[s.key]||(s.help?'bz-ob-help':'');
     return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><div class="obt"><span>'+esc(s.label)+'</span>'+(s.hint&&!s.done?'<small>'+esc(s.hint)+'</small>':'')+'</div>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'"'+(s.help?' data-id="'+esc(s.help)+'"':'')+' style="margin-left:auto">'+(s.help?'Open':'Do it')+'</button>')+'</li>';}).join('')+'</ul><div class="acts"><button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
 }
 function bizBlocks(){
@@ -70,8 +70,18 @@ function teamBlock(){
 function setBlock(){
   var h='<h2>Settings</h2><div class="card"><label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
   if(S.line)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-es"'+(S.line.spanish?' checked':'')+'> <span>'+esc(S.line.name)+' answers Spanish-speaking callers in Spanish</span></label>';
+  if(S.map)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-map"'+(S.map.show?' checked':'')+'> <span>Show me on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+esc(mapNote())+' <button class="btn line sm" type="button" data-a="bz-map" style="margin-top:6px">Edit what it shows</button></p>';
   return h+'</div>';
 }
+function mapNote(){var m=S.map;if(!m)return '';if(!m.show)return m.regulated?'Off. Regulated businesses are only listed if they turn it on.':'Off. You are not on the public map.';
+  return 'Shows your name, type and town'+(m.phone?', '+m.phone:'')+(m.address?', '+m.address:'')+'. The list is sorted by distance only.';}
+function mapSheet(){var m=S.map||{};
+  sheet('<h2>Your map listing</h2><p class="fine">The <a href="/map" target="_blank" rel="noopener">Always Open map</a> lists the businesses we work for. It shows your name, type and town. A phone number and street address show only if you add them here. Changes show within about ten minutes.</p>'+
+  '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="mp-show"'+(m.show?' checked':'')+'> <span>Show me on the map</span></label>'+
+  '<label>Business phone for the map (optional)<input id="mp-phone" type="tel" inputmode="tel" value="'+esc(m.phone||'')+'" placeholder="(478) 555-0142"></label>'+
+  '<label>Street address for the map (optional)<input id="mp-addr" value="'+esc(m.address||'')+'" placeholder="Leave blank to show only your town"></label>'+
+  '<div class="acts"><button class="btn red" type="button" data-a="bz-map-save">Save</button><button class="btn line" type="button" data-close="1">Cancel</button></div>');}
+
 function inboxSheet(){
   sheet('<h2>Inbox</h2><p class="fine">Loading…</p>');
   api('inbox').then(function(res){
@@ -124,6 +134,8 @@ function bizAct(a,id,t){
   else if(a==='bz-ob-hide')post('prefs',{onboard:'dismiss'}).then(function(){S.onboarding.show=false;render();});
   else if(a==='bz-ob-share'){if(S.quoteLink){copyText(S.bookLink&&S.calendar&&S.calendar.connected?S.bookLink:S.quoteLink,'Link copied. Put it on your site, Google profile and texts.');post('prefs',{onboard:'shared'}).then(function(){load(true);});}}
   else if(a==='bz-ob-help'){if(id)location.href=BASE+id;}
+  else if(a==='bz-map')mapSheet();
+  else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{show:$('#mp-show').checked,phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Map listing saved.');load(true);}else toast(res.j.error||'Could not save.');});}
   else if(a==='bz-ob-hours')hoursSheet();
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}
@@ -131,6 +143,7 @@ function bizAct(a,id,t){
 }
 document.addEventListener('change',function(e){var t=e.target;if(!t)return;
   if(t.id==='bz-weekly')post('prefs',{weekly:t.checked}).then(function(res){if(res.j.ok){S.weekly=t.checked;toast(t.checked?'Weekly summary on.':'Weekly summary off.');}});
+  if(t.id==='bz-map')post('map',{show:t.checked}).then(function(res){if(res.j.ok){S.map=res.j.map;toast(t.checked?'You are on the map.':'You are off the map.');render();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
   if(t.id==='bz-es')post('line',{spanish:t.checked}).then(function(res){if(res.j.ok){if(S.line)S.line.spanish=t.checked;toast(t.checked?'Spanish callers get Spanish.':'English only.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
 });
 `;

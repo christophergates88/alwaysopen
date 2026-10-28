@@ -16,6 +16,7 @@ import { referralCron } from './referral.js';
 import { handleGoogle } from './gcal.js';
 import { handleBooking, handleInvoicePage, handleMeta, invoiceCron, ensureInvoices } from './extras.js';
 import { handleOptOut } from './past.js';
+import { handleMapApi, mapCron } from './map.js';
 import { handleEstimate, handleInvoicePay, handleStripe, metaWebhook, bizCron } from './biz.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
@@ -38,7 +39,8 @@ export default {
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
       return new Response('ok', { headers: { 'cache-control': 'no-store' } });
     }
-    if (path === '/ops' || path === '/ops/done' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
+    if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
+    if (path === '/api/map') return handleMapApi(req, env, url, ctx);
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
@@ -89,7 +91,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 

@@ -16,6 +16,8 @@ import { apiImport, apiRevive, pastState } from './past.js';
 import { apiRivals, rivalsState } from './rivals.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
+import { apiMap, mapState } from './map.js';
+
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
 const MSG_PER_HOUR = 20;
@@ -224,6 +226,10 @@ export async function handleApp(req, env, ctx, url) {
       return await apiVersions(req, env, c);
     } else if (sub === '/api/rivals' && meth === 'POST') {
       return await apiRivals(req, env, c, ctx);
+    } else if (sub === '/api/map' && meth === 'POST') {
+      const r = await apiMap(req, env, c);
+      if (r.status === 200) await markOnboard(env, c.client_id, 'map');
+      return r;
     }
   } catch (e) {
     return api ? aj({ ok: false, error: 'Something went wrong on our side. Please try again.' }, 500) : gone(500);
@@ -359,6 +365,7 @@ async function apiState(env, c, ctx) {
     try { out.sampleWeekly = weeklyLine(await weeklyNumbers(env, cid, Date.now())); } catch (e) { out.sampleWeekly = ''; }
   }
   out.referrals = c.staff ? null : await referralState(env, c);
+  try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
 }
