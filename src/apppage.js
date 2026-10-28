@@ -309,10 +309,15 @@ function vHome(){
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
   h+=cbCard();
+  h+=mapCard();
   h+=lostCard();
   h+=guardCard();
   h+=referCard();
   return h;
+}
+function mapCard(){
+  var m=S.map;if(!m)return '';
+  return '<div class="feature"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map" target="_blank" rel="noopener">Open the map</a></div></div>';
 }
 function cbCard(){
   var C=S.callbacks;if(!C||!C.list||!C.list.length)return '';

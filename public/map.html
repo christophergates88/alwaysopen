@@ -79,6 +79,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
 }
 @media (prefers-reduced-motion:no-preference){.pin{transition:background .15s,box-shadow .15s}}
 .answered{margin-top:6px;font-size:13px;color:var(--night-sign,#FF6A5E)}
+.search{position:relative;margin-top:10px}.search input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:12px;border:1px solid var(--night-line,#262E40);background:var(--night-card,#171C27);color:inherit;font:inherit}.search input:focus{outline:2px solid var(--night-sign,#FF6A5E);outline-offset:1px}.sugg{position:absolute;left:0;right:0;top:100%;z-index:5;margin:4px 0 0;padding:4px;list-style:none;background:var(--night-card,#171C27);border:1px solid var(--night-line,#262E40);border-radius:12px;box-shadow:0 14px 30px rgba(0,0,0,.4)}.sugg button{width:100%;text-align:left;padding:9px 10px;border:0;background:none;color:inherit;font:inherit;border-radius:8px;display:grid;gap:2px}.sugg button:hover,.sugg button:focus{background:rgba(255,255,255,.06)}.sugg span,.none{font-size:13px;color:var(--night-mute,#A3ACBF)}.sugg .none{padding:9px 10px}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
 <body>
@@ -93,6 +94,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       <h1 id="h">The Always Open map</h1>
       <p class="lede">The businesses we work for, sorted by how close they are to you. Nothing here is paid placement.</p>
       <div class="row"><button class="btn" type="button" id="near">Near me</button></div>
+      <div class="search"><label class="sr" for="q">Search for a kind of business or a name</label><input id="q" type="search" placeholder="Plumber, HVAC, dentist, a name…" autocomplete="off" aria-controls="sugg" aria-expanded="false"><ul id="sugg" class="sugg" role="listbox" hidden></ul></div>
       <p class="status" id="status" role="status" aria-live="polite">Looking for businesses near you…</p>
     </div>
     <div class="tail">
@@ -125,11 +127,41 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
   var STYLE = 'https://tiles.openfreemap.org/styles/dark';
   var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var $ = function (s) { return document.querySelector(s); };
-  var map = null, markers = [], data = [], current = -1;
+  var map = null, markers = [], data = [], all = [], current = -1;
+  // Only Always Open businesses are ever suggested, closest first. Plain words map to the kinds on the list.
+  var SYN = { plumber: 'plumb', plumbing: 'plumb', hvac: 'hvac', ac: 'hvac', 'air conditioning': 'hvac', heating: 'hvac', furnace: 'hvac', electrician: 'electr', electrical: 'electr', roofer: 'roof', roofing: 'roof', dentist: 'dent', dental: 'dent', mechanic: 'auto', 'auto repair': 'auto', 'car repair': 'auto', tires: 'auto', 'oil change': 'auto', lawn: 'lawn', landscaping: 'landscap', pest: 'pest', exterminator: 'pest', builder: 'build', contractor: 'contract', remodel: 'remodel', insurance: 'insur', agent: 'insur', dock: 'dock', marina: 'marin', boat: 'boat', painter: 'paint', cleaning: 'clean', 'tree service': 'tree', septic: 'septic', 'garage door': 'garage', handyman: 'handy' };
+  function matches(b, q) {
+    q = q.toLowerCase().trim(); if (!q) return true;
+    var hay = (b.name + ' ' + (b.kind || '') + ' ' + (b.town || '')).toLowerCase();
+    if (hay.indexOf(q) > -1) return true;
+    for (var k in SYN) if (q.indexOf(k) > -1 && hay.indexOf(SYN[k]) > -1) return true;
+    return false;
+  }
+  function suggest() {
+    var q = $('#q').value, box = $('#sugg');
+    if (!q.trim() || !all.length) { box.hidden = true; $('#q').setAttribute('aria-expanded', 'false'); return; }
+    var hits = all.filter(function (b) { return matches(b, q); }).slice(0, 6);
+    box.innerHTML = hits.length ? hits.map(function (b) { return '<li role="option"><button type="button" data-id="' + esc(b.id) + '"><b>' + esc(b.name) + '</b><span>' + esc([b.kind, b.town].filter(Boolean).join(' · ')) + (b.miles != null ? ' · ' + esc(b.miles) + ' mi' : '') + '</span></button></li>'; }).join('')
+      : '<li class="none">No Always Open business for that nearby yet.</li>';
+    box.hidden = false; $('#q').setAttribute('aria-expanded', 'true');
+  }
+  function filter() {
+    var q = $('#q').value;
+    data = all.filter(function (b) { return matches(b, q); });
+    if (!data.length) { $('#list').innerHTML = '<li class="none">No Always Open business for that nearby yet.</li>'; markers.forEach(function (m) { m.remove(); }); markers = []; say('Nothing on the list matches. Try another word.'); return; }
+    say(data.length + (data.length === 1 ? ' business' : ' businesses') + (q.trim() ? ' for “' + q.trim() + '”' : '') + ', closest first.');
+    $('#list').innerHTML = data.map(function (b, i) {
+      return '<li><button class="biz" type="button" data-i="' + i + '"><b>' + esc(b.name) + '</b><span>' + esc([b.kind, b.town].filter(Boolean).join(' · ')) + '</span>' +
+        (b.miles != null ? '<span class="mi">' + esc(b.miles) + ' mi</span>' : '') + '</button></li>';
+    }).join('');
+    if (map) draw();
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function say(t) { $('#status').textContent = t; }
 
+  var PV = (new URLSearchParams(location.search).get('preview') || '');
   function load(q) {
+    if (PV) q = (q || '') + (q ? '&' : '?') + 'preview=' + encodeURIComponent(PV);
     return fetch('/api/map' + (q || ''), { headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
   }
   function show(res, precise) {
@@ -139,9 +171,9 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       say(precise ? 'Nothing listed within 50 miles of you yet.' : 'Nothing listed near your area yet.');
       return;
     }
-    data = res.businesses || [];
+    all = res.businesses || []; data = all.slice();
     $('#soon').hidden = true; $('#map').hidden = false; $('.mapwrap').classList.remove('empty');
-    say(data.length + (data.length === 1 ? ' business' : ' businesses') + ' within ' + res.radius + ' miles' + (precise ? ' of you' : ' of your area') + ', closest first.');
+    say(res.preview ? 'Preview: every listed business, closest first. The public only sees an area once five are within 50 miles.' : data.length + (data.length === 1 ? ' business' : ' businesses') + ' within ' + res.radius + ' miles' + (precise ? ' of you' : ' of your area') + ', closest first.');
     $('#list').innerHTML = data.map(function (b, i) {
       return '<li><button class="biz" type="button" data-i="' + i + '"><b>' + esc(b.name) + '</b><span>' + esc([b.kind, b.town].filter(Boolean).join(' · ')) + '</span>' +
         (b.miles != null ? '<span class="mi">' + esc(b.miles) + ' mi</span>' : '') + '</button></li>';
@@ -192,6 +224,10 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       load(q).then(function (r) { btn.disabled = false; show(r, true); });
     }, function () { btn.disabled = false; say('No location shared. The list uses your general area instead.'); }, { maximumAge: 600000, timeout: 15000 });
   }
+  $('#q').addEventListener('input', suggest);
+  $('#q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#sugg').hidden = true; filter(); } if (e.key === 'Escape') { $('#sugg').hidden = true; } });
+  $('#sugg').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var id = b.dataset.id; $('#sugg').hidden = true; filter(); var i = data.findIndex(function (x) { return x.id === id; }); if (i > -1) pick(i, true); });
+  document.addEventListener('click', function (e) { if (!e.target.closest('.search')) $('#sugg').hidden = true; });
   $('#near').addEventListener('click', function () { near(this); });
   $('#near2').addEventListener('click', function () { near(this); });
   load('').then(function (r) { show(r, false); });

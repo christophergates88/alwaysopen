@@ -84,10 +84,12 @@ function card(r, from) {
   return out;
 }
 
-export async function nearby(env, lat, lng) {
+export async function nearby(env, lat, lng, preview) {
   const all = (await eligible(env)).filter(r => r.lat != null && r.lng != null && isFinite(+r.lat) && isFinite(+r.lng));
-  const near = all.map(r => ({ r, d: milesBetween(lat, lng, +r.lat, +r.lng) })).filter(x => x.d <= RADIUS_MI).sort((a, b) => a.d - b.d || String(a.r.business).localeCompare(String(b.r.business)));
-  if (near.length < MIN_NEARBY) return { ok: true, enough: false };
+  // Preview (the owner's private link): every listed business, no radius, no 5-nearby rule. The public never sees this.
+  const near = all.map(r => ({ r, d: milesBetween(lat, lng, +r.lat, +r.lng) })).filter(x => preview || x.d <= RADIUS_MI).sort((a, b) => a.d - b.d || String(a.r.business).localeCompare(String(b.r.business)));
+  if (!preview && near.length < MIN_NEARBY) return { ok: true, enough: false };
+  if (preview && !near.length) return { ok: true, enough: false, preview: true };
   const top = near.slice(0, 200);
   let lines = {}; try { lines = await publicLines(env, top.map(x => x.r.client_id)); } catch (e) {}
   return { ok: true, enough: true, radius: RADIUS_MI, businesses: top.map(x => { const o = card(x.r, [lat, lng]); if (lines[x.r.client_id]) o.answered = lines[x.r.client_id]; return o; }) };
@@ -104,6 +106,8 @@ export async function handleMapApi(req, env, url, ctx) {
   if (!isFinite(lat) || !isFinite(lng)) return j({ ok: true, enough: false, approx: true });
   // Round to about a quarter degree: the answer is cached per area, and nothing finer than that is ever used or kept.
   const rl = Math.round(lat * 4) / 4, rg = Math.round(lng * 4) / 4;
+  const pv = url.searchParams.get('preview') || '';
+  if (pv) { const want = (await previewKey(env)); if (want && pv === want) { const out = await nearby(env, rl, rg, true); out.preview = true; out.approx = approx; return j(out, 200, 0); } }
   const key = new Request('https://alwaysopenoffice.com/__map/' + rl + ',' + rg);
   const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
   if (cache) { const hit = await cache.match(key); if (hit) return withApprox(hit, approx); }
@@ -116,6 +120,12 @@ async function withApprox(res, approx) {
   const o = await res.clone().json();
   o.approx = approx;
   return j(o, 200, 0);
+}
+// The owner's private preview key: a short digest of the ops key, never the key itself.
+export async function previewKey(env) {
+  if (!env.LEADS_KEY) return '';
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('map-preview:' + env.LEADS_KEY));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 function j(o, status, maxAge) {
   return new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': maxAge ? 'public, max-age=' + maxAge : 'no-store', 'x-content-type-options': 'nosniff' } });

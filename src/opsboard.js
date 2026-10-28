@@ -7,7 +7,7 @@ import { LABELS as LOST_LABELS } from './lost.js';
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
-import { mapAdmin, setShow } from './map.js';
+import { mapAdmin, setShow, previewKey } from './map.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
@@ -59,6 +59,7 @@ export async function boardItems(env) {
     for (const k in by) items.push({ key: 'lost:' + k + ':' + by[k].total, group: 'Why callers walked (last 30 days)', title: by[k].biz, detail: by[k].parts.join(', ') });
   } catch (e) {}
   const sys = [
+    ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],
     ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],
     ['Google Business Profile API', env.GBP_ON ? 'on' : 'off, waiting for Google approval'],
