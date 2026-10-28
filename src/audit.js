@@ -16,7 +16,7 @@ export async function places(env, path, body, fields) {
     headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.PLACES_KEY, 'X-Goog-FieldMask': fields.map(f => 'places.' + f).join(',') },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('Google lookup failed (' + r.status + ')');
+  if (!r.ok) { const t = await r.text().catch(() => ''); try { await (await import('./funding.js')).googleProblem(env, r.status, t); } catch (e) {} throw new Error('Google lookup failed (' + r.status + ')'); }
   return ((await r.json()) || {}).places || [];
 }
 

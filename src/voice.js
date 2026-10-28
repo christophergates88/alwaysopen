@@ -1012,6 +1012,7 @@ export async function brain(env, system, messages, onText, maxTokens, extra, sig
       // Tell Chris at most once an hour, so a dead key or empty credits gets noticed.
       const now = Date.now();
       await vlog(env, 'claude-fallback', String((e && e.message) || e));
+      try { await (await import('./funding.js')).claudeProblem(env, (e && e.message) || e); } catch (x) {}
       if (!brain.pinged || now - brain.pinged > 3600000) { brain.pinged = now; opsPing(env, 'AI line: Claude is not answering', 'The free Cloudflare model took over. ' + String((e && e.message) || e).slice(0, 300), 'default', 'warning').catch(() => {}); }
     }
   }

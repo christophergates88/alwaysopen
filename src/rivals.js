@@ -76,7 +76,7 @@ async function gSearch(env, cid, path, body, fields) {
 async function gDetails(env, cid, id, fields) {
   if (!(await spend(env, cid, 1))) throw BUDGET;
   const r = await fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(id), { headers: { 'X-Goog-Api-Key': env.PLACES_KEY, 'X-Goog-FieldMask': fields.join(',') } });
-  if (!r.ok) throw new Error('Google lookup failed (' + r.status + ')');
+  if (!r.ok) { const t = await r.text().catch(() => ''); try { await (await import('./funding.js')).googleProblem(env, r.status, t); } catch (e) {} throw new Error('Google lookup failed (' + r.status + ')'); }
   return r.json();
 }
 const FIND_FIELDS = ['id', 'displayName', 'formattedAddress', 'rating', 'userRatingCount', 'nationalPhoneNumber', 'primaryType', 'location', 'businessStatus'];

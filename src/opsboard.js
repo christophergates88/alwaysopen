@@ -4,6 +4,8 @@ import { EmailMessage } from 'cloudflare:email';
 import { metaReady } from './extras.js';
 import { TEXTING_ON, textingReady } from './sms.js';
 import { LABELS as LOST_LABELS } from './lost.js';
+import { fundingState } from './funding.js';
+const fundingStateLine = async env => { try { return (await fundingState(env)).twilio; } catch (e) { return 'not read yet'; } };
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
@@ -64,6 +66,7 @@ export async function boardItems(env) {
     for (const r of regs) items.push({ key: 'a2p:' + r.client_id + ':' + r.status + ':' + r.step, group: 'Texting registrations', title: r.biz, detail: (say[r.status] || r.status) + (r.step && r.status === 'in_review' ? ' (step: ' + r.step.replace('_', ' ') + ')' : '') + (r.error ? '. ' + r.error : '') });
   } catch (e) {}
   const sys = [
+    ['Twilio balance', await fundingStateLine(env)],
     ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],
     ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],
