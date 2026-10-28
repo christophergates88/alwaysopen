@@ -112,11 +112,15 @@ export async function handleSms(req, env, form, sigOk) {
     return xml('<Message>You are back on the list for ' + (line.business || 'this business').replace(/[<&>]/g, '') + '. Reply STOP any time to end texts.</Message>');
   }
   if (HELP_RE.test(body)) return xml('<Message>This is the text line for ' + (line.business || 'this business').replace(/[<&>]/g, '') + '. Reply STOP to end texts. Call the business for anything else.</Message>');
+  // A YES to a Fill my week offer books the time (fillweek.js pushes the owner); the text still lands in the inbox.
+  let filled = null;
+  try { filled = await (await import('./fillweek.js')).onReply(env, cid, from10, body); } catch (e) { filled = null; }
   const cu = await env.DB.prepare('SELECT name FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 LIMIT 1').bind(cid, from10).first().catch(() => null);
   const name = (cu && cu.name) || '';
   const sid = String(form.get('MessageSid') || '');
   await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, status, ext_id) VALUES (?1,'text',?2,?3,?4,'in',?5,'new',?6)").bind(cid, from10, name, body, now, sid).run().catch(() => {});
   const who = name || ('(' + from10.slice(0, 3) + ') ' + from10.slice(3, 6) + '-' + from10.slice(6));
+  if (filled) return xml();
   const { pushClient } = await import('./app.js').catch(() => ({ pushClient: async () => {} }));
   await pushClient(env, cid, { aps: { alert: { title: 'Text from ' + who, body: body.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'inbox' }).catch(() => {});
   return xml();

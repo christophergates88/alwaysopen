@@ -245,6 +245,9 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub === '/api/firstlook' && meth === 'POST') {
       const r = await apiFirstLook(req, env, c);
       return aj(r, r.ok ? 200 : 400);
+    } else if (sub === '/api/fillweek' && meth === 'POST') {
+      const r = await (await import('./fillweek.js')).apiFill(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/fullmax' && meth === 'POST') {
       const r = await apiFullMax(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -409,6 +412,7 @@ async function apiState(env, c, ctx) {
   try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
+  try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }
   try { out.firstLookDue = cid === 'demo-plumbing' ? false : await firstLookDue(env, c); } catch (e) { out.firstLookDue = false; }
