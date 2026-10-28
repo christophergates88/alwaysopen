@@ -611,6 +611,30 @@ test('hard callers: a robocall is ended in one line, two asks for a person get a
   assert.deepEqual([wn.outcome, wn.reason], ['spam', 'Wrong number'], 'a wrong number is kept out of the owner’s list');
 });
 
+test('repeat callers: Dana is greeted as a question, a visit coming up comes first, and "no, this is Mike" wipes the history for the rest of the call', async () => {
+  const sysText = () => JSON.stringify(world.aiSeen.at(-1).system);
+  const d = await startCall('+14785550142'); await openRoom(d.sid, '+14785550142');
+  const mem = wsOf(d.sid).store.get('s').line.memory;
+  assert.match(mem, /Name on file: Dana\./);
+  assert.match(mem, /called before/);
+  world.aiScript = ['Am I speaking with Dana?'];
+  await say(d.sid, 'Hi, I had called about my water heater.');
+  assert.match(sysText(), /Am I speaking with Dana\?/);
+  world.aiScript = ['Sorry about that, Mike. What can I do for you?'];
+  await say(d.sid, 'No, this is Mike, her neighbor.');
+  assert.equal(wsOf(d.sid).store.get('s').line.memory, undefined, 'the history is dropped once he says it is not her');
+  assert.doesNotMatch(sysText(), /Name on file|called before/);
+  await hook('after', { CallSid: d.sid, SessionDuration: '30', SessionStatus: 'ended' }); await site.settle();
+
+  // Lou has a visit penciled in: Max asks about it first.
+  const l = await startCall('+14785550163'); await openRoom(l.sid, '+14785550163');
+  assert.match(wsOf(l.sid).store.get('s').line.memory, /visit penciled in \(not confirmed yet\) for /);
+  world.aiScript = ['Hi, is this about your visit?'];
+  await say(l.sid, 'Hi there.');
+  assert.match(sysText(), /visit coming up: before anything else, ask whether they are calling about it/);
+  await hook('after', { CallSid: l.sid, SessionDuration: '20', SessionStatus: 'ended' }); await site.settle();
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));

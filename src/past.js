@@ -79,25 +79,39 @@ export async function callerMemory(env, cid, phone, at) {
   at = at || Date.now();
   const like = '%' + p;
   const q = async (sql, ...a) => { try { return ((await env.DB.prepare(sql).bind(...a).all()).results) || []; } catch (e) { return []; } };
+  // A number that last reached us as a wrong number gets no history at all.
+  const lastCall = (await q("SELECT outcome, reason FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'limited') AND " + NUM('caller') + " LIKE ?2 ORDER BY at DESC LIMIT 1", cid, like))[0];
+  if (lastCall && lastCall.outcome === 'spam' && lastCall.reason === 'Wrong number') return '';
   const cust = (await q('SELECT name FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 LIMIT 1', cid, p))[0];
   const jobs = await q("SELECT name, title, stage, created, updated, source FROM biz_jobs WHERE client_id = ?1 AND " + NUM('phone') + " LIKE ?2 ORDER BY CASE WHEN created != '' THEN created ELSE updated END DESC LIMIT 8", cid, like);
   const calls = await q("SELECT caller_name, reason, at FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'spam', 'limited') AND (" + NUM('caller') + " LIKE ?2 OR " + NUM('callback') + " LIKE ?2) ORDER BY at DESC LIMIT 3", cid, like);
   const leads = await q('SELECT name, need, at FROM app_leads WHERE client_id = ?1 AND ' + NUM('phone') + ' LIKE ?2 ORDER BY at DESC LIMIT 2', cid, like);
   const quotes = await q("SELECT created FROM biz_quotes WHERE client_id = ?1 AND status = 'open' AND " + NUM('phone') + " LIKE ?2 ORDER BY created DESC LIMIT 1", cid, like);
   const invs = await q("SELECT due FROM app_invoices WHERE client_id = ?1 AND status = 'open' AND " + NUM('phone') + " LIKE ?2 ORDER BY due LIMIT 1", cid, like);
-  const name = [cust && cust.name, ...jobs.map(r => r.name), ...calls.map(r => r.caller_name), ...leads.map(r => r.name)].map(firstName).find(Boolean) || '';
+  const names = [cust && cust.name, ...jobs.map(r => r.name), ...calls.map(r => r.caller_name), ...leads.map(r => r.name)].map(firstName).filter(Boolean);
+  // A number shared by two people (a household, an office): we can't tell who is calling, so Max hears nothing about it.
+  if (new Set(names.map(x => x.toLowerCase())).size > 1) return '';
+  const name = names[0] || '';
   const lines = [];
   const dateOf = r => (r.created && !isNaN(Date.parse(r.created))) ? r.created : (r.source === 'import' ? '' : r.updated);
   const done = jobs.find(r => (r.stage === 'done' || r.stage === 'paid') && safe(r.title, 80));
   if (done) { const d = dateOf(done); lines.push('- Last job for them: ' + safe(done.title, 80) + (d ? ', ' + monthYear(d) + ' (about ' + monthsAgo(d, at) + ' months ago)' : '') + '.'); }
+  // A visit Max booked or penciled in: the exact time comes from our book of visits.
+  const visit = (await q("SELECT say, status FROM line_bookings WHERE client_id = ?1 AND status IN ('booked', 'held') AND start > ?2 AND " + NUM('phone') + " LIKE ?3 ORDER BY start LIMIT 1", cid, at, like))[0];
   const booked = jobs.find(r => r.stage === 'booked' && r.source !== 'import');
-  if (booked) lines.push('- They have a visit booked: ' + (safe(booked.title, 80) || 'details with the team') + '.');
+  if (visit) lines.push('- They have a visit ' + (visit.status === 'held' ? 'penciled in (not confirmed yet)' : 'booked') + ' for ' + safe(visit.say, 60) + '.');
+  else if (booked) lines.push('- They have a visit booked: ' + (safe(booked.title, 80) || 'details with the team') + '.');
   if (calls.length) lines.push('- They have called before (' + calls.length + (calls.length === 3 ? ' or more times' : calls.length === 1 ? ' time' : ' times') + '); most recent ' + dayText(calls[0].at) + (safe(calls[0].reason, 80) ? ' about: ' + safe(calls[0].reason, 80) : '') + '.');
   else if (leads.length) lines.push('- They sent a request on ' + dayText(leads[0].at) + (safe(leads[0].need, 80) ? ': ' + safe(leads[0].need, 80) : '') + '.');
   if (quotes.length) lines.push('- An estimate sent on ' + dayText(quotes[0].created) + ' is still open.');
   if (invs.length) lines.push('- An invoice is still unpaid (the team can go over it).');
+  const noText = (await q('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2 LIMIT 1', cid, p))[0];
+  if (noText) lines.push('- They asked not to get texts: never offer to text them.');
   if (!name && !lines.length) return '';
-  return (name ? '- Name on file: ' + name + '.\n' : '') + lines.join('\n');
+  // Short: it is read on every turn. At most four lines after the name, about 300 characters.
+  let body = lines.slice(0, 4).join('\n');
+  if (body.length > 300) body = body.slice(0, 300).replace(/\n[^\n]*$/, '');
+  return (name ? '- Name on file: ' + name + '.\n' : '') + body;
 }
 
 // ---------------- 2. Customer import ----------------

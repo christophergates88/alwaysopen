@@ -54,3 +54,19 @@ test('robocall openers are caught; real customers mentioning Google or a warrant
   for (const t of ['This is a recorded message about your Google business listing. Press one to speak to a specialist.', 'We are calling about your extended car warranty', 'Your Google listing is about to be suspended', 'Congratulations, you qualify for a business line of credit']) assert.equal(looksRobo(t), true, t);
   for (const t of ['Your Google listing is wrong, it says you close at five', 'Do you do warranty work on water heaters?', 'I found you on Google', 'Is this still under warranty?', 'Press the reset button?']) assert.equal(looksRobo(t), false, t);
 });
+
+test('caller memory: a shared number tells Max nothing, a wrong number is forgotten, opted-out callers are never offered a text', async () => {
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const { callerMemory } = await import('../src/past.js');
+  const DB = makeDB(), env = { DB };
+  const call = (id, name, outcome, reason) => DB.prepare("INSERT INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, reason, test) VALUES (?1,'c1','+14785550100',?2,'+14785550142',?3,?4,?5,0)").bind(id, new Date(Date.now() - 864e5).toISOString(), name, outcome, reason || '').run();
+  await call('CA1', 'Dana Sinclair', 'done', 'Water heater');
+  assert.match(await callerMemory(env, 'c1', '+14785550142'), /^- Name on file: Dana\./);
+  await DB.prepare("INSERT INTO sms_optout (client_id, phone10, at) VALUES ('c1', '4785550142', ?1)").bind(new Date().toISOString()).run();
+  assert.match(await callerMemory(env, 'c1', '+14785550142'), /never offer to text them/);
+  await call('CA2', 'Mike Hall', 'done', 'Drain');
+  assert.equal(await callerMemory(env, 'c1', '+14785550142'), '', 'two names on one number: nothing');
+  const DB2 = makeDB();
+  await DB2.prepare("INSERT INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, reason, test) VALUES ('CA9','c1','+14785550100',?1,'+14785550177','Al','spam','Wrong number',0)").bind(new Date().toISOString()).run();
+  assert.equal(await callerMemory({ DB: DB2 }, 'c1', '+14785550177'), '');
+});

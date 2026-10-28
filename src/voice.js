@@ -539,6 +539,11 @@ export class CallRoom extends DurableObject {
       await vlog(this.env, 'robo-end', JSON.stringify({ sid: s.sid, said: said.slice(0, 160) }));
       return this.sayAndEnd(s, 'Thanks, I\'ll pass that along. Goodbye.');
     }
+    // "No, this is Mike": whatever our records said about this number is dropped for the rest of the call.
+    if (s.line.memory && s.turn <= 4) {
+      const ia = lastOf(s.msgs.slice(0, -1), 'a'), askedWho = ia > -1 && /speaking with|is this [A-Z]/.test(s.msgs[ia].t);
+      if ((askedWho && /^\W*(no|nope|nah|wrong)\b/i.test(said)) || /\b(wrong (person|number)|that's not me|that is not me|this isn't|this is not)\b/i.test(said)) { delete s.line.memory; s.memoryDropped = true; this.mark('M', 'dropped'); }
+    }
     if (WANT_PERSON.test(said.toLowerCase())) s.wantPerson = (s.wantPerson || 0) + 1;
     if (UPSET.test(said.toLowerCase())) s.upset = true;
     if (elapsed > MAX_CALL_MS || s.turn > MAX_TURNS) { this.dropSpec(); return this.sayAndEnd(s, s.lang === 'es-US' ? 'Tengo que despedirme, pero el equipo tiene su mensaje y le devolverá la llamada. Adiós.' : 'I need to let you go now, but the team has your message and will call you back. Goodbye.'); }
@@ -1028,6 +1033,8 @@ export function systemPrompt(L, caller, lang, wrapUp) {
       L.memory,
       '- Phone numbers can be shared or wrong. ' + (/Name on file: ([A-Za-z\'’-]+)\./.test(L.memory) ? 'Greet them by first name only as a question, like "Am I speaking with ' + /Name on file: ([A-Za-z\'’-]+)\./.exec(L.memory)[1] + '?", and d' : 'D') + 'o not mention the job, an address, an estimate or an invoice until they confirm who they are. Once they do, you may mention the last job in one short natural sentence, only if it helps.',
       '- Never read out dollar amounts or anyone else\'s details, never add history that is not written here, and if they say it is not them or the details are wrong, drop it and carry on as with any new caller.',
+      /visit (booked|penciled in)/.test(L.memory) ? '- They have a visit coming up: before anything else, ask whether they are calling about it, and offer to confirm it or take a message to move it.' : null,
+      /estimate .* still open/.test(L.memory) ? '- If they ask about their estimate, you may say when it was sent and offer to have the team text it to them again. Never say amounts.' : null,
       ''
     ] : []),
     'Rules you never break:',
