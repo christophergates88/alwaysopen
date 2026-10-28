@@ -6,7 +6,7 @@
 
 const TAG = { every: 'Every plan', growth: 'Growth', pro: 'Pro' };
 const WHY = {
-  max: 'Max answers in your business’s name, gives the prices you’ve approved, and sends you the job. Callers hear up front that he isn’t a person.',
+  max: 'Max answers in your business’s name, gives the prices you’ve approved, and sends you the job.',
   handoff: 'A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back.',
   check: 'Three days after the job, Max calls: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.',
   cb: 'No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.',
@@ -197,7 +197,7 @@ export const PAGES = {
     plural: 'dental practices', short: 'Max answers when the front desk can’t, takes the name, number and what they need, nothing more, and sends it to your phone.', chips: false, type: 'Medical, dental or vet',
     cards: [
       { key: 'max', title: 'Max answers', tag: TAG.every, call: true,
-        why: 'Max answers in your practice’s name and takes the name, number and what they need, nothing more. He never discusses fees, treatment or insurance.',
+        why: 'Max takes the name, number and what they need, nothing more, and never talks fees, treatment or insurance.',
         intro: [['sys', 'Sun 9:40 PM · call to Sample Family Dental'], ['out', 'Thanks for calling Sample Family Dental. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I cracked a tooth at dinner. Can I get in tomorrow?']],
         choices: [
           { label: 'Ask for the first opening', then: [['in', 'Can I get the first opening?'], ['out', 'I’ll mark this urgent. The front desk will call you at 8, when the office opens. What’s the best number?'], ['in', '478-555-0142.'], ['note', 'On the front desk’s phone · urgent', 'Cracked tooth · first opening', 'Called 9:40 PM · 478-555-0142', 'hot']] },
@@ -219,7 +219,7 @@ export const PAGES = {
     plural: 'insurance agencies', short: 'Max takes messages after hours and never talks policies, rates or claims. Compliance Guard checks every word we write for you.', chips: false, type: 'Insurance agency',
     cards: [
       { key: 'max', title: 'Max takes the message', tag: TAG.every, call: true,
-        why: 'Max takes the name, number and a good time to call back. He never discusses policies, coverage, claims, rates or quotes.',
+        why: 'Max takes a name, number and a good time to call back, and never talks policies, rates or claims.',
         intro: [['sys', 'Tue 7:12 PM · call to Sample Agency'], ['out', 'Thanks for calling Sample Agency. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I’m adding my 16-year-old as a driver. Can someone call me?']],
         choices: [
           { label: 'Ask about the cost', then: [['in', 'How much will that add to my rate?'], ['out', 'I can’t talk about rates or coverage, but I’ll have Priya call you. Is tomorrow after 10 good?'], ['in', 'After 10 works.'], ['note', 'On Priya’s phone', 'Dana Whitfield · new driver', 'Call back tomorrow after 10 · 478-555-0142', 'ok']] },

@@ -68,7 +68,7 @@ const CSS = `
 .hero .ctas{margin-top:22px!important}
 .hero .ctas>a:not(.ph-only):not([href^="tel:"]){display:none!important}
 .hero .ctas>.ph-only{display:inline-flex;width:100%}
-.indlinks,#industries .sub{display:none}
+.indlinks,#industries .sub,#contact .founding{display:none}
 #industries h2{margin-bottom:16px}
 /* the playable cards */
 .aos{display:block;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);padding-top:6px;padding-bottom:40px;border-top:1px solid rgba(255,106,94,.28)}
@@ -85,7 +85,7 @@ const CSS = `
 .aos-tag.p{border-color:rgba(255,106,94,.6);color:#FF8C82}
 .aos-tag.g{border-color:rgba(92,201,164,.55);color:#7FD8B9}
 .aos-scn{display:flex;flex-direction:column;justify-content:flex-end;gap:7px;background:#0B0F16;border:1px solid #1F2636;border-radius:14px;padding:12px 10px;min-height:250px}
-.js .aos-scn{height:256px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;justify-content:flex-start;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
+.js .aos-scn{height:236px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;justify-content:flex-start;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
 .aos-scn::-webkit-scrollbar{display:none}
 .aos-scn>:first-child{margin-top:auto}
 .aos-path{display:flex;flex-direction:column;gap:7px}
