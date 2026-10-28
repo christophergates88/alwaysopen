@@ -107,6 +107,7 @@ a.btn{color:inherit}
 .banner .x{border:0;background:none;color:var(--slate);font-size:22px;width:36px;height:36px;line-height:1}
 .months{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 -2px 10px;scrollbar-width:none}
 .months::-webkit-scrollbar{display:none}
+.seg{display:flex;gap:6px;margin:4px 0 18px;padding:4px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);position:sticky;top:0;z-index:5}.segb{flex:1;min-width:0;border:0;background:transparent;border-radius:10px;padding:9px 4px;font-weight:600;font-size:14.5px;color:inherit;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}.segb[aria-selected=true]{background:var(--ink);color:var(--paper)}.segn{font-style:normal;font-size:12px;min-width:18px;padding:1px 5px;border-radius:99px;background:#D92D20;color:#fff}@media(max-width:360px){.segb{font-size:13px}}
 .mchip{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:7px 14px;font-weight:600;font-size:14.5px}
 .mchip[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -316,25 +317,44 @@ function shareCard(){
   return '<div class="feature"><h3>A good '+esc(s.month)+'</h3><p>Know an owner who\u2019d want the same? Here\u2019s a note you can send. Nothing goes out unless you send it.</p><p class="fine" style="white-space:pre-wrap">'+esc(s.message)+'</p>'+
     '<div class="acts" style="flex-wrap:wrap;gap:8px"><button class="btn line small" type="button" data-a="sh-copy">Copy</button><a class="btn line small" href="'+esc(sms)+'">Text it</a><a class="btn line small" href="'+esc(mail)+'">Email it</a><button class="btn ghost small" type="button" data-a="sh-done">Not now</button></div></div>';
 }
+var SEG='today';try{var sv=localStorage.getItem('ao-seg');if(sv&&/^(today|customers|results|settings)$/.test(sv))SEG=sv;}catch(x){}
+function segBar(n){
+  var L=[['today','Today'],['customers','Customers'],['results','Results'],['settings','Settings']];
+  if(isTech())L=L.filter(function(x){return x[0]!=='settings';});
+  return '<div class="seg" role="tablist" aria-label="Home">'+L.map(function(x){var on=x[0]===SEG;return '<button type="button" role="tab" class="segb" data-seg="'+x[0]+'" aria-selected="'+on+'">'+x[1]+(x[0]==='today'&&n?'<i class="segn">'+(n>99?'99+':n)+'</i>':'')+'</button>';}).join('')+'</div>';
+}
+function inboxRow(){return '<h2>Inbox</h2><div class="list"><button class="row" type="button" data-a="bz-inbox">'+ICON.check+'<div><b>All your messages in one place</b><span>Requests, bookings, calls, texts and Google reviews</span></div>'+ICON.chev+'</button></div>';}
+function fwCard(){
+  var W=S.fillWeek;if(!W||!W.on||!W.ready)return '';
+  return '<div class="feature"><h3>Fill my week</h3><p>'+(W.last?'Last time: '+W.last.offers+(W.last.offers===1?' offer':' offers')+', '+W.last.booked+' booked. ':'')+'An open day coming up? Offer it to past customers who are due, and the first YES is booked.</p><div class="acts"><button class="btn sm" type="button" data-a="fw-run">Fill my next open day</button></div></div>';
+}
 function vHome(){
   var f=S.features||{},first=S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here\\u2019s '+esc(S.client.business||'your business')+' today.</p>'+install()+flCard()+shareCard()+bizTop()+heroCard();
+  if(isTech()&&SEG==='settings')SEG='today';
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.</p>'+segBar(items+calls+due);
+  if(SEG==='customers'){
+    h+=inboxRow()+jobsBlock()+(isTech()?'':quotesBlock()+payBlock()+invBlock())+pastBlock()+linkBlock()+mapCard();
+    return h;
+  }
+  if(SEG==='results'){
+    h+=monthBlock()+(f.competitors?rivalCard():'')+insightsBlock()+lostCard()+shareCard()+(isTech()?'':upCard())+referCard();
+    return h;
+  }
+  if(SEG==='settings'){
+    h+=(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
+    return h;
+  }
+  h+=install()+flCard()+bizTop()+heroCard();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
   if(due)att.push(row('fu',ICON.cal,due+(due===1?' follow-up':' follow-ups')+' due','Tap to text them'));
-  h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We\\u2019ll buzz your phone when something does.</span></div>';
+  h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We’ll buzz your phone when something does.</span></div>';
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=monthBlock()+(S.features&&S.features.competitors?rivalCard():'')+(isTech()?'':invBlock())+pastBlock()+bizBlocks()+fuBlock()+linkBlock()+metaBlock();
-  h+=cbCard();
-  h+=mapCard();
-  h+=lostCard();
-  h+=upCard();
-  h+=guardCard();
-  h+=referCard();
+  h+=cbCard()+fuBlock()+fwCard();
   return h;
 }
 var UPALL=false;
@@ -711,8 +731,9 @@ ${PAST_JS}
 ${RIVALS_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go]');if(!t)return;
-  if(t.dataset.go){var g=t.dataset.go;if(g==='fu'){TAB='home';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
+  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg]');if(!t)return;
+  if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
+  if(t.dataset.go){var g=t.dataset.go;if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
   if(t.dataset.close){close();return;}
   if(t.dataset.tab){TAB=t.dataset.tab;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);return;}
   var a=t.dataset.a,id=t.dataset.id;
