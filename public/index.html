@@ -62,6 +62,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .hero h1 em{font-style:normal;color:var(--night-sign)}
 .lede{font-size:1.22rem;color:var(--night-mute);max-width:32em;margin-top:22px}
 .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.onlylink{display:inline-block;margin-top:18px;color:var(--night-sign);font-weight:700;text-decoration:none;border-bottom:2px solid rgba(255,106,94,.5);padding-bottom:2px}.onlylink:hover{border-color:var(--night-sign)}
 .hero .btn.line{border-color:var(--night-mute);color:var(--night-ink)}
 .fine{margin-top:18px;font:400 13px var(--mono);color:var(--night-mute);letter-spacing:.02em}
 .promise{margin-top:22px;display:flex;gap:10px;align-items:flex-start;font:700 1.08rem/1.35 var(--body);color:var(--night-ink);max-width:30em}
@@ -143,13 +144,15 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 
 
 /* only here: the things nobody else does, each as a phone scene */
-.only{padding-block:84px}
-.only .head{max-width:700px}
+.only{padding-block:88px;background:var(--night);color:var(--night-ink);position:relative}
+.only::before{content:'';position:absolute;inset:0;background:radial-gradient(60% 50% at 20% 0%,rgba(255,90,77,.18),transparent 70%);pointer-events:none}
+.only .inner{position:relative}
+.only .head{max-width:760px}.only .eyebrow{color:var(--night-sign)}.only h2{font-size:clamp(2.2rem,6vw,3.6rem);line-height:1.02}.only .head p{color:var(--night-mute);font-size:1.12rem}
 .onlygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.scene{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.scene{background:var(--night-card);border:1px solid var(--night-line);border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0;transition:transform .2s,border-color .2s}.scene:hover{transform:translateY(-3px);border-color:var(--night-sign)}
 .scene .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.scene h3{font:800 1.12rem/1.2 var(--display);font-stretch:94%;margin:0}
-.scene .why{color:var(--slate);font-size:.95rem;margin:0}
+.scene h3{font:800 1.12rem/1.2 var(--display);font-stretch:94%;margin:0;color:var(--night-ink)}.alsoonly b{color:var(--night-ink)}.addrow b{color:var(--night-ink)}
+.scene .why{color:var(--night-mute);font-size:.95rem;margin:0}.scene .tag.p{background:var(--night-sign);color:#fff}.scene .tag.g{background:rgba(255,106,94,.16);color:var(--night-sign)}
 .scn{background:var(--m-soft);border:1px solid var(--m-line);border-radius:14px;padding:12px;display:grid;gap:7px;color:var(--m-ink)}
 .scn .bub{font-size:13.5px;max-width:92%}
 .scn .bub.in{background:#fff}
@@ -160,19 +163,19 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .scn .acts{display:flex;gap:6px;margin-top:4px}
 .scn .acts span{font:700 12px var(--body);padding:5px 10px;border-radius:9px;background:#171B26;color:#fff}
 .scn .acts span.alt{background:transparent;color:#171B26;border:1px solid var(--m-line)}
-.only .sample{font:500 12px var(--mono);color:var(--slate);margin-top:14px}
-.alsoonly{margin-top:28px;background:var(--panel);border-radius:18px;padding:20px 22px;display:grid;gap:8px}
+.only .sample{font:500 12px var(--mono);color:var(--night-mute);margin-top:14px}
+.alsoonly{margin-top:28px;background:var(--night-card);border:1px solid var(--night-line);border-radius:18px;padding:20px 22px;display:grid;gap:8px}
 .alsoonly b{font-size:1rem}
-.alsoonly p{color:var(--slate);font-size:.97rem;margin:0}
+.alsoonly p{color:var(--night-mute);font-size:.97rem;margin:0}
 .alsoonly a{color:inherit;font-weight:600;text-underline-offset:3px}
 .addstrip{margin-top:34px;display:grid;gap:12px}
-.addstrip .eyebrow{margin:0}
+.addstrip .eyebrow{margin:0;color:var(--night-mute)}
 .addrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.addrow a{display:grid;gap:4px;align-content:start;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;min-width:0}
-.addrow a:hover{border-color:var(--ink)}
+.addrow a{display:grid;gap:4px;align-content:start;padding:14px;border:1px solid var(--night-line);border-radius:14px;background:var(--night-card);color:inherit;text-decoration:none;min-width:0}
+.addrow a:hover{border-color:var(--night-sign)}
 .addrow b{font-size:.98rem}
-.addrow span{color:var(--slate);font-size:.9rem}
-.addrow em{font:500 11.5px var(--mono);font-style:normal;color:var(--sign);margin-top:2px}
+.addrow span{color:var(--night-mute);font-size:.9rem}
+.addrow em{font:500 11.5px var(--mono);font-style:normal;color:var(--night-sign);margin-top:2px}
 @media (max-width:980px){.onlygrid{grid-template-columns:repeat(2,minmax(0,1fr))}.addrow{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.onlygrid{grid-template-columns:1fr}.addrow{grid-template-columns:1fr}.only{padding-block:56px}}
 
@@ -556,6 +559,7 @@ a.chip:hover{border-color:var(--ink)}
         <div class="ctas"><a class="btn primary" href="#contact">Get your free audit</a><a class="neon-call hero-call" id="heroCall" href="tel:+17064602226"><span>Call Max. We dare you.</span><b>(706) 460-2226</b></a></div>
         <p class="promise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
         <p class="fine">No setup fee · Month to month · Spanish replies included</p>
+        <a class="onlylink" href="#only">Six things nobody else does for a business like yours <span aria-hidden="true">&darr;</span></a>
       </div>
       <div class="stack" role="img" aria-label="Example: Max answers a 3:14 AM call about a burst pipe and takes the address, a 2-star review arrives with a drafted reply, and the monthly report is ready">
         <div class="phone"><div class="screen">
@@ -622,7 +626,7 @@ a.chip:hover{border-color:var(--ink)}
 
 <section class="only band" id="only" data-label="Only here">
   <div class="inner">
-    <div class="head"><p class="eyebrow">Only here</p><h2>Nobody else does this.</h2><p>Answering reviews and calls is table stakes. These are the parts we built because small businesses kept losing the same jobs the same way.</p></div>
+    <div class="head"><p class="eyebrow">Only here</p><h2>Six things nobody else does.</h2><p>Answering reviews and calls is table stakes. These are the parts we built because small businesses kept losing the same jobs the same way.</p></div>
     <div class="onlygrid">
       <div class="scene"><div class="top"><h3>Hand-offs between businesses</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max tells a caller the business does not do electrical and puts them through to Lane Electric, a nearby business on Always Open."><div class="bub in">Do y’all do electrical? My panel keeps tripping.</div><div class="bub out">We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?</div><div class="bub in">Yeah, please.</div><div class="bub sys">Put through to Lane Electric · 2:14 PM</div></div><p class="why">A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back. Both of you have to turn it on.</p></div>
       <div class="scene"><div class="top"><h3>The three-day check-in</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max calls a customer three days after a water heater job, she presses 1 for held up, and a review request goes out."><div class="bub sys">Max called Dana · Thursday 11:20 AM</div><div class="bub out">Quick one: did the water heater hold up? Press 1 if it did, 2 if something’s not right.</div><div class="bub sys">Pressed 1</div><div class="card"><small>Next</small><b>Review request sent to Dana</b><span>One text, because she said yes to texts.</span></div></div><p class="why">Three days after the job, Max calls the customer: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.</p></div>
