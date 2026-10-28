@@ -496,6 +496,7 @@ a.chip:hover{border-color:var(--ink)}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://alwaysopenoffice.com/og2.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="ao-meta-soon" content="1" data-launch="meta">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -593,7 +594,7 @@ a.chip:hover{border-color:var(--ink)}
         <ul class="get">
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Google profile kept current: hours, photos, a weekly post</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Same name, address, phone and hours on Apple Maps, Bing, Facebook and Yelp<span class="soon">Coming soon</span></li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts made from your job photos<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts made from your job photos<span class="soon" data-launch="meta">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A review request after every job, written for you, sent from your phone in one tap</li>
         </ul>
       </div>
@@ -808,7 +809,7 @@ a.chip:hover{border-color:var(--ink)}
         <ul>
           <li class="plus">Everything in Starter, plus:</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Review requests after every job</li>
-          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts from your photos<span class="soon">Coming soon</span></li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Facebook and Instagram posts from your photos<span class="soon" data-launch="meta">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Same details on every listing<span class="soon">Coming soon</span></li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Online booking and quote requests</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Every lead logged</li>
@@ -1197,7 +1198,7 @@ a.chip:hover{border-color:var(--ink)}
   var IND={
     trades:['Contractors and home services','Contractor or trade',['A 2 AM leak call gets answered, and the address is on your phone before you\u2019re awake.','Every finished job gets one review request, so new reviews keep coming.','Storm-season and seasonal posts made from your own job photos.','Quotes and invoices get a polite follow-up until they\u2019re answered.']],
     marine:['Docks and marine','Dock, marine or outdoor',['Lake-house owners searching from out of town find current hours, photos and reviews.','Spring launch and dock-check reminders go out before the season starts.','Calls you miss on the water get answered, and the details come to your phone.','Reviews answered while you\u2019re out on a job.']],
-    salon:['Salons and fitness','Salon, spa or fitness',['Booking requests taken any hour, straight to your phone.','Every client asked for a review after a visit.','Posts made from your photos (Instagram and Facebook coming soon).','Spanish replies on every plan.']],
+    salon:['Salons and fitness','Salon, spa or fitness',['Booking requests taken any hour, straight to your phone.','Every client asked for a review after a visit.',(!document.querySelector('meta[name="ao-meta-soon"]')?'Posts made from your photos, for Google, Instagram and Facebook.':'Posts made from your photos (Instagram and Facebook coming soon).'),'Spanish replies on every plan.']],
     food:['Restaurants and shops','Restaurant or shop',['Holiday hours set on every listing before every holiday.','Every review answered, and bad ones flagged the same day.','Weekly specials posted on Google and Facebook.','A monthly report on calls, direction requests and website clicks.']],
     insurance:['Insurance agents','Insurance agency',['Review replies from wording your compliance contact approves once.','A monthly record of every public review, reply and post for your files.','A heads-up when reviews about rate increases start coming in.','Educational posts you approve before anything goes up.','Already texting through your insurance company? We work around it and never touch it.']],
     health:['Medical, dental and legal','Medical, dental or vet',['We work only from public information: no patient or client names, ever.','Replies never confirm that someone is a patient or client.','A monthly record of every public reply and post.','Your Google profile kept current: hours, holidays and photos.']]

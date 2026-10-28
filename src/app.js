@@ -26,6 +26,9 @@ import { apiFirstLook, firstLookDue, shareState } from './firstlook.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
+import { ensureAuto, autoReady, autoCron, autoNote } from './autotext.js';
+import { publishItem, mergeMonths } from './gbp.js';
+import { lineStatus } from './provision.js';
 
 const CODE_RE = /^[A-Za-z0-9]{24,64}$/;
 const FAIL_LIMIT = 20;            // wrong codes per sender per hour, then a pause
@@ -304,6 +307,7 @@ export async function apnsReach() {
 async function apiState(env, c, ctx) {
   const cid = c.client_id;
   const f = features(c);
+  await ensureAuto(env).catch(() => {});
   const qs = [
     env.DB.prepare("SELECT id, kind, title, context, stars, text, checked, photo, created FROM app_items WHERE client_id = ?1 AND status = 'pending' ORDER BY created LIMIT 50").bind(cid),
     env.DB.prepare("SELECT id, kind, title, status, text, decided_text, decided_at, decided_by, updated FROM app_items WHERE client_id = ?1 AND status != 'pending' ORDER BY COALESCE(decided_at, updated) DESC LIMIT 20").bind(cid),
@@ -314,7 +318,7 @@ async function apiState(env, c, ctx) {
   ];
   qs.push(env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid));
   qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') ORDER BY created DESC LIMIT 60").bind(cid));
-  qs.push(env.DB.prepare("SELECT id, kind, name, phone, amount, due, note, status, created, by, done_at FROM app_followups WHERE client_id = ?1 AND (status = 'open' OR (status = 'done' AND done_at > ?2)) ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, CASE WHEN due = '' THEN 1 ELSE 0 END, due, created DESC LIMIT 60").bind(cid, new Date(Date.now() - 30 * 86400000).toISOString()));
+  qs.push(env.DB.prepare("SELECT id, kind, name, phone, amount, due, note, status, created, by, done_at, consent, appt_at, auto_conf, auto_rem, auto_fu FROM app_followups WHERE client_id = ?1 AND (status = 'open' OR (status = 'done' AND done_at > ?2)) ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, CASE WHEN due = '' THEN 1 ELSE 0 END, due, created DESC LIMIT 60").bind(cid, new Date(Date.now() - 30 * 86400000).toISOString()));
   if (f.calls) qs.push(env.DB.prepare("SELECT id, at, caller, caller_name, reason, details, wants, callback, urgency, summary, transcript, outcome, status, handled_by, handled_at FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 ORDER BY at DESC LIMIT 40").bind(cid, new Date(Date.now() - 60 * 86400000).toISOString()));
   const res = await env.DB.batch(qs);
   const rows = i => (res[i] && res[i].results) || [];
@@ -343,10 +347,12 @@ async function apiState(env, c, ctx) {
   let bill = null;
   try { bill = await env.DB.prepare('SELECT plan, status, max, paused_until FROM billing WHERE client_id = ?1').bind(cid).first(); } catch (e) { bill = null; }
   const line = rows(6)[0] || null;
-  const months = rows(2).map(r => {
+  let months = rows(2).map(r => {
     const d = parse(r.data) || {};
     return { month: r.month, label: d.label || r.month, stats: d.stats || {}, prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)) };
   });
+  // Google's own numbers (calls, direction requests, website clicks) once the Business Profile access is on.
+  try { months = await mergeMonths(env, cid, months); } catch (e) { /* the HQ record alone */ }
   // Jobs, estimates, payments, insights, team and onboarding (biz.js). Results money uses real job totals once there are jobs.
   let biz = {};
   try { biz = await bizState(env, c); } catch (e) { biz = {}; }
@@ -408,6 +414,8 @@ async function apiState(env, c, ctx) {
   try { out.firstLookDue = cid === 'demo-plumbing' ? false : await firstLookDue(env, c); } catch (e) { out.firstLookDue = false; }
   try { out.share = c.staff || cid === 'demo-plumbing' ? null : await shareState(env, c, out.client && out.client.refLink); } catch (e) { out.share = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
+  try { out.autoText = f.followups ? await autoReady(env, c) : false; } catch (e) { out.autoText = false; }
+  try { const ls = line ? null : await lineStatus(env, cid); out.lineSetup = ls ? ls.status : ''; } catch (e) { out.lineSetup = ''; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
 }
@@ -540,7 +548,8 @@ const FU_KINDS = { quote: 'Quote', invoice: 'Invoice', appointment: 'Appointment
 const FU_PER_DAY = 40;
 function fuOut(r) {
   const d = /^\d{10}$/.test(r.phone || '') ? r.phone : '';
-  return { id: r.id, kind: FU_KINDS[r.kind] ? r.kind : 'quote', name: r.name || '', phone: d ? '+1' + d : '', phoneText: d ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : '', amount: r.amount || '', due: r.due || '', note: r.note || '', status: r.status === 'done' ? 'done' : 'open', at: r.created || '', by: r.by || '', doneAt: r.done_at || '' };
+  return { id: r.id, kind: FU_KINDS[r.kind] ? r.kind : 'quote', name: r.name || '', phone: d ? '+1' + d : '', phoneText: d ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : '', amount: r.amount || '', due: r.due || '', note: r.note || '', status: r.status === 'done' ? 'done' : 'open', at: r.created || '', by: r.by || '', doneAt: r.done_at || '',
+    consent: !!+r.consent, apptAt: r.appt_at || '', texted: autoNote(r) };
 }
 async function apiFollowup(req, env, ctx, c) {
   if (!features(c).followups) return aj({ ok: false, error: 'Quote and invoice follow-ups come with the Pro plan.' }, 403);
@@ -563,15 +572,23 @@ async function apiFollowup(req, env, ctx, c) {
   const amount = oneLine(clean(b.amount, 20));
   const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? String(b.due) : '';
   const note = oneLine(clean(b.note, 200));
+  const consent = b.consent === true && !!phone ? 1 : 0;
+  let apptAt = '';
+  if (kind === 'appointment' && due && /^\d{1,2}:\d{2}$/.test(String(b.time || ''))) {
+    const [hh, mm] = String(b.time).split(':').map(Number);
+    if (hh < 24 && mm < 60) { const cb = await import('./callbacks.js'); apptAt = new Date(cb.fromLocal(await cb.tzFor(env, c.client_id), due, hh, mm)).toISOString(); }
+  }
   if (!nm) return aj({ ok: false, error: 'Add the customer\u2019s name.' }, 400);
   if (phone && !/^[2-9]\d{2}[2-9]\d{6}$/.test(phone)) return aj({ ok: false, error: 'Add a 10-digit number, or leave it blank.' }, 400);
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_followups WHERE client_id = ?1 AND created > ?2').bind(c.client_id, new Date(Date.now() - 86400000).toISOString()).first();
   if (n && n.n >= FU_PER_DAY) return aj({ ok: false, error: 'That is the most for one day. Add the rest tomorrow.' }, 429);
-  const ins = await env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, hq_synced) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 'open', ?8, ?9, 0)")
-    .bind(c.client_id, kind, nm, phone, amount, due, note, now, by).run();
+  await ensureAuto(env);
+  const ins = await env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, hq_synced, appt_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', ?9, ?10, 0, ?11)")
+    .bind(c.client_id, kind, nm, phone, amount, due, note, consent, now, by, apptAt).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
+  if (consent && kind === 'appointment') ctx.waitUntil(autoCron(env).catch(() => {}));
   ctx.waitUntil(throttledPing(env, c, 'New follow-up from ' + (c.business || 'a client'), FU_KINDS[kind] + ' for ' + nm + (amount ? ' (' + amount + ')' : '') + (due ? ', due ' + due : '') + '.'));
-  return aj({ ok: true, followup: fuOut({ id, kind, name: nm, phone, amount, due, note, status: 'open', created: now, by, done_at: '' }) });
+  return aj({ ok: true, followup: fuOut({ id, kind, name: nm, phone, amount, due, note, status: 'open', created: now, by, done_at: '', consent, appt_at: apptAt }) });
 }
 
 async function apiDecide(req, env, ctx, c) {
@@ -612,6 +629,8 @@ export async function approveItem(env, ctx, c, it, edited, by) {
   if (it.kind === 'reviewreq') later(sendReviewRequest(env, c, it, finalText).catch(() => {}));
   if (it.kind === 'invoice') later(sendInvoiceReminder(env, c, it, finalText, (to, s, x) => mailTo(env, to, s, x, c.business)).catch(() => {}));
   if (it.kind === 'post' && /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(it.photo || '')) later(metaPublish(env, c.client_id, finalText, it.photo).catch(() => {}));
+  // Once Google has approved our access, the approved reply or post goes straight to the client's Google profile.
+  if (it.kind === 'post' || it.kind === 'reply' || it.kind === 'review' || !it.kind) later(publishItem(env, c, Object.assign({}, it, { decided_at: now }), finalText).catch(() => {}));
   return { status: 200, body: { ok: true, status: 'approved', at: now, edited: finalText !== String(it.text || '').trim() } };
 }
 
@@ -815,9 +834,15 @@ function eastern(ms) {
 }
 
 async function remindFollowups(env, now, today) {
-  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(today).all();
+  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount, consent FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(today).all();
   const by = {};
   for (const r of (due.results || [])) (by[r.client_id] = by[r.client_id] || []).push(r);
+  // Customers who said yes to texts get ours (autotext.js), so the owner isn't asked to send the same one.
+  for (const cid of Object.keys(by)) {
+    if (!by[cid].some(x => +x.consent)) continue;
+    const cl = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
+    if (cl && await autoReady(env, cl).catch(() => false)) { by[cid] = by[cid].filter(x => !+x.consent); if (!by[cid].length) delete by[cid]; }
+  }
   const ready = !!(env.APNS_KEY && env.APNS_KEY_ID);
   for (const cid of Object.keys(by)) {
     const list = by[cid];

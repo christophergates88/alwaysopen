@@ -5,9 +5,9 @@ import { sha256hex } from './app.js';
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const REDIRECT = 'https://alwaysopenoffice.com/google/callback';
 const API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
-// Google Business Profile (reviews, replies and posts on the owner's own profile). Off until Google approves our API access.
+// Google Business Profile (reviews, replies and posts on the owner's own profile): see gbp.js. Every Google connection comes
+// back to the one callback address registered with Google (/google/callback); the state says which kind it was.
 export const GBP_SCOPE = 'https://www.googleapis.com/auth/business.manage';
-const GBP_REDIRECT = 'https://alwaysopenoffice.com/google/gbp/callback';
 
 export async function ensureGcal(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS gcal_tokens (client_id TEXT PRIMARY KEY, refresh TEXT NOT NULL, tz TEXT, connected_at TEXT)').run();
@@ -29,35 +29,50 @@ function page(title, text, status) {
     { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
+async function gbpStart(env, kind, who) {
+  const ts = String(Date.now());
+  const state = kind + '.' + who + '.' + ts + '.' + await hmac(env, kind + '.' + who + '.' + ts);
+  const q = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', redirect_uri: REDIRECT, response_type: 'code', scope: GBP_SCOPE, access_type: 'offline', prompt: 'consent', state });
+  return Response.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q, 302);
+}
+// An owner connects their own profile from the app (only once Google has approved our access), or Christopher connects
+// Always Open's Google account (the manager on client profiles) from the HQ board, which lets the worker watch for approval.
 async function handleGbp(req, env, url) {
-  const flag = String(env.GBP_ON || '').toLowerCase();
-  if (!(flag === '1' || flag === 'true' || flag === 'on')) return page('Coming soon', 'Connecting your Google Business Profile here is coming soon. Until then we work from the invite you send us, and nothing changes for you.', 404);
   if (url.pathname === '/google/gbp') {
+    const { isOn } = await import('./launch.js');
+    if (!(await isOn(env, 'google'))) return page('Coming soon', 'Connecting your Google Business Profile here is coming soon. Until then we work from the invite you send us, and nothing changes for you.', 404);
     const c = await ownerFor(env, url.searchParams.get('code') || '');
     if (!c) return page('Link not valid', 'Open this from the Always Open app, signed in as the owner.', 403);
-    const ts = String(Date.now());
-    const state = 'gbp.' + c.client_id + '.' + ts + '.' + await hmac(env, 'gbp.' + c.client_id + '.' + ts);
-    const q = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', redirect_uri: GBP_REDIRECT, response_type: 'code', scope: GBP_SCOPE, access_type: 'offline', prompt: 'consent', state });
-    return Response.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q, 302);
+    return gbpStart(env, 'gbp', c.client_id);
   }
-  if (url.pathname === '/google/gbp/callback') {
-    const st = String(url.searchParams.get('state') || '').split('.');
-    if (st.length !== 4 || st[0] !== 'gbp' || st[3] !== await hmac(env, st.slice(0, 3).join('.')) || Date.now() - +st[2] > 3600e3) return page('Link expired', 'Please start again from the app.', 400);
-    if (!url.searchParams.get('code')) return page('Not connected', 'Google did not give access. You can try again from the app any time.', 400);
-    const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code: url.searchParams.get('code'), client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', redirect_uri: GBP_REDIRECT, grant_type: 'authorization_code' }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.refresh_token) return page('Not connected', 'Google did not finish connecting. Please try again from the app.', 400);
-    await env.DB.prepare('CREATE TABLE IF NOT EXISTS gbp_tokens (client_id TEXT PRIMARY KEY, refresh TEXT NOT NULL, connected_at TEXT)').run();
-    await env.DB.prepare('INSERT OR REPLACE INTO gbp_tokens (client_id, refresh, connected_at) VALUES (?1, ?2, ?3)').bind(st[1], j.refresh_token, new Date().toISOString()).run();
-    return page('Google profile connected', 'Thank you. Nothing is posted to your profile without your approval in the app. You can close this page.');
+  if (url.pathname === '/google/gbp-hq') {
+    const { boardOk } = await import('./opsboard.js');
+    if (!(await boardOk(env, url.searchParams.get('t') || ''))) return page('Link not valid', 'Open this from the HQ board link.', 403);
+    return gbpStart(env, 'hq', 'agency');
   }
   return new Response('Not found', { status: 404 });
+}
+async function gbpCallback(env, url, st) {
+  if (st.length !== 4 || st[3] !== await hmac(env, st.slice(0, 3).join('.')) || Date.now() - +st[2] > 3600e3) return page('Link expired', 'Please start again.', 400);
+  if (!url.searchParams.get('code')) return page('Not connected', 'Google did not give access. You can try again any time.', 400);
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: url.searchParams.get('code'), client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', redirect_uri: REDIRECT, grant_type: 'authorization_code' }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.refresh_token) return page('Not connected', 'Google did not finish connecting. Please try again.', 400);
+  const gbp = await import('./gbp.js');
+  if (st[0] === 'hq') {
+    await gbp.saveRefresh(env, gbp.AGENCY, j.refresh_token);
+    try { await (await import('./launch.js')).launchCron(env, { force: true }); } catch (e) { /* the hourly check runs anyway */ }
+    return page('Connected', 'Always Open’s Google account is connected. The worker now checks every hour whether Google has approved the access, and turns everything on by itself when it has. You can close this page.');
+  }
+  await gbp.saveRefresh(env, st[1], j.refresh_token);
+  try { await gbp.mapLocations(env); } catch (e) { /* the daily pass maps it */ }
+  return page('Google profile connected', 'Thank you. Nothing is posted to your profile without your approval in the app. You can close this page.');
 }
 
 export async function handleGoogle(req, env, url) {
   const path = url.pathname;
-  if (path === '/google/gbp' || path === '/google/gbp/callback') return handleGbp(req, env, url);
+  if (path === '/google/gbp' || path === '/google/gbp-hq') return handleGbp(req, env, url);
   if (path === '/google/connect') {
     const c = await ownerFor(env, url.searchParams.get('code') || '');
     if (!c) return page('Link not valid', 'Open this from the Always Open app, signed in as the owner.', 403);
@@ -68,6 +83,7 @@ export async function handleGoogle(req, env, url) {
   }
   if (path === '/google/callback') {
     const st = String(url.searchParams.get('state') || '').split('.');
+    if (st[0] === 'gbp' || st[0] === 'hq') return gbpCallback(env, url, st);
     if (st.length !== 3 || st[2] !== await hmac(env, st[0] + '.' + st[1]) || Date.now() - +st[1] > 3600e3) return page('Link expired', 'Please tap Connect Google Calendar in the app again.', 400);
     if (!url.searchParams.get('code')) return page('Not connected', 'Google did not give access. You can try again from the app any time.', 400);
     const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },

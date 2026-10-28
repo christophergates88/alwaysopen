@@ -8,6 +8,7 @@
 
 import { noteSignup, expireCredits, REF_RE } from './referral.js';
 import { firstLook } from './firstlook.js';
+import { queueLine, provisionLine, lineEnded } from './provision.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
@@ -86,7 +87,9 @@ export async function createFromSession(env, s, h) {
       .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls')
   ]);
   try { await noteSignup(env, { clientId: cid, ref: m.ref, email: s.customer_email || (s.customer_details && s.customer_details.email) || '', phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', Max included (set up his line)' + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live; open HQ to set them up.');
+  // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
+  try { await queueLine(env, cid); if (h && h.later) h.later(provisionLine(env, cid).catch(() => {})); } catch (e) { /* the timer picks it up */ }
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live and Max’s line is being set up on its own.');
   return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
 }
 
@@ -166,6 +169,15 @@ async function welcome(env, url, h) {
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
   const link = SITE + '/app/' + b.code;
+  // Max's number, bought just now (or a moment ago by the webhook). Wait a few seconds for it, never longer.
+  let line = null;
+  try {
+    for (let i = 0; i < 4 && !(line && line.status === 'live'); i++) {
+      line = await Promise.race([provisionLine(env, b.client_id), new Promise(r => setTimeout(() => r(null), 9000))]);
+      if (!line || line.status === 'live' || line.status === 'failed') break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch (e) { line = null; }
   // The owner first: their score, what holds them back most, and the one thing we'll do today. Looked up live, not kept.
   let fl = null;
   try { const cl0 = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(b.client_id).first(); if (cl0) fl = await firstLook(env, cl0, { force: true }); } catch (e) { fl = null; }
@@ -177,13 +189,13 @@ ${hero}
 <div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
-<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. We set up his line within two business days and send you the number and how to forward your calls to it. The steps also show up in your app, under Your first hour.</p></div>
+${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p>Max, your phone assistant, has his own number for you: <b>${esc(line.numberText)}</b>. Forward the calls you miss to it and he answers them, any hour. Your phone still rings first.</p><div class="acts"><a class="btn" href="${esc(link)}/help/forwarding">Show me how to forward</a></div><p class="fine">The steps for Verizon, AT&amp;T, T-Mobile and landlines are also in your app, under Your first hour.</p></div>` : `<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. His number is being set up right now and shows up in your app within the hour, with the steps to forward the calls you miss to him.</p></div>`}
 <div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
 <div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
 <li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>
 <li>Add <b>hello@alwaysopenoffice.com</b> as a <b>Manager</b>. You stay the owner and can remove us any time.</li></ol><p class="fine">Everything above works without this. Once you invite us, we can answer your reviews and keep your profile current.</p></div>
-<div class="card"><h2>What happens next</h2><p>Within two business days you get your first review replies to approve in the app. Questions? Message us from Ask us in the app.</p></div>`);
+<div class="card"><h2>What happens next</h2><p>Once you invite us to your Google profile (above), a reply to each new review shows up in the app for your OK. Questions? Message us from Ask us in the app.</p></div>`);
 }
 
 // ---------- client billing page (from the app) ----------
@@ -280,7 +292,7 @@ export async function handleBilling(req, env, url, h) {
       const b = await env.DB.prepare('SELECT client_id, business FROM billing WHERE sub = ?1').bind(sub).first();
       if (!b) return;
       await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(set, new Date().toISOString(), b.client_id).run();
-      if (set === 'canceled') { await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run(); await expireCredits(env, { stripe }, b.client_id); }
+      if (set === 'canceled') { await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run(); await expireCredits(env, { stripe }, b.client_id); await lineEnded(env, b.client_id).catch(() => {}); }
       if (msg && h.notify) await h.notify((b.business || 'A client') + ': ' + msg, 'Stripe event ' + ev.type + '.', set === 'past_due' ? 'high' : 'default');
     };
     if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') await createFromSession(env, o, h);

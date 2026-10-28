@@ -427,6 +427,7 @@ function fuCard(x){
   var due=isDue(x);
   return '<article class="card fu'+(due?' due':'')+'" id="fu-'+esc(x.id)+'"><div class="ch"><span class="chip'+(due?' urgent':'')+'">'+esc(FUK[x.kind]||'Follow-up')+'</span><span class="who">'+esc(dueText(x))+'</span></div>'+
     '<div class="fu-t"><b>'+esc(x.name)+'</b>'+(x.amount?'<span>'+esc(x.amount)+'</span>':'')+'</div>'+(x.note?'<p class="fine">'+esc(x.note)+'</p>':'')+
+    (x.texted?'<p class="fine"><b>'+esc(x.texted)+'</b> from your business number.</p>':(x.consent&&S.autoText?'<p class="fine">They said yes to texts, so we text them for you.</p>':''))+
     '<div class="acts">'+(x.phone?'<a class="btn ok" href="'+esc(smsHref(x.phone,fuText(x)))+'">Text them</a><a class="btn line" href="tel:'+esc(x.phone)+'">Call</a>':'<button class="btn line" type="button" data-a="fu-copy" data-id="'+esc(x.id)+'">Copy a text</button>')+
     '<button class="btn ghost" type="button" data-a="fu-done" data-id="'+esc(x.id)+'">Done</button></div></article>';
 }
@@ -443,12 +444,14 @@ function fuBlock(){
   return h;
 }
 function fuSheet(){
-  sheet('<h2>Add a follow-up</h2><label>What is it?<select id="fk"><option value="quote">Quote</option><option value="invoice">Invoice</option><option value="appointment">Appointment</option></select></label><label>Customer\\u2019s name<input type="text" id="fn" maxlength="60" autocomplete="off"></label><label>Their cell (optional)<input type="tel" id="fp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>Amount (optional)<input type="text" id="fa" maxlength="20" placeholder="$1,250"></label><label>Follow up on<input type="date" id="fd" value="'+localDay(3)+'"></label><label>Note (optional)<input type="text" id="fo" maxlength="200"></label><p class="fine">On that day we remind you and write the text. You send it from your phone.</p><div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  sheet('<h2>Add a follow-up</h2><label>What is it?<select id="fk"><option value="quote">Quote</option><option value="invoice">Invoice</option><option value="appointment">Appointment</option></select></label><label>Customer\\u2019s name<input type="text" id="fn" maxlength="60" autocomplete="off"></label><label>Their cell (optional)<input type="tel" id="fp" maxlength="20" inputmode="tel" autocomplete="off" placeholder="478 555 0142"></label><label>Amount (optional)<input type="text" id="fa" maxlength="20" placeholder="$1,250"></label><label>Follow up on<input type="date" id="fd" value="'+localDay(3)+'"></label><label id="ftl" hidden>Time (optional)<input type="time" id="ft"></label><label>Note (optional)<input type="text" id="fo" maxlength="200"></label>'+(S.autoText?'<label class="opt"><input type="checkbox" id="fc"><span>They said yes to texts about this</span></label><p class="fine">If they said yes, we text them for you from your business number: an appointment gets a confirmation now and a reminder the afternoon before; a quote or invoice gets one friendly follow-up that day. Otherwise we remind you and write the text, and you send it.</p>':'<p class="fine">On that day we remind you and write the text. You send it from your phone.</p>')+'<div class="acts"><button class="btn ok" type="button" id="go">Add</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
   setTimeout(function(){var i=$('#fn');if(i)i.focus();},60);
+  $('#fk').onchange=function(){var l=$('#ftl');if(l)l.hidden=this.value!=='appointment';};
   $('#go').onclick=function(){
-    var b=this,body={kind:$('#fk').value,name:$('#fn').value,phone:$('#fp').value,amount:$('#fa').value,due:$('#fd').value,note:$('#fo').value};
+    var b=this,fc=$('#fc'),body={kind:$('#fk').value,name:$('#fn').value,phone:$('#fp').value,amount:$('#fa').value,due:$('#fd').value,note:$('#fo').value,time:$('#fk').value==='appointment'?$('#ft').value:'',consent:!!(fc&&fc.checked)};
+    if(body.consent&&!body.phone.trim()){toast('Add their cell so we can text them.');return;}
     if(!body.name.trim()){toast('Add the customer\\u2019s name.');return;}
-    needName(function(by){body.by=by;b.disabled=true;post('followup',body).then(function(res){b.disabled=false;if(res.j.ok){close();S.followups=[res.j.followup].concat(S.followups||[]);toast('Added. We\\u2019ll remind you on the day.');render();}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
+    needName(function(by){body.by=by;b.disabled=true;post('followup',body).then(function(res){b.disabled=false;if(res.j.ok){close();S.followups=[res.j.followup].concat(S.followups||[]);toast(body.consent?'Added. We\\u2019ll text them for you.':'Added. We\\u2019ll remind you on the day.');render();}else toast(res.j.error||'Could not add. Try again.');}).catch(function(){b.disabled=false;toast('No connection. Try again.');});});
   };
 }
 function money(n){return '$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:2});}

@@ -60,6 +60,8 @@ export async function handleBooking(req, env, ctx, url) {
   if (!ok) return bookForm(c, open, T('cantBook'), v, lang, url);
   const need = 'Booked ' + slot.say + (reason ? ': ' + reason : '') + (email ? ' (' + email + ')' : '');
   await env.DB.prepare("INSERT INTO app_leads (client_id, at, name, phone, need, sms_ok, status, ip_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)").bind(c.client_id, new Date().toISOString(), name, phone, need, smsOk, ip).run();
+  // They ticked "text me": a confirmation now and a reminder the afternoon before, from the business's own number (autotext.js).
+  if (smsOk) ctx.waitUntil(import('./autotext.js').then(m => m.fromBooking(env, c.client_id, { name, phone, start: slot.start })).catch(() => {}));
   ctx.waitUntil(pushClient(env, c.client_id, { aps: { alert: { title: 'New booking: ' + name, body: need.slice(0, 300) }, sound: 'default', 'thread-id': 'leads' }, screen: 'home' }).catch(() => {}));
   return page(200, T('booked'), '<p>' + esc(T('bookedLine', { n: name.split(' ')[0], b: c.business, s: slot.say })) + '</p>', lang);
 }
@@ -191,11 +193,14 @@ export async function sendInvoiceReminder(env, c, it, text, mailer) {
 
 // ---------------- Facebook and Instagram ----------------
 export function metaReady(env) { return !!(env.META_APP_ID && env.META_APP_SECRET); }
+// Owners can connect only once Meta has approved the app (launch.js watches for it); before that, Meta refuses anyone
+// who isn't on the app's own team.
+async function metaLive(env) { try { return metaReady(env) && await (await import('./launch.js')).isOn(env, 'meta'); } catch (e) { return false; } }
 export async function ensureMeta(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta_pages (client_id TEXT PRIMARY KEY, page_id TEXT, page_name TEXT, page_token TEXT, ig_id TEXT, connected_at TEXT)').run();
 }
 export async function metaStatus(env, cid) {
-  if (!metaReady(env)) return { available: false, connected: false, page: '', instagram: false };
+  if (!(await metaLive(env))) return { available: false, connected: false, page: '', instagram: false };
   try { await ensureMeta(env); const r = await env.DB.prepare('SELECT page_name, ig_id FROM meta_pages WHERE client_id = ?1').bind(cid).first(); return { available: true, connected: !!r, page: r ? r.page_name || '' : '', instagram: !!(r && r.ig_id) }; }
   catch (e) { return { available: true, connected: false, page: '', instagram: false }; }
 }
@@ -208,6 +213,7 @@ export async function handleMeta(req, env, url) {
   if (!metaReady(env)) return msg('Coming soon', 'Facebook and Instagram posting is coming soon.', 404);
   await ensureMeta(env);
   const p = url.pathname;
+  if (p === '/meta/connect' && !(await metaLive(env))) return msg('Coming soon', 'Facebook and Instagram posting is coming soon. We’ll let you know in the app the day it’s ready.', 404);
   if (p === '/meta/connect') {
     const code = url.searchParams.get('code') || '';
     const c = code.length >= 24 ? await env.DB.prepare('SELECT client_id FROM app_clients WHERE code_hash = ?1 AND active = 1').bind(await sha256hex(code)).first() : null;
@@ -242,7 +248,7 @@ export async function handleMeta(req, env, url) {
 }
 // Only called after the owner approves a post that has a photo.
 export async function metaPublish(env, cid, text, photoUrl) {
-  if (!metaReady(env) || !photoUrl) return 'off';
+  if (!photoUrl || !(await metaLive(env))) return 'off';
   await ensureMeta(env);
   const m = await env.DB.prepare('SELECT * FROM meta_pages WHERE client_id = ?1').bind(cid).first();
   if (!m) return 'off';

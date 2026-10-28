@@ -21,6 +21,10 @@ export async function boardToken(env) {
   const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('ops-board-v1'));
   return [...new Uint8Array(sig)].slice(0, 20).map(b => b.toString(16).padStart(2, '0')).join('');
 }
+export async function boardOk(env, t) {
+  const want = await boardToken(env);
+  return !!(t && want && eq(String(t), want));
+}
 async function allowed(req, env, url, tok) {
   if (!env.LEADS_KEY) return false;
   const key = req.headers.get('x-key') || '';
@@ -38,8 +42,9 @@ const all = async (env, sql, ...p) => { try { return ((await env.DB.prepare(sql)
 // Returns [{ key, group, title, detail }] for what is still open.
 export async function boardItems(env) {
   await ensure(env);
+  try { await (await import('./gbp.js')).ensureGbp(env); await (await import('./provision.js')).ensureProvision(env); } catch (e) { /* queries below fall back to empty */ }
   const items = [];
-  const waiting = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, SUM(CASE WHEN i.kind = 'post' THEN 1 ELSE 0 END) AS posts, SUM(CASE WHEN i.kind != 'post' THEN 1 ELSE 0 END) AS replies FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.kind NOT IN ('invoice', 'reviewreq') AND i.client_id != ?1 AND LOWER(i.context || i.title) NOT LIKE '%yelp%' GROUP BY i.client_id", DEMO_ID);
+  const waiting = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, SUM(CASE WHEN i.kind = 'post' THEN 1 ELSE 0 END) AS posts, SUM(CASE WHEN i.kind != 'post' THEN 1 ELSE 0 END) AS replies FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.kind NOT IN ('invoice', 'reviewreq') AND i.client_id != ?1 AND LOWER(i.context || i.title) NOT LIKE '%yelp%' AND i.id NOT IN (SELECT item_id FROM gbp_posted WHERE ok = 1) GROUP BY i.client_id", DEMO_ID);
   for (const w of waiting) {
     const bits = [];
     if (+w.replies) bits.push(w.replies + (+w.replies === 1 ? ' reply' : ' replies'));
@@ -48,8 +53,10 @@ export async function boardItems(env) {
   }
   const yelp = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, COUNT(*) AS n FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.client_id != ?1 AND LOWER(i.context || i.title) LIKE '%yelp%' GROUP BY i.client_id", DEMO_ID);
   for (const y of yelp) items.push({ key: 'yelp:' + y.client_id + ':' + y.n, group: 'Yelp: replies to hand to the owner', title: y.biz, detail: y.n + (+y.n === 1 ? ' reply is' : ' replies are') + ' approved. The owner posts them, we never ask for Yelp reviews' });
-  const signups = await all(env, "SELECT client_id, business, plan, created FROM billing WHERE hq_synced = 0 AND status IN ('active', 'past_due') AND client_id != ?1 ORDER BY created DESC LIMIT 50", DEMO_ID);
-  for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups to adopt in HQ', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) });
+  const signups = await all(env, "SELECT b.client_id, b.business, b.plan, b.created, p.status AS line, p.number FROM billing b LEFT JOIN provision p ON p.client_id = b.client_id WHERE b.hq_synced = 0 AND b.status IN ('active', 'past_due') AND b.client_id != ?1 ORDER BY b.created DESC LIMIT 50", DEMO_ID);
+  for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups (the Always Open check adds them to HQ)', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) + '. Max’s line: ' + (s.line === 'live' ? 'live at ' + String(s.number || '').replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : (s.line || 'not started')) });
+  try { items.push(...await (await import('./provision.js')).provisionBoard(env)); } catch (e) {}
+  try { items.push(...await (await import('./gbp.js')).gbpBoard(env)); } catch (e) {}
   const failed = await all(env, "SELECT client_id, business, plan, updated FROM billing WHERE status = 'past_due' AND client_id != ?1 ORDER BY updated DESC LIMIT 50", DEMO_ID);
   for (const f of failed) items.push({ key: 'pay:' + f.client_id + ':' + String(f.updated || '').slice(0, 10), group: 'Failed payments', title: f.business || f.client_id, detail: (f.plan || '') + ' plan. Stripe is retrying and emailing them; a call from you may help' });
   const refs = await all(env, "SELECT r.id, COALESCE(a.business, r.referrer_id) AS referrer, COALESCE(d.business, r.referred_id) AS referred, r.created FROM referrals r LEFT JOIN app_clients a ON a.client_id = r.referrer_id LEFT JOIN app_clients d ON d.client_id = r.referred_id WHERE r.status = 'earned' AND r.note LIKE 'manual%' ORDER BY r.id LIMIT 50");
@@ -65,12 +72,17 @@ export async function boardItems(env) {
     const say = { submitted: 'sent, starting', in_review: 'with Twilio and the carriers', needs_fix: 'needs a fix from the owner', needs_help: 'no EIN: register as a sole proprietor by hand in Twilio', failed: 'stuck, look in Twilio' };
     for (const r of regs) items.push({ key: 'a2p:' + r.client_id + ':' + r.status + ':' + r.step, group: 'Texting registrations', title: r.biz, detail: (say[r.status] || r.status) + (r.step && r.status === 'in_review' ? ' (step: ' + r.step.replace('_', ' ') + ')' : '') + (r.error ? '. ' + r.error : '') });
   } catch (e) {}
+  let launch = { google: 'not checked yet', meta: 'not checked yet' }, gst = {};
+  try { const L = await import('./launch.js'); launch = await L.launchLines(env); gst = (await L.launchState(env)).google || {}; } catch (e) {}
+  if (!gst.on && (gst.state === 'needs_connect' || !gst.state) && !(await (await import('./gbp.js')).connected(env).catch(() => false))) {
+    items.push({ key: 'gbp-connect', group: 'One tap so the worker can watch Google', title: 'Connect Always Open’s Google account', detail: 'Open https://alwaysopenoffice.com/google/gbp-hq?t=' + (await boardToken(env)) + ' and sign in as hello@alwaysopenoffice.com (the account clients invite as Manager). The worker then checks every hour and turns everything on by itself the day Google approves' });
+  }
   const sys = [
     ['Twilio balance', await fundingStateLine(env)],
     ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],
-    ['Meta (Facebook and Instagram)', metaReady(env) ? 'keys are set' : 'keys not set yet'],
-    ['Google Business Profile API', env.GBP_ON ? 'on' : 'off, waiting for Google approval'],
+    ['Meta (Facebook and Instagram)', metaReady(env) ? launch.meta : 'keys not set yet'],
+    ['Google Business Profile API', launch.google],
     ['Competitor lookups (Google Places)', env.PLACES_KEY ? 'key is set' : 'key not set']
   ];
   for (const [n, st] of sys) items.push({ key: 'sys:' + n + ':' + st, group: 'Status of what you are waiting on', title: n, detail: st });

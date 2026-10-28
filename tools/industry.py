@@ -38,7 +38,7 @@ def build(key, d):
     s = rep(s, '<h2>Quotes don’t go quiet.</h2>', '<h2>' + d['q_h2'] + '</h2>')
     s = re.sub(r'<p class="lead">Most quotes aren’t turned down\..*?</p>', '<p class="lead">' + d['q_lead'] + '</p>', s, count=1, flags=re.S)
     s = re.sub(r'<div class="stage"><div class="mock" role="img" aria-label="Sample follow-up[^"]*">', '<div class="stage"><div class="mock" role="img" aria-label="' + d['q_aria'] + '">', s, count=1)
-    s = re.sub(r'<div class="fu">.*?<small>Sent from your phone</small></div>', d['q_mock'], s, count=1, flags=re.S)
+    s = re.sub(r'<div class="fu">.*?<small>Sent from your phone, or by us for you</small></div>', d['q_mock'], s, count=1, flags=re.S)
     # finished jobs
     s = rep(s, '<h2>Finished jobs turn into reviews and posts.</h2>', '<h2>' + d['f_h2'] + '</h2>')
     s = re.sub(r'<div class="ask"><b>Finished a job</b>.*?</div></div>\n    </div>\n  </div>\n</section>', d['f_mock'] + '</div></div>\n    </div>\n  </div>\n</section>', s, count=1, flags=re.S)
@@ -66,6 +66,10 @@ def build(key, d):
         s = re.sub(r'\s*<li><svg aria-hidden="true"><use href="#chk"/></svg><span>A caller needs the electrician[^<]*</span></li>', '', s)
     for a, b in d.get('extra', []):
         s = rep(s, a, b)
+    if d.get('regulated'):
+        # regulated businesses never hand us customer data, so nothing is texted for them by us
+        s = s.replace('<small>Sent from your phone, or by us for you</small>', '<small>Sent from your phone</small>')
+        s = s.replace(' If they said yes to texts, we send it for you from your business number.', '')
     # nav wording
     s = rep(s, '<a href="#quotes">Quotes</a>', '<a href="#quotes">' + d['nav_q'] + '</a>')
     s = rep(s, '<a href="#finished">Finished jobs</a>', '<a href="#finished">' + d['nav_f'] + '</a>')
@@ -100,7 +104,7 @@ PAGES = {
   calls_h2='Every call answered, even when you’re in an attic.', takes='the address, the system and what it’s doing', urgent='no cooling in July or no heat in January', books='the service call',
   log_aria='Sample lead log for a made-up HVAC company: a no-cooling call taken by Max, a system estimate followed up, a booked maintenance visit, and a hang-up that got a text back.',
   log_rows='\n'.join([row('r', 'No cooling · Dana Reyes', 'Max took the call, 6:04 PM Tue', 'red', 'New'), row('w', 'System estimate · the Parkers', 'Follow-up due today', 'warn', 'Due'), row('', 'Fall tune-up · J. Ortiz', 'Thursday, 8:00 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
-  nav_q='Estimates', nav_f='Finished jobs', q_h2='Estimates don’t go quiet.', q_lead='Most system estimates aren’t turned down. They’re forgotten while the window unit limps along. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written.',
+  nav_q='Estimates', nav_f='Finished jobs', q_h2='Estimates don’t go quiet.', q_lead='Most system estimates aren’t turned down. They’re forgotten while the window unit limps along. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
   q_aria='Sample follow-up in the Always Open app: an estimate for the Parkers, $7,900, due today, with a drafted text ready to send.',
   q_mock=fu('Estimate', 'Due today', 'The Parkers', '$7,900', '3-ton system, replace furnace and coil', ['Text them', 'Call'], 'Hi Lynn, this is Sam with Sample Heating and Air. Checking in on the estimate for the new system. Any questions I can answer?'),
   f_h2='Finished jobs turn into reviews and posts.',
@@ -119,7 +123,7 @@ PAGES = {
   calls_h2='Every call answered, even when you’re under a sink.', takes='the address and what’s going on', urgent='a burst pipe or a sewer backup', books='the service call',
   log_aria='Sample lead log for a made-up plumber: a burst water heater call taken by Max, a repipe estimate followed up, a booked drain cleaning, and a hang-up that got a text back.',
   log_rows='\n'.join([row('r', 'Water heater · Marcus Hill', 'Max took the call, 11:12 PM Sun', 'red', 'New'), row('w', 'Repipe estimate · the Nguyens', 'Follow-up due today', 'warn', 'Due'), row('', 'Drain cleaning · J. Ortiz', 'Thursday, 8:00 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
-  nav_q='Estimates', nav_f='Finished jobs', q_h2='Estimates don’t go quiet.', q_lead='Most estimates aren’t turned down. They’re forgotten. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written.',
+  nav_q='Estimates', nav_f='Finished jobs', q_h2='Estimates don’t go quiet.', q_lead='Most estimates aren’t turned down. They’re forgotten. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
   q_aria='Sample follow-up in the Always Open app: an estimate for the Nguyens, $4,200, due today, with a drafted text ready to send.',
   q_mock=fu('Estimate', 'Due today', 'The Nguyens', '$4,200', 'Repipe, two baths and kitchen', ['Text them', 'Call'], 'Hi Anh, this is Sam with Sample Plumbing. Checking in on the estimate for the repipe. Any questions I can answer?'),
   f_h2='Finished jobs turn into reviews and posts.',
@@ -165,7 +169,7 @@ PAGES = {
   calls_h2='Every call answered, even with your hands in an engine bay.', takes='the year, make and what the car is doing', urgent='someone stranded on the road', books='the drop-off',
   log_aria='Sample lead log for a made-up repair shop: a no-start call taken by Max, a brake estimate followed up, a booked oil change, and a hang-up that got a text back.',
   log_rows='\n'.join([row('r', 'Won’t start · Priya Shah', 'Max took the call, 3:05 PM Tue', 'red', 'New'), row('w', 'Brakes estimate · D. Brooks', 'Follow-up due today', 'warn', 'Due'), row('', 'Oil and tires · J. Ortiz', 'Thursday, 8:00 AM', 'ok', 'Booked'), row('', 'Missed call · 706-555-0177', 'Hung up; texted back in seconds', 'ok', 'Texted')]),
-  nav_q='Estimates', nav_f='Finished repairs', q_h2='Estimates don’t go quiet.', q_lead='Most estimates aren’t turned down. They’re driven on for another month. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written.',
+  nav_q='Estimates', nav_f='Finished repairs', q_h2='Estimates don’t go quiet.', q_lead='Most estimates aren’t turned down. They’re driven on for another month. Add the estimate in the app and pick a day. That morning your phone reminds you, and the text is already written. If they said yes to texts, we send it for you from your business number.',
   q_aria='Sample follow-up in the Always Open app: an estimate for D. Brooks, $1,450, due today, with a drafted text ready to send.',
   q_mock=fu('Estimate', 'Due today', 'D. Brooks', '$1,450', 'Front brakes and rotors, 2014 F-150', ['Text them', 'Call'], 'Hi Dan, this is Sam at Sample Auto. Checking in on the estimate for the brakes and rotors. Any questions I can answer?'),
   f_h2='Finished repairs turn into reviews and posts.',

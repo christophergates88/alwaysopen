@@ -51,7 +51,7 @@ export async function helpPage(env, c, which, back) {
     let line = null;
     try { line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first(); } catch (e) { line = null; }
     const n = line ? ten(line.number) : '';
-    if (!n) return shell('Send your missed calls to Max', '<h1>Send your missed calls to Max</h1><p class="sub">Max’s line isn’t set up for you yet. We set it up within two business days and send you the number, with these steps.</p>', back);
+    if (!n) return shell('Send your missed calls to Max', '<h1>Send your missed calls to Max</h1><p class="sub">Max’s number for you is being set up right now. Open this page again in a few minutes and his number and the steps for your phone are here.</p>', back);
     return shell('Send your missed calls to Max', '<h1>Send your missed calls to Max</h1><p class="sub">Max’s number for you is <b>' + esc(pretty(n)) + '</b>. These steps send him the calls you don’t answer. Your phone still rings first.</p>' +
       CARRIERS(n).map(x => '<div class="card"><h2>' + x.name + '</h2><ol>' + x.steps.map(s => '<li>' + s + '</li>').join('') + '</ol></div>').join('') +
       '<div class="card"><h2>Android</h2><p>Most Android phones can do this in the Phone app: menu, Settings, Call forwarding, then set “When unanswered” to <b>' + esc(pretty(n)) + '</b>. The menu names change a little by phone.</p></div>' +
