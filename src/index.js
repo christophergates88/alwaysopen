@@ -44,6 +44,33 @@ export default {
     }
     if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
     if (path === '/api/map') return handleMapApi(req, env, url, ctx);
+    if (path === '/ops/twilio-setup') {
+      // Points every Always Open number's "A message comes in" at our webhook and adds it to the Messaging Service, so replies and STOP reach us.
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return json({ ok: false, error: 'Twilio keys missing' }, 400);
+      const auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), base = 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID;
+      const nums = ((await env.DB.prepare('SELECT number, business FROM voice_lines').all()).results) || [];
+      const out = [];
+      for (const n of nums) {
+        const row = { number: n.number, business: n.business || '' };
+        try {
+          const l = await fetch(base + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(n.number), { headers: { authorization: auth } }).then(r => r.json());
+          const pn = l.incoming_phone_numbers && l.incoming_phone_numbers[0];
+          if (!pn) { row.result = 'not in this Twilio account'; out.push(row); continue; }
+          const u = await fetch(base + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ SmsUrl: 'https://alwaysopenoffice.com/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST' }).toString() });
+          row.webhook = u.ok ? 'set' : 'failed ' + u.status;
+          if (env.TWILIO_MESSAGING_SID) {
+            const m = await fetch('https://messaging.twilio.com/v1/Services/' + env.TWILIO_MESSAGING_SID + '/PhoneNumbers', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ PhoneNumberSid: pn.sid }).toString() });
+            const mj = await m.json().catch(() => ({}));
+            row.senderPool = m.ok ? 'added' : (mj.code === 21712 || /already/i.test(mj.message || '') ? 'already there' : 'failed: ' + String(mj.message || m.status).slice(0, 80));
+          }
+        } catch (e) { row.result = 'error'; }
+        out.push(row);
+      }
+      return json({ ok: true, numbers: out }, 200);
+    }
     if (path === '/ops/text-test') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
