@@ -422,6 +422,7 @@ async function apiState(env, c, ctx) {
     out.live = rows.map(r => ({ id: r.id, at: r.at, numberText: fmtNum(r.caller || ''), name: r.caller_name || '', heard: r.heard || '', said: r.said || '', turns: +r.turns || 0, updated: r.updated || r.at }));
   } catch (e) { out.live = []; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
+  try { out.after = (line && !c.staff && !+c.regulated) ? await afterState(env, cid, line) : null; } catch (e) { out.after = null; }
   try { out.maxStats = (f.calls && line) ? await (await import('./grades.js')).ownerStats(env, cid) : null; } catch (e) { out.maxStats = null; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
@@ -493,6 +494,15 @@ export function withOwner(row) {
 }
 function fmtNum(e) { return /^\+1\d{10}$/.test(e || '') ? '(' + e.slice(2, 5) + ') ' + e.slice(5, 8) + '-' + e.slice(8) : ''; }
 function greetOk(g) { const t = oneLine(String(g || '')); return t.length >= 20 && t.length <= 320 && /\b(AI|SI|S\.I)\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t); }
+// The "After the call" card: three switches, and whether texts can go out yet (one answer for every text feature).
+async function afterState(env, cid, line) {
+  const o = parse(line.owner_set) || {};
+  const { checkinsOn } = await import('./checkin.js');
+  const { senderFor, TEXTING_ON, textingReady } = await import('./sms.js');
+  let canText = false;
+  try { canText = !!(TEXTING_ON && textingReady(env) && await senderFor(env, cid)); } catch (e) { canText = false; }
+  return { promise: o.callbacksOff !== true, textback: o.textback !== false, checkins: await checkinsOn(env, cid), canText };
+}
 function lineOut(raw, c) {
   if (!raw) return null;
   const l = withOwner(raw), f = parse(l.facts) || {};
@@ -528,6 +538,19 @@ async function apiLine(req, env, ctx, c) {
     if (!o.pending) return aj({ ok: true, unchanged: true, line: lineOut(raw, c) });
     const r = applyPending(o, b.action === 'keep-facts');
     changes.push(...r.changes);
+  }
+  if (b.after && typeof b.after === 'object' && !+raw.regulated) {
+    // "After the call": promise a call-back time, text after a missed call, check in a few days after a job.
+    if (typeof b.after.promise === 'boolean' && b.after.promise === (o.callbacksOff === true)) { if (b.after.promise) delete o.callbacksOff; else o.callbacksOff = true; changes.push(b.after.promise ? 'Max promises a call-back time' : 'Max no longer promises a call-back time'); }
+    if (typeof b.after.textback === 'boolean' && b.after.textback === (o.textback === false)) { if (b.after.textback) delete o.textback; else o.textback = false; changes.push(b.after.textback ? 'texts back after a missed call' : 'no text after a missed call'); }
+    if (typeof b.after.checkins === 'boolean') {
+      const { checkinsOn, ensureCheckins } = await import('./checkin.js');
+      if ((await checkinsOn(env, c.client_id)) !== b.after.checkins) {
+        await ensureCheckins(env);
+        await env.DB.prepare('INSERT INTO checkin_prefs (client_id, on_, updated) VALUES (?1,?2,?3) ON CONFLICT(client_id) DO UPDATE SET on_ = excluded.on_, updated = excluded.updated').bind(c.client_id, b.after.checkins ? 1 : 0, new Date().toISOString()).run();
+        changes.push(b.after.checkins ? 'check-in calls on' : 'check-in calls off');
+      }
+    }
   }
   if (b.booking && typeof b.booking === 'object' && !+raw.regulated) {
     const nb = cleanBooking(b.booking, o.book);

@@ -59,18 +59,31 @@ export function spokenTime(hh, mm) {
 
 // Propose the next time the owner can call: after "busy until" if the owner set one today, else the next quarter hour at least
 // 45 minutes out, inside 8 AM to 6 PM local; past that, 9:15 the next morning.
-export function proposeSlot(tz, now, busyUntil) {
+export function proposeSlot(tz, now, busyUntil, hours) {
+  // `hours` (optional): the business's open hours by weekday, { Mon: [openMinute, closeMinute], ... }. Without it, 8 AM to 6 PM.
   const l = local(tz, now);
-  let day = l.day, mins = l.hour * 60 + l.minute + 45;
+  const win = wd => hours ? (hours[wd] || null) : [8 * 60, 18 * 60];
+  const first = w => hours ? w[0] + 15 : 9 * 60 + 15;
+  let day = l.day, wd = l.wd, ahead = 0, mins = l.hour * 60 + l.minute + 45;
   if (busyUntil && busyUntil.day === day) { const bu = busyUntil.hh * 60 + busyUntil.mm + 15; if (bu > mins) mins = bu; }
   mins = Math.ceil(mins / 15) * 15;
-  let tomorrow = false;
-  if (mins < 8 * 60) mins = 9 * 60 + 15;
-  if (mins > 18 * 60) { tomorrow = true; mins = 9 * 60 + 15; }
-  if (tomorrow) { const d = new Date(Date.parse(day + 'T12:00:00Z') + 864e5); day = d.toISOString().slice(0, 10); }
+  let w = win(wd);
+  if (w && mins < w[0]) mins = first(w);
+  while (!w || mins > w[1] - (hours ? 30 : 0)) {
+    if (++ahead > 7) { ahead = 1; w = [8 * 60, 18 * 60]; mins = 9 * 60 + 15; day = new Date(Date.parse(l.day + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10); break; }
+    day = new Date(Date.parse(day + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+    wd = WDAY[new Date(Date.parse(day + 'T12:00:00Z')).getUTCDay()];
+    w = win(wd);
+    if (w) mins = first(w);
+  }
   const hh = Math.floor(mins / 60), mm = mins % 60;
-  return { day, hh, mm, at: fromLocal(tz, day, hh, mm), text: sayTime(hh, mm), spoken: spokenTime(hh, mm) + (tomorrow ? ' tomorrow' : ''), tomorrow };
+  const when = ahead === 0 ? '' : (ahead === 1 ? ' tomorrow' : ' on ' + WDAY_LONG[WDAY.indexOf(wd)]);
+  let spoken = spokenTime(hh, mm);
+  if (ahead) spoken = spoken.replace('this afternoon', 'in the afternoon').replace('this evening', 'in the evening');
+  return { day, hh, mm, at: fromLocal(tz, day, hh, mm), text: sayTime(hh, mm), spoken: spoken + when, tomorrow: ahead === 1, ahead };
 }
+const WDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function busyFromLine(line, tz) {
   try { const o = JSON.parse(line.owner_set || '{}'); const b = o.busyUntil; if (b && b.day === local(tz, Date.now()).day && /^\d{1,2}:\d{2}$/.test(b.v)) { const [hh, mm] = b.v.split(':').map(Number); return { day: b.day, hh, mm }; } } catch (e) {}
@@ -83,7 +96,10 @@ export async function slotForLine(env, line) {
   if (!line || callbacksOff(line)) return null;
   const tz = await tzFor(env, line.client_id);
   const busy = busyFromLine(line, tz);
-  const s = proposeSlot(tz, Date.now(), busy);
+  // Inside the business's own hours (what the owner set for booking, or read from their hours).
+  let hours = null;
+  try { hours = (await import('./availability.js')).bookingOf(line).days; } catch (e) { hours = null; }
+  const s = proposeSlot(tz, Date.now(), busy, hours);
   return Object.assign(s, { busyText: busy ? 'on a job until ' + sayTime(busy.hh, busy.mm) : 'out on a job right now' });
 }
 

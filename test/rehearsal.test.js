@@ -539,6 +539,30 @@ test('Max books a visit with no calendar connected: the owner gets a job with th
   assert.match(world.texts.at(-1).Body, /penciled in/);
 });
 
+test('after the call: one card with three switches, check-ins on by default for a plumber, and an on-the-way text from the job card', async () => {
+  let st = (await site.call(A('/api/state'))).json();
+  assert.deepEqual(st.after, { promise: true, textback: true, checkins: true, canText: true }, 'a plumber starts with all three on');
+  const off = await site.call(A('/api/line'), { json: { after: { promise: false, checkins: false }, by: 'Dana' } });
+  assert.equal(off.status, 200, off.text);
+  st = (await site.call(A('/api/state'))).json();
+  assert.deepEqual(st.after, { promise: false, textback: true, checkins: false, canText: true });
+  // With call-back promises off, Max is not given a time to promise.
+  const c = await startCall('+14785550171'); await openRoom(c.sid, '+14785550171');
+  assert.equal(wsOf(c.sid).store.get('s').line.cbSlot, undefined);
+  await hook('after', { CallSid: c.sid, SessionDuration: '3', SessionStatus: 'ended' }); await site.settle();
+  await site.call(A('/api/line'), { json: { after: { promise: true, checkins: true }, by: 'Dana' } });
+  const c2 = await startCall('+14785550172'); await openRoom(c2.sid, '+14785550172');
+  assert.ok(wsOf(c2.sid).store.get('s').line.cbSlot, 'back on: Max has a call-back time inside the business hours');
+  await hook('after', { CallSid: c2.sid, SessionDuration: '3', SessionStatus: 'ended' }); await site.settle();
+  // On the way: a booked job with a number gets one text from the business.
+  const job = await get("SELECT id FROM biz_jobs WHERE client_id = ?1 AND phone = '+14785550163'", cid);
+  await site.call(A('/api/work'), { json: { action: 'stage', id: job.id, stage: 'booked', by: 'Dana' } });
+  const ow = await site.call(A('/api/work'), { json: { action: 'onway', id: job.id, by: 'Dana', minutes: 20 } });
+  assert.equal(ow.status, 200, ow.text);
+  assert.equal(world.texts.at(-1).To, '+14785550163');
+  assert.equal(world.texts.at(-1).Body, 'Dana from Sinclair Plumbing is on the way, about 20 minutes out. Reply STOP to end texts.');
+});
+
 test('peek: what the Home screen gets for the map and the upgrades', async t => {
   const st = (await site.call(A('/api/state'))).json();
   t.diagnostic('map: ' + JSON.stringify(st.map));

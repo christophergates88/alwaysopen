@@ -646,6 +646,7 @@ function vMax(){
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     h+=teachCard(L);
     if(L.booking)h+=bookCard(L);
+    if(S.after)h+=afterCard(L);
   } else h+='<p class="lede">Calls your phone line answered.</p>';
   if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p><p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p></div>':
     '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
@@ -665,6 +666,15 @@ function bookCard(L){
     row('wk','Weekdays',wk)+row('sat','Saturday',d.Sat)+row('sun','Sunday',d.Sun)+
     '<p class="fine">'+esc(L.name)+' offers two times at a time, at least two hours out, and never the same time twice.'+(cal.connected?' Your Google Calendar is connected, so busy times there are skipped too.':' Connect Google Calendar (optional) so '+esc(L.name)+' never double-books with your own plans.')+'</p>'+
     '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
+}
+function afterCard(L){
+  var A=S.after;
+  var sw=function(k,title,sub){return '<div class="sw"><div><b>'+title+'</b><span>'+sub+'</span></div><button class="switch" type="button" role="switch" aria-checked="'+(A[k]?'true':'false')+'" data-a="after-'+k+'" aria-label="'+title+'"><i></i></button></div>';};
+  return '<h2>After the call</h2><div class="card">'+
+    sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
+    sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.')+
+    sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.')+
+    (A.canText?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>';
 }
 function bookSave(){
   var days={},on=function(id){var c=$('#bk-'+id+'-on');return c&&c.checked;},span=function(id){return [mins($('#bk-'+id+'-o').value),mins($('#bk-'+id+'-c').value)];};
@@ -912,6 +922,7 @@ document.addEventListener('click',function(e){
   else if(a==='gcal-off'){fetch('/google/disconnect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:BASE.split('/').pop()})}).then(function(){S.calendar={connected:false};render();toast('Calendar disconnected.');});}
   else if(a==='facts-save')factsSave();
   else if(a==='bk-save')bookSave();
+  else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});

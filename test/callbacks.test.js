@@ -30,3 +30,19 @@ test('no outbound calls between 9 PM and 8 AM', () => {
   assert.equal(callHoursOk(tz, at('2026-10-28', 8, 0)), true);
 });
 test('times read like people say them', () => { assert.equal(sayTime(15, 15), '3:15 PM'); assert.equal(sayTime(9, 0), '9 AM'); });
+
+test('call-back times stay inside the business’s own hours and name the day', () => {
+  const wk = { Mon: [480, 1020], Tue: [480, 1020], Wed: [480, 1020], Thu: [480, 1020], Fri: [480, 1020] };
+  // Friday Oct 30, 4:50 PM: past the last half hour, so Monday 8:15 AM
+  const fri = proposeSlot(tz, at('2026-10-30', 16, 50), null, wk);
+  assert.equal(fri.day, '2026-11-02'); assert.equal(fri.text, '8:15 AM'); assert.equal(fri.ahead, 3);
+  assert.match(fri.spoken, / on Monday$/);
+  // Thursday 4:50 PM: Friday morning, said as tomorrow
+  const thu = proposeSlot(tz, at('2026-10-29', 16, 50), null, wk);
+  assert.equal(thu.day, '2026-10-30'); assert.equal(thu.tomorrow, true); assert.match(thu.spoken, /tomorrow$/);
+  // A Saturday shop: Saturday 9 AM gives 9:45, inside its hours
+  const sat = proposeSlot(tz, at('2026-10-31', 9, 0), null, { Sat: [480, 720] });
+  assert.equal(sat.day, '2026-10-31'); assert.equal(sat.text, '9:45 AM');
+  // Without hours, the old 8 to 6 day stands
+  assert.equal(proposeSlot(tz, at('2026-10-28', 18, 30), null).tomorrow, true);
+});

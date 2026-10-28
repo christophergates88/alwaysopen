@@ -170,6 +170,17 @@ export async function apiWork(req, env, c) {
     }
     return aj({ ok: !!r.meta.changes });
   }
+  if (b.action === 'onway') {
+    // "I'm on the way": one text from the business's own number.
+    const j = await env.DB.prepare('SELECT * FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first();
+    const d = String((j && j.phone) || '').replace(/\D/g, '').slice(-10);
+    if (!j || d.length !== 10) return aj({ ok: false, error: 'That job has no phone number to text.' }, 400);
+    const who = cl(b.by, 40) || c.owner_first || 'We';
+    const mins = Math.round(+b.minutes || 0);
+    const { sendText } = await import('./sms.js');
+    const r = await sendText(env, { clientId: c.client_id, to: '+1' + d, kind: 'onway', body: who + ' from ' + (c.business || 'us') + ' is on the way' + (mins >= 5 && mins <= 240 ? ', about ' + mins + ' minutes out.' : '.') + ' Reply STOP to end texts.' });
+    return aj(r.ok ? { ok: true, message: 'Texted ' + (j.name || 'them') + '.' } : { ok: false, error: /registered|not set up|texting/.test(r.why || '') ? 'Texting turns on once your texting registration is approved.' : (r.why === 'opted out' ? 'They asked not to get texts.' : 'Could not send. Try again.') }, r.ok ? 200 : 409);
+  }
   if (b.action === 'cancel-booking') {
     // A visit Max booked from a call: the time opens up again, the job goes back to new, and the customer is told (when texting is on).
     const j = await env.DB.prepare("SELECT * FROM biz_jobs WHERE id = ?1 AND client_id = ?2").bind(id, c.client_id).first();

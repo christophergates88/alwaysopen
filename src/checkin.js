@@ -23,7 +23,13 @@ export async function ensureCheckins(env) {
 export async function checkinsOn(env, cid) {
   await ensureCheckins(env);
   const r = await env.DB.prepare('SELECT on_ FROM checkin_prefs WHERE client_id = ?1').bind(cid).first().catch(() => null);
-  return !!(r && +r.on_);
+  if (r) return !!+r.on_;
+  // Nobody chose yet: on for trades (a call a few days after the job), never for regulated businesses. Each customer still
+  // has to agree to the call when the job is logged.
+  const l = await env.DB.prepare('SELECT industry, regulated FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null);
+  if (!l || +l.regulated) return false;
+  const { isTrade } = await import('./trades.js');
+  return isTrade(l.industry);
 }
 
 // App: POST /api/checkins { on: bool }
@@ -108,7 +114,7 @@ export async function checkinGather(env, url, form) {
     await env.DB.prepare("UPDATE checkins SET status = 'yes', result = 'held up', done_at = ?1 WHERE id = ?2").bind(now, id).run();
     let tail = 'Glad to hear it. Thank you. Goodbye.';
     const link = /^https:\/\//.test(r.review_link || '') ? r.review_link : '';
-    if (link && TEXTING_ON) {
+    if (link && TEXTING_ON && !(await askedForReview(env, r.client_id, r.phone))) {
       const t = await sendText(env, { clientId: r.client_id, to: r.phone, kind: 'review', body: (r.first ? r.first + ', thanks' : 'Thanks') + ' for letting ' + (r.business || 'us') + ' help. If you have a minute, a quick Google review means a lot: ' + link + ' Reply STOP to end texts.' });
       if (t.ok) { tail = 'Glad to hear it. A link to leave a quick review is on its way by text, if you have a minute. Thank you. Goodbye.'; await env.DB.prepare("UPDATE checkins SET note = 'review link texted' WHERE id = ?1").bind(id).run(); }
     }
@@ -136,4 +142,12 @@ export async function checkinState(env, cid) {
   for (const r of rows) if (c[r.status] != null) c[r.status] = +r.n;
   const line = c.yes + c.no + c.noanswer ? 'Check-ins this month: ' + c.yes + ' held up' + (c.no ? ', ' + c.no + ' needed a second visit' : '') + (c.noanswer ? ', ' + c.noanswer + ' could not be reached' : '') + '.' : '';
   return { on, month: c, line };
+}
+
+// Already asked this customer for a review lately (by the finished-job email, or by text)? Then a good check-in doesn't ask again.
+async function askedForReview(env, cid, phone) {
+  const p10 = String(phone || '').replace(/\D/g, '').slice(-10), since = new Date(Date.now() - 60 * 864e5).toISOString();
+  try { const a = await env.DB.prepare("SELECT 1 AS x FROM sms_log WHERE client_id = ?1 AND to10 = ?2 AND kind = 'review' AND status = 'sent' AND at > ?3 LIMIT 1").bind(cid, p10, since).first(); if (a) return true; } catch (e) {}
+  try { const b = await env.DB.prepare("SELECT 1 AS x FROM biz_reviewreq q JOIN biz_customers c ON c.client_id = q.client_id AND c.ckey = q.ckey WHERE q.client_id = ?1 AND c.phone10 = ?2 AND q.status = 'sent' AND q.sent_at > ?3 LIMIT 1").bind(cid, p10, since).first(); if (b) return true; } catch (e) {}
+  return false;
 }
