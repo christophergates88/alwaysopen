@@ -6,9 +6,8 @@
 //           The check reads that account's business accounts: Google refuses with a quota error until access is approved.
 //   meta:   reads the app's approved permissions with the app's own token; on once pages_manage_posts is live.
 // GBP_ON or META_ON in the worker's settings force a switch on, for testing or if a check ever misreads.
-const late = p => import(p);
-const pushOps = async (...a) => { try { return await (await late('./app.js')).opsPing(...a); } catch (e) { return 0; } };
-const mailOps = async (...a) => { try { return await (await late('./app.js')).mailOwner(...a); } catch (e) { return 'off'; } };
+const pushOps = async (...a) => { try { return await (await import('./app.js')).opsPing(...a); } catch (e) { return 0; } };
+const mailOps = async (...a) => { try { return await (await import('./app.js')).mailOwner(...a); } catch (e) { return 'off'; } };
 
 export const FEATURES = ['google', 'meta'];
 const HOUR = 3600e3;
@@ -63,7 +62,7 @@ export function readGoogle(status, body) {
   return { state: 'error', detail: 'Google answered ' + status + '.' };
 }
 async function checkGoogle(env) {
-  const gbp = await late('./gbp.js');
+  const gbp = await import('./gbp.js');
   const tok = await gbp.accessToken(env, gbp.AGENCY).catch(() => null);
   if (!tok) return { state: 'needs_connect', detail: 'Connect Always Open’s Google account once from the HQ board so the worker can tell when Google approves.' };
   const r = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts?pageSize=20', { headers: { authorization: 'Bearer ' + tok } });
@@ -95,11 +94,11 @@ async function turnedOn(env, k, detail) {
   await pushOps(env, title, body + (detail ? '\n' + detail : ''), 'high', 'tada');
   await mailOps(env, title, body + (detail ? '\n\n' + detail : ''));
   if (k === 'meta') await tellOwners(env).catch(() => {});
-  if (k === 'google') { try { await (await late('./gbp.js')).mapLocations(env); } catch (e) { /* the hourly pass maps them */ } }
+  if (k === 'google') { try { await (await import('./gbp.js')).mapLocations(env); } catch (e) { /* the hourly pass maps them */ } }
 }
 // Owners on a plan with photo posts hear about Facebook and Instagram once.
 async function tellOwners(env) {
-  const { pushClient } = await late('./app.js');
+  const { pushClient } = await import('./app.js');
   const rows = ((await env.DB.prepare("SELECT client_id FROM app_clients WHERE active = 1 AND regulated = 0 AND tier IN ('Growth', 'Pro')").all()).results) || [];
   for (const r of rows) await pushClient(env, r.client_id, { aps: { alert: { title: 'Facebook and Instagram are ready', body: 'Connect your Page in the app and every photo post you approve goes there too.' }, sound: 'default' }, screen: 'settings' }).catch(() => {});
 }
@@ -111,7 +110,8 @@ export async function launchCron(env, opts) {
   const out = {};
   for (const k of FEATURES) {
     if (st[k].on && st[k].state === 'live') { out[k] = 'on'; continue; }
-    if (!(opts && opts.force) && st[k].checked && Date.now() - Date.parse(st[k].checked) < HOUR - 5 * 60e3) { out[k] = 'checked lately'; continue; }
+    const gap = st[k].state === 'error' ? 9 * 60e3 : HOUR - 5 * 60e3;   // a failed check is tried again on the next pass
+    if (!(opts && opts.force) && st[k].checked && Date.now() - Date.parse(st[k].checked) < gap) { out[k] = 'checked lately'; continue; }
     let r;
     try { r = k === 'google' ? await checkGoogle(env) : await checkMeta(env); } catch (e) { r = { state: 'error', detail: String((e && e.message) || e).slice(0, 160) }; }
     const was = st[k].on;

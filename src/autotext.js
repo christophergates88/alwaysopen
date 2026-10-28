@@ -6,7 +6,6 @@
 // and the number hasn't opted out. Owner-added follow-ups come with Pro; booking-page confirmations come with every plan.
 // Otherwise nothing changes: the owner gets the reminder with the text written, and sends it from their own phone.
 // Every text names the business and says how to stop. Daytime only, in the business's time zone.
-const late = p => import(p);
 
 let ready = false;
 export async function ensureAuto(env) {
@@ -20,9 +19,9 @@ export async function ensureAuto(env) {
 // Can we text this business's customers for it right now?
 export async function autoReady(env, c, booking) {
   if (!c || +c.regulated) return false;
-  const { TEXTING_ON, senderFor } = await late('./sms.js');
+  const { TEXTING_ON, senderFor } = await import('./sms.js');
   if (!TEXTING_ON || !(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return false;
-  if (!booking) { const { features } = await late('./app.js'); if (!features(c).followups) return false; }
+  if (!booking) { const { features } = await import('./app.js'); if (!features(c).followups) return false; }
   return !!(await senderFor(env, c.client_id).catch(() => null));
 }
 
@@ -80,8 +79,8 @@ export async function autoCron(env, at) {
   const now = at || Date.now();
   const rows = ((await env.DB.prepare("SELECT f.*, c.business, c.regulated, c.tier, c.feats, c.active FROM app_followups f JOIN app_clients c ON c.client_id = f.client_id WHERE f.status = 'open' AND f.consent = 1 AND f.phone != '' AND c.active = 1 AND ((f.kind = 'appointment' AND (f.auto_conf = '' OR f.auto_rem = '')) OR (f.kind IN ('quote', 'invoice') AND f.auto_fu = '' AND f.due != '')) ORDER BY f.id LIMIT 60").all()).results) || [];
   if (!rows.length) return { sent: 0 };
-  const { tzFor, local } = await late('./callbacks.js');
-  const { sendText } = await late('./sms.js');
+  const { tzFor, local } = await import('./callbacks.js');
+  const { sendText } = await import('./sms.js');
   const okFor = {}, tzOf = {};
   let sent = 0;
   const told = {};
@@ -109,7 +108,7 @@ export async function autoCron(env, at) {
     else await env.DB.prepare('UPDATE app_followups SET ' + col + ' = ?1 WHERE id = ?2').bind('skip:' + String(r.why || 'failed').slice(0, 60), x.id).run();
   }
   if (Object.keys(told).length) {
-    const { pushClient } = await late('./app.js');
+    const { pushClient } = await import('./app.js');
     for (const cid of Object.keys(told)) {
       const list = told[cid];
       await pushClient(env, cid, { aps: { alert: { title: list.length === 1 ? 'We texted for you' : 'We sent ' + list.length + ' texts for you', body: 'Sent: ' + list.join(', ') + '. Replies land in your inbox.' }, sound: 'default', 'thread-id': 'followups' }, screen: 'home' }).catch(() => {});
@@ -123,7 +122,7 @@ export async function fromBooking(env, cid, o) {
   await ensureAuto(env);
   const p = String(o.phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(p)) return;
-  const { tzFor, local } = await late('./callbacks.js');
+  const { tzFor, local } = await import('./callbacks.js');
   const tz = await tzFor(env, cid), day = local(tz, o.start).day, now = new Date().toISOString();
   await env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, hq_synced, reminded, appt_at) VALUES (?1, 'appointment', ?2, ?3, '', ?4, 'Booked online', 1, 'open', ?5, 'Booking page', 0, 'booking', ?6)")
     .bind(cid, String(o.name || '').slice(0, 60), p, day, now, new Date(o.start).toISOString()).run();

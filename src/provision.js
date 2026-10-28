@@ -7,7 +7,6 @@
 const SITE = 'https://alwaysopenoffice.com';
 const TW = 'https://api.twilio.com/2010-04-01/Accounts/';
 const MAX_TRIES = 6, RELEASE_DAYS = 60;
-const late = p => import(p);
 
 let ready = false;
 export async function ensureProvision(env) {
@@ -75,7 +74,7 @@ export async function provisionLine(env, cid) {
     await env.DB.prepare("UPDATE provision SET status = 'failed', error = ?1, updated = ?2 WHERE client_id = ?3").bind(String(why).slice(0, 300), new Date().toISOString(), cid).run().catch(() => null);
     const r = await env.DB.prepare('SELECT tries FROM provision WHERE client_id = ?1').bind(cid).first().catch(() => null);
     const tries = r ? +r.tries : 0;
-    if (tries === 2 || tries === MAX_TRIES) { try { await (await late('./app.js')).opsPing(env, 'Always Open: could not set up Max’s line', 'For ' + ((b && b.business) || cid) + ': ' + why + (tries >= MAX_TRIES ? ' It stopped trying. Fix it in Twilio, then set the line up by hand.' : ' It keeps trying every 10 minutes.'), 'high', 'warning'); } catch (e) {} }
+    if (tries === 2 || tries === MAX_TRIES) { try { await (await import('./app.js')).opsPing(env, 'Always Open: could not set up Max’s line', 'For ' + ((b && b.business) || cid) + ': ' + why + (tries >= MAX_TRIES ? ' It stopped trying. Fix it in Twilio, then set the line up by hand.' : ' It keeps trying every 10 minutes.'), 'high', 'warning'); } catch (e) {} }
     return { status: 'failed', number: '', numberText: '', error: why };
   };
   const b = await env.DB.prepare('SELECT business, phone, town, type FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
@@ -108,7 +107,7 @@ export async function provisionLine(env, cid) {
   ]);
   const text = pretty(bought.number);
   try {
-    const a = await late('./app.js');
+    const a = await import('./app.js');
     await a.opsPing(env, 'Max is live for ' + (business || 'a new client'), 'Number ' + text + ' bought and connected on its own. The owner sees it on the welcome page and in the app. Nothing for you to do.', 'default', 'telephone_receiver');
     await a.pushClient(env, cid, { aps: { alert: { title: 'Max’s number is ready', body: 'Forward the calls you miss to ' + text + ' and Max answers them. The steps for your phone are in the app.' }, sound: 'default' }, screen: 'home' });
   } catch (e) { /* the line works without the notes */ }
@@ -138,7 +137,7 @@ export async function provisionCron(env, at) {
     const days = (now - Date.parse(e.ended)) / 864e5;
     if (days >= RELEASE_DAYS - 7 && !e.warned) {
       await env.DB.prepare('UPDATE provision SET warned = ?1 WHERE client_id = ?2').bind(new Date(now).toISOString(), e.client_id).run();
-      try { await (await late('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
+      try { await (await import('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
     }
     if (days >= RELEASE_DAYS && e.number_sid && env.TWILIO_ACCOUNT_SID) {
       const r = await tw(env, 'DELETE', '/IncomingPhoneNumbers/' + e.number_sid + '.json');

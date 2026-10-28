@@ -9,9 +9,8 @@
 // Kept: which Google location belongs to which client (ids, so we know where to post), what we posted, and monthly
 // totals of the profile's own numbers for the business that owns them. Review text is not copied anywhere new except
 // into the owner's own draft, as the email check already does.
-const late = p => import(p);
-const app = async () => late('./app.js');
-const isOn = async env => (await late('./launch.js')).isOn(env, 'google');
+const app = async () => import('./app.js');
+const isOn = async env => (await import('./launch.js')).isOn(env, 'google');
 
 export const AGENCY = '__agency__';
 const AM = 'https://mybusinessaccountmanagement.googleapis.com/v1/';
@@ -112,7 +111,7 @@ async function listLocations(tok) {
 // Daily: find each client's location. Mappings set by hand (matched = 'hand') are kept.
 export async function mapLocations(env) {
   await ensureGbp(env);
-  const { DEMO_ID } = await late('./demo.js');
+  const { DEMO_ID } = await import('./demo.js');
   const clients = ((await env.DB.prepare("SELECT c.client_id, c.business, c.phone, b.phone AS bphone, (SELECT place_id FROM rival_profile r WHERE r.client_id = c.client_id AND r.found = 1 LIMIT 1) AS place FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id WHERE c.active = 1 AND c.client_id != ?1").bind(DEMO_ID).all().catch(() => ({ results: [] }))).results) || [];
   const have = new Map((((await env.DB.prepare('SELECT client_id, matched, via FROM gbp_locations').all()).results) || []).map(r => [r.client_id, r]));
   const owners = new Set((((await env.DB.prepare('SELECT client_id FROM gbp_tokens').all()).results) || []).map(r => r.client_id));
@@ -249,7 +248,7 @@ async function writeDraft(env, c, rv, voice) {
     headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace': env.ANTHROPIC_WORKSPACE } : {}),
     body: JSON.stringify({ model: env.INSIGHT_MODEL || 'claude-haiku-5-5', max_tokens: 300, system: SYS, messages: [{ role: 'user', content: user }] }) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { try { await (await late('./funding.js')).claudeProblem(env, (j.error && j.error.message) || ''); } catch (e) {} return ''; }
+  if (!r.ok) { try { await (await import('./funding.js')).claudeProblem(env, (j.error && j.error.message) || ''); } catch (e) {} return ''; }
   return (j.content || []).map(x => x.text || '').join('').trim().replace(/^"|"$/g, '');
 }
 const shortId = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -358,7 +357,7 @@ export async function gbpCron(env, at) {
   if (await due(env, 'map', 24 * 3600e3)) out.map = await mapLocations(env).catch(e => String(e.message || e));
   // Approved replies and posts not posted yet (a retry for anything the approval-time attempt missed). Only what was
   // approved after the switch went on: anything older was posted by hand.
-  const since = Math.max(now - 14 * 864e5, Date.parse(((await (await late('./launch.js')).launchState(env)).google || {}).at || '') || 0);
+  const since = Math.max(now - 14 * 864e5, Date.parse(((await (await import('./launch.js')).launchState(env)).google || {}).at || '') || 0);
   const rows = ((await env.DB.prepare("SELECT i.* FROM app_items i LEFT JOIN gbp_posted p ON p.item_id = i.id WHERE i.status = 'approved' AND i.kind IN ('reply', 'review', 'post') AND i.decided_at > ?1 AND (p.item_id IS NULL OR (p.ok = 0 AND p.tries < ?2 AND p.at < ?3)) ORDER BY i.decided_at LIMIT 15")
     .bind(new Date(since).toISOString(), MAX_TRIES, new Date(now - 30 * 60e3).toISOString()).all()).results) || [];
   let posted = 0;

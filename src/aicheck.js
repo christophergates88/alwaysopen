@@ -3,7 +3,6 @@
 // (phone, hours, address, website). The answer is compared with what the business told us. Anything wrong (most often an
 // old phone number or hours on some listing) goes on Christopher's HQ board to fix where it comes from, and the owner sees
 // the month's result in the app. The check itself changes nothing anywhere.
-const late = p => import(p);
 const PER_RUN = 3;
 
 let ready = false;
@@ -59,7 +58,7 @@ async function ask(env, biz, kind, town) {
     r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify(body) });
     j = await r.json().catch(() => ({}));
   }
-  if (!r.ok) { try { await (await late('./funding.js')).claudeProblem(env, (j.error && j.error.message) || ''); } catch (e) {} return null; }
+  if (!r.ok) { try { await (await import('./funding.js')).claudeProblem(env, (j.error && j.error.message) || ''); } catch (e) {} return null; }
   const text = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
   const m = text.match(/\{[\s\S]*\}/);
   let ans = null; try { ans = m ? JSON.parse(m[0]) : null; } catch (e) { ans = null; }
@@ -88,7 +87,7 @@ export async function aiCheckCron(env, at) {
   if (!env.ANTHROPIC_API_KEY) return { skipped: true };
   await ensureAiCheck(env);
   const month = new Date(at || Date.now()).toISOString().slice(0, 7);
-  const { DEMO_ID } = await late('./demo.js');
+  const { DEMO_ID } = await import('./demo.js');
   const due = ((await env.DB.prepare("SELECT c.client_id FROM app_clients c LEFT JOIN ai_checks a ON a.client_id = c.client_id AND a.month = ?1 WHERE c.active = 1 AND c.tier IN ('Growth', 'Pro') AND c.client_id != ?2 AND a.client_id IS NULL LIMIT ?3").bind(month, DEMO_ID, PER_RUN).all()).results) || [];
   let n = 0;
   for (const r of due) {
