@@ -113,7 +113,7 @@ function inboxSheet(){
       var th=x.thread?x.thread.map(function(m){return '<p class="note inb" style="margin:4px 0;'+(m.dir==='out'?'text-align:right':'')+'">'+esc(m.text)+(m.by?' — '+esc(m.by):'')+'</p>';}).join(''):'<p class="note inb" style="margin:4px 0">'+esc(x.text)+'</p>';
       return '<article class="card"><span class="tag">'+esc(CH[x.channel]||x.channel)+(x.open?' · new':'')+' · '+esc(when(x.at))+'</span><b style="display:block">'+esc(x.name||'Someone')+'</b>'+th+
         (x.phone?'<div class="acts"><a class="btn line sm" href="tel:'+esc(x.phone)+'">Call</a></div>':'')+
-        (x.canReply?'<label>Reply<textarea id="r-'+esc(x.id)+'" rows="2" maxlength="1000"></textarea></label><div class="acts"><button class="btn ok sm" type="button" data-a="bz-reply" data-id="'+esc(x.id)+'">Send on Facebook</button></div>':'')+'</article>';}).join('')+'</div><div class="acts"><button class="btn ghost" type="button" data-close="1">Close</button></div>';
+        (x.canReply?'<label>Reply<textarea id="r-'+esc(x.id)+'" rows="2" maxlength="1000"></textarea></label><div class="acts"><button class="btn ok sm" type="button" data-a="bz-reply" data-id="'+esc(x.id)+'">'+(x.channel==='text'?'Send by text':'Send on Facebook')+'</button></div>':'')+'</article>';}).join('')+'</div><div class="acts"><button class="btn ghost" type="button" data-close="1">Close</button></div>';
     sheet(h);
   }).catch(function(){toast('No connection. Try again.');close();});
 }

@@ -875,7 +875,7 @@ document.addEventListener('click',function(e){
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
   else if(a&&a.indexOf('rv-')===0)rvAct(a,id,t);
-  else if(a&&a.indexOf('bz-')===0)bizAct(a,id,t);
+  else if(a&&/^(bz|fm|fw)-/.test(a))bizAct(a,id,t);
   else if(a&&a.indexOf('pc-')===0)pastAct(a,id,t);
 });
 document.addEventListener('input',function(e){var t=e.target;if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
