@@ -21,6 +21,7 @@ import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
 import { upgradesState } from './upgrades.js';
+import { textingPage, textingState } from './a2p.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
@@ -162,6 +163,10 @@ export async function handleApp(req, env, ctx, url) {
       if (meth === 'GET' || meth === 'HEAD') return new Response(appHtml({ base, business: c.business || '' }), { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
     } else if (sub === '/manifest.webmanifest') {
       return manifest(base);
+    } else if (sub === '/texting') {
+      if (c.staff) return gone(404);
+      if (meth !== 'GET' && meth !== 'POST') return gone(404);
+      return await textingPage(env, c, base, req);
     } else if (sub === '/billing') {
       if (c.staff) return gone(404);
       return await billingPage(env, c, base, req, url, { notify: (t, b, pr) => ntfy(env, t, b, pr || 'default', 'moneybag') });
@@ -395,6 +400,7 @@ async function apiState(env, c, ctx) {
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.upgrades = c.staff || cid === 'demo-plumbing' ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
+  try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }
   try { out.map = c.staff ? null : await mapState(env, c); } catch (e) { out.map = null; }
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);

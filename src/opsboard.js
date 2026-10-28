@@ -58,6 +58,11 @@ export async function boardItems(env) {
     for (const r of lost) { (by[r.client_id] = by[r.client_id] || { biz: r.biz, parts: [], total: 0 }).parts.push(+r.n + ' ' + (LOST_LABELS[r.reason] || r.reason)); by[r.client_id].total += +r.n; }
     for (const k in by) items.push({ key: 'lost:' + k + ':' + by[k].total, group: 'Why callers walked (last 30 days)', title: by[k].biz, detail: by[k].parts.join(', ') });
   } catch (e) {}
+  try {
+    const regs = await all(env, "SELECT r.client_id, COALESCE(c.business, r.client_id) AS biz, r.status, r.step, r.error, r.updated FROM a2p_reg r LEFT JOIN app_clients c ON c.client_id = r.client_id WHERE r.status != 'approved' ORDER BY r.updated DESC LIMIT 40");
+    const say = { submitted: 'sent, starting', in_review: 'with Twilio and the carriers', needs_fix: 'needs a fix from the owner', needs_help: 'no EIN: register as a sole proprietor by hand in Twilio', failed: 'stuck, look in Twilio' };
+    for (const r of regs) items.push({ key: 'a2p:' + r.client_id + ':' + r.status + ':' + r.step, group: 'Texting registrations', title: r.biz, detail: (say[r.status] || r.status) + (r.step && r.status === 'in_review' ? ' (step: ' + r.step.replace('_', ' ') + ')' : '') + (r.error ? '. ' + r.error : '') });
+  } catch (e) {}
   const sys = [
     ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],
     ['Twilio texting', !TEXTING_ON ? 'off' : (textingReady(env) ? 'on' : 'on, but the Twilio account SID is not set. Run "Set Twilio texting key.command".')],

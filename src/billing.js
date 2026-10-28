@@ -171,6 +171,7 @@ async function welcome(env, url, h) {
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
 <div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. We set up his line within two business days and send you the number and how to forward your calls to it. The steps also show up in your app, under Your first hour.</p></div>
+<div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
 <div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
 <li>Tap the three dots, then <b>Business Profile settings → Managers → Add</b>.</li>

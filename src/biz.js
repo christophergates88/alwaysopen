@@ -556,6 +556,7 @@ function onboarding(p, s) {
   steps.push({ key: 'hours', label: 'Add your hours', done: !!s.hours, hint: 'So Max and your Google profile tell customers the right thing.' });
   if (s.line) steps.push({ key: 'forward', label: 'Forward your missed calls to Max', done: v('forward'), hint: 'Your phone still rings first. Steps for Verizon, AT&T, T-Mobile and landlines.', help: '/help/forwarding' });
   if (s.line) steps.push({ key: 'max', label: 'Test Max by calling your line', done: !!s.called, hint: 'Call it and see what he says.' });
+  if (s.texting && !s.texting.regulated) steps.push({ key: 'texting', label: 'Register texting under your business name', done: v('texting') || ['submitted', 'in_review', 'approved', 'needs_help'].includes(s.texting.status), hint: 'Carriers require it before we text your customers. One form; approval usually takes a few days.', help: '/texting' });
   steps.push({ key: 'calendar', label: 'Connect Google Calendar', done: !!s.calendar, hint: 'Lets Max book real open times.' });
   if (s.metaAvailable) steps.push({ key: 'facebook', label: 'Connect Facebook', done: !!s.meta });
   if (s.stripeAvailable) steps.push({ key: 'stripe', label: 'Connect Stripe for card payments', done: !!s.stripe });
@@ -597,7 +598,7 @@ export function finishOnboarding(state, p) {
     const ob = onboarding(p || { onboard: {} }, {
       hours: !!(L && L.hours) || (state.messages || []).some(m => /^Hours change:/.test(m.text || '')),
       qr: !!(state.client && state.client.qr), calendar: !!(state.calendar && state.calendar.connected), meta: !!(state.meta && state.meta.connected), metaAvailable: !!(state.meta && state.meta.available),
-      stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called, map: state.map || null
+      stripe: !!(state.stripe && state.stripe.ready), stripeAvailable: !!(state.stripe && state.stripe.available), line: !!L, called: !!state.__called, map: state.map || null, texting: state.texting || null
     });
     return ob;
   } catch (e) { return null; }
