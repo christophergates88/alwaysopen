@@ -20,7 +20,8 @@ function rivalCard(){
         +'<td style="padding:7px 4px;font-variant-numeric:tabular-nums">'+(r.rating?r.rating.toFixed(1):'—')+(r.dRating?' <span class="fine">('+(r.dRating>0?'+':'−')+Math.abs(r.dRating).toFixed(1)+')</span>':'')+'</td>'
         +'<td style="padding:7px 4px;font-variant-numeric:tabular-nums">'+(+r.reviews).toLocaleString('en-US')+'</td><td style="padding:7px 0 7px 4px">'+rvDelta(r.dReviews)+'</td></tr>';
     });
-    h+='</table></div><p class="fine" style="margin-top:8px">Public Google ratings and review counts, checked once a week.</p>';
+    h+='</table></div><p class="fine" style="margin-top:8px">Public Google ratings and review counts, checked once a week. Competitor numbers are kept under a week; your own estimate is kept.</p>';
+    if(R.share){var sh=R.share;h+='<div class="share" style="margin-top:12px;padding:12px;border:1px solid var(--line,rgba(128,128,128,.25));border-radius:12px"><b>Estimated potential share: about '+esc(sh.range)+'</b><p class="fine" style="margin:4px 0 0">Of the '+(sh.compared+1)+' businesses on this list, by the model below. '+esc(sh.moved||'')+'</p>'+(sh.factors&&sh.factors.length?'<p style="margin:8px 0 0;font-size:14px">What holds it back:</p><ul style="margin:4px 0 0 18px;padding:0;font-size:14px">'+sh.factors.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+'<details style="margin-top:8px"><summary class="fine">How this is estimated</summary><p class="fine">'+esc(sh.assumptions)+'</p></details></div>';}
     if(R.canAdd)h+='<div class="acts" style="gap:8px;flex-wrap:wrap;margin-top:8px"><input id="rvq" type="text" maxlength="100" placeholder="Add a business to watch (name and town)" style="flex:1;min-width:180px"><button class="btn line sm" type="button" data-a="rv-add">Add</button></div>';
   }
   return h+'</div>';

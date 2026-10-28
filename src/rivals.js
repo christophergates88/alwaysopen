@@ -21,6 +21,7 @@ export function isoWeek(ms) {
 }
 
 const READY = new WeakSet();
+import { shareState, estimate, saveShare } from './share.js';
 export async function ensureRivals(env) {
   if (env.DB && READY.has(env.DB)) return;
   await env.DB.batch([
@@ -150,6 +151,7 @@ export async function takeSnapshot(env, c, at) {
     const mine = me || await get(prof.place_id, prof.name);
     if (mine) await putSnap(env, cid, week, Object.assign({}, mine, { id: prof.place_id }), true);
     for (const r of rivals) { const x = await get(r.place_id, r.name); if (x) await putSnap(env, cid, week, Object.assign({}, x, { id: r.place_id }), false); }
+    try { const snap = ((await env.DB.prepare('SELECT name, own, rating, reviews FROM rival_snap WHERE client_id = ?1 AND week = ?2').bind(cid, week).all()).results) || []; await saveShare(env, cid, week, estimate(snap.map(r => ({ name: r.name, own: !!+r.own, rating: +r.rating || 0, reviews: +r.reviews || 0 })))); } catch (e) {}
     return 'saved';
   } finally { await unlock(env, cid); }
 }
@@ -197,7 +199,9 @@ export async function rivalLine(env, c, at) {
   try {
     const { cur, prev } = await weeks(env, c.client_id);
     const note = noteFrom(cur, prev);
-    return note && !note.startsWith('First look') ? 'Competitor watch: ' + note : '';
+    let sh = '';
+    try { const est = estimate(cur.map(r => ({ name: r.name, own: !!+r.own, rating: +r.rating || 0, reviews: +r.reviews || 0 }))); if (est) { sh = ' Estimated potential share: about ' + est.range + ' of the businesses on your list.'; } } catch (e) {}
+    return note && !note.startsWith('First look') ? 'Competitor watch: ' + note + sh : '';
   } catch (e) { return ''; }
 }
 
@@ -219,7 +223,8 @@ export async function rivalsState(env, c, ctx) {
     return { id: +r.own ? '' : r.place_id, name: r.name, own: !!+r.own, rating: +r.rating || 0, reviews: +r.reviews || 0, dReviews: p ? (+r.reviews || 0) - (+p.reviews || 0) : null, dRating: p ? Math.round(((+r.rating || 0) - (+p.rating || 0)) * 10) / 10 : null };
   });
   const active = ((await env.DB.prepare('SELECT COUNT(*) AS k FROM rival_list WHERE client_id = ?1 AND active = 1').bind(cid).first()) || {}).k || 0;
-  return { rivals: Object.assign(base, { status: 'ok', note: noteFrom(cur, prev), rows, canAdd: owner && +active < MAX_RIVALS }) };
+  let share = null; try { share = await shareState(env, cid, wk, rows, !!+c.regulated); } catch (e) { share = null; }
+  return { rivals: Object.assign(base, { status: 'ok', note: noteFrom(cur, prev), rows, canAdd: owner && +active < MAX_RIVALS, share }) };
 }
 
 // Owner actions: remove a competitor, add one by name, or set the right Google profile.
