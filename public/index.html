@@ -141,6 +141,41 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .events .what{font-weight:650}
 .events .then{color:var(--night-mute);font-size:.94rem}
 
+
+/* only here: the things nobody else does, each as a phone scene */
+.only{padding-block:84px}
+.only .head{max-width:700px}
+.onlygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.scene{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.scene .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.scene h3{font:800 1.12rem/1.2 var(--display);font-stretch:94%;margin:0}
+.scene .why{color:var(--slate);font-size:.95rem;margin:0}
+.scn{background:var(--m-soft);border:1px solid var(--m-line);border-radius:14px;padding:12px;display:grid;gap:7px;color:var(--m-ink)}
+.scn .bub{font-size:13.5px;max-width:92%}
+.scn .bub.in{background:#fff}
+.scn .bub.sys{font-size:11.5px}
+.scn .card{background:#fff;border:1px solid var(--m-line);border-radius:12px;padding:10px 12px;display:grid;gap:3px;font-size:13.5px}
+.scn .card b{font-size:14px}
+.scn .card small{font:500 11px var(--mono);color:var(--m-mute);letter-spacing:.04em}
+.scn .acts{display:flex;gap:6px;margin-top:4px}
+.scn .acts span{font:700 12px var(--body);padding:5px 10px;border-radius:9px;background:#171B26;color:#fff}
+.scn .acts span.alt{background:transparent;color:#171B26;border:1px solid var(--m-line)}
+.only .sample{font:500 12px var(--mono);color:var(--slate);margin-top:14px}
+.alsoonly{margin-top:28px;background:var(--panel);border-radius:18px;padding:20px 22px;display:grid;gap:8px}
+.alsoonly b{font-size:1rem}
+.alsoonly p{color:var(--slate);font-size:.97rem;margin:0}
+.alsoonly a{color:inherit;font-weight:600;text-underline-offset:3px}
+.addstrip{margin-top:34px;display:grid;gap:12px}
+.addstrip .eyebrow{margin:0}
+.addrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.addrow a{display:grid;gap:4px;align-content:start;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;min-width:0}
+.addrow a:hover{border-color:var(--ink)}
+.addrow b{font-size:.98rem}
+.addrow span{color:var(--slate);font-size:.9rem}
+.addrow em{font:500 11.5px var(--mono);font-style:normal;color:var(--sign);margin-top:2px}
+@media (max-width:980px){.onlygrid{grid-template-columns:repeat(2,minmax(0,1fr))}.addrow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.onlygrid{grid-template-columns:1fr}.addrow{grid-template-columns:1fr}.only{padding-block:56px}}
+
 /* feature rows */
 .sec{padding-block:84px}
 .rows{display:grid;gap:84px}
@@ -510,7 +545,7 @@ a.chip:hover{border-color:var(--ink)}
   <div class="inner">
     <div class="top">
       <a class="wordmark" href="#top" id="top"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-      <nav aria-label="Main"><a class="nav-call" href="#try">Call Max</a><a href="#industries">Your business</a><a href="#day">A day with us</a><a href="#pricing">Pricing</a><a href="#addons">Add-ons</a><a href="#faq">Questions</a><a class="btn primary small" href="#contact">Free audit</a></nav>
+      <nav aria-label="Main"><a class="nav-call" href="#try">Call Max</a><a href="#industries">Your business</a><a href="#day">A day with us</a><a href="#only">Only here</a><a href="#pricing">Pricing</a><a href="#addons">Add-ons</a><a href="#faq">Questions</a><a class="btn primary small" href="#contact">Free audit</a></nav>
     </div>
     <div class="hero-grid">
       <div>
@@ -582,6 +617,31 @@ a.chip:hover{border-color:var(--ink)}
       <li><time>4:45 PM</time><span class="what">Tuesday’s quote still has no answer.</span><span class="then">The follow-up is written and on your phone. One tap sends it from your own number.</span></li>
       <li><time>8:00 PM</time><span class="what">An invoice is two days late.</span><span class="then">A polite reminder with a pay link is drafted. You tap OK, and it goes out by email.</span></li>
     </ul>
+  </div>
+</section>
+
+<section class="only band" id="only" data-label="Only here">
+  <div class="inner">
+    <div class="head"><p class="eyebrow">Only here</p><h2>Nobody else does this.</h2><p>Answering reviews and calls is table stakes. These are the parts we built because small businesses kept losing the same jobs the same way.</p></div>
+    <div class="onlygrid">
+      <div class="scene"><div class="top"><h3>Hand-offs between businesses</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max tells a caller the business does not do electrical and puts them through to Lane Electric, a nearby business on Always Open."><div class="bub in">Do y’all do electrical? My panel keeps tripping.</div><div class="bub out">We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?</div><div class="bub in">Yeah, please.</div><div class="bub sys">Put through to Lane Electric · 2:14 PM</div></div><p class="why">A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back. Both of you have to turn it on.</p></div>
+      <div class="scene"><div class="top"><h3>The three-day check-in</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max calls a customer three days after a water heater job, she presses 1 for held up, and a review request goes out."><div class="bub sys">Max called Dana · Thursday 11:20 AM</div><div class="bub out">Quick one: did the water heater hold up? Press 1 if it did, 2 if something’s not right.</div><div class="bub sys">Pressed 1</div><div class="card"><small>Next</small><b>Review request sent to Dana</b><span>One text, because she said yes to texts.</span></div></div><p class="why">Three days after the job, Max calls the customer: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.</p></div>
+      <div class="scene"><div class="top"><h3>Call-backs with a time on them</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: Max offers a caller a 4:15 PM call-back from the owner, the caller agrees, and the owner gets a call-back card."><div class="bub in">Can the owner call me back?</div><div class="bub out">Sam’s on a job in Greensboro. He’ll call you at 4:15. Does that work?</div><div class="bub in">4:15 is fine.</div><div class="card"><small>On your phone</small><b>Call Priya at 4:15 PM</b><span>Panel tripping · 478-555-0142</span><div class="acts"><span>Call now</span><span class="alt">Move it</span></div></div></div><p class="why">No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.</p></div>
+      <div class="scene"><div class="top"><h3>Fill my week</h3><span class="tag p">Pro</span></div><div class="scn" role="img" aria-label="Sample: a text offers a past customer an open Thursday slot, she replies YES, and it is booked on the calendar."><div class="bub out">Hi Dana, this is Sinclair Plumbing. Sam has Thursday at 9 AM open and thought of you since your water heater install last January. Want it? Reply YES or a better time.</div><div class="bub in">YES</div><div class="bub sys">Booked · Thursday 9:00 AM · on your Google calendar</div></div><p class="why">Thursday is wide open on your calendar. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.</p></div>
+      <div class="scene"><div class="top"><h3>Storm Desk</h3><span class="tag g">Growth</span></div><div class="scn" role="img" aria-label="Sample: a storm warning for Putnam County produces a drafted storm post waiting for approval."><div class="bub sys">Severe thunderstorm warning · Putnam County · 3:12 PM</div><div class="card"><small>Post · waiting for your OK</small><b>Storm tonight in Putnam County</b><span>If a limb takes out a line or a tree comes down, we’re answering the phone all night. Stay safe and call us in the morning.</span><div class="acts"><span>Approve</span><span class="alt">Edit</span></div></div></div><p class="why">When a weather warning hits your county, a storm-day post is drafted that minute. You approve it from wherever you are.</p></div>
+      <div class="scene"><div class="top"><h3>What assistants say about you</h3><span class="tag g">Growth</span></div><div class="scn" role="img" aria-label="Sample: an assistant gives a customer an old phone number from Yelp, and the monthly check catches and fixes it."><div class="bub in">What’s the number for Sinclair Plumbing in Eatonton?</div><div class="bub out">478-555-0100, according to Yelp.</div><div class="card"><small>This month’s check</small><b>Wrong phone on Yelp</b><span>That’s the old number. We fixed it on Yelp, and the assistant now names you first for plumbers in Eatonton.</span></div></div><p class="why">Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.</p></div>
+    </div>
+    <p class="sample">Sample: made-up business, customers and callers.</p>
+    <div class="alsoonly"><b>Also only here</b><p><a href="#regulated">Compliance Guard</a> checks every word before it goes out in your name, so insurance agencies and practices can use us. <a href="/map">The Always Open map</a> lists every Always Open business, closest first. <a href="#rules">Full Max</a> lets the routine go out without a tap, once you say so. Every plan answers in Spanish, with no add-on.</p></div>
+    <div class="addstrip"><p class="eyebrow">Add to any plan</p>
+      <div class="addrow">
+        <a href="#addons"><b>More Max minutes</b><span>300 more a month when the phone rings past 300.</span><em>$149 / month</em></a>
+        <a href="#addons"><b>Google Ads</b><span>Set up, run and reported every month. Your ad money never passes through us.</span><em>$299 / month</em></a>
+        <a href="#addons"><b>A new website</b><span>Fast, simple, built for phones, with a request form that reaches you.</span><em>$799 once, then $29 / month</em></a>
+        <a href="#addons"><b>Website chat</b><span>Visitors ask a question, and you get it by text.</span><em>$49 / month</em></a>
+        <a href="#addons"><b>Help-wanted posts</b><span>Your openings on Google, Indeed and Facebook.</span><em>$99 / month</em></a>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -832,6 +892,9 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Your own business number</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed-call text-back</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Quote and lead follow-up</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Call-backs with a time on them. If you miss it, Max calls them to set a new one</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>The three-day check-in: Max calls the customer, and a no reaches you before it becomes a review</li>
+          <li><svg aria-hidden="true"><use href="#chk"/></svg>Hand-offs: a caller who needs another trade is put through to a business nearby on Always Open, and theirs can send you work back</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Appointment confirmations and reminders</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Invoice and payment reminders</li>
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Seasonal and past-customer reminders, referral asks</li>
