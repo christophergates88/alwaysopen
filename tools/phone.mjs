@@ -40,38 +40,27 @@ const CHIPS = [
 function front(key, p) {
   const n = p.cards.length;
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
-  const sub = p.sub || 'Swipe through. Each card plays out a call, a text or a post for a made-up business.';
+  const sub = p.sub || 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.';
   return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
     '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p></div>\n' +
     '<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, ' + n + ' cards">' + p.cards.map((c, i) => card(c, i, n)).join('') + '</div>\n' +
     '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
-    '<div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
+    '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
     '<form data-grade="' + (key === 'index' ? '' : key) + '" novalidate>' +
       '<label for="g-q">Business name</label><input id="g-q" name="q" autocomplete="organization" enterkeyhint="next" placeholder="As it shows on Google" required>' +
       '<label for="g-town">Town</label><input id="g-town" name="town" autocomplete="address-level2" enterkeyhint="go" placeholder="Eatonton, GA">' +
       '<button class="aog-go" type="submit">Check my grade</button>' +
       '<div class="aog-out" aria-live="polite"></div>' +
     '</form></div>\n' +
-    (p.chips ? '<div class="aos-also"><p>Also only here</p>' + CHIPS.map(c => '<details><summary>' + esc(c[0]) + '</summary><p>' + esc(c[1]) + '</p></details>').join('') + '</div>\n' : '') +
+    (p.chips ? '<div class="aos-also"><p>Also only here</p>' + CHIPS.map(c => '<details><summary>' + esc(c[0]) + '</summary><p>' + esc(c[1]) + '</p></details>').join('') + '</div>' : '<div></div>') + '</div>\n' +
     '</section>\n<!--/ao:front-->';
 }
 
 // ---------- the styles, shown only on phones ----------
 const CSS = `
-.aos,.ao-foldbar,.ao-dots,.lede-ph,.ph-only{display:none}
-@media (max-width:760px){
-/* hero: the headline, one line, two buttons */
-.hero .stack,.hero .desk,.hero .hero-scene,.hero .lede,.hero .fine,.hero .onlylink,.hero .promise,.hero .day,.hero .everyone,.hero-grid>.day{display:none!important}
-.hero .lede-ph{display:block;font-size:1.08rem;line-height:1.5;color:var(--night-mute);margin-top:16px;max-width:32em}
-.hero-grid{padding-block:6px 30px!important;gap:0!important}
-.hero .neon{margin-bottom:16px}
-.hero .ctas{margin-top:22px!important}
-.hero .ctas>a:not(.ph-only):not([href^="tel:"]){display:none!important}
-.hero .ctas>.ph-only{display:inline-flex;width:100%}
-.indlinks,#industries .sub,#contact .founding{display:none}
-#industries h2{margin-bottom:16px}
+.ao-foldbar,.ao-dots,.lede-ph,.ph-only{display:none}
+/* the playable cards and the instant grade, on every screen size */
 /* the playable cards */
-.aos{display:block;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);padding-top:6px;padding-bottom:40px;border-top:1px solid rgba(255,106,94,.28)}
 .aos-head{padding-top:26px}
 .aos-head h2{font-size:1.65rem;line-height:1.08;color:#ECEEF3}
 .aos-head p{margin-top:8px;color:#A3ACBF;font-size:15px}
@@ -129,6 +118,7 @@ const CSS = `
 .aos .aos-also details p{padding:0 0 14px;margin:0;color:#A3ACBF;font-size:15px}
 .aos-sample{margin-top:10px;font-size:15px;color:#8892A6}
 /* the instant grade */
+.aos-deck{display:grid;gap:0}
 .aog{margin-top:30px;padding:20px 16px;border-radius:18px;background:#171C27;border:1px solid rgba(255,106,94,.45);box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px -8px rgba(255,90,77,.45)}
 .aog h3{font-size:1.4rem;line-height:1.1;color:#ECEEF3}
 .aog>p{margin-top:6px;color:#A3ACBF;font-size:15px}
@@ -152,6 +142,30 @@ const CSS = `
 .aog-find{padding-left:12px;border-left:3px solid #FF6A5E;color:#C9D0DC}
 .aog-find strong{color:#ECEEF3}
 .aog-full{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:12px;background:#FF5A4D;color:#1A0605;font-weight:700;text-decoration:none}
+@media (min-width:761px){
+.aos{padding-block:70px 60px;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);border-top:1px solid rgba(255,106,94,.28)}
+.aos-head{max-width:720px}.aos-head h2{font-size:clamp(2rem,4.4vw,3rem);line-height:1.03;color:#ECEEF3}.aos-head p{margin-top:10px;color:#A3ACBF;font-size:1.1rem}
+.aos-rail{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin:28px 0 0;padding:0;overflow:visible;scroll-snap-type:none}
+.aos .ao-dots{display:none}
+.aos-deck{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:40px;align-items:start;margin-top:40px}
+.aog{margin-top:0}
+.aos .aos-also{margin-top:0;border-top:0}.aos .aos-also>p{padding-top:0}
+.aos .ao-foldbar{display:none}
+.js .only .head,.js .only .onlygrid,.js .only .sample{display:none}
+.js .only{padding-block:40px}
+}
+@media (max-width:760px){
+/* hero: the headline, one line, two buttons */
+.hero .stack,.hero .desk,.hero .hero-scene,.hero .lede,.hero .fine,.hero .onlylink,.hero .promise,.hero .day,.hero .everyone,.hero-grid>.day{display:none!important}
+.hero .lede-ph{display:block;font-size:1.08rem;line-height:1.5;color:var(--night-mute);margin-top:16px;max-width:32em}
+.hero-grid{padding-block:6px 30px!important;gap:0!important}
+.hero .neon{margin-bottom:16px}
+.hero .ctas{margin-top:22px!important}
+.hero .ctas>a:not(.ph-only):not([href^="tel:"]){display:none!important}
+.hero .ctas>.ph-only{display:inline-flex;width:100%}
+.indlinks,#industries .sub,#contact .founding{display:none}
+#industries h2{margin-bottom:16px}
+.aos{display:block;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);padding-top:6px;padding-bottom:40px;border-top:1px solid rgba(255,106,94,.28)}
 /* folded sections: a heading and one line, opened with a tap */
 .js [data-fold]:not(.ao-open){padding-top:0!important;padding-bottom:0!important;border:0!important;background:var(--paper)!important;color:var(--ink)!important;box-shadow:none!important}
 .js [data-fold]:not(.ao-open)>:not(.ao-foldbar){display:none!important}

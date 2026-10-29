@@ -93,7 +93,7 @@ const PLUMB = {
 export const PAGES = {
   index: {
     heading: 'What nobody else does. Tap to try it.',
-    sub: 'Swipe through. Each card plays out a call, a text or a post for a made-up plumber.',
+    sub: 'Each card plays out a call, a text or a post for a made-up plumber. Tap a choice and watch what happens.',
     short: 'Max answers your calls, reviews get answered, and quotes get followed up. You approve it all from your phone.',
     chips: true,
     cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sinclair Plumbing',
