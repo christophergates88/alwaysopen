@@ -22,7 +22,7 @@ test('a lead from the Spanish page: answered in Spanish, kept as Spanish, flagge
   assert.equal(r.status, 200); assert.equal(r.json().title, 'Got it, Ana.');
   const es = await send({ email: 'ana2@salon.example' }, 'es');
   assert.equal(es.status, 200);
-  assert.equal(es.json().title, 'Recibido, Ana.'); assert.match(es.json().message, /^Su solicitud nos llegó\. Chris le responde en un día hábil/);
+  assert.equal(es.json().title, 'Recibido, Ana.'); assert.match(es.json().message, /^Su solicitud nos llegó\. Katie le responde en un día hábil/);
   const row = await DB.prepare("SELECT lang FROM leads WHERE email = 'ana2@salon.example'").first();
   assert.equal(row.lang, 'es');
   assert.ok(world.pushes.some(p => /Wrote in Spanish: answer in Spanish/.test(p.body)), 'the push tells Christopher');

@@ -44,8 +44,8 @@ const planHtml = p => '<h3>' + p.name + '</h3><div class="price"><b>' + p.price 
 export const ES_HOME = [
   { s: 'header.hero h1', h: 'Su negocio, <em>siempre</em> abierto.' },
   { s: 'header.hero .hero-scene', h: 'Parte baja de la novena. Su hijo va al bate. Un cliente está llamando, acaba de llegar una reseña y una cotización se quedó en silencio. Nos encargamos de las tres. Usted no se pierda la jugada.' },
-  { s: 'header.hero .lede', h: 'Always Open lleva la parte de atrás de su negocio, la que nunca cierra: cada llamada contestada, cada reseña respondida, cotizaciones y facturas con seguimiento, días vacíos llenados con su propia lista de clientes, su perfil de Google al día y un mapa que le manda a quienes llaman cerca de usted. Max es la voz al teléfono. El resto es un equipo que trabaja mientras usted trabaja. <b>Usted lo aprueba todo desde su teléfono.</b>' },
-  { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos, su calendario y su perfil de Google, resueltos. Usted lo aprueba desde su teléfono.' },
+  { s: 'header.hero .lede', h: 'Always Open lleva la parte de atrás de su negocio, la que nunca cierra: cada llamada contestada, cada reseña respondida, cotizaciones y facturas con seguimiento, días vacíos llenados con su propia lista de clientes, su perfil de Google al día y un mapa que le manda a quienes llaman cerca de usted. Usted lo aprueba todo desde su teléfono. <b>El día 2 de cada mes, una página le muestra lo que se hizo y cuánto valió.</b>' },
+  { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos y su perfil de Google, resueltos. El día 2 de cada mes, una página le muestra lo que se hizo.' },
   { s: 'header.hero .ctas a.ph-only', h: 'Ver mi calificación' },
   { s: 'header.hero .ctas a[href="#contact"]', h: 'Quiero mi auditoría gratis' },
   { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
@@ -83,8 +83,8 @@ export const ES_HOME = [
   { s: '#pricing .guarantee', h: '<b>30 días, sin riesgo.</b><p>Si el primer mes no vale la pena, avísenos y se lo reembolsamos. Sin formularios ni discusiones. Y no hay cargo de instalación.</p>' },
   { s: '#contact .who .eyebrow', h: 'Empecemos' },
   { s: '#contact .who h2', h: 'Cuéntenos de su negocio.' },
-  { s: '#contact .who > p:not(.eyebrow):not(.callus):not(.addr)', h: 'Mande el formulario corto. Le respondemos en un día hábil, y su auditoría gratis llega en dos. Sin presión y sin tarjeta.' },
-  { s: '#contact .callus', h: '¿Prefiere hablar? Llame al <a href="tel:+17064602226">(706) 460-2226</a>. Max, nuestro asistente telefónico, contesta a cualquier hora y toma sus datos, y alguien de nuestro equipo le devuelve la llamada en un día hábil.' },
+  { s: '#contact .who > p:not(.eyebrow):not(.callus):not(.addr)', h: 'Mande el formulario corto. Katie le responde en un día hábil, y su auditoría gratis llega en dos. Sin presión y sin tarjeta.' },
+  { s: '#contact .callus', h: '¿Prefiere hablar? Llame al <a href="tel:+17064602226">(706) 460-2226</a>. Max, nuestra línea telefónica, contesta a cualquier hora y toma sus datos, y Katie le devuelve la llamada en un día hábil.' },
   { s: '#contact .founding', h: '<b>Pruébelo un mes. Si no vale la pena, no lo paga.</b><p style="margin-top:4px">Sin contrato y sin cargo de instalación. Cancele desde la app.</p>' },
   { s: 'label[for="f-name"]', t: 'Su nombre' }, { s: 'label[for="f-phone"]', t: 'Teléfono' }, { s: 'label[for="f-email"]', t: 'Correo electrónico' },
   { s: 'label[for="f-biz"]', t: 'Nombre del negocio' }, { s: 'label[for="f-town"]', t: 'Ciudad' }, { s: 'label[for="f-type"]', t: '¿Qué tipo de negocio?' },
@@ -137,12 +137,19 @@ const TRADE = {
     ph: 'Llamadas fuera de horario contestadas, reseñas respondidas y su perfil de Google al día. Compliance Guard revisa cada palabra que escribimos por usted.',
     ctas: ['Ver mi calificación', 'Pedir mi auditoría gratis', 'Probar Compliance Guard'], small: 'Sin cargo de instalación y sin contrato. Respuestas en inglés y en español.' }
 };
+// Every lede ends on the monthly page, as in English (tools/industry.py). Insurance has its own line.
+function esLede(key, l) {
+  l = l.replace(/<b>(Usted lo aprueba todo desde su teléfono[^<]*)<\/b>/, '$1');
+  if (key === 'insurance') return l + ' El día 2 de cada mes, una página muestra cada reseña, respuesta y publicación, para sus archivos.';
+  if (key === 'dental') return l + ' <b>El día 2 de cada mes, una página le muestra lo que se hizo, con cada respuesta archivada.</b>';
+  return l + ' <b>El día 2 de cada mes, una página le muestra lo que se hizo y cuánto valió.</b>';
+}
 export function esTrade(key) {
   const t = TRADE[key];
   if (!t) return [];
   return [
     { s: 'header.hero .everyone', h: 'Always Open trabaja para todo tipo de negocio, en cualquier parte de EE. UU. Esta página cubre lo que más les importa a ' + t.plural + '. <a href="index.html">Vea todo lo que hacemos</a>' },
-    { s: 'header.hero p.for', h: t.for }, { s: 'header.hero h1', h: t.h1 }, { s: 'header.hero .lede', h: t.lede }, { s: 'header.hero .lede-ph', h: t.ph },
+    { s: 'header.hero p.for', h: t.for }, { s: 'header.hero h1', h: t.h1 }, { s: 'header.hero .lede', h: esLede(key, t.lede) }, { s: 'header.hero .lede-ph', h: t.ph },
     ...(t.ctas || ['Ver mi calificación', 'Quiero mi auditoría gratis', 'Llame a Max: (706) 460-2226']).map((c, i) => ({ s: 'header.hero .ctas a:nth-child(' + (i + 1) + ')', h: c })),
     { s: 'header.hero .promise > span', h: PROMISE + '<small>' + (t.small || 'Sin cargo de instalación ni contrato. Max también habla español.') + '</small>' }
   ];
@@ -213,7 +220,7 @@ export function esDoesFor(key) {
 export const ES_DOES = [
   { s: '#does .eyebrow', h: 'Lo que hace Always Open' },
   { s: '#does h2', h: 'La parte de atrás de su negocio, llevada por nosotros.' },
-  { s: '#does .head p:not(.eyebrow)', h: 'Max es la voz al teléfono. Detrás de él está todo lo demás que un negocio necesita y nunca tiene tiempo de hacer. Usted lo aprueba todo desde su teléfono.' },
+  { s: '#does .head p:not(.eyebrow)', h: 'Todo lo que un negocio necesita y nunca tiene tiempo de hacer, desde el teléfono hasta el seguimiento. Usted lo aprueba desde su teléfono, y el día 2 de cada mes una página le muestra lo que se hizo.' },
   { s: '#does .pillar:nth-child(1) h3', h: 'Llamadas, de día y de noche' },
   { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max contesta, de día y de noche</b><span>: a su nombre, con los datos que usted aprueba, y lo llama a usted si es urgente</span></li><li><b>Devoluciones a tiempo</b><span>: una hora fija de su calendario, no “alguien lo llamará”</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
   { s: '#does .pillar:nth-child(1) a', h: 'Escúchelo <span aria-hidden="true">&rarr;</span>' },
@@ -230,6 +237,6 @@ export const ES_DOES = [
   { s: '#does .pillar:nth-child(5) ul', h: '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Pases</b><span>: quien necesita otro oficio va al miembro más cercano, y ese le manda trabajo a usted</span></li><li><b>Storm Desk</b><span>: una publicación lista en el minuto en que una alerta de clima llega a su condado</span></li>' },
   { s: '#does .pillar:nth-child(5) a', h: 'Abrir el mapa <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(6) h3', h: 'Usted decide, en todo' },
-  { s: '#does .pillar:nth-child(6) ul', h: '<li><b>Su OK primero</b><span>: nada sale a su nombre hasta que usted lo toque en la app</span></li><li><b>Compliance Guard</b><span>: revisa cada palabra, así que agencias de seguros y consultorios pueden usarnos</span></li><li><b>Full Max</b><span>: si quiere que lo rutinario salga solo</span></li><li><b>Una página al mes</b><span>: lo que cambió, con un registro de cada respuesta y publicación</span></li>' },
+  { s: '#does .pillar:nth-child(6) ul', h: '<li><b>Su OK primero</b><span>: nada sale a su nombre hasta que usted lo toque en la app</span></li><li><b>Compliance Guard</b><span>: revisa cada palabra, así que agencias de seguros y consultorios pueden usarnos</span></li><li><b>Full Max</b><span>: si quiere que lo rutinario salga solo</span></li><li><b>Su mes, en una página</b><span>: lo que se hizo, con un registro de cada respuesta y publicación</span></li>' },
   { s: '#does .pillar:nth-child(6) a', h: 'Qué incluye cada plan <span aria-hidden="true">&rarr;</span>' }
 ];

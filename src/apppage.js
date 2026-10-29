@@ -224,6 +224,8 @@ a.btn{color:inherit}
 button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s}button.sign:active{transform:scale(.95)}button.sign:focus-visible{outline:2px solid var(--sign);outline-offset:3px}
 @keyframes aoOn{0%{opacity:.35}8%{opacity:1}14%{opacity:.2}30%{opacity:.95}38%{opacity:.3}52%,100%{opacity:1}}@keyframes aoBreath{0%,100%{box-shadow:0 0 14px rgba(255,90,77,.4),inset 0 0 9px rgba(255,90,77,.18)}50%{box-shadow:0 0 22px rgba(255,90,77,.55),inset 0 0 12px rgba(255,90,77,.26)}}@media (prefers-reduced-motion:no-preference){.hero:not(.off) .sign{animation:aoOn 1.1s linear 1,aoBreath 4.4s ease-in-out 1.4s infinite}}
 .hero-t{display:grid;gap:4px;min-width:0}
+.mnow{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;margin:0 0 14px}.mnow-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.mnow-h b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}.mnow-h span{font-size:12.5px;color:var(--slate)}.mnow-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin-top:10px}.mnow-g div{display:grid}.mnow-g b{font:850 1.6rem/1 var(--display);font-stretch:90%}.mnow-g span{font-size:13px;font-weight:600}.mnow-g small{font-size:12px;color:var(--slate)}.mnow-w{margin:10px 0 0;font-size:13.5px}.ins{margin:6px 0 0;padding-left:20px}.ins li{margin:4px 0;font-size:14px}.mnow-w b{color:var(--sign)}
+@media (min-width:700px){.mnow-g{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .hero-t b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}
 .hero-t span{color:var(--slate);font-size:14px}
 .hero-t span.sm{font-size:12.5px;margin-top:2px}
@@ -383,7 +385,7 @@ function vHome(){
     h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  h+=install()+flCard()+bizTop()+liveCard()+heroCard()+moneyCard()+homeRefer();
+  h+=install()+flCard()+bizTop()+liveCard()+monthNowCard()+heroCard()+moneyCard()+homeRefer();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -512,6 +514,19 @@ function officeLine(){
   var t=p.length>1?p.slice(0,-1).join(', ')+' and '+p[p.length-1]:p[0];
   return t.charAt(0).toUpperCase()+t.slice(1)+', covered day and night.';
 }
+// This month so far: the numbers that become the page on the 2nd, and the top finding. Opens the month as one page.
+function monthNowCard(){
+  var m=S.monthNow;if(!m)return '';
+  var mo=String(m.label||'').split(' ')[0]||'This month';
+  var t=[[m.calls,'calls answered',m.after?m.after+' after hours':''],[m.reviews,'new reviews',m.reviews?(m.replied===m.reviews?'all replied to':m.replied+' replied to'):''],
+    [m.booked,'jobs booked',''],[m.followups,'follow-ups sent','']];
+  if(m.checkYes||m.checkNo)t[3]=[m.checkYes,'check-ins: it held up',m.checkNo?m.checkNo+' told you first':''];
+  return '<div class="mnow"><div class="mnow-h"><b>'+esc(mo)+' so far</b><span>Your page comes on the 2nd</span></div>'+
+    '<div class="mnow-g">'+t.map(function(x){return '<div><b>'+(+x[0]||0)+'</b><span>'+esc(x[1])+'</span>'+(x[2]?'<small>'+esc(x[2])+'</small>':'')+'</div>';}).join('')+'</div>'+
+    (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
+    (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+
+    '<div class="acts" style="margin-top:10px"><a class="btn line sm" href="'+esc(BASE+m.page)+'">Open '+esc(mo)+'\u2019s page</a></div></div>';
+}
 function heroCard(){
   var L=S.line,f=S.features||{};
   if(L){
@@ -554,6 +569,8 @@ function monthBlock(){
     if(v!=null&&v!==''&&p!=null&&p!==''&&!isNaN(+v)&&!isNaN(+p)){var df=+v-(+p);if(t[0]==='rating')df=Math.round(df*10)/10;d=df>0?'<em class="up">\\u25b2 '+(t[0]==='rating'?df.toFixed(1):df)+' from '+esc(pl)+'</em>':(df<0?'<em class="down">\\u25bc '+(t[0]==='rating'?Math.abs(df).toFixed(1):Math.abs(df))+' from '+esc(pl)+'</em>':'<em class="down">Same as '+esc(pl)+'</em>');}
     return '<button class="tile" type="button" data-a="tile" data-k="'+t[0]+'" data-m="'+esc(m.month)+'"><b>'+fmt(t[0],v)+'</b><span>'+t[1]+'</span>'+d+'</button>';}).join('')+'</div>'+revBars(ms,m.month);
   if(m.note)h+='<p class="note">'+esc(m.note)+'</p>';
+  if(m.insights&&m.insights.length)h+='<div class="card"><b>What it means</b><ol class="ins">'+m.insights.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ol>'+(m.next?'<p class="note" style="margin:6px 0 0"><b>Next month:</b> '+esc(m.next)+'</p>':'')+'</div>';
+  if(m.page)h+='<div class="acts" style="margin:10px 0 4px"><a class="btn line" href="'+esc(BASE+m.page)+'">Open '+esc(String(m.label||'').split(' ')[0])+'\u2019s page</a></div>';
   var ac=S.aiCheck;
   if(ac&&ac.line)h+='<div class="card"><b>What assistants say about you</b><p class="note" style="margin:4px 0 0">'+esc(ac.line)+(ac.fixing?' Some details they show are out of date ('+esc(ac.wrong.map(function(w){return w.field;}).join(', '))+'). We\u2019re fixing them where they come from.':' The details they show match yours.')+'</p></div>';
   return h+'<p class="note">Calls, clicks and direction requests come from your Google profile. A dash means Google had not reported it yet.</p>';
@@ -885,7 +902,7 @@ function refer(){
 /* ---------- Ask us ---------- */
 function vAsk(){
   var f=S.features||{},reg=S.client.regulated;
-  var h='<h1>Ask us</h1><p class="lede">Goes straight to the Always Open team. Hours, changes, questions, anything.</p>';
+  var h='<h1>Ask us</h1><p class="lede">Goes straight to Katie at Always Open. Hours, changes, questions, anything. She answers, usually the same business day.</p>';
   var ms=S.messages||[];
   h+=ms.length?'<div class="thread">'+ms.map(function(m){return '<div class="msg '+m.dir+'">'+esc(m.text)+'<small>'+(m.dir==='out'?'Always Open':esc(m.by||'You'))+' \\u00b7 '+esc(when(m.at))+'</small></div>';}).join('')+'</div>':'<p class="note" style="margin:14px 2px">Questions, changes, anything. We answer here.</p>';
   h+='<div class="compose"><label class="lbl" for="msg" style="margin:0">Message</label><textarea id="msg" maxlength="1000" placeholder="Type your message"></textarea>'+(reg?'<p class="fine">Please don\\u2019t include client names, policy or account numbers, or claim details.</p>':'')+'<div class="acts"><button class="btn red" type="button" data-a="send">Send</button></div></div>';

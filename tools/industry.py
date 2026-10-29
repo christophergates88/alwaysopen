@@ -2,6 +2,8 @@
 """Builds the industry pages (hvac, plumbing, dental, auto-repair, marine, salons, restaurants) from builders.html.
 Run from the repo root: python3 tools/industry.py. Every sample number stays labeled Sample."""
 import re, sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import report_mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = (ROOT / 'public' / 'builders.html').read_text()
@@ -20,10 +22,11 @@ def build(key, d):
     s = rep(s, 'This page covers what matters most to builders and remodelers.', 'This page covers what matters most to ' + d['who'] + '.')
     s = rep(s, '<p class="for">For builders, remodelers and contractors</p>', '<p class="for">For ' + d['who'] + '</p>')
     s = rep(s, '<h1>The next job, a new review and a quiet estimate, handled while you build this one.</h1>', '<h1>' + d['h1'] + '</h1>')
-    s = re.sub(r'<p class="lede">.*?</p>', '<p class="lede">' + d['lede'] + '</p>', s, count=1, flags=re.S)
-    # the day band: three cards
-    s = re.sub(r'<div class="day" role="img" aria-label="[^"]*">', '<div class="day" role="img" aria-label="' + d['day_aria'] + '">', s, count=1)
-    s = re.sub(r'<div class="ev"><time>10:42 AM</time>.*?<p class="sample">Sample: made-up builder and customers.</p>', d['day_cards'] + '\n        <p class="sample">Sample: made-up business and customers.</p>', s, count=1, flags=re.S)
+    # Every lede ends on the monthly page: what a client keeps and forwards. Regulated pages leave out what it was worth.
+    lede = re.sub(r'<b>(You approve it all from your phone[^<]*)</b>', r'\1', d['lede']) + (' <b>On the 2nd of every month, one page shows what it did, with every reply on file.</b>' if d.get('regulated') else ' <b>On the 2nd of every month, one page shows what it did and what it was worth.</b>')
+    s = re.sub(r'<p class="lede">.*?</p>', lambda m: '<p class="lede">' + lede + '</p>', s, count=1, flags=re.S)
+    # the hero: this trade's sample monthly report (tools/report_mock.py)
+    s = report_mock.put(s, key)
     # calls
     s = rep(s, '<h2>Every call answered, even when you’re on a roof.</h2>', '<h2>' + d['calls_h2'] + '</h2>')
     s = rep(s, 'takes the details for an estimate, and sends it all to your phone in seconds', 'takes ' + d['takes'] + ', and sends it all to your phone in seconds')

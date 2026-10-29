@@ -9,7 +9,7 @@ export const FACTS = [
   { key: 'area', label: 'Where you work', ask: 'Which towns do you cover, and how far out do you go?', hint: 'For example: Eatonton, Milledgeville and Madison, about 30 miles out.', max: 300 },
   { key: 'prices', label: 'Prices Max can share', ask: 'Any prices you’re happy for me to give callers, like a service-call fee or a starting price?', hint: 'For example: $89 service call, waived if we do the work. Leave blank and Max says the team will quote.', max: 400 },
   { key: 'urgent', label: 'What counts as urgent', ask: 'What counts as an emergency for you, something you’d want to hear about right away?', hint: 'For example: water leaking now, no heat, a gas smell.', max: 300 },
-  { key: 'next', label: 'What happens after a call', ask: 'When someone calls, what should I tell them happens next?', hint: 'For example: Chris calls back within the hour during the day.', max: 300 },
+  { key: 'next', label: 'What happens after a call', ask: 'When someone calls, what should I tell them happens next?', hint: 'For example: Sam calls back within the hour during the day.', max: 300 },
   { key: 'booking', label: 'How booking works', ask: 'Do you want me to offer open times and book them, or take the time they want and have you confirm?', hint: 'For example: book them; jobs take about two hours.', max: 300 },
   { key: 'intake', label: 'What Max asks every caller', ask: 'Besides their name and number, what should I ask every caller?', hint: 'For example: the address, and whether the water is shut off.', max: 300 },
   { key: 'website', label: 'Your website', hint: 'example.com', max: 120 },

@@ -58,6 +58,11 @@ let migrated = false;
 async function serve(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname;
+    if (path === '/sample-report') {
+      // The one page every client gets on the 2nd of the month, with a made-up plumber (monthpage.js).
+      const { samplePage } = await import('./monthpage.js');
+      return withSiteHeaders(new Response(samplePage(), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } }), url);
+    }
     if (path === '/health') {
       const k = req.headers.get('x-key') || '';
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
@@ -433,9 +438,9 @@ async function lead(req, env, ctx, url) {
   }
   const first = (f.name || '').split(/\s+/)[0];
   if (es) return reply(wantsJson, 200, true, 'Recibido' + (first && !reason ? ', ' + first : '') + '.',
-    'Su solicitud nos llegó. Chris le responde en un día hábil, y su auditoría gratis llega en dos. Ya puede cerrar esta pestaña.');
+    'Su solicitud nos llegó. Katie le responde en un día hábil, y su auditoría gratis llega en dos. Ya puede cerrar esta pestaña.');
   return reply(wantsJson, 200, true, 'Got it' + (first && !reason ? ', ' + first : '') + '.',
-    'Your request reached us. Chris will reply within one business day, and your free audit follows within two. You can close this tab.');
+    'Your request reached us. Katie will reply within one business day, and your free audit follows within two. You can close this tab.');
 }
 
 async function push(env, f, id) {

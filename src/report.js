@@ -71,7 +71,7 @@ export function buildMonth(c, m, rows, prevStats, now) {
   if (reviews.length) bits.push(reviews.length + (reviews.length === 1 ? ' new review' : ' new reviews') + (replied.length === reviews.length ? ', every one with a reply.' : ', ' + replied.length + ' with a reply so far.'));
   if (posts.length) bits.push(posts.length + (posts.length === 1 ? ' post went up.' : ' posts went up.'));
   return {
-    label: m.label, stats, prev: prevStats ? Object.assign({ label: '' }, prevStats) : null, note: bits.join(' '),
+    label: m.label, stats, prev: prevStats ? Object.assign({ label: '' }, prevStats) : null, note: bits.join(' '), a: rows.a || null,
     record: { intro: 'This file is a record of public communications for ' + (c.business || 'the business') + ' in ' + m.label + ': the public reviews of the business, the public replies posted, and the public posts published. It contains only what anyone can see online. Prepared by Always Open on ' + made + '.', cg: '', revs, posts: ps, made }
   };
 }
@@ -86,7 +86,14 @@ async function oneClient(env, c, m, now) {
   let prev = null; try { const p = JSON.parse((prevRow && prevRow.data) || 'null'); prev = p && p.stats ? Object.assign({}, p.stats, { label: p.label || '' }) : null; } catch (e) {}
   let money = null;
   try { money = await (await import('./money.js')).caughtFor(env, c.client_id, Date.parse(m.start) + 15 * 864e5); } catch (e) { money = null; }
-  const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n, money }, prev, now);
+  // The analytics: when the phone rang, why callers didn't book, reviews, follow-ups, rivals, and what it means (insights.js).
+  let an = null;
+  try {
+    const I = await import('./insights.js'), { tzFor } = await import('./callbacks.js');
+    let prevA = null; try { const p = JSON.parse((prevRow && prevRow.data) || 'null'); prevA = p && p.a ? Object.assign({ label: p.label || '' }, p.a) : null; } catch (e) {}
+    an = await I.monthAnalytics(env, c.client_id, m.start, m.end, { tz: await tzFor(env, c.client_id), prev: prevA, money, regulated: !!+c.regulated });
+  } catch (e) { an = null; }
+  const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n, money, a: an }, prev, now);
   const json = JSON.stringify(data);
   await env.DB.prepare('INSERT OR REPLACE INTO app_months (client_id, month, data, hash, updated) VALUES (?1, ?2, ?3, ?4, ?5)').bind(c.client_id, m.key, json, 'auto:' + json.length, new Date(now).toISOString()).run();
   return data;
@@ -98,7 +105,7 @@ export async function monthReportCron(env, at) {
   const m = monthOf(now);
   const { DEMO_ID } = await import('./demo.js');
   await ensureRuns(env);
-  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
+  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.regulated, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
   const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
   let made = 0;
   for (const c of clients) {

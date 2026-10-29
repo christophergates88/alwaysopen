@@ -143,6 +143,13 @@ test('the client’s app opens with their private link and not without it', asyn
   assert.equal(S.state.ok, true);
   assert.equal(S.state.client.business, 'Sinclair Plumbing');
   assert.equal(S.state.client.tier, 'Growth');
+  // This month so far leads the Home card, and the month opens as one page (insights.js, monthpage.js).
+  assert.equal(typeof S.state.monthNow.calls, 'number'); assert.equal(S.state.monthNow.page, '/month/now');
+  const mp = await site.call('/app/' + code + '/month/now');
+  assert.equal(mp.status, 200); assert.match(mp.text, /<h1>Sinclair Plumbing<\/h1>/); assert.match(mp.text, /One thing for next month/); assert.match(mp.text, /Katie answers/);
+  assert.equal((await site.call('/app/' + code + '/month/2026-13')).status, 404);
+  const sample = await site.call('/sample-report');
+  assert.equal(sample.status, 200); assert.match(sample.text, /Mike’s Plumbing/); assert.match(sample.text, /Three-day check-ins/);
   assert.equal(S.state.features.calls, true);
   assert.equal(S.state.features.line, true);
   assert.ok(S.state.line, 'Max’s line shows in the app');

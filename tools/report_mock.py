@@ -1,0 +1,126 @@
+"""The sample monthly report that leads every page's hero: one page, the way a client gets it on the 2nd of the month.
+Every business and number here is made up and labeled Sample. Used by tools/industry.py (trade pages) and by
+tools/report_put.py (home, builders, insurance). The markup sits between <!--ao:report--> markers so it can be rebuilt."""
+import html
+
+CSS = """/* ao:report css: the sample monthly report in the hero */
+.rp-wrap{position:relative;display:grid;justify-items:center;gap:12px;padding-top:26px}
+.report{position:relative;width:min(460px,100%);background:#FBFAF7;color:#12151C;border-radius:16px;padding:20px 22px 16px;box-shadow:0 34px 64px -30px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.08),0 0 46px -12px rgba(255,90,77,.45);text-align:left}
+.rp-top{display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #E4E0D8}
+.rp-top svg{width:30px;height:30px;flex:none}
+.rp-top div{display:grid;line-height:1.2;min-width:0}
+.rp-top b{font:800 1.05rem var(--display);font-stretch:94%}
+.rp-top span{font-size:13px;color:#5B6372}
+.rp-top time{margin-left:auto;font:500 12px var(--mono);color:#5B6372;white-space:nowrap}
+.rp-hero{display:flex;align-items:baseline;gap:12px;padding:14px 0 10px}
+.rp-hero b{font:850 4rem/.9 var(--display);font-stretch:88%;letter-spacing:-.02em}
+.rp-hero span{font:700 1.05rem/1.2 var(--display);font-stretch:94%}
+.rp-hero small{display:block;font:400 13px/1.35 var(--body);color:#5B6372;margin-top:2px}
+.rp-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #E4E0D8}
+.rp-grid div{padding:10px 0 10px;display:grid;gap:1px;border-bottom:1px solid #E4E0D8}
+.rp-grid div:nth-child(odd){padding-right:12px;border-right:1px solid #E4E0D8}
+.rp-grid div:nth-child(even){padding-left:14px}
+.rp-grid b{font:850 1.6rem/1 var(--display);font-stretch:90%}
+.rp-grid span{font-size:13.5px;font-weight:600}
+.rp-grid small{font-size:12.5px;color:#5B6372;line-height:1.3}
+.rp-worth{margin:12px 0 0;padding:11px 13px;border-radius:12px;background:#FDECEA;display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rp-worth span{font-size:13.5px;font-weight:600}
+.rp-worth b{font:850 1.45rem/1 var(--display);font-stretch:90%;color:#B42318}
+.rp-worth small{flex-basis:100%;font-size:12.5px;color:#5B6372}
+.rp-check{margin:12px 0 0;padding:9px 12px;border-radius:12px;background:#E9F6EF;color:#0E4A2E;font-size:13px;line-height:1.4}
+.rp-check b{font-weight:700}
+.rp-foot{margin:10px 0 0;font-size:12.5px;color:#5B6372}
+.rp-ping{position:absolute;top:0;right:max(0px,calc(50% - 250px));z-index:2;display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.97);color:#12151C;border-radius:14px;padding:8px 12px;font-size:13px;box-shadow:0 18px 34px -18px rgba(0,0,0,.7)}
+.rp-ping svg{width:20px;height:20px;flex:none}
+.rp-ping b{font-weight:700}
+.rp-ping time{font:500 11px var(--mono);color:#5B6372}
+.rp-cap{margin:0;font:400 12px var(--mono);color:var(--night-mute,#A3ACBF);text-align:center;max-width:420px}
+.rp-cap a{color:#FF8C82;text-underline-offset:3px;white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.rp-ping{animation:rpIn .6s .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rpIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}}
+/* /ao:report css */"""
+
+# Each page's sample month. hero: (number, label, note); cells: four (number, label, note); worth: (label, amount, note) or None.
+PAGES = {
+  'index': dict(check=(8, 1), biz='Mike’s Plumbing', who='a made-up plumber', hero=('14', 'calls answered', '6 after hours or on a weekend'),
+                cells=[('5', 'jobs booked', '2 from Fill my week'), ('3', 'reviews replied to', 'Rating 4.4 to 4.6'),
+                       ('4', 'quotes followed up', '2 said yes'), ('2', 'posts on Google', '1 storm-day post')],
+                worth=('What it was worth', 'about $4,900', 'booked work, at your average job')),
+  'builders': dict(check=(5, 1), biz='Sample Builders', who='a made-up builder', hero=('12', 'calls answered', '5 while you were on a roof'),
+                   cells=[('4', 'site visits booked', 'all on your calendar'), ('2', 'reviews replied to', 'Rating 4.6 to 4.8'),
+                          ('6', 'quotes followed up', '2 said yes'), ('4', 'posts on Google', 'from your job photos')],
+                   worth=('What it was worth', 'about $41,000', 'in quotes that said yes')),
+  'plumbing': dict(check=(11, 1), biz='Sample Plumbing', who='a made-up plumber', hero=('22', 'calls answered', '9 after hours or on a weekend'),
+                   cells=[('7', 'jobs booked', '3 from Fill my week'), ('5', 'reviews replied to', 'Rating 4.5 to 4.7'),
+                          ('6', 'estimates followed up', '3 said yes'), ('3', 'posts on Google', '1 storm-day post')],
+                   worth=('What it was worth', 'about $6,200', 'booked work, at your average job')),
+  'hvac': dict(check=(14, 2), biz='Sample Heating and Air', who='a made-up heating and air company', hero=('31', 'calls answered', '11 after hours, 4 with no heat'),
+               cells=[('9', 'jobs booked', '4 tune-ups from Fill my week'), ('6', 'reviews replied to', 'Rating 4.3 to 4.6'),
+                      ('5', 'estimates followed up', '2 new systems said yes'), ('3', 'posts on Google', '1 storm-day post')],
+               worth=('What it was worth', 'about $11,800', 'booked work, at your average job')),
+  'auto-repair': dict(check=(12, 1), biz='Sample Auto', who='a made-up auto repair shop', hero=('26', 'calls answered', '8 while you were under a car'),
+                      cells=[('11', 'bays booked', '3 from Fill my week'), ('7', 'reviews replied to', 'Rating 4.2 to 4.5'),
+                             ('5', 'estimates followed up', '3 said yes'), ('2', 'posts on Google', 'from your shop photos')],
+                      worth=('What it was worth', 'about $5,400', 'booked work, at your average repair')),
+  'marine': dict(check=(4, 1), biz='Sample Marine', who='a made-up marine business', hero=('17', 'calls answered', '7 on the weekend'),
+                 cells=[('4', 'jobs booked', '1 lift repair the same day'), ('3', 'reviews replied to', 'Rating 4.5 to 4.7'),
+                        ('3', 'quotes followed up', '1 new dock said yes'), ('2', 'posts on Google', '1 storm-day post')],
+                 worth=('What it was worth', 'about $24,800', 'in quotes that said yes')),
+  'salons': dict(check=(9, 1), biz='Sample Salon', who='a made-up salon', hero=('38', 'calls answered', '15 while your hands were busy'),
+                 cells=[('16', 'appointments booked', '6 from open chairs filled'), ('9', 'reviews replied to', 'Rating 4.6 to 4.8'),
+                        ('5', 'clients back', 'due for a visit, and came'), ('4', 'posts on Google', 'from your photos')],
+                 worth=('What it was worth', 'about $2,700', 'in booked visits')),
+  'restaurants': dict(check=(3, 0), biz='Sample Kitchen', who='a made-up restaurant', hero=('64', 'calls answered', '41 during the dinner rush'),
+                      cells=[('6', 'catering requests', '2 booked'), ('11', 'reviews replied to', 'Rating 4.3 to 4.5'),
+                             ('4', 'quotes followed up', 'lunch for 40 said yes'), ('5', 'posts on Google', 'specials and holiday hours')],
+                      worth=('What it was worth', 'about $3,100', 'in catering and large orders')),
+  'dental': dict(biz='Sample Family Dental', who='a made-up dental practice', hero=('18', 'calls answered', 'after hours, messages to your phone'),
+                 cells=[('7', 'visit requests', 'taken any hour'), ('6', 'reviews replied to', 'Rating 4.5 to 4.7'),
+                        ('6', 'replies checked', 'by Compliance Guard, 1 rewritten'), ('2', 'posts on Google', 'holiday hours, a weather closure')],
+                 worth=None, foot='No patient names, visits or treatment anywhere on this page. Every reply and post is on file with it.'),
+  'insurance': dict(biz='Sample Agency', who='a made-up agency', hero=('8', 'reviews replied to', 'all from your approved wording'),
+                    cells=[('8', 'replies checked', 'by Compliance Guard, 2 rewritten'), ('1', 'rate wave flagged', 'by Rate-Shock Radar, a week early'),
+                           ('22', 'after-hours messages', 'taken by Max, none about policies'), ('3', 'posts on Google', 'that teach, never sell')],
+                    worth=None, foot='Every public word, on file with this page, for your compliance contact.'),
+}
+MONTH, SENT = 'October', 'Nov 2'
+
+def e(s):
+    return html.escape(s, quote=True)
+
+def render(key):
+    r = PAGES[key]
+    n, lab, note = r['hero']
+    aria = 'Sample monthly report for ' + r['biz'] + ', ' + MONTH + ': ' + n + ' ' + lab + ' (' + note + '); ' + \
+        '; '.join(c[0] + ' ' + c[1] + ' (' + c[2] + ')' for c in r['cells']) + \
+        ('; three-day check-ins: ' + str(r['check'][0]) + ' held up, ' + str(r['check'][1]) + ' told the owner first' if r.get('check') else '') + \
+        ('; ' + r['worth'][0].lower() + ': ' + r['worth'][1] + '.' if r['worth'] else '.')
+    cells = ''.join('<div><b>' + e(c[0]) + '</b><span>' + e(c[1]) + '</span><small>' + e(c[2]) + '</small></div>' for c in r['cells'])
+    ck = r.get('check')
+    check = ('<p class="rp-check">Three-day check-ins: <b>' + str(ck[0]) + ' customers said the job held up</b>' + (', and ' + str(ck[1]) + ' told you about a problem first, before it could become a review.' if ck[1] else '.') + '</p>') if ck else ''
+    worth = ('<p class="rp-worth"><span>' + e(r['worth'][0]) + '</span><b>' + e(r['worth'][1]) + '</b><small>' + e(r['worth'][2]) + '</small></p>') if r['worth'] else ''
+    foot = r.get('foot', 'Every reply and post is on file with this page.')
+    return ('<!--ao:report-->\n      <div class="rp-wrap">\n'
+            '        <div class="rp-ping" aria-hidden="true"><svg viewBox="0 0 64 64"><use href="#logo"/></svg><span><b>Your ' + MONTH + ' page is ready</b><br><time>' + SENT + ', 7:00 AM</time></span></div>\n'
+            '        <div class="report" role="img" aria-label="' + e(aria) + '">\n'
+            '          <div class="rp-top"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg><div><b>' + e(r['biz']) + '</b><span>' + MONTH + ', on one page</span></div><time>' + SENT + '</time></div>\n'
+            '          <p class="rp-hero"><b>' + e(n) + '</b><span>' + e(lab) + '<small>' + e(note) + '</small></span></p>\n'
+            '          <div class="rp-grid">' + cells + '</div>\n'
+            '          ' + check + worth + '\n'
+            '          <p class="rp-foot">' + e(foot) + '</p>\n'
+            '        </div>\n'
+            '        <p class="rp-cap">Sample report for ' + e(r['who']) + '. Yours comes on the 2nd of every month.' + ('' if key in ('dental', 'insurance') else ' <a href="/sample-report">See the whole page</a>') + '</p>\n'
+            '      </div>\n      <!--/ao:report-->')
+
+def put_css(s):
+    """Add the report styles to a page's first <style> block once (replacing an older copy)."""
+    import re
+    s = re.sub(r'/\* ao:report css.*?/\* /ao:report css \*/\n?', '', s, flags=re.S)
+    i = s.index('</style>')
+    return s[:i] + CSS + '\n' + s[i:]
+
+def put(s, key):
+    import re
+    block = render(key)
+    if '<!--ao:report-->' in s:
+        return re.sub(r'<!--ao:report-->.*?<!--/ao:report-->', lambda m: block, s, count=1, flags=re.S)
+    raise ValueError('no report slot')

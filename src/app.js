@@ -26,6 +26,8 @@ import { apiFirstLook, firstLookDue, shareState } from './firstlook.js';
 import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote, apiStripe, apiInbox, inboxApi, insightsApi, apiTeam, apiPrefs, markOnboard, staffRole, logAct, actText, MONEY_ROUTES, weeklyLine, weeklyNumbers } from './biz.js';
 
 import { apiMap, mapState } from './map.js';
+import { monthAnalytics } from './insights.js';
+import { renderMonthPage } from './monthpage.js';
 import { ensureAuto, autoReady, autoCron, autoNote } from './autotext.js';
 import { publishItem, mergeMonths } from './gbp.js';
 import { lineStatus } from './provision.js';
@@ -189,6 +191,9 @@ export async function handleApp(req, env, ctx, url) {
       }
     } else if (sub.startsWith('/record/')) {
       if (meth === 'GET' || meth === 'HEAD') return await recordPage(env, c, sub.slice(8), base);
+    } else if (sub.startsWith('/month/')) {
+      // The month on one page (monthpage.js): a past month, or this month so far.
+      if (meth === 'GET' || meth === 'HEAD') return await monthPageFor(env, c, sub.slice(7), base);
     } else if (sub === '/api/state' && meth === 'GET') {
       return await apiState(env, c, ctx);
     } else if (sub === '/api/decide' && meth === 'POST') {
@@ -357,9 +362,13 @@ async function apiState(env, c, ctx) {
   let bill = null;
   try { bill = await env.DB.prepare('SELECT plan, status, max, paused_until FROM billing WHERE client_id = ?1').bind(cid).first(); } catch (e) { bill = null; }
   const line = rows(6)[0] || null;
+  // This month so far, for the Home card (insights.js). A failure here never stops the app from loading.
+  let monthNow = null;
+  try { monthNow = monthNowOut(await monthFor(env, c, 'now')); } catch (e) { monthNow = null; }
   let months = rows(2).map(r => {
     const d = parse(r.data) || {};
-    return { month: r.month, label: d.label || r.month, stats: numbersOnly(d.stats), prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)) };
+    return { month: r.month, label: d.label || r.month, stats: numbersOnly(d.stats), prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)),
+      insights: d.a && Array.isArray(d.a.insights) ? d.a.insights.map(x => x.t) : [], next: (d.a && d.a.next) || '', page: '/month/' + r.month };
   });
   // Google's own numbers (calls, direction requests, website clicks) once the Business Profile access is on.
   try { months = await mergeMonths(env, cid, months); } catch (e) { /* the HQ record alone */ }
@@ -389,6 +398,7 @@ async function apiState(env, c, ctx) {
     items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
     done: rows(1).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', status: r.status, text: r.decided_text || r.text || '', at: r.decided_at || r.updated || '', by: r.decided_by || '' })),
     months,
+    monthNow,
     messages: rows(3).reverse().map(r => ({ id: r.id, at: r.at, by: r.by || '', text: r.text || '', dir: r.dir === 'out' ? 'out' : 'in' })),
     counts: { jobs: (rows(4)[0] || {}).n || 0, photos: (rows(5)[0] || {}).n || 0 },
     leads: leads.map(r => ({ id: r.id, at: r.at || '', name: r.name || '', phone: r.phone || '', need: r.need || '', text: !!+r.sms_ok, status: r.status === 'new' ? 'new' : 'done' })),
@@ -851,6 +861,57 @@ async function apiDevice(req, env, c) {
   await env.DB.prepare('DELETE FROM app_devices WHERE client_id = ?1 AND token NOT IN (SELECT token FROM app_devices WHERE client_id = ?1 ORDER BY last_seen DESC LIMIT 20)')
     .bind(c.client_id).run();
   return aj({ ok: true });
+}
+
+// ---------- the month, on one page (insights.js + monthpage.js) ----------
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const labelOf = ym => MONTH_NAMES[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4);
+const prevYm = ym => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 2, 1)); return d.toISOString().slice(0, 7); };
+async function storedA(env, cid, ym) {
+  const row = await env.DB.prepare('SELECT data FROM app_months WHERE client_id = ?1 AND month = ?2').bind(cid, ym).first().catch(() => null);
+  const d = parse(row && row.data) || null;
+  return d && d.a ? Object.assign({ label: d.label || labelOf(ym) }, d.a) : null;
+}
+// One month's analytics for a client: whole past months from the report (or worked out now for older ones), or this
+// month from the 1st in the business's own time to now. Techs never see money.
+export async function monthFor(env, c, which, now) {
+  now = now || Date.now();
+  const { tzFor, local, fromLocal } = await import('./callbacks.js');
+  const tz = await tzFor(env, c.client_id);
+  const mtd = which === 'now', ym = mtd ? local(tz, now).day.slice(0, 7) : which;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)) return null;
+  const start = new Date(fromLocal(tz, ym + '-01', 0, 0)).toISOString();
+  const nextYm = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 1)).toISOString().slice(0, 7);
+  const end = mtd ? new Date(now).toISOString() : new Date(fromLocal(tz, nextYm + '-01', 0, 0)).toISOString();
+  const row = mtd ? null : await env.DB.prepare('SELECT data FROM app_months WHERE client_id = ?1 AND month = ?2').bind(c.client_id, ym).first().catch(() => null);
+  const d = parse(row && row.data) || {};
+  let a = d.a || null, money = null;
+  if (!a) {
+    try { money = mtd ? (await (await import('./money.js')).moneyState(env, c.client_id, now)).thisMonth : await (await import('./money.js')).caughtFor(env, c.client_id, Date.parse(ym + '-15T12:00:00Z')); } catch (e) { money = null; }
+    a = await monthAnalytics(env, c.client_id, start, end, { tz, prev: await storedA(env, c.client_id, prevYm(ym)), money, regulated: !!+c.regulated });
+  }
+  if (c.role === 'tech') a = Object.assign({}, a, { worth: null, work: Object.assign({}, a.work, { won: { n: a.work.won.n, amount: 0 }, followups: Object.assign({}, a.work.followups, { quoteAmount: 0 }) }) });
+  let stats = numbersOnly(d.stats) || {};
+  if (mtd || stats.posts == null) {
+    const p = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind = 'post' AND status IN ('approved', 'closed') AND COALESCE(decided_at, created) >= ?2 AND COALESCE(decided_at, created) < ?3").bind(c.client_id, start, end).first().catch(() => null);
+    stats = Object.assign({}, stats, { posts: +(p && p.n) || 0, replies: a.reviews.replied });
+  }
+  return { month: ym, label: d.label || labelOf(ym), mtd, a, stats, record: !!(d.record && (d.record.revs || d.record.posts)), through: mtd ? local(tz, now).day : '' };
+}
+async function monthPageFor(env, c, which, base) {
+  const m = await monthFor(env, c, which);
+  if (!m) return gone(404);
+  const sent = m.mtd ? 'through ' + new Date(Date.parse(m.through + 'T12:00:00Z')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+  const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '' });
+  return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
+}
+// The Home card's numbers: this month so far, short.
+function monthNowOut(m) {
+  if (!m) return null;
+  const a = m.a, w = a.work;
+  return { month: m.month, label: m.label, calls: a.calls.n, after: a.calls.after, leads: a.calls.leads + w.requests, booked: w.bookedCalls + w.fill.booked,
+    reviews: a.reviews.n, replied: a.reviews.replied, followups: w.followups.done, posts: m.stats.posts || 0, checkYes: w.checkins.yes, checkNo: w.checkins.no,
+    worth: a.worth ? a.worth.mid : 0, insight: (a.insights[0] && a.insights[0].t) || '', page: '/month/now' };
 }
 
 // ---------- the monthly record, as a page they can save as a PDF ----------

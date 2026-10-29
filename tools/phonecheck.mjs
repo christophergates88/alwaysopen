@@ -1,7 +1,7 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 10,200 px with its sections folded (the What we do section added 800 px on purpose, and the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,000), the grade check is not on the first two screens,
+// taller than 10,200 px with its sections folded (the What we do section added 800 px on purpose, and the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,000), the grade check is not on the first three screens (the monthly report leads the hero),
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -90,7 +90,8 @@ for (const w of WIDTHS) {
     report.push(row);
     if (r.docW > r.winW) problems.push(name + ': scrolls sideways (' + r.docW + ' > ' + r.winW + ')');
     if (r.h > maxH) problems.push(name + ': ' + r.h + ' px tall with sections folded (limit ' + maxH + ')');
-    if (r.gradeTop < 0 || r.gradeTop > 812 * 2) problems.push(name + ': the grade check starts at ' + Math.round(r.gradeTop) + ' px (should be on the first two screens)');
+    // The monthly report leads the phone hero (Oct 29, 2026), so the grade check moved to the third screen.
+    if (r.gradeTop < 0 || r.gradeTop > 812 * 3) problems.push(name + ': the grade check starts at ' + Math.round(r.gradeTop) + ' px (should be on the first three screens)');
     if (r.strip > 560) problems.push(name + ': the cards are ' + r.strip + ' px tall (limit 560)');
     r.small.forEach(x => problems.push(name + ': small tap target ' + x));
     r.tiny.forEach(x => problems.push(name + ': small text ' + x));
