@@ -39,6 +39,8 @@ MAIL_FROM = "forms@alwaysopenoffice.com"
 MAIL_TO = "christophergates.cg@gmail.com"
 # Important phone pushes that can't reach the ntfy app within 10 minutes go here as a text (8 AM to 9 PM Eastern).
 OPS_TEXT_TO = "+14783652533"
+# The postal address every marketing email carries (the free-audit email and its two follow-ups).
+BUSINESS_ADDRESS = "103 W Sumter St, Eatonton, GA 31024"
 # Always Open's approved ISV reseller profile in Twilio Trust Hub (not a secret). Each client's texting registration is assigned to it.
 # Once Google approves Business Profile access, the site drafts review replies for clients it reaches through the API
 # (the Always Open check skips those). "primary" = draft an hour after a review comes in.

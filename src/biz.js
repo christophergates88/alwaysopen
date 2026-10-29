@@ -496,6 +496,25 @@ export async function apiInbox(req, env, c) {
   await env.DB.prepare("UPDATE biz_msgs SET status = 'read' WHERE client_id = ?1 AND channel = 'facebook' AND thread = ?2").bind(c.client_id, m[1]).run();
   return aj({ ok: true });
 }
+// Someone messages Always Open's own Page: an answer right away (once a day per person), with the free audit and Max's
+// number, and the message still pings Christopher so Katie can answer properly. A reply within 24 hours of their
+// message is what Facebook allows.
+export const INSTANT_REPLY = 'Thanks for writing to Always Open. Katie will answer you here, usually the same business day. ' +
+  'While you wait, get your free audit in a few minutes: https://alwaysopenoffice.com/#contact. Or call Max, our phone line, at (706) 460-2226, any hour, to hear how your calls would be answered. ' +
+  '(¿Prefiere español? Escríbanos en español y le contestamos en español.)';
+export async function instantReply(env, pg, psid, text, h) {
+  const f = (h && h.fetch) || fetch, now = Date.now();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS fb_instant (psid TEXT PRIMARY KEY, at TEXT)').run();
+  const last = await env.DB.prepare('SELECT at FROM fb_instant WHERE psid = ?1').bind(psid).first().catch(() => null);
+  if (last && now - Date.parse(last.at) < 24 * 3600e3) return 'already';
+  if (/^\s*(stop|unsubscribe|cancel)\s*$/i.test(String(text || ''))) return 'skipped';
+  await env.DB.prepare('INSERT OR REPLACE INTO fb_instant (psid, at) VALUES (?1, ?2)').bind(psid, new Date(now).toISOString()).run();
+  const r = await f(GRAPH + '/' + pg.page_id + '/messages?access_token=' + encodeURIComponent(pg.page_token), { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: INSTANT_REPLY } }) });
+  const j = await r.json().catch(() => ({}));
+  return j.message_id ? 'sent' : 'failed';
+}
+
 // Meta webhook for Page messages: GET verifies the subscription, POST is signed with the app secret.
 export async function metaWebhook(req, env, ctx, url) {
   if (!env.META_APP_SECRET) return new Response('Not found', { status: 404 });
@@ -510,7 +529,7 @@ export async function metaWebhook(req, env, ctx, url) {
   await ensureBiz(env);
   let ev = {}; try { ev = JSON.parse(body); } catch (e) {}
   for (const en of (ev.entry || [])) {
-    const pg = await env.DB.prepare('SELECT client_id, page_token FROM meta_pages WHERE page_id = ?1').bind(String(en.id || '')).first().catch(() => null);
+    const pg = await env.DB.prepare('SELECT client_id, page_id, page_token FROM meta_pages WHERE page_id = ?1').bind(String(en.id || '')).first().catch(() => null);
     if (!pg) continue;
     for (const m of (en.messaging || [])) {
       if (!m.message || m.message.is_echo || !m.sender) continue;
@@ -518,7 +537,11 @@ export async function metaWebhook(req, env, ctx, url) {
       let name = '';
       try { const u = await (await fetch(GRAPH + '/' + psid + '?fields=name&access_token=' + encodeURIComponent(pg.page_token))).json(); name = cl(u.name, 80); } catch (e) {}
       // A message to Always Open's own Page goes to Christopher's phone; answer it in Facebook.
-      if (pg.client_id === 'always-open') { ctx.waitUntil((async () => (await import('./app.js')).opsPing(env, 'Facebook message to Always Open' + (name ? ' from ' + name : ''), text.slice(0, 300), 'high', 'speech_balloon', 'https://www.facebook.com/messages/'))().catch(() => {})); continue; }
+      if (pg.client_id === 'always-open') {
+        ctx.waitUntil((async () => (await import('./app.js')).opsPing(env, 'Facebook message to Always Open' + (name ? ' from ' + name : ''), text.slice(0, 300), 'high', 'speech_balloon', 'https://www.facebook.com/messages/'))().catch(() => {}));
+        ctx.waitUntil(instantReply(env, pg, psid, text).catch(() => {}));
+        continue;
+      }
       const ins = await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, status, ext_id) VALUES (?1,'facebook',?2,?3,?4,'in',?5,'new',?6)")
         .bind(pg.client_id, psid, name, text, new Date(+m.timestamp || Date.now()).toISOString(), String(m.message.mid || token(16))).run();
       if (ins.meta && ins.meta.changes) ctx.waitUntil(pushClient(env, pg.client_id, { aps: { alert: { title: 'Facebook message' + (name ? ' from ' + name : ''), body: text.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'home' }).catch(() => {}));

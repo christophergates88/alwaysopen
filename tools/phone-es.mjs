@@ -8,7 +8,7 @@
 const PROMISE = 'Pruébelo un mes. Si no vale la pena, no lo paga.';
 export const ES_LINE = { en: 'Max answers in English and Spanish. Your callers pick.', es: 'Max contesta en inglés y en español. Quien llama elige.' };
 
-const NAV = { 'What we do': 'Qué hacemos', 'Call Max': 'Llame a Max', 'Your business': 'Su negocio', 'A day with us': 'Un día con nosotros', 'Only here': 'Solo aquí', 'Pricing': 'Precios', 'Add-ons': 'Extras',
+const NAV = { 'What we do': 'Qué hacemos', 'Call Max': 'Llame a Max', 'Your business': 'Su negocio', 'A day with us': 'Un día con nosotros', 'Only here': 'Solo aquí', 'Map': 'Mapa', 'Pricing': 'Precios', 'Add-ons': 'Extras',
   'Questions': 'Preguntas', 'Free audit': 'Auditoría gratis', 'Calls': 'Llamadas', 'Estimates': 'Presupuestos', 'Quotes': 'Cotizaciones', 'Finished jobs': 'Trabajos terminados',
   'Finished repairs': 'Reparaciones terminadas', 'Appointments': 'Citas', 'After a visit': 'Después de la visita', 'Catering': 'Banquetes', 'Reviews and posts': 'Reseñas y publicaciones',
   'After hours': 'Fuera de horario', 'Reviews': 'Reseñas', 'The math': 'Las cuentas', 'Plans': 'Planes', 'Compliance Guard': 'Compliance Guard', 'Rate-Shock Radar': 'Rate-Shock Radar' };
@@ -83,7 +83,7 @@ export const ES_HOME = [
   { s: '#pricing .guarantee', h: '<b>30 días, sin riesgo.</b><p>Si el primer mes no vale la pena, avísenos y se lo reembolsamos. Sin formularios ni discusiones. Y no hay cargo de instalación.</p>' },
   { s: '#contact .who .eyebrow', h: 'Empecemos' },
   { s: '#contact .who h2', h: 'Cuéntenos de su negocio.' },
-  { s: '#contact .who > p:not(.eyebrow):not(.callus):not(.addr)', h: 'Mande el formulario corto. Katie le responde en un día hábil, y su auditoría gratis llega en dos. Sin presión y sin tarjeta.' },
+  { s: '#contact .who > p:not(.eyebrow):not(.callus):not(.addr)', h: 'Mande el formulario corto. Su auditoría gratis le llega al correo en unos minutos, y Katie le da seguimiento en un día hábil. Sin presión y sin tarjeta.' },
   { s: '#contact .callus', h: '¿Prefiere hablar? Llame al <a href="tel:+17064602226">(706) 460-2226</a>. Max, nuestra línea telefónica, contesta a cualquier hora y toma sus datos, y Katie le devuelve la llamada en un día hábil.' },
   { s: '#contact .founding', h: '<b>Pruébelo un mes. Si no vale la pena, no lo paga.</b><p style="margin-top:4px">Sin contrato y sin cargo de instalación. Cancele desde la app.</p>' },
   { s: 'label[for="f-name"]', t: 'Su nombre' }, { s: 'label[for="f-phone"]', t: 'Teléfono' }, { s: 'label[for="f-email"]', t: 'Correo electrónico' },
