@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0}body{width:720px;height:720px;overflow:hidden;background:#0c0a0b}</style></head><body>
+<svg width="720" height="720" viewBox="0 0 720 720" xmlns="http://www.w3.org/2000/svg">
+ <defs>
+  <pattern id="b" width="144" height="58" patternUnits="userSpaceOnUse">
+   <rect width="144" height="58" fill="#120e0f"/>
+   <rect x="2" y="2" width="68" height="25" rx="2" fill="#2b1e1f"/><rect x="74" y="2" width="68" height="25" rx="2" fill="#2f2122"/>
+   <rect x="-34" y="31" width="68" height="25" rx="2" fill="#2d2021"/><rect x="38" y="31" width="68" height="25" rx="2" fill="#281c1d"/><rect x="110" y="31" width="68" height="25" rx="2" fill="#2d2021"/>
+  </pattern>
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/></filter>
+  <radialGradient id="spill" cx="50%" cy="50%" r="55%"><stop offset="0" stop-color="#ff3424" stop-opacity=".34"/><stop offset=".6" stop-color="#ff3424" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+  <filter id="g1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+  <filter id="g2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>
+  <filter id="g3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5"/></filter>
+  <g id="mark" fill="none" stroke-linecap="round">
+   <path d="M465.8 254.2 A150 150 0 1 0 510 360"/>
+  </g>
+ </defs>
+ <rect width="720" height="720" fill="url(#b)"/>
+ <rect width="720" height="720" filter="url(#n)" opacity=".5"/>
+ <rect width="720" height="720" fill="#000" opacity=".25"/>
+ <rect width="720" height="720" fill="url(#spill)"/>
+ <!-- blue ring tube -->
+ <g fill="none">
+  <circle cx="360" cy="360" r="292" stroke="#2f8cff" stroke-width="30" filter="url(#g1)" opacity=".9"/>
+  <circle cx="360" cy="360" r="292" stroke="#3d95ff" stroke-width="16" filter="url(#g2)"/>
+  <circle cx="360" cy="360" r="292" stroke="#9fd0ff" stroke-width="9" filter="url(#g3)"/>
+  <circle cx="360" cy="360" r="292" stroke="#e6f4ff" stroke-width="6"/>
+ </g>
+ <!-- red mark tube -->
+ <g fill="none" stroke-linecap="round">
+  <use href="#mark" stroke="#ff2414" stroke-width="74" filter="url(#g1)"/>
+  <use href="#mark" stroke="#ff3b2f" stroke-width="48" filter="url(#g2)"/>
+  <use href="#mark" stroke="#ff8a7f" stroke-width="36" filter="url(#g3)"/>
+  <use href="#mark" stroke="#fff0ee" stroke-width="27"/>
+ </g>
+ <g>
+  <circle cx="360" cy="360" r="56" fill="#ff2414" filter="url(#g1)"/>
+  <circle cx="360" cy="360" r="49" fill="#ff3b2f" filter="url(#g2)"/>
+  <circle cx="360" cy="360" r="44" fill="#ff8a7f" filter="url(#g3)"/>
+  <circle cx="360" cy="360" r="40" fill="#fff0ee"/>
+ </g>
+</svg></body></html>

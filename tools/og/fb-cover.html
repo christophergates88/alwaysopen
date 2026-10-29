@@ -1,21 +1,53 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
-@font-face{font-family:"Archivo";src:url("FONTS/Archivo.ttf");font-weight:100 900;font-stretch:62% 125%}
-@font-face{font-family:"Instrument Sans";src:url("FONTS/InstrumentSans.ttf");font-weight:400 700;font-stretch:75% 100%}
-@font-face{font-family:"DM Mono";src:url("FONTS/DMMono-Medium.ttf");font-weight:500}
+@font-face{font-family:"Tilt Neon";src:url("FONTS/TiltNeon.ttf")}
+@font-face{font-family:"Instrument Sans";src:url("FONTS/InstrumentSans.ttf");font-weight:400 700}
 html,body{margin:0}
-body{width:1640px;height:624px;overflow:hidden;background:#0F131B;color:#ECEEF3;font-family:"Instrument Sans",sans-serif;position:relative;
- background-image:radial-gradient(620px 420px at 1080px 290px,rgba(217,45,32,.22),transparent 70%),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:auto,52px 52px,52px 52px}
-.l{position:absolute;left:300px;top:118px;width:620px}
-h1{margin:0;font:850 92px/.95 "Archivo";font-stretch:90%;letter-spacing:-.012em}
-h1 em{font-style:normal;color:#FF6A5E}
-p{margin:26px 0 0;font-size:29px;line-height:1.35;color:#C9D0DC}
-.neon{position:absolute;left:960px;top:150px;width:380px;display:grid;justify-items:center;gap:8px;padding:28px 0 22px;border:6px solid #FF6A5E;border-radius:30px;color:#FF6A5E;box-shadow:0 0 0 2px rgba(255,106,94,.25),0 0 56px rgba(255,90,77,.5),inset 0 0 36px rgba(255,90,77,.22)}
-.neon b{font:850 104px/1 "Archivo";letter-spacing:.14em;padding-left:.14em;text-shadow:0 0 28px rgba(255,106,94,.9)}
-.neon span{font:500 24px "DM Mono";letter-spacing:.3em;opacity:.9}
-.foot{position:absolute;left:960px;top:432px;width:392px;text-align:center;font:500 24px "DM Mono";letter-spacing:.06em;color:#A3ACBF}
-.foot b{display:block;font:800 40px/1.2 "Archivo";letter-spacing:.01em;color:#ECEEF3;margin-bottom:4px}
+body{width:1640px;height:624px;overflow:hidden;position:relative;background:#0c0a0b;font-family:"Tilt Neon",sans-serif}
+svg.wall{position:absolute;inset:0}
+.spill{position:absolute;inset:0;background:
+ radial-gradient(520px 360px at 630px 290px,rgba(255,52,36,.30),transparent 70%),
+ radial-gradient(420px 340px at 1140px 300px,rgba(255,170,60,.16),transparent 70%),
+ radial-gradient(1100px 700px at 50% 45%,transparent 40%,rgba(0,0,0,.72) 100%)}
+.sign{position:absolute;left:372px;top:118px;width:516px;height:282px;box-sizing:border-box;border:7px solid #d7ecff;border-radius:40px;
+ box-shadow:0 0 4px #7cc0ff,0 0 14px #2f8cff,0 0 34px #2f8cff,0 0 70px rgba(47,140,255,.45),inset 0 0 6px #7cc0ff,inset 0 0 20px #2f8cff,inset 0 0 44px rgba(47,140,255,.3);
+ display:grid;justify-items:center;align-content:center;gap:2px}
+.wire{position:absolute;top:0;width:2px;height:118px;background:linear-gradient(#000,#3a3436)}
+.open{font-size:172px;line-height:1;letter-spacing:.07em;padding-left:.07em;color:#fff1ee;
+ text-shadow:0 0 2px #fff,0 0 6px #ff7468,0 0 14px #ff3b2f,0 0 28px #ff3b2f,0 0 54px #ff2414,0 0 100px rgba(255,36,20,.6)}
+.hours{font-size:36px;letter-spacing:.32em;padding-left:.32em;color:#fff8ec;margin-top:-4px;
+ text-shadow:0 0 2px #fff,0 0 6px #ffc46b,0 0 14px #ff9f1c,0 0 30px rgba(255,159,28,.6)}
+.list{position:absolute;left:962px;top:134px;display:grid;gap:14px}
+.list div{font-size:38px;line-height:1.15;color:#fff8ec;white-space:nowrap;display:flex;align-items:center;gap:20px;
+ text-shadow:0 0 2px #fff,0 0 6px #ffc46b,0 0 14px #ff9f1c,0 0 30px rgba(255,159,28,.55)}
+.list i{width:13px;height:13px;border-radius:50%;background:#fff0ee;box-shadow:0 0 4px #ff7468,0 0 10px #ff3b2f,0 0 22px #ff3b2f;flex:none}
+.call{position:absolute;left:372px;width:516px;top:432px;text-align:center;font-family:"Instrument Sans",sans-serif;font-weight:600;font-size:30px;color:#e9e4dc;letter-spacing:.01em}
+.call b{font-family:"Tilt Neon";font-weight:400;font-size:40px;color:#fff1ee;letter-spacing:.03em;display:block;margin-top:4px;
+ text-shadow:0 0 2px #fff,0 0 6px #ff7468,0 0 14px #ff3b2f,0 0 30px rgba(255,59,47,.6)}
 </style></head><body>
-<div class="l"><h1>Your business,<br><em>always</em> open.</h1><p>Calls answered. Reviews handled.<br>Jobs followed up. You approve it<br>all from your phone.</p></div>
-<div class="neon"><b>OPEN</b><span>24 HOURS</span></div>
-<div class="foot"><b>(706) 460-2226</b>Call Max. Try him.</div>
+<svg class="wall" width="1640" height="624" xmlns="http://www.w3.org/2000/svg">
+ <defs>
+  <pattern id="b" width="192" height="76" patternUnits="userSpaceOnUse">
+   <rect width="192" height="76" fill="#120e0f"/>
+   <rect x="2" y="2" width="92" height="34" rx="2" fill="#2b1e1f"/><rect x="98" y="2" width="92" height="34" rx="2" fill="#2f2122"/>
+   <rect x="-46" y="40" width="92" height="34" rx="2" fill="#2d2021"/><rect x="50" y="40" width="92" height="34" rx="2" fill="#281c1d"/><rect x="146" y="40" width="92" height="34" rx="2" fill="#2d2021"/>
+  </pattern>
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/></filter>
+  <filter id="m"><feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="3" seed="9"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 -.25"/></filter>
+ </defs>
+ <rect width="1640" height="624" fill="url(#b)"/>
+ <rect width="1640" height="624" filter="url(#n)" opacity=".5"/>
+ <rect width="1640" height="624" filter="url(#m)"/>
+ <rect width="1640" height="624" fill="#000" opacity=".30"/>
+</svg>
+<div class="spill"></div>
+<div class="wire" style="left:440px"></div><div class="wire" style="left:818px"></div>
+<div class="sign"><div class="open">OPEN</div><div class="hours">24 HOURS</div></div>
+<div class="call">Call Max, any hour<b>(706) 460-2226</b></div>
+<div class="list">
+ <div><i></i>Calls answered 24/7</div>
+ <div><i></i>Reviews answered</div>
+ <div><i></i>Every job checked on</div>
+ <div><i></i>Slow days filled</div>
+ <div><i></i>Storm-day posts</div>
+</div>
 </body></html>
