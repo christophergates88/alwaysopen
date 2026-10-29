@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGES, FOLDS } from './phone-data.mjs';
+import { ES_HOME, esTrade, esFront, ES_LINE, NAV_ES } from './phone-es.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
@@ -406,6 +407,68 @@ const JS = `(function () {
 
 const KIT = '<!--ao:kit-->\n<style id="ao-phone">' + CSS + '\n</style>\n<script>' + JS + '\n</script>\n<!--/ao:kit-->';
 
+// ---------- Spanish: the ES/EN switch, the line under the dare, and the swap (phone-es.mjs) ----------
+const SLOT = '<div data-hearmax id="hear" hidden></div>';
+const LANG_BTN = '<!--ao:lang--><button type="button" class="lang-t" data-lang-t lang="es" aria-label="Ver en español">ES</button><!--/ao:lang-->';
+const ESLINE = '<!--ao:esline--><p class="es-line" data-esline>' + esc(ES_LINE.en) + '</p><!--/ao:esline-->';
+const ES_CSS = '.top{flex-wrap:nowrap}.top .wordmark{white-space:nowrap;flex:none}.lang-t{flex:none;min-width:44px;min-height:44px;margin-left:10px;padding:0 10px;border:1.5px solid rgba(236,238,243,.4);border-radius:10px;background:transparent;color:#ECEEF3;font:700 15px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;cursor:pointer}' +
+  '@media (max-width:420px){html[data-lang="es"] .top{gap:8px}html[data-lang="es"] .top nav a.btn{white-space:normal;max-width:92px;text-align:center;line-height:1.15;padding-left:10px;padding-right:10px}.lang-t{margin-left:0}}' +
+  '.lang-t:hover{border-color:#FF6A5E}.lang-t:focus-visible{outline:3px solid #FF6A5E;outline-offset:2px}.es-line{margin:12px 0 0;font-weight:600;font-size:15px;line-height:1.4}';
+// The switch, as it runs in the page. Kept as a real function so it is checked like any other code.
+function esSwitch() {
+  var d = document, data;
+  try { data = JSON.parse(d.getElementById('ao-es').textContent); } catch (e) { return; }
+  var btn = d.querySelector('[data-lang-t]'); if (!btn) return;
+  var keys = {}; Array.prototype.forEach.call(d.querySelectorAll('[data-launch]'), function (el) { keys[el.getAttribute('data-launch')] = 1; });
+  var saved = [], cur = 'en';
+  function lead(el) { var out = ''; for (var n = el.firstChild; n; n = n.nextSibling) { if (n.nodeType === 1 && n.tagName.toLowerCase() === 'svg') out += n.outerHTML; else if (n.nodeType === 3 && !n.nodeValue.trim()) continue; else break; } return out; }
+  function apply(lang) {
+    if (lang === cur) return;
+    if (lang === 'es') {
+      saved = [];
+      data.forEach(function (e) {
+        var el = d.querySelector(e.s); if (!el) return; var o = { el: el };
+        if (e.h != null) { o.h = el.innerHTML; var t = d.createElement('div'); t.innerHTML = e.h; Array.prototype.forEach.call(t.querySelectorAll('[data-launch]'), function (x) { if (!keys[x.getAttribute('data-launch')]) x.remove(); }); el.innerHTML = lead(el) + t.innerHTML; }
+        if (e.t != null) { for (var n = el.firstChild; n; n = n.nextSibling) { if (n.nodeType === 3 && n.nodeValue.trim()) { o.tn = n; o.t = n.nodeValue; n.nodeValue = e.t; break; } } }
+        if (e.p != null) { o.p = el.getAttribute('placeholder'); el.setAttribute('placeholder', e.p); }
+        if (e.o != null) { o.o = el.textContent; if (!el.hasAttribute('value')) el.setAttribute('value', el.textContent); el.textContent = e.o; }
+        if (e.a) { o.a = {}; for (var k in e.a) { o.a[k] = el.getAttribute(k); el.setAttribute(k, e.a[k]); } }
+        saved.push(o);
+      });
+    } else {
+      saved.reverse().forEach(function (o) {
+        var el = o.el;
+        if (o.h != null) el.innerHTML = o.h;
+        if (o.tn) o.tn.nodeValue = o.t;
+        if (o.p !== undefined) { if (o.p == null) el.removeAttribute('placeholder'); else el.setAttribute('placeholder', o.p); }
+        if (o.o != null) el.textContent = o.o;
+        if (o.a) for (var k in o.a) { if (o.a[k] == null) el.removeAttribute(k); else el.setAttribute(k, o.a[k]); }
+      });
+      saved = [];
+    }
+    cur = lang; d.documentElement.lang = lang; d.documentElement.setAttribute('data-lang', lang);
+    btn.textContent = lang === 'es' ? 'EN' : 'ES'; btn.setAttribute('aria-label', lang === 'es' ? 'View in English' : 'Ver en español'); btn.setAttribute('lang', lang === 'es' ? 'en' : 'es');
+    var f = d.getElementById('lead');
+    if (f) { var i = f.querySelector('input[name="lang"]'); if (!i) { i = d.createElement('input'); i.type = 'hidden'; i.name = 'lang'; f.appendChild(i); } i.value = lang; }
+    try { localStorage.setItem('ao_lang', lang); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('ao:lang', { detail: lang })); } catch (e) {}
+  }
+  btn.addEventListener('click', function () { apply(cur === 'es' ? 'en' : 'es'); });
+  var want = ''; try { want = new URLSearchParams(location.search).get('lang') || localStorage.getItem('ao_lang') || ''; } catch (e) {}
+  if (want === 'es') apply('es');
+}
+function esEntries(key, s) {
+  const out = (key === 'index' ? ES_HOME.slice() : esTrade(key)).concat(esFront(key).filter(e => (PAGES[key].chips || !/aos-also/.test(e.s)) && (PAGES[key].modes || !/aos-modes/.test(e.s))));
+  const h = s.indexOf('<header'), n0 = s.indexOf('<nav aria-label="Main">', h), n1 = s.indexOf('</nav>', n0);
+  const links = n0 > 0 ? (s.slice(n0, n1).match(/<a\b[^>]*>[^<]*<\/a>/g) || []) : [];
+  links.forEach((a, i) => { const t = a.replace(/<[^>]+>/g, '').trim(); if (NAV_ES[t]) out.push({ s: 'header.hero nav a:nth-child(' + (i + 1) + ')', h: NAV_ES[t] }); });
+  out.push({ s: '[data-esline]', h: ES_LINE.es });
+  return out;
+}
+function esBlock(key, s) {
+  return '<!--ao:es-->\n<style id="ao-es-css">' + ES_CSS + '</style>\n<script type="application/json" id="ao-es">' + JSON.stringify(esEntries(key, s)).replace(/</g, '\\u003c') + '</script>\n<script>(' + esSwitch.toString() + ')();</script>\n<!--/ao:es-->';
+}
+
 // ---------- writing it into the pages ----------
 function between(s, tag, block, where) {
   const re = new RegExp('<!--ao:' + tag + '-->[\\s\\S]*?<!--/ao:' + tag + '-->');
@@ -454,6 +517,10 @@ function build(file, key) {
     // the floating call button also steps aside over the cards and the grade check
     s = s.replace("['header.hero', '#try', '#contact', 'footer']", "['header.hero', '#go', '#try', '#contact', 'footer']");
   }
+  // Spanish: the switch after the main menu, the line under the dare, the swap block before </body>
+  s = between(s, 'lang', LANG_BTN, x => { const h = x.indexOf('<header'), n = x.indexOf('</nav>', h); return n < 0 ? -1 : n + 6; });
+  if (s.includes(SLOT)) s = between(s, 'esline', ESLINE, x => x.indexOf(SLOT) + SLOT.length);
+  s = between(s, 'es', esBlock(key, s), x => x.lastIndexOf('</body>'));
   s = foldAttrs(s, key === 'index' ? FOLDS.index : FOLDS[key] || FOLDS.trade);
   fs.writeFileSync(file, s);
   return s.length;

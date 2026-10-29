@@ -54,7 +54,7 @@ CREATE TABLE handoff_prefs (client_id TEXT PRIMARY KEY, give INTEGER DEFAULT 0, 
 CREATE TABLE handoffs (id INTEGER PRIMARY KEY AUTOINCREMENT, from_id TEXT NOT NULL, to_id TEXT NOT NULL, caller TEXT DEFAULT '', call_sid TEXT DEFAULT '', at TEXT, need TEXT DEFAULT '', result TEXT DEFAULT '');
 CREATE TABLE heartbeats (task TEXT PRIMARY KEY, at TEXT);
 CREATE TABLE launch (k TEXT PRIMARY KEY, on_ INTEGER DEFAULT 0, at TEXT DEFAULT '', state TEXT DEFAULT '', detail TEXT DEFAULT '', checked TEXT DEFAULT '');
-CREATE TABLE leads (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, name TEXT, email TEXT, phone TEXT, business TEXT, town TEXT, type TEXT, plan TEXT, link TEXT, notes TEXT, origin TEXT, ip_hash TEXT, status TEXT NOT NULL DEFAULT 'new', reason TEXT, picked_at TEXT, mail TEXT, sms_ok TEXT, ref TEXT DEFAULT '');
+CREATE TABLE leads (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, name TEXT, email TEXT, phone TEXT, business TEXT, town TEXT, type TEXT, plan TEXT, link TEXT, notes TEXT, origin TEXT, ip_hash TEXT, status TEXT NOT NULL DEFAULT 'new', reason TEXT, picked_at TEXT, mail TEXT, sms_ok TEXT, ref TEXT DEFAULT '', lang TEXT DEFAULT '');
 CREATE TABLE map_listing (client_id TEXT PRIMARY KEY, show INTEGER, phone TEXT DEFAULT '', address TEXT DEFAULT '', lat REAL, lng REAL, exact INTEGER DEFAULT 0, geo_q TEXT DEFAULT '', geo_at TEXT DEFAULT '', updated TEXT DEFAULT '');
 CREATE TABLE meta_pages (client_id TEXT PRIMARY KEY, page_id TEXT, page_name TEXT, page_token TEXT, ig_id TEXT, connected_at TEXT);
 CREATE TABLE ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER);

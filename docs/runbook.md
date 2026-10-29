@@ -76,6 +76,10 @@ every morning; if it does not arrive, that is itself the alarm, and the outside 
 - **Review asks for Always Open** (`src/ourreviews.js`): a month in, owners clearly getting value get one text (or email)
   asking for a Google review of us, three a day at most. Off until `ALWAYS_OPEN_REVIEW_LINK` is set in `wrangler.toml`.
   Replies come to your phone; a complaint arrives at high priority.
+- **Spanish on the site** (`tools/phone-es.mjs`): the ES/EN switch in the header swaps the hero, the menu, the cards'
+  frame, the grade form, the six features, plans and the request form (the sample conversations in the cards stay
+  English). Edit the Spanish there and run `node tools/phone.mjs`; the phone check flips every page to Spanish too.
+  A lead from the Spanish page is marked Spanish, and that owner's Max line starts in Spanish.
 - **Grade letters** (`src/letter.js`): on `/audit/tool`, "Make the letter" under an audit, or the "Grade letters to
   print" box for up to ten. One page each on Letter paper; competitors only as an average.
 

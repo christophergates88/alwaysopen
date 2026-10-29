@@ -135,13 +135,15 @@ export async function runFill(env, c, opts) {
   return { ok: true, sent, day: pick.day, slot: slotSay };
 }
 
+// A yes, in English or Spanish (accents optional): "yes", "ok", "sí", "si", "claro", "de acuerdo", "está bien".
+export const YES_RE = /^\s*(?:(?:yes|yeah|yep|yup|sure|ok|okay|y|i'?ll take it|that works)\b|(?:s[ií]|claro|dale|de acuerdo|perfecto|est[aá] bien|me sirve)(?=$|[\s.,!¡?]))/i;
 // From handleSms, before the text goes to the inbox: a YES to a live offer books the first open time that day.
 // Returns { book: true, reply } when it handled the booking, or null.
 export async function onReply(env, cid, from10, body) {
   await ensureFill(env);
   const offer = await env.DB.prepare("SELECT * FROM fillweek_offers WHERE client_id = ?1 AND phone10 = ?2 AND status = 'sent' AND at > ?3 ORDER BY id DESC LIMIT 1").bind(cid, from10, new Date(Date.now() - 3 * 864e5).toISOString()).first().catch(() => null);
   if (!offer) return null;
-  if (!/^\s*(yes|yeah|yep|yup|sure|ok|okay|y|i'?ll take it|that works)\b/i.test(String(body || ''))) {
+  if (!YES_RE.test(String(body || ''))) {
     await env.DB.prepare("UPDATE fillweek_offers SET status = 'replied' WHERE id = ?1").bind(offer.id).run();
     return null;
   }

@@ -331,7 +331,8 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
     <p class="everyone">Always Open works for every kind of business, anywhere in the U.S. This page covers what’s different for insurance agencies. <a href="index.html">See everything we do</a></p>
     <div class="top">
       <a class="wordmark" href="index.html"><svg class="mark" aria-hidden="true"><use href="#logo"/></svg>Always Open</a>
-      <nav aria-label="Main"><a href="#guard">Compliance Guard</a><a href="#radar">Rate-Shock Radar</a><a href="#max">After hours</a><a href="#plans">Plans</a><a href="#questions">Questions</a><a class="btn primary small" href="index.html#start-insurance">Free audit</a></nav>
+      <nav aria-label="Main"><a href="#guard">Compliance Guard</a><a href="#radar">Rate-Shock Radar</a><a href="#max">After hours</a><a href="#plans">Plans</a><a href="#questions">Questions</a><a class="btn primary small" href="index.html#start-insurance">Free audit</a></nav><!--ao:lang--><button type="button" class="lang-t" data-lang-t lang="es" aria-label="Ver en español">ES</button><!--/ao:lang-->
+
     </div>
     <div class="hero-grid">
       <div>
@@ -442,7 +443,8 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
         <li><svg aria-hidden="true"><use href="#chk"/></svg><span>Included in every plan: 300 minutes a month, about 120 calls</span></li>
       </ul>
       <a class="neon-call" href="tel:+17064602226"><span>Hear him for yourself</span><b>(706) 460-2226</b></a>
-        <div data-hearmax id="hear" hidden></div>
+        <div data-hearmax id="hear" hidden></div><!--ao:esline--><p class="es-line" data-esline>Max answers in English and Spanish. Your callers pick.</p><!--/ao:esline-->
+
       <p class="callnote">That’s our own line, so Max talks about Always Open. On your line he answers for your agency.</p>
     </div>
     <div class="phone-wrap">
@@ -1028,5 +1030,51 @@ footer span,footer a,footer .entity{font-size:15px}
 </script>
 <!--/ao:kit-->
 <script src="/hear-max.js" defer></script>
+<!--ao:es-->
+<style id="ao-es-css">.top{flex-wrap:nowrap}.top .wordmark{white-space:nowrap;flex:none}.lang-t{flex:none;min-width:44px;min-height:44px;margin-left:10px;padding:0 10px;border:1.5px solid rgba(236,238,243,.4);border-radius:10px;background:transparent;color:#ECEEF3;font:700 15px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;cursor:pointer}@media (max-width:420px){html[data-lang="es"] .top{gap:8px}html[data-lang="es"] .top nav a.btn{white-space:normal;max-width:92px;text-align:center;line-height:1.15;padding-left:10px;padding-right:10px}.lang-t{margin-left:0}}.lang-t:hover{border-color:#FF6A5E}.lang-t:focus-visible{outline:3px solid #FF6A5E;outline-offset:2px}.es-line{margin:12px 0 0;font-weight:600;font-size:15px;line-height:1.4}</style>
+<script type="application/json" id="ao-es">[{"s":"header.hero .everyone","h":"Always Open trabaja para todo tipo de negocio, en cualquier parte de EE. UU. Esta página cubre lo que más les importa a agencias de seguros. \u003ca href=\"index.html\">Vea todo lo que hacemos\u003c/a>"},{"s":"header.hero p.for","h":"Para agencias de seguros"},{"s":"header.hero h1","h":"Subieron las tarifas. \u003cspan>Las reseñas vinieron después.\u003c/span>"},{"s":"header.hero .lede","h":"Always Open contesta cada reseña de su agencia con la redacción que aprobó su encargado de cumplimiento. Compliance Guard revisa cada respuesta antes de que usted la vea, y \u003cb>nada se publica hasta que usted toque Aprobar\u003c/b>. Nunca vemos su lista de clientes."},{"s":"header.hero .lede-ph","h":"Max toma recados fuera de horario y nunca habla de pólizas, tarifas ni reclamos. Compliance Guard revisa cada palabra que escribimos por usted."},{"s":"header.hero .ctas a:nth-child(1)","h":"Ver mi calificación"},{"s":"header.hero .ctas a:nth-child(2)","h":"Pedir mi auditoría gratis"},{"s":"header.hero .ctas a:nth-child(3)","h":"Probar Compliance Guard"},{"s":"header.hero .promise > span","h":"Pruébelo un mes. Si no vale la pena, no lo paga.\u003csmall>Sin cargo de instalación y sin contrato. Respuestas en inglés y en español.\u003c/small>"},{"s":"#aos-h","h":"Lo que nadie más hace para agencias de seguros. Toque y pruébelo."},{"s":"#go .aos-head > p","h":"Cada tarjeta muestra una llamada, un mensaje o una publicación de un negocio inventado. Toque una opción y vea lo que pasa."},{"s":"#go .aos-sample","h":"Ejemplo: negocios, clientes y llamadas inventados."},{"s":"#go-grade h3","h":"¿Cómo se ve su negocio en internet?"},{"s":"#go-grade > p","h":"Escriba el nombre de su negocio y su ciudad. Su calificación aparece aquí mismo en unos segundos."},{"s":"label[for=\"g-q\"]","t":"Nombre del negocio"},{"s":"#g-q","p":"Como aparece en Google"},{"s":"label[for=\"g-town\"]","t":"Ciudad"},{"s":"#go .aog-go","h":"Ver mi calificación"},{"s":"#go .aos-modes button[data-mode=\"0\"]","h":"Independiente"},{"s":"#go .aos-modes button[data-mode=\"1\"]","h":"Con una aseguradora"},{"s":"header.hero nav a:nth-child(1)","h":"Compliance Guard"},{"s":"header.hero nav a:nth-child(2)","h":"Rate-Shock Radar"},{"s":"header.hero nav a:nth-child(3)","h":"Fuera de horario"},{"s":"header.hero nav a:nth-child(4)","h":"Planes"},{"s":"header.hero nav a:nth-child(5)","h":"Preguntas"},{"s":"header.hero nav a:nth-child(6)","h":"Auditoría gratis"},{"s":"[data-esline]","h":"Max contesta en inglés y en español. Quien llama elige."}]</script>
+<script>(function esSwitch() {
+  var d = document, data;
+  try { data = JSON.parse(d.getElementById('ao-es').textContent); } catch (e) { return; }
+  var btn = d.querySelector('[data-lang-t]'); if (!btn) return;
+  var keys = {}; Array.prototype.forEach.call(d.querySelectorAll('[data-launch]'), function (el) { keys[el.getAttribute('data-launch')] = 1; });
+  var saved = [], cur = 'en';
+  function lead(el) { var out = ''; for (var n = el.firstChild; n; n = n.nextSibling) { if (n.nodeType === 1 && n.tagName.toLowerCase() === 'svg') out += n.outerHTML; else if (n.nodeType === 3 && !n.nodeValue.trim()) continue; else break; } return out; }
+  function apply(lang) {
+    if (lang === cur) return;
+    if (lang === 'es') {
+      saved = [];
+      data.forEach(function (e) {
+        var el = d.querySelector(e.s); if (!el) return; var o = { el: el };
+        if (e.h != null) { o.h = el.innerHTML; var t = d.createElement('div'); t.innerHTML = e.h; Array.prototype.forEach.call(t.querySelectorAll('[data-launch]'), function (x) { if (!keys[x.getAttribute('data-launch')]) x.remove(); }); el.innerHTML = lead(el) + t.innerHTML; }
+        if (e.t != null) { for (var n = el.firstChild; n; n = n.nextSibling) { if (n.nodeType === 3 && n.nodeValue.trim()) { o.tn = n; o.t = n.nodeValue; n.nodeValue = e.t; break; } } }
+        if (e.p != null) { o.p = el.getAttribute('placeholder'); el.setAttribute('placeholder', e.p); }
+        if (e.o != null) { o.o = el.textContent; if (!el.hasAttribute('value')) el.setAttribute('value', el.textContent); el.textContent = e.o; }
+        if (e.a) { o.a = {}; for (var k in e.a) { o.a[k] = el.getAttribute(k); el.setAttribute(k, e.a[k]); } }
+        saved.push(o);
+      });
+    } else {
+      saved.reverse().forEach(function (o) {
+        var el = o.el;
+        if (o.h != null) el.innerHTML = o.h;
+        if (o.tn) o.tn.nodeValue = o.t;
+        if (o.p !== undefined) { if (o.p == null) el.removeAttribute('placeholder'); else el.setAttribute('placeholder', o.p); }
+        if (o.o != null) el.textContent = o.o;
+        if (o.a) for (var k in o.a) { if (o.a[k] == null) el.removeAttribute(k); else el.setAttribute(k, o.a[k]); }
+      });
+      saved = [];
+    }
+    cur = lang; d.documentElement.lang = lang; d.documentElement.setAttribute('data-lang', lang);
+    btn.textContent = lang === 'es' ? 'EN' : 'ES'; btn.setAttribute('aria-label', lang === 'es' ? 'View in English' : 'Ver en español'); btn.setAttribute('lang', lang === 'es' ? 'en' : 'es');
+    var f = d.getElementById('lead');
+    if (f) { var i = f.querySelector('input[name="lang"]'); if (!i) { i = d.createElement('input'); i.type = 'hidden'; i.name = 'lang'; f.appendChild(i); } i.value = lang; }
+    try { localStorage.setItem('ao_lang', lang); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('ao:lang', { detail: lang })); } catch (e) {}
+  }
+  btn.addEventListener('click', function () { apply(cur === 'es' ? 'en' : 'es'); });
+  var want = ''; try { want = new URLSearchParams(location.search).get('lang') || localStorage.getItem('ao_lang') || ''; } catch (e) {}
+  if (want === 'es') apply('es');
+})();</script>
+<!--/ao:es-->
 </body>
 </html>

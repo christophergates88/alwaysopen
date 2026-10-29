@@ -5,8 +5,9 @@
   if (!slots.length || !window.fetch) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var lang = (document.documentElement.getAttribute('data-lang') || '') === 'es' ? 'es' : 'en';
-  var T = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', note: 'A real call to our demo line, recorded with the caller’s OK. Max never records your customers.' },
-            es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', note: 'Una llamada real a nuestra línea de prueba, grabada con el permiso de quien llamó. Max nunca graba a sus clientes.' } }[lang];
+  var TT = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', caller: 'Caller', note: 'A real call to our demo line, recorded with the caller’s OK. Max never records your customers.' },
+             es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', caller: 'Quien llama', note: 'Una llamada real a nuestra línea de prueba, grabada con el permiso de quien llamó. Max nunca graba a sus clientes.' } };
+  var T = TT[lang];
   var css = '.hm{margin:18px 0 0;display:grid;gap:8px;max-width:520px;color:inherit}' +
     '.hm-b{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:8px 16px 8px 8px;border:2px solid #FF6A5E;border-radius:999px;background:transparent;color:inherit;font-weight:700;font-size:16px;line-height:1.2;font-family:inherit;cursor:pointer;text-align:left;box-shadow:0 0 18px rgba(255,90,77,.25)}' +
     '.hm-b:focus-visible{outline:3px solid #FF6A5E;outline-offset:3px}.hm-i{flex:none;width:36px;height:36px;border-radius:50%;background:#D92D20;display:grid;place-items:center}.hm-i svg{width:16px;height:16px;fill:#fff}' +
@@ -14,14 +15,22 @@
     '.hm-c{font-size:14px;opacity:.85;margin:0}.hm details{all:unset;display:block;font-size:14px;color:inherit}.hm details[open]{padding-bottom:4px}.hm summary{all:unset;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px;font-weight:600;color:inherit}.hm summary::before{content:"\\25B8";font-size:12px}.hm details[open] summary::before{content:"\\25BE"}.hm summary:focus-visible{outline:2px solid #FF6A5E;outline-offset:2px}.hm dl{margin:0 0 6px;display:grid;gap:6px}.hm dt{font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.75}.hm dd{margin:0 0 4px}' +
     '.hm-n{font-size:12.5px;opacity:.75;margin:0}@media (prefers-reduced-motion:reduce){.hm-p i{transition:none}}';
   var PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>', PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
-  fetch('/hear-max.json' + (lang === 'es' ? '?lang=es' : '')).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-    if (!d || !d.ok || !d.src) return;
-    var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
-    for (var i = 0; i < slots.length; i++) build(slots[i], d);
-  }).catch(function () {});
-  var current = null;
+  var styled = false, current = null;
+  function get(l) { return fetch('/hear-max.json' + (l === 'es' ? '?lang=es' : '')).then(function (r) { return r.ok ? r.json() : null; }); }
+  // The Spanish sample when there is one; otherwise the English call with Spanish labels.
+  function load(l) {
+    lang = l; T = TT[l];
+    get(l).then(function (d) { return d && d.ok ? d : (l === 'es' ? get('en') : null); }).then(function (d) {
+      if (!d || !d.ok || !d.src) return;
+      if (!styled) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); styled = true; }
+      if (current) { current.pause(); current = null; }
+      for (var i = 0; i < slots.length; i++) build(slots[i], d);
+    }).catch(function () {});
+  }
+  load(lang);
+  window.addEventListener('ao:lang', function (e) { var l = e && e.detail === 'es' ? 'es' : 'en'; if (l !== lang) load(l); });
   function build(slot, d) {
-    var lines = (d.lines || []).map(function (l) { return '<dt>' + esc(l.who) + '</dt><dd>' + esc(l.t) + '</dd>'; }).join('');
+    var lines = (d.lines || []).map(function (l) { return '<dt>' + esc(l.who === 'Caller' ? T.caller : l.who) + '</dt><dd>' + esc(l.t) + '</dd>'; }).join('');
     slot.className = 'hm';
     slot.innerHTML = '<button type="button" class="hm-b" aria-pressed="false"><span class="hm-i">' + PLAY + '</span><span class="hm-t"><span class="hm-l">' + esc(T.play) + '</span><small>' + d.seconds + T.left + '</small></span></button>' +
       '<div class="hm-p" aria-hidden="true"><i></i></div><p class="hm-c">' + esc(d.caption) + '</p>' +

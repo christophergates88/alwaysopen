@@ -364,7 +364,7 @@ function withSiteHeaders(res, url) {
 async function migrate(env) {
   if (migrated) return;
   migrated = true;
-  for (const col of ['mail', 'sms_ok', 'ref']) {
+  for (const col of ['mail', 'sms_ok', 'ref', 'lang']) {
     try { await env.DB.prepare('ALTER TABLE leads ADD COLUMN ' + col + ' TEXT').run(); } catch (e) { /* already there */ }
   }
 }
@@ -380,6 +380,8 @@ async function lead(req, env, ctx, url) {
   for (const k of Object.keys(LIMITS)) f[k] = clean(form.get(k), LIMITS[k]);
   f.sms_ok = f.sms_ok === 'yes' ? 'yes' : 'no';
   f.ref = /^[A-Za-z0-9_-]{4,40}$/.test(f.ref) ? f.ref : '';
+  f.lang = String(form.get('lang') || '') === 'es' ? 'es' : '';
+  const es = f.lang === 'es';
   const trap = String(form.get('company_site') || '').trim();
   const t = +form.get('t') || 0;
   const now = Date.now();
@@ -403,14 +405,15 @@ async function lead(req, env, ctx, url) {
     const problems = [];
     if (!f.name) problems.push('your name');
     if (!EMAIL_RE.test(f.email)) problems.push('a valid email');
-    if (problems.length) return reply(wantsJson, 400, false, 'Almost there', 'Please add ' + problems.join(' and ') + '.');
+    if (problems.length) return es ? reply(wantsJson, 400, false, 'Casi listo', 'Por favor agregue ' + problems.map(x => x === 'your name' ? 'su nombre' : 'un correo electrónico válido').join(' y ') + '.')
+      : reply(wantsJson, 400, false, 'Almost there', 'Please add ' + problems.join(' and ') + '.');
   }
 
   await migrate(env);
   const status = reason ? 'spam' : 'new';
   const ins = await env.DB.prepare(
-    'INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, reason, sms_ok, ref) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)'
-  ).bind(at, f.name, f.email, f.phone, f.business, f.town, f.type, f.plan, f.link, f.notes, origin, ipHash, status, reason || null, f.sms_ok, f.ref).run();
+    'INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, reason, sms_ok, ref, lang) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)'
+  ).bind(at, f.name, f.email, f.phone, f.business, f.town, f.type, f.plan, f.link, f.notes, origin, ipHash, status, reason || null, f.sms_ok, f.ref, f.lang).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
 
   if (!reason && f.ref) {
@@ -426,6 +429,8 @@ async function lead(req, env, ctx, url) {
     ]));
   }
   const first = (f.name || '').split(/\s+/)[0];
+  if (es) return reply(wantsJson, 200, true, 'Recibido' + (first && !reason ? ', ' + first : '') + '.',
+    'Su solicitud nos llegó. Chris le responde en un día hábil, y su auditoría gratis llega en dos. Ya puede cerrar esta pestaña.');
   return reply(wantsJson, 200, true, 'Got it' + (first && !reason ? ', ' + first : '') + '.',
     'Your request reached us. Chris will reply within one business day, and your free audit follows within two. You can close this tab.');
 }
@@ -433,7 +438,7 @@ async function lead(req, env, ctx, url) {
 async function push(env, f, id) {
   if (!env.NTFY_URL) return;
   const body = [f.name + (f.business ? ', ' + f.business : ''), [f.phone, f.email].filter(Boolean).join(' · '),
-    [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : ''].filter(Boolean).join('\n');
+    [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.lang === 'es' ? 'Wrote in Spanish: answer in Spanish' : '', f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : ''].filter(Boolean).join('\n');
   try {
     await fetch(env.NTFY_URL, { method: 'POST', headers: { 'Title': ascii('Always Open lead: ' + (f.business || f.name)), 'Priority': 'high', 'Tags': 'telephone_receiver' }, body });
   } catch (e) { /* the email and the daily check still catch it */ }
@@ -445,7 +450,7 @@ async function mail(env, f, id, at) {
   const text = [
     'New request from the Always Open website.', '',
     'Lead ID: ' + (id || '?'), 'Name: ' + f.name, 'Business: ' + f.business, 'Phone: ' + f.phone, 'Email: ' + f.email,
-    'Town: ' + f.town, 'Type: ' + f.type, 'Plan: ' + f.plan, 'Link: ' + f.link, 'Notes: ' + f.notes.replace(/\r?\n/g, ' '), 'OK to text: ' + f.sms_ok, 'Referred by: ' + (f.referredBy || 'none'),
+    'Town: ' + f.town, 'Type: ' + f.type, 'Plan: ' + f.plan, 'Language: ' + (f.lang === 'es' ? 'Spanish (they used the Spanish page; answer in Spanish, and their Max line starts in Spanish)' : 'English'), 'Link: ' + f.link, 'Notes: ' + f.notes.replace(/\r?\n/g, ' '), 'OK to text: ' + f.sms_ok, 'Referred by: ' + (f.referredBy || 'none'),
     'Sent at: ' + at, '',
     'Reply to this email to answer them directly. It also goes into Always Open HQ, Pipeline, at the next Always Open check.'
   ].join('\r\n');
@@ -510,7 +515,7 @@ async function hash(s) {
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function reply(wantsJson, status, ok, title, text) {
-  if (wantsJson) return json(ok ? { ok: true } : { ok: false, error: text }, status);
+  if (wantsJson) return json(ok ? { ok: true, title, message: text } : { ok: false, error: text }, status);
   return page(status, title, text);
 }
 function page(status, title, text) {

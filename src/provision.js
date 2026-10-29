@@ -87,7 +87,7 @@ export async function provisionLine(env, cid) {
     if (tries === 2 || tries === MAX_TRIES) { try { await (await import('./app.js')).opsPing(env, 'Always Open: could not set up Max’s line', 'For ' + ((b && b.business) || cid) + ': ' + why + (tries >= MAX_TRIES ? ' It stopped trying. Fix it in Twilio, then set the line up by hand.' : ' It keeps trying every 10 minutes.'), 'high', 'warning'); } catch (e) {} }
     return { status: 'failed', number: '', numberText: '', error: why };
   };
-  const b = await env.DB.prepare('SELECT business, phone, town, type FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  const b = await env.DB.prepare('SELECT business, phone, town, type, email FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
   const c = await env.DB.prepare('SELECT business, phone, regulated FROM app_clients WHERE client_id = ?1').bind(cid).first();
   if (!c) return fail('no such client');
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return fail('The Twilio keys are not set on the worker.');
@@ -116,6 +116,8 @@ export async function provisionLine(env, cid) {
       .bind(bought.number, cid, business, +c.regulated ? 1 : 0, industryOf(business, b && b.type), town, at),
     env.DB.prepare("UPDATE provision SET status = 'live', number = ?1, number_sid = ?2, error = '', updated = ?3 WHERE client_id = ?4").bind(bought.number, bought.sid, at, cid)
   ]);
+  // An owner who wrote to us from the Spanish page gets a line that answers Spanish-speaking callers in Spanish from day one.
+  try { if (b && b.email) await env.DB.prepare("UPDATE voice_lines SET spanish = 1 WHERE number = ?1 AND EXISTS (SELECT 1 FROM leads WHERE lang = 'es' AND lower(email) = lower(?2))").bind(bought.number, String(b.email)).run(); } catch (e) { /* older leads table without lang: the owner can turn it on */ }
   const text = pretty(bought.number);
   try {
     const a = await import('./app.js');

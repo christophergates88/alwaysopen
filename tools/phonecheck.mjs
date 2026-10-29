@@ -2,7 +2,7 @@
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
 // taller than 9,000 px with its sections folded (industry pages 7,000), the grade check is not on the first two screens,
-// a playable card does not play, or a folded section does not open.
+// a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
 const args = process.argv.slice(2);
 const SHOTS = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : '';
-const TYPES = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.txt': 'text/plain' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.txt': 'text/plain' };
 
 // The same pages the Worker serves, from the files on disk. The grade check answers with a made-up business.
 const server = http.createServer((req, res) => {
@@ -138,6 +138,23 @@ for (const w of WIDTHS) {
       await page.fill('#g-q', 'Sample Plumbing'); await page.fill('#g-town', 'Eatonton, GA');
       await page.click('.aog-go');
       await page.waitForSelector('.aog-res', { timeout: 3000 }).catch(() => problems.push(name + ': the grade did not show'));
+      // Spanish: every swap finds its place, the switch is a full tap, nothing scrolls sideways, English comes back.
+      const es = await page.evaluate(() => {
+        const btn = document.querySelector('[data-lang-t]'); if (!btn) return ['no ES/EN switch'];
+        let data = []; try { data = JSON.parse(document.getElementById('ao-es').textContent); } catch (e) { return ['no Spanish block']; }
+        const bad = data.filter(e => !document.querySelector(e.s)).map(e => 'nothing at ' + e.s);
+        const h1 = document.querySelector('header.hero h1').innerHTML;
+        btn.click();
+        if (document.documentElement.lang !== 'es') bad.push('did not switch');
+        if (document.querySelector('header.hero h1').innerHTML === h1) bad.push('the headline stayed English');
+        if (document.documentElement.scrollWidth > window.innerWidth) bad.push('scrolls sideways (' + document.documentElement.scrollWidth + ' px)');
+        const t = btn.getBoundingClientRect(); if (t.width < 44 || t.height < 44) bad.push('the switch is smaller than 44 px');
+        btn.click();
+        if (document.querySelector('header.hero h1').innerHTML !== h1) bad.push('English did not come back');
+        try { localStorage.removeItem('ao_lang'); } catch (e) {}
+        return bad;
+      });
+      es.forEach(x => problems.push(name + ': Spanish ' + x));
       if (SHOTS) { await page.locator('#go-grade').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(SHOTS, name + '-grade.png') }); await page.screenshot({ path: path.join(SHOTS, name + '-full.png'), fullPage: true }); }
     }
   }
