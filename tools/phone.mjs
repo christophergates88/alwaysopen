@@ -410,7 +410,6 @@ const KIT = '<!--ao:kit-->\n<style id="ao-phone">' + CSS + '\n</style>\n<script>
 // ---------- Spanish: the ES/EN switch, the line under the dare, and the swap (phone-es.mjs) ----------
 const SLOT = '<div data-hearmax id="hear" hidden></div>';
 const LANG_BTN = '<!--ao:lang--><button type="button" class="lang-t" data-lang-t lang="es" aria-label="Ver en español">ES</button><!--/ao:lang-->';
-const ESLINE = '<!--ao:esline--><p class="es-line" data-esline>' + esc(ES_LINE.en) + '</p><!--/ao:esline-->';
 const ES_CSS = '.top{flex-wrap:nowrap}.top .wordmark{white-space:nowrap;flex:none}.lang-t{flex:none;min-width:44px;min-height:44px;margin-left:10px;padding:0 10px;border:1.5px solid rgba(236,238,243,.4);border-radius:10px;background:transparent;color:#ECEEF3;font:700 15px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;cursor:pointer}' +
   '@media (max-width:420px){html[data-lang="es"] .top{gap:8px}html[data-lang="es"] .top nav a.btn{white-space:normal;max-width:92px;text-align:center;line-height:1.15;padding-left:10px;padding-right:10px}.lang-t{margin-left:0}}' +
   '.lang-t:hover{border-color:#FF6A5E}.lang-t:focus-visible{outline:3px solid #FF6A5E;outline-offset:2px}.es-line{margin:12px 0 0;font-weight:600;font-size:15px;line-height:1.4}';
@@ -462,7 +461,6 @@ function esEntries(key, s) {
   const h = s.indexOf('<header'), n0 = s.indexOf('<nav aria-label="Main">', h), n1 = s.indexOf('</nav>', n0);
   const links = n0 > 0 ? (s.slice(n0, n1).match(/<a\b[^>]*>[^<]*<\/a>/g) || []) : [];
   links.forEach((a, i) => { const t = a.replace(/<[^>]+>/g, '').trim(); if (NAV_ES[t]) out.push({ s: 'header.hero nav a:nth-child(' + (i + 1) + ')', h: NAV_ES[t] }); });
-  out.push({ s: '[data-esline]', h: ES_LINE.es });
   return out;
 }
 function esBlock(key, s) {
@@ -519,7 +517,7 @@ function build(file, key) {
   }
   // Spanish: the switch after the main menu, the line under the dare, the swap block before </body>
   s = between(s, 'lang', LANG_BTN, x => { const h = x.indexOf('<header'), n = x.indexOf('</nav>', h); return n < 0 ? -1 : n + 6; });
-  if (s.includes(SLOT)) s = between(s, 'esline', ESLINE, x => x.indexOf(SLOT) + SLOT.length);
+  s = s.replace(/<!--ao:esline-->[\s\S]*?<!--\/ao:esline-->/, '');   // the languages now live in the small line under the buttons
   s = between(s, 'es', esBlock(key, s), x => x.lastIndexOf('</body>'));
   s = foldAttrs(s, key === 'index' ? FOLDS.index : FOLDS[key] || FOLDS.trade);
   fs.writeFileSync(file, s);

@@ -50,7 +50,7 @@ export const ES_HOME = [
   { s: 'header.hero .ctas a[href="#contact"]', h: 'Quiero mi auditoría gratis' },
   { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
   { s: 'header.hero .promise > span', h: PROMISE },
-  { s: 'header.hero p.fine', h: 'Sin cargo de instalación · Mes a mes · Respuestas en español incluidas' },
+  { s: 'header.hero p.fine', h: 'Sin cargo de instalación · Mes a mes · Max habla español' },
   { s: 'header.hero .onlylink', h: 'Seis cosas que nadie más hace por un negocio como el suyo <span aria-hidden="true">&darr;</span>' },
   { s: '#only .head .eyebrow', h: 'Solo aquí' },
   { s: '#only .head h2', h: 'Seis cosas que nadie más hace.' },
@@ -144,7 +144,7 @@ export function esTrade(key) {
     { s: 'header.hero .everyone', h: 'Always Open trabaja para todo tipo de negocio, en cualquier parte de EE. UU. Esta página cubre lo que más les importa a ' + t.plural + '. <a href="index.html">Vea todo lo que hacemos</a>' },
     { s: 'header.hero p.for', h: t.for }, { s: 'header.hero h1', h: t.h1 }, { s: 'header.hero .lede', h: t.lede }, { s: 'header.hero .lede-ph', h: t.ph },
     ...(t.ctas || ['Ver mi calificación', 'Quiero mi auditoría gratis', 'Llame a Max: (706) 460-2226']).map((c, i) => ({ s: 'header.hero .ctas a:nth-child(' + (i + 1) + ')', h: c })),
-    { s: 'header.hero .promise > span', h: PROMISE + '<small>' + (t.small || 'Sin cargo de instalación y sin contrato. Español incluido.') + '</small>' }
+    { s: 'header.hero .promise > span', h: PROMISE + '<small>' + (t.small || 'Sin cargo de instalación ni contrato. Max también habla español.') + '</small>' }
   ];
 }
 
