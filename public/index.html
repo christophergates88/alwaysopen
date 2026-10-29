@@ -542,11 +542,27 @@ a.chip:hover{border-color:var(--ink)}
  .doesgrid{gap:10px}.pillar{padding:14px 12px;gap:8px;border-radius:14px}.pillar h3{font-size:1.02rem}
  .pillar ul{gap:5px}.pillar li{padding-left:13px;font-size:15px;line-height:1.35}.pillar li::before{width:6px;height:6px;top:.5em}
  .pillar li span{display:none}.pillar a:not([href="/map"]){display:none}.pillar a{font-size:15px}}
-/* the free audit card, lit like the report */
-#audit .auditstage{background:radial-gradient(520px 300px at 85% 0%,rgba(217,45,32,.22),transparent 65%),linear-gradient(165deg,var(--night-2),var(--night));gap:12px}
-#audit .auditcard{background:radial-gradient(420px 220px at 18% 0%,rgba(255,90,77,.12),transparent 70%),linear-gradient(165deg,#1B2232 0%,#121722 100%);color:#ECEEF3;border:1.5px solid rgba(255,106,94,.6);border-radius:18px;box-shadow:0 0 0 1px rgba(255,106,94,.16),0 0 34px rgba(255,90,77,.34),inset 0 0 26px rgba(255,90,77,.07),0 40px 70px -34px rgba(0,0,0,.95)}
-#audit .auditcard .mh b{color:#fff;font-size:16px}
-#audit .auditcard small{color:#A3ACBF}
+/* product pictures lit like the monthly report */
+.stage.neonstage{background:radial-gradient(520px 300px at 85% 0%,rgba(217,45,32,.22),transparent 65%),linear-gradient(165deg,var(--night-2),var(--night));gap:12px}
+.mock.lit{--m-bg:#161C29;--m-ink:#ECEEF3;--m-mute:#A3ACBF;--m-line:rgba(255,255,255,.1);--m-soft:rgba(255,255,255,.05);--m-ok:#7EE0BE;--m-ok-bg:rgba(92,201,164,.14);--m-warn:#F2B54C;--m-warn-bg:rgba(242,181,76,.15);--m-red:#FF6A5E;--m-red-bg:rgba(255,90,77,.16);background:radial-gradient(420px 220px at 18% 0%,rgba(255,90,77,.12),transparent 70%),linear-gradient(165deg,#1B2232 0%,#121722 100%);color:var(--m-ink);border:1.5px solid rgba(255,106,94,.6);border-radius:18px;box-shadow:0 0 0 1px rgba(255,106,94,.16),0 0 34px rgba(255,90,77,.34),inset 0 0 26px rgba(255,90,77,.07),0 40px 70px -34px rgba(0,0,0,.95)}
+.mock.lit .mh small{white-space:nowrap}
+.mock.lit .mh b,.mock.lit .p-head b,.mock.lit .total strong,.mock.lit .tile b{color:#fff}
+.mock.lit .p-av{background:linear-gradient(160deg,#FF6A5E,#B8281D);color:#fff;box-shadow:0 0 16px rgba(255,90,77,.55)}
+.mock.lit .stars{color:#F2B54C!important}
+.mock.lit .p-checks li::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='%237EE0BE' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.mock.lit .bub.in{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12);color:var(--m-ink)}
+.mock.lit .paylink,.mock.lit .recbtn{background:#FF5A4D;color:#fff;box-shadow:0 0 14px rgba(255,90,77,.55)}
+.mock.lit .irow i{box-shadow:0 0 8px rgba(126,224,190,.55)}
+.mock.lit .irow i.r{box-shadow:0 0 8px rgba(255,106,94,.8)}
+.mock.lit .irow i.w{background:#F2B54C;box-shadow:0 0 8px rgba(242,181,76,.6)}
+.mock.lit .chart line{stroke:rgba(255,255,255,.12)}
+.mock.lit .chart rect{fill:#4A5570}
+.mock.lit .chart rect.now{fill:#FF5A4D;filter:drop-shadow(0 0 6px rgba(255,90,77,.8))}
+.mock.lit .chart text{fill:#A3ACBF}
+.mock.lit .chart .v{fill:#ECEEF3}
+.neoncap{margin:0;font:400 12px var(--mono);color:var(--night-mute,#A3ACBF);text-align:center;max-width:420px}
+/* the free audit card */
+#audit .auditcard .mh b{font-size:16px}
 #audit .auditcard .gr{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:#ECEEF3}
 #audit .auditcard .g-A i,#audit .auditcard .g-B i{color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.5)}
 #audit .auditcard .g-C i{color:#F2B54C;text-shadow:0 0 10px rgba(242,181,76,.45)}
@@ -557,7 +573,6 @@ a.chip:hover{border-color:var(--ink)}
 #audit .auditcard .bar.you span:first-child{color:#FF8C82;font-weight:700}
 #audit .auditcard .bar b{color:#ECEEF3;white-space:nowrap}
 #audit .auditcard .finds li::before{background:#FF5A4D;box-shadow:0 0 8px rgba(255,90,77,.8)}
-#audit .auditcap{margin:0;font:400 12px var(--mono);color:var(--night-mute,#A3ACBF);text-align:center;max-width:420px}
 @media (prefers-reduced-motion:no-preference){#audit .auditcard{animation:rpGlow 3.2s ease-in-out infinite}}
 /* the map, its own section */
 .mapsec{color:var(--night-ink);background:radial-gradient(700px 380px at 15% 0%,rgba(24,64,106,.45),transparent 65%),linear-gradient(180deg,var(--night-2) 0%,var(--night) 100%);padding-block:64px;border-top:1px solid var(--night-line)}
@@ -843,12 +858,11 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>A review request after every job, written for you, sent from your phone in one tap</li>
         </ul>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample business profile showing current hours, a recent post and a checklist of kept-current items">
-        <span class="mtag">Sample</span>
-        <div class="p-head"><div class="p-av">MR</div><div><b>Mike's Roofing</b><span>Roofing contractor · Eatonton, GA</span><span class="stars">4.6 ★★★★★ <em style="font-style:normal;color:var(--m-mute);font-weight:400">(212 reviews)</em></span></div></div>
+      <div class="stage neonstage"><div class="mock lit" role="img" aria-label="Example business profile showing current hours, a recent post and a checklist of kept-current items">
+        <div class="p-head"><div class="p-av" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.6-5h14.8L21 9"/><path d="M3 9a3 3 0 0 0 6 0a3 3 0 0 0 6 0a3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8"/><path d="M10 20v-5h4v5"/></svg></div><div><b>Your business</b><span>Your trade · your town</span><span class="stars">4.6 ★★★★★ <em style="font-style:normal;color:var(--m-mute);font-weight:400">(212 reviews)</em></span></div></div>
         <div class="p-actions"><span>Call</span><span>Directions</span><span>Website</span><span>Book</span></div>
         <p class="p-hours"><b>Open now</b> · Holiday hours already set for Nov 27</p>
-        <div class="p-post"><small>Post · this week</small><p>Fall roof inspections are booking now. Send a photo for a free quick look.</p></div>
+        <div class="p-post"><small>Post · this week</small><p>Fall appointments are booking now. Send a photo for a free quick look.</p></div>
         <ul class="p-checks"><li>Hours</li><li>Photos</li><li>Weekly post</li><li>Q&amp;A answered</li></ul>
       </div></div>
     </div>
@@ -872,9 +886,8 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Missed-call texts and appointment reminders</li>
         </ul>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample activity inbox: a call answered by Max, a new quote request, a booking and a review reply waiting for approval">
-        <span class="mtag">Sample</span>
-        <div class="mh"><b>Today · Mike's Roofing</b><small>4 handled</small></div>
+      <div class="stage neonstage"><div class="mock lit" role="img" aria-label="Example activity inbox: a call answered by Max, a new quote request, a booking and a review reply waiting for approval">
+        <div class="mh"><b>Today · Your business</b><small>4 handled</small></div>
         <div class="inbox">
           <div class="irow"><i></i><div><b>Call · (478) 555-0142</b><span>Max took the details, 2:14 AM</span></div><span class="pill ok">Lead saved</span></div>
           <div class="irow"><i class="r"></i><div><b>Quote request · Kitchen ceiling leak</b><span>From your booking page, 6:51 AM</span></div><span class="pill red">New</span></div>
@@ -895,15 +908,14 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Past-customer reminders and referral asks</li>
         </ul>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample money-waiting list with three invoices and a payment reminder text">
-        <span class="mtag">Sample</span>
+      <div class="stage neonstage"><div class="mock lit" role="img" aria-label="Example money-waiting list with three invoices and a payment reminder text">
         <div class="total"><div><small>Money waiting</small><br><strong>$3,240</strong></div><span class="pill ok">$450 paid this week</span></div>
         <div>
           <div class="inv"><b>#1042 · Dana R.</b><em>$1,850</em><span>Reminder 2 sent today</span></div>
           <div class="inv"><b>#1049 · Hart Farms</b><em>$940</em><span>Due Friday</span></div>
           <div class="inv"><b>#1038 · L. Moss</b><em>$450</em><span style="color:var(--m-ok)">Paid</span></div>
         </div>
-        <div class="sms"><small class="via">Sent by email</small><div class="bub in">Hi Dana, a friendly reminder that invoice #1042 ($1,850) was due Oct 20. Thank you for choosing Mike's Roofing.<br><span class="paylink">Pay invoice</span></div></div>
+        <div class="sms"><small class="via">Sent by email</small><div class="bub in">Hi Dana, a friendly reminder that invoice #1042 ($1,850) was due Oct 20. Thank you for choosing us.<br><span class="paylink">Pay invoice</span></div></div>
       </div></div>
     </div>
 
@@ -921,9 +933,8 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>An estimated potential share, as a range, with the two facts holding it back. A model estimate, never a promise</li>
         </ul>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample monthly report with calls, direction requests, new reviews, rating change and a bar chart of reviews per month rising from 2 in May to 14 in October">
-        <span class="mtag">Sample · made-up numbers</span>
-        <div class="mh"><b>October report</b><small>Mike's Roofing</small></div>
+      <div class="stage neonstage"><div class="mock lit" role="img" aria-label="Example monthly report with calls, direction requests, new reviews, rating change and a bar chart of reviews per month rising from 2 in May to 14 in October">
+        <div class="mh"><b>October report</b><small>Your business</small></div>
         <div class="tiles">
           <div class="tile"><b>41</b><span>Calls from Google</span><em>+12 vs Sept</em></div>
           <div class="tile"><b>118</b><span>Direction requests</span><em>+9 vs Sept</em></div>
@@ -939,10 +950,10 @@ a.chip:hover{border-color:var(--ink)}
             <rect x="110" y="73" width="30" height="23" rx="3" fill="#B9BECB"/><text class="v" x="125" y="68" text-anchor="middle">4</text><text x="125" y="110" text-anchor="middle">Jul</text>
             <rect x="158" y="62" width="30" height="34" rx="3" fill="#B9BECB"/><text class="v" x="173" y="57" text-anchor="middle">6</text><text x="173" y="110" text-anchor="middle">Aug</text>
             <rect x="206" y="45" width="30" height="51" rx="3" fill="#B9BECB"/><text class="v" x="221" y="40" text-anchor="middle">9</text><text x="221" y="110" text-anchor="middle">Sep</text>
-            <rect x="254" y="16" width="30" height="80" rx="3" fill="#D92D20"/><text class="v" x="269" y="11" text-anchor="middle">14</text><text x="269" y="110" text-anchor="middle">Oct</text>
+            <rect class="now" x="254" y="16" width="30" height="80" rx="3" fill="#D92D20"/><text class="v" x="269" y="11" text-anchor="middle">14</text><text x="269" y="110" text-anchor="middle">Oct</text>
           </svg>
         </div>
-      </div></div>
+      </div><p class="neoncap">An example report. Yours shows your own numbers.</p></div>
     </div>
 
     <div data-label="Stay on the record" class="row reveal">
@@ -958,12 +969,11 @@ a.chip:hover{border-color:var(--ink)}
           <li><svg aria-hidden="true"><use href="#chk"/></svg>Full Max, if you want it: pick the categories that may send on their own. Compliance Guard still checks every one, anything flagged waits for you, and one switch pauses it all. Off unless you turn it on</li>
         </ul>
       </div>
-      <div class="stage"><div class="mock" role="img" aria-label="Sample monthly record listing a posted review reply, a Google post, a missed-call text and a logged lead, each with its date">
-        <span class="mtag">Sample</span>
-        <div class="mh"><b>October record · Mike's Roofing</b><small>12 entries</small></div>
+      <div class="stage neonstage"><div class="mock lit" role="img" aria-label="Example monthly record listing a posted review reply, a Google post, a missed-call text and a logged lead, each with its date">
+        <div class="mh"><b>October record · Your business</b><small>12 entries</small></div>
         <div class="inbox">
-          <div class="irow"><i></i><div><b>Oct 4 · Reply posted to a 5-star review</b><span>Approved by Mike, Oct 4, 8:12 AM</span></div><span class="pill ok">Saved</span></div>
-          <div class="irow"><i></i><div><b>Oct 7 · Google post: fall roof checks</b><span>Approved by Mike, Oct 6</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 4 · Reply posted to a 5-star review</b><span>Approved by you, Oct 4, 8:12 AM</span></div><span class="pill ok">Saved</span></div>
+          <div class="irow"><i></i><div><b>Oct 7 · Google post: fall appointments</b><span>Approved by you, Oct 6</span></div><span class="pill ok">Saved</span></div>
           <div class="irow"><i></i><div><b>Oct 9 · Call answered by Max</b><span>2:14 AM · address taken</span></div><span class="pill ok">Saved</span></div>
           <div class="irow"><i></i><div><b>Oct 12 · Lead logged: kitchen ceiling leak</b><span>Booked for Thu 9:00 AM</span></div><span class="pill ok">Saved</span></div>
         </div>
@@ -1000,7 +1010,7 @@ a.chip:hover{border-color:var(--ink)}
       <div class="ctas"><a class="btn line" href="#contact">Request my full audit</a></div>
       <p class="promise light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-3 7.9-7 9.5-4-1.6-7-5.2-7-9.5V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4 4.6-4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Try it for a month. If it’s not worth it, you don’t pay for it.</span></p>
     </div>
-    <div class="stage auditstage"><div class="mock auditcard" style="max-width:520px" role="img" aria-label="Example audit: a business at 4.1 stars with 38 reviews against nearby competitors at 4.4 to 4.7 stars with 64 to 212 reviews; grades overall C, reviews D, Google profile B, website C; nine reviews with no reply, hours that differ between Google and Facebook, no Google post in 14 months, and no way to request a quote online.">
+    <div class="stage neonstage auditstage"><div class="mock lit auditcard" style="max-width:520px" role="img" aria-label="Example audit: a business at 4.1 stars with 38 reviews against nearby competitors at 4.4 to 4.7 stars with 64 to 212 reviews; grades overall C, reviews D, Google profile B, website C; nine reviews with no reply, hours that differ between Google and Facebook, no Google post in 14 months, and no way to request a quote online.">
       <div class="mh"><b>Your business</b><small>Online audit</small></div>
       <div class="grades" role="group" aria-label="Grades: overall C, reviews D, Google profile B, website C"><span class="gr g-C"><i>C</i>Overall</span><span class="gr g-D"><i>D</i>Reviews</span><span class="gr g-B"><i>B</i>Google profile</span><span class="gr g-C"><i>C</i>Website</span></div>
       <div class="bars">
@@ -1016,7 +1026,7 @@ a.chip:hover{border-color:var(--ink)}
         <li>Last Google post was 14 months ago.</li>
         <li>No way to request a quote online.</li>
       </ul>
-    </div><p class="auditcap">An example audit. Yours uses your own Google profile and the businesses near you.</p></div>
+    </div><p class="neoncap">An example audit. Yours uses your own Google profile and the businesses near you.</p></div>
   </div>
 </section>
 
