@@ -123,14 +123,17 @@ test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; e
     assert.doesNotMatch(h.checks.find(c => c.name === 'twilio-numbers').why, /Demo/, 'the demo number is made up and skipped');
     const core = await healthStatus(env, now + 62 * 60000, true);
     assert.equal(core.checks.some(c => c.name === 'apple-push'), false, 'the deploy check ignores the hourly results');
-    // ntfy blinks (one 522, then fine): not a failure. Down twice: one alert.
+    // Phone pushes: ntfy refusing this server is only a problem when nothing else is getting them through (push.js).
     world.apple = [400, '{"reason":"BadDeviceToken"}']; world.voice_url = 'https://alwaysopenoffice.com/voice/in/vk';
-    let polls = 0; const blink = async (url, init) => { if (String(url).includes('/json?poll')) { polls++; return new Response('', { status: polls === 1 ? 522 : 200 }); } return f(url, init); };
-    r = await slowCron(env, now + 122 * 60000, { fetch: blink, apnsJwt: async () => 'jwt', sleep: async () => {} });
-    assert.deepEqual(r.bad, [], 'one blink is not an outage'); assert.equal(polls, 2);
-    world.ntfy = 522;
-    r = await slowCron(env, now + 183 * 60000, { fetch: f, apnsJwt: async () => 'jwt', sleep: async () => {} });
-    assert.deepEqual(r.bad, ['ntfy']);
+    world.ntfy = 429;
+    const P = await import('../src/push.js');
+    assert.equal(await P.push(env, { title: 'Always Open lead: Test', body: 'x', priority: 'high' }), 'queued');
+    r = await slowCron(env, now + 122 * 60000, { fetch: f, apnsJwt: async () => 'jwt' });
+    assert.deepEqual(r.bad, ['ntfy'], 'refused, and the Mac relay has never asked');
+    assert.match((await healthStatus(env, now + 123 * 60000)).checks.find(c => c.name === 'ntfy').why, /refusing this server/);
+    await P.relayTake(env, now + 175 * 60000);   // the Mac checks in
+    r = await slowCron(env, now + 183 * 60000, { fetch: f, apnsJwt: async () => 'jwt' });
+    assert.deepEqual(r.bad, [], 'refused here, but the Mac relay is carrying them');
     const stale = await healthStatus(env, now + 8 * 3600e3);
     assert.equal(stale.checks.some(c => c.name === 'apple-push'), false, 'a result older than three hours is not shown as current');
   } finally { globalThis.fetch = realFetch; }

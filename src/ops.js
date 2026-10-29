@@ -1,6 +1,7 @@
 // Alerts to Christopher (not clients) when something breaks. One alert per error type per 15 minutes.
 // Goes out by the phone push (NTFY_URL) and an email to MAIL_TO. Never includes keys, codes or customer details.
 import { EmailMessage } from 'cloudflare:email';
+import { push } from './push.js';
 const GAP_MS = 15 * 60000;
 const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').trim();
 // Keys, tokens, phone numbers and emails never travel in an alert, whatever a library put in its error message.
@@ -11,7 +12,6 @@ export const scrub = s => one(s)
   .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]')
   .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]')
   .replace(/\+?1?[ (.-]*\d{3}[ ).-]*\d{3}[ .-]*\d{4}\b/g, '[phone]');
-const asc = s => one(s).replace(/[^\x20-\x7E]/g, '');
 
 const alertsReady = new WeakSet();
 async function ensureAlerts(env) {
@@ -36,13 +36,13 @@ export async function opsAlert(env, type, who, detail) {
     const title = 'Always Open problem: ' + key;
     const body = 'What broke: ' + scrub(detail).slice(0, 600) + more + (who ? '\nClient: ' + one(who).slice(0, 40) : '') + '\nTime: ' + new Date(now).toISOString();
     const jobs = [];
-    if (env.NTFY_URL) jobs.push(fetch(env.NTFY_URL, { method: 'POST', headers: { Title: asc(title), Priority: 'high', Tags: 'warning' }, body }).catch(() => {}));
+    if (env.NTFY_URL) jobs.push(push(env, { title, body, priority: 'high', tags: 'warning' }).catch(() => {}));
     if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
       const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
       const raw = ['From: "Always Open alerts" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + enc(title.slice(0, 120)),
         'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
         'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + body;
-      jobs.push(env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)).catch(() => {}));
+      jobs.push((async () => env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)))().catch(() => {}));
     }
     if (!jobs.length) return 'off';
     await Promise.all(jobs);
@@ -126,16 +126,10 @@ export async function slowChecks(env, h) {
       out.push({ name: 'apple-push', ok: fine, why: fine ? '' : 'Apple answered ' + r.status + ' ' + one(t).slice(0, 60) + ': owners may not be getting pushes' });
     } catch (e) { out.push({ name: 'apple-push', ok: false, why: 'Apple push could not be reached: ' + one(e && e.message).slice(0, 80) }); }
   }
-  // ntfy: the topic answers.
-  if (!env.NTFY_URL) out.push({ name: 'ntfy', ok: false, why: 'no push topic set: nothing reaches your phone' });
-  else {
-    // Reachable is what matters (a protected topic answers 401 or 403 and is still fine); only no answer or a 5xx is a problem.
-    // ntfy.sh sits behind Cloudflare and now and then answers 5xx for a few seconds: ask again once before calling it down.
-    const poll = async () => { try { return (await f(env.NTFY_URL.replace(/\/$/, '') + '/json?poll=1&since=1s', { method: 'GET' })).status; } catch (e) { return 0; } };
-    let st = await poll();
-    if (!st || st >= 500) { await (h.sleep || (ms => new Promise(r => setTimeout(r, ms))))(4000); st = await poll(); }
-    out.push({ name: 'ntfy', ok: st > 0 && st < 500, why: st > 0 && st < 500 ? '' : (st ? 'ntfy answered ' + st + ' twice: pushes to your phone may not be arriving' : 'ntfy could not be reached: pushes to your phone are not arriving') });
-  }
+  // Phone pushes: ntfy refuses this server now and then (its free tier is limited per address, and Workers share
+  // addresses), so what matters is whether pushes are reaching the phone one way or another (push.js).
+  try { const { pushHealth } = await import('./push.js'); const p = await pushHealth(env, h.now); out.push({ name: 'ntfy', ok: p.ok, why: p.why }); }
+  catch (e) { out.push({ name: 'ntfy', ok: true, why: '' }); }
   // Twilio: every live number still points at our webhook and has the fallback.
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
     try {
@@ -176,7 +170,7 @@ export async function slowCron(env, now, h) {
   await ensureSlow(env);
   const last = await env.DB.prepare("SELECT at FROM health_slow WHERE name = 'ran'").first().catch(() => null);
   if (last && now - Date.parse(last.at) < SLOW_EVERY_MS) return { skipped: true };
-  const res = await slowChecks(env, h);
+  const res = await slowChecks(env, Object.assign({ now }, h));
   const at = new Date(now).toISOString();
   for (const c of res) await env.DB.prepare('INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES (?1, ?2, ?3, ?4)').bind(c.name, at, c.ok ? 1 : 0, c.why || '').run();
   await env.DB.prepare("INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES ('ran', ?1, 1, '')").bind(at).run();

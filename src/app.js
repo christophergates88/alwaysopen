@@ -1142,10 +1142,9 @@ async function throttledPing(env, c, title, body) {
   if (changed(r)) await ntfy(env, title, body, 'default', 'white_check_mark');
 }
 async function ntfy(env, title, body, priority, tags, click) {
-  if (!env.NTFY_URL) return;
-  const headers = { Title: ascii(title), Priority: priority || 'default', Tags: tags || 'bell' };
-  if (click) headers.Click = click;
-  try { await fetch(env.NTFY_URL, { method: 'POST', headers, body: String(body || '').slice(0, 3000) }); } catch (e) { /* email still goes */ }
+  // Straight to the phone, or queued for the Mac relay when ntfy refuses this server (see push.js).
+  const { push } = await import('./push.js');
+  return push(env, { title, body, priority: priority || 'default', tags: tags || 'bell', click });
 }
 // Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
 export async function mailTo(env, to, subject, text, biz, opts) {

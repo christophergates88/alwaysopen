@@ -175,6 +175,14 @@ async function serve(req, env, ctx) {
       const r = await sendText(env, { clientId: String(b.client || 'always-open'), to: String(b.to || ''), body: String(b.body || 'Always Open texting is on. This is the only test.'), kind: 'test' });
       return json(r, r.ok ? 200 : 400);
     }
+    if (path === '/ops/push-queue') {
+      // The Gates HQ agent on the Mac relays phone pushes ntfy refused from here (push.js). GET takes, POST reports.
+      const k = req.headers.get('x-key') || '';
+      if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const P = await import('./push.js');
+      if (req.method === 'POST') { let b = {}; try { b = await req.json(); } catch (e) {} return json(await P.relayDone(env, b)); }
+      return json(await P.relayTake(env));
+    }
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
@@ -275,7 +283,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); ctx.waitUntil(watched(env, 'silence', silenceWeekly(env, Date.now(), (type, who, detail) => opsAlert(env, type, who, detail)))); ctx.waitUntil(watched(env, 'maxweek', weeklyGrade(env, Date.now(), (t, b) => opsPing(env, t, b, 'default', 'telephone_receiver')))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text) => (async () => (await import('./app.js')).mailTo(env, to, subj, text, 'Christopher at Always Open', { replyTo: env.MAIL_TO }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'phone-push', (async () => (await import('./push.js')).pushCron(env))())); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text) => (async () => (await import('./app.js')).mailTo(env, to, subj, text, 'Christopher at Always Open', { replyTo: env.MAIL_TO }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 
@@ -329,11 +337,8 @@ async function stormWatch(env) {
   }
 }
 async function stormPush(env, s) {
-  if (!env.NTFY_URL) return;
-  try {
-    await fetch(env.NTFY_URL, { method: 'POST', headers: { 'Title': ascii('Storm Desk: ' + s.event + ' - ' + s.counties), 'Priority': 'high', 'Tags': 'cloud_with_lightning_and_rain' },
-      body: (s.headline || s.event) + '\nOpen Always Open HQ > Today > Storm Desk to draft storm posts for clients there.' });
-  } catch (e) {}
+  await phonePush(env, { title: 'Storm Desk: ' + s.event + ' - ' + s.counties, priority: 'high', tags: 'cloud_with_lightning_and_rain',
+    body: (s.headline || s.event) + '\nOpen Always Open HQ > Today > Storm Desk to draft storm posts for clients there.' });
 }
 async function stormMail(env, s) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
@@ -447,9 +452,7 @@ async function push(env, f, id) {
   if (!env.NTFY_URL) return;
   const body = [f.name + (f.business ? ', ' + f.business : ''), [f.phone, f.email].filter(Boolean).join(' · '),
     [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.lang === 'es' ? 'Wrote in Spanish: answer in Spanish' : '', f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : ''].filter(Boolean).join('\n');
-  try {
-    await fetch(env.NTFY_URL, { method: 'POST', headers: { 'Title': ascii('Always Open lead: ' + (f.business || f.name)), 'Priority': 'high', 'Tags': 'telephone_receiver' }, body });
-  } catch (e) { /* the email and the daily check still catch it */ }
+  await phonePush(env, { title: 'Always Open lead: ' + (f.business || f.name), priority: 'high', tags: 'telephone_receiver', body });   // the email and the daily check still catch it
 }
 
 async function mail(env, f, id, at) {
@@ -511,6 +514,8 @@ function clean(v, max) {
 }
 function oneLine(s) { return String(s || '').replace(/[\r\n\t]+/g, ' ').trim(); }
 function ascii(s) { return s.replace(/[^\x20-\x7E]/g, '').slice(0, 120); }
+// A phone push to Christopher: straight to ntfy, or queued for the Mac relay (push.js). Never throws.
+async function phonePush(env, p) { try { return await (await import('./push.js')).push(env, p); } catch (e) { return 'off'; } }
 function encodeHeader(s) {
   if (/^[\x20-\x7E]*$/.test(s)) return s;
   const bytes = new TextEncoder().encode(s);
@@ -598,9 +603,7 @@ async function radarWatch(env) {
     }
   }
   await radarMail(env, week, lines);
-  if (out.some(x => x.wave) && env.NTFY_URL) {
-    try { await fetch(env.NTFY_URL, { method: 'POST', headers: { 'Title': ascii('Rate-Shock Radar: complaints rising'), 'Priority': 'default', 'Tags': 'chart_with_upwards_trend' }, body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' recent reviews about rates').join('\n') }); } catch (e) {}
-  }
+  if (out.some(x => x.wave)) await phonePush(env, { title: 'Rate-Shock Radar: complaints rising', priority: 'default', tags: 'chart_with_upwards_trend', body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' recent reviews about rates').join('\n') });
   return { ok: true, week, towns: out };
 }
 async function radarMail(env, week, lines) {
@@ -622,7 +625,7 @@ async function radarRun(req, env, url) {
 // New signups, failed payments and cancellations: a phone push and an email to Chris.
 async function billingNotify(env, ctx, title, body, priority) {
   const jobs = [];
-  if (env.NTFY_URL) jobs.push(fetch(env.NTFY_URL, { method: 'POST', headers: { Title: ascii(title), Priority: priority || 'default', Tags: 'moneybag' }, body: String(body || '').slice(0, 2000) }).catch(() => {}));
+  jobs.push(phonePush(env, { title, priority: priority || 'default', tags: 'moneybag', body: String(body || '').slice(0, 2000) }));
   if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
     const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
     const raw = ['From: "Always Open billing" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + encodeHeader(oneLine(title).slice(0, 140)),
