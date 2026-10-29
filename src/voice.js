@@ -906,7 +906,8 @@ async function writeUp(env, sid, s, why) {
   return true;
 }
 
-// A call to Always Open's own number: Chris gets it like a website lead. Nobody but Chris is texted or emailed.
+// A call to Always Open's own number: Chris gets it like a website lead. The caller gets one text with their free audit,
+// only if they said yes when Max offered it; nobody else is texted or emailed.
 async function ownLead(env, call, note, outcome, callback, summary) {
   const phone = callback ? spokenNumber(callback, true) : '';
   if (!note || outcome === 'hangup' || outcome === 'failed') {
@@ -925,12 +926,18 @@ async function ownLead(env, call, note, outcome, callback, summary) {
       .bind(at, f.name, phone, f.business, f.town, f.type, f.plan, f.notes, 'phone ' + call.id).run();
     id = r && r.meta && r.meta.last_row_id;
   } catch (e) { id = null; }
+  // They said yes to the free audit by text: one text with their private link (leadmail.js).
+  let texted = '';
+  if (id && note.auditText && E164.test(callback || '')) {
+    const lang = /^es/i.test(call.lang || '') ? 'es' : '';
+    try { texted = await (await import('./leadmail.js')).textAudit(env, id, callback, Object.assign({}, f, { lang })); } catch (e) { texted = 'failed'; }
+  }
   const who = f.business || f.name || phone || 'a caller';
   await opsPing(env, 'Always Open call: ' + who,
-    [f.name + (f.business ? ', ' + f.business : ''), phone, [f.town, f.type, f.plan].filter(Boolean).join(' · '), summary].filter(Boolean).join('\n'), 'high', 'telephone_receiver');
+    [f.name + (f.business ? ', ' + f.business : ''), phone, [f.town, f.type, f.plan].filter(Boolean).join(' · '), summary, texted === 'texted' ? 'Their free audit link was texted to them.' : (texted && texted !== 'not offered' ? 'They asked for the audit by text, but it did not send: text or call them.' : '')].filter(Boolean).join('\n'), 'high', 'telephone_receiver');
   const text = ['New call to the Always Open phone line. The AI assistant took it.', '',
     'Lead ID: ' + (id || call.id), 'Name: ' + f.name, 'Business: ' + f.business, 'Phone: ' + phone, 'Email: ', 'Town: ' + f.town, 'Type: ' + f.type,
-    'Plan: ' + f.plan, 'Link: ', 'Notes: ' + f.notes, 'OK to text: no', 'Referred by: none', 'Sent at: ' + at, '',
+    'Plan: ' + f.plan, 'Link: ', 'Notes: ' + f.notes + (texted === 'texted' ? ' Their free audit link was texted to them.' : ''), 'OK to text: ' + (texted === 'texted' ? 'yes (they asked for the audit by text)' : 'no'), 'Referred by: none', 'Sent at: ' + at, '',
     'Call them back. It also goes into Always Open HQ, Pipeline, at the next Always Open check.'].join('\r\n');
   const state = await mailOwner(env, 'Always Open phone lead: ' + oneLine(who).slice(0, 120), text);
   if (id) await env.DB.prepare('UPDATE leads SET mail = ?1 WHERE id = ?2').bind(state || '', id).run().catch(() => {});
@@ -1069,6 +1076,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     L.neighbors ? '- Nearby businesses on Always Open that take hand-offs: ' + L.neighbors + '. If the caller needs work this business does not do and one of them does that kind of work, offer the nearest one once, plainly: "We don\'t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?" Only on a clear yes, say "One moment, putting you through." and end that reply with [HANDOFF:Lane Electric] using the exact business name. Never name any business that is not on that list. If they say no, take a message as usual.' : null,
     L.handedFrom ? '- ' + L.handedFrom.business + ' just passed this caller over because they needed ' + (L.handedFrom.need || 'work that business does not do') + '. Open with that in one short line, then help as usual.' : null,
     L.cbSlot ? '- If the caller wants the owner to call them back, name a time rather than leaving it open. Say it plainly: "He is ' + L.cbBusy + '. He will call you at ' + L.cbSlot + '. Does that work?" If they want a different time during business hours, take theirs. Confirm the number to call.' : null,
+    L.own ? '- The free audit by text: once a business owner is interested and you have their business name and their town, offer it once, plainly: "I can text you a free audit of how your business looks on Google. Want it?" If they say yes, confirm the number it goes to and say it will be there as soon as you hang up. Never offer it to someone who is not a business owner, and never send it without a yes.' : null,
     (L.regulated || L.lostOff || L.own) ? null : '- If the caller decides not to go ahead (they will think about it, it is not for them, they only wanted a price, or it is work the business does not do), ask once, plainly: "Before you go, was it the price, the timing, or the drive? It helps him." Take whatever they say, thank them, and let them go. Never argue, never offer anything, never ask twice.',
     '- Never ask for or accept card numbers, Social Security numbers, account or policy numbers, birth dates, passwords or health details. If they start to give one, stop them kindly and say the team will take care of it on the callback.',
     '- Never share personal information about the owner or staff, such as cell numbers, home addresses or schedules.',
@@ -1115,7 +1123,8 @@ async function summarize(env, line, msgs, caller) {
     '"lost" (only when booked is "no": the reason they gave, one of "price", "timing", "distance", "not what we do", "other", or "" if they gave none), "lost_note" (their own words for it, at most 12 words, or ""), ' +
     '"spam" (true for sales pitches, robocalls, surveys, wrong numbers with no message, or abuse' + (own ? '; someone testing the AI with an odd or off-topic question is not spam' : '') + '), ' +
     (own ? '"business" (the caller\'s business name, or ""), "kind" (what kind of business, a few words, or ""), "town" (their town, or ""), ' +
-      '"plan" ("Starter", "Growth", "Pro" or "AI line" if they named one, else another service they asked about, or ""), ' : '') +
+      '"plan" ("Starter", "Growth", "Pro" or "AI line" if they named one, else another service they asked about, or ""), ' +
+      '"audit_text" (true only if the receptionist offered to text a free audit and the caller clearly said yes), ' : '') +
     '"misheard" (true if the caller had to correct a name, number or address the receptionist got wrong), "asked_twice" (true if the receptionist asked for the same thing twice), ' +
     '"offered_time" (true if the receptionist offered a specific day or time for a visit), "asked_person" (true if the caller asked to talk to a real person), ' +
     '"wrong_number" (true if they meant to reach a different business or person), "upset" (true if the caller was angry or upset), "next_step" (true if the call ended with a next step the caller agreed to: a booked time, a promised call back, or the answer they wanted), ' +
@@ -1131,7 +1140,7 @@ async function summarize(env, line, msgs, caller) {
   if (/^1\d{10}$/.test(cb)) cb = '+' + cb;
   return {
     note: Object.assign({ name: s(j.name, 60), callback: E164.test(cb) ? cb : '', reason: s(j.reason, 80), details: s(j.details, 400), when: s(j.when, 80), urgent: j.urgent === true, spam: j.spam === true, summary: s(j.summary, 400) || 'They left a message.', booked: s(j.booked, 4), lost: s(j.lost, 20), lostNote: s(j.lost_note, 120), callbackWanted: j.callback_wanted === true, callbackAt: s(j.callback_at, 20), misheard: j.misheard === true, askedTwice: j.asked_twice === true, offeredTime: j.offered_time === true, askedPerson: j.asked_person === true, upset: j.upset === true, nextStep: j.next_step === true, wrongNumber: j.wrong_number === true },
-      own ? { business: s(j.business, 80), kind: s(j.kind, 60), town: s(j.town, 60), plan: s(j.plan, 40) } : {}),
+      own ? { business: s(j.business, 80), kind: s(j.kind, 60), town: s(j.town, 60), plan: s(j.plan, 40), auditText: j.audit_text === true } : {}),
     inTok: r.inTok, outTok: r.outTok, model: r.model
   };
 }

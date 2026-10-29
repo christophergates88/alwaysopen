@@ -145,3 +145,47 @@ test('a message to Always Open’s Facebook Page gets an answer right away, once
   assert.equal(await B.instantReply(env, pg, 'psid2', 'stop', h), 'skipped');
   assert.equal(calls.length, 1);
 });
+
+test('a caller who says yes gets one text with a private link; the page shows the audit and can email a copy', async () => {
+  const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
+  await L.ensureLeadMail(env);
+  const id = (await DB.prepare("INSERT INTO leads (at, name, email, phone, business, town, status) VALUES (?1, 'Dana', '', '+14785550101', 'Sinclair Plumbing', 'Eatonton', 'new')").bind(new Date().toISOString()).run()).meta.last_row_id;
+  const texts = [];
+  assert.equal(await L.textAudit(env, id, '+14785550101', { business: '' }, { sendText: async o => { texts.push(o); return { ok: true }; } }), 'not offered', 'no business name, no text');
+  assert.equal(await L.textAudit(env, id, '+14785550101', { business: 'Sinclair Plumbing', town: 'Eatonton' }, { sendText: async o => { texts.push(o); return { ok: true }; } }), 'texted');
+  assert.equal(texts.length, 1);
+  assert.equal(texts[0].clientId, 'always-open'); assert.equal(texts[0].kind, 'reply'); assert.equal(texts[0].to, '+14785550101');
+  const m = /https:\/\/alwaysopenoffice\.com\/your-audit\/([A-Za-z0-9]{16}) /.exec(texts[0].body);
+  assert.ok(m, texts[0].body); assert.match(texts[0].body, /Reply STOP to opt out\.$/);
+  const url = new URL('https://alwaysopenoffice.com/your-audit/' + m[1]);
+  const sent = [], pings = [];
+  const h = { run: async () => AUDIT, send: async (to, mm) => { sent.push({ to, subject: mm.subject }); return 'sent'; }, ping: async t => pings.push(t) };
+  let r = await L.handleAuditPage(new Request(url), env, url, h);
+  let html = await r.text();
+  assert.match(html, /Sinclair Plumbing · how you look to people searching Google/); assert.match(html, /Reply to our text, or email hello@alwaysopenoffice\.com/);
+  assert.match(html, /Want a copy by email\?/); assert.match(html, /noindex/);
+  r = await L.handleAuditPage(new Request(url, { method: 'POST', body: new URLSearchParams({ email: 'Dana@Example.com' }) }), env, url, h);
+  assert.match(await r.text(), /A copy is on its way to dana@example\.com/);
+  assert.deepEqual(sent, [{ to: 'dana@example.com', subject: 'Your free audit: Sinclair Plumbing gets a D' }]);
+  const row = await DB.prepare('SELECT email, audit, sms_ok FROM leads WHERE id = ?1').bind(id).first();
+  assert.deepEqual([row.email, row.audit, row.sms_ok], ['dana@example.com', 'sent', 'yes'], 'the copy starts the follow-ups');
+  const bad = new URL('https://alwaysopenoffice.com/your-audit/nope');
+  assert.match(await (await L.handleAuditPage(new Request(bad), env, bad, h)).text(), /isn’t right/);
+  // Google can't find it: the page says so, and Christopher hears about it once
+  const id2 = (await DB.prepare("INSERT INTO leads (at, name, email, phone, business, town, status) VALUES (?1, 'Al', '', '+14785550102', 'Als Fixit', 'Gray', 'new')").bind(new Date().toISOString()).run()).meta.last_row_id;
+  await L.textAudit(env, id2, '+14785550102', { business: 'Als Fixit', town: 'Gray' }, { sendText: async o => { texts.push(o); return { ok: true }; } });
+  const u2 = new URL(/https:\S+/.exec(texts[1].body)[0]);
+  const miss = { run: async () => ({ found: false }), ping: async t => pings.push(t) };
+  assert.match(await (await L.handleAuditPage(new Request(u2), env, u2, miss)).text(), /couldn’t find an exact match/);
+  await L.handleAuditPage(new Request(u2), env, u2, miss);
+  assert.deepEqual(pings, ['Audit needs a hand: Als Fixit']);
+});
+
+test('Max offers the audit by text on Always Open’s own line only', async () => {
+  const V = await import('../src/voice.js');
+  const own = V.systemPrompt(V.lineView({ client_id: 'always-open', business: 'Always Open', facts: '{}' }), '+14785550101', 'en-US');
+  const other = V.systemPrompt(V.lineView({ client_id: 'c1', business: 'Sinclair Plumbing', facts: '{}' }), '+14785550101', 'en-US');
+  assert.match(own, /I can text you a free audit of how your business looks on Google\. Want it\?/);
+  assert.match(own, /never send it without a yes/);
+  assert.doesNotMatch(other, /free audit/);
+});

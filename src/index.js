@@ -220,6 +220,7 @@ async function serve(req, env, ctx) {
       return json({ ok: true, alert: r }, 200);
     }
     if (path === '/lead/stop') return (await import('./leadmail.js')).handleStop(req, env, url);
+    if (path.startsWith('/your-audit/')) return (await import('./leadmail.js')).handleAuditPage(req, env, url, { ping: (t, b) => phonePush(env, { title: t, body: b, priority: 'high', tags: 'mag' }) });
     if (path === '/lead') {
       if (req.method === 'POST') return lead(req, env, ctx, url);
       return Response.redirect(url.origin + '/#contact', 303);
