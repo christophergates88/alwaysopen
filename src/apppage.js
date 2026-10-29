@@ -24,7 +24,7 @@ export function appHtml({ base, business }) {
     '<nav class="tabs" aria-label="Sections">' +
     tab('home', 'Home', '<path d="M4 11.2L12 4.5l8 6.7V20h-5.2v-5.4H9.2V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     tab('approve', 'Approve', '<path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>') +
-    tab('max', 'Max', '<path d="M6.6 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.9 5.9l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
+    tab('max', 'Calls', '<path d="M6.6 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.9 5.9l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     tab('ask', 'Ask us', '<path d="M4.5 6.5h15v10h-8l-4.5 3.5v-3.5H4.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     '</nav>' +
     '<div class="toast" id="toast" role="status" aria-live="polite"></div>' +
@@ -226,6 +226,7 @@ button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-co
 .hero-t{display:grid;gap:4px;min-width:0}
 .hero-t b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}
 .hero-t span{color:var(--slate);font-size:14px}
+.hero-t span.sm{font-size:12.5px;margin-top:2px}
 .hero-t .acts{margin-top:6px}
 .btn.sm{min-height:38px;padding:6px 12px;font-size:14.5px}
 .list{display:grid;gap:8px}
@@ -500,16 +501,27 @@ function moneySheet(){
     '<div class="acts"><button class="btn ok" type="button" id="go">Save</button><button class="btn line" type="button" data-close="1">Cancel</button></div>');
   $('#go').onclick=function(){var avg=parseInt(String($('#mj').value).replace(/[^0-9]/g,''),10)||0;if(!avg){toast('Type your average job in dollars.');return;}this.disabled=true;post('results',{avgJob:avg,winRate:+$('#mw').value}).then(function(res){if(res.j.ok){close();toast('Saved.');load(true);}else{toast(res.j.error||'Could not save.');}}).catch(function(){toast('No connection.');});};
 }
+// What is running for them, in one line: only the parts on their plan. The phone line is one part of the office.
+function officeLine(){
+  var f=S.features||{},p=[];
+  if(S.line)p.push('calls');
+  p.push('reviews');
+  if(f.followups)p.push('follow-ups');
+  if(S.fillWeek&&S.fillWeek.on)p.push('open days');
+  p.push('your Google page');
+  var t=p.length>1?p.slice(0,-1).join(', ')+' and '+p[p.length-1]:p[0];
+  return t.charAt(0).toUpperCase()+t.slice(1)+', covered day and night.';
+}
 function heroCard(){
   var L=S.line,f=S.features||{};
   if(L){
     var on=L.onAir;
     if(on&&SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back to '+esc(L.name))+'<div class="hero-t">'+signBack(L)+'</div></div>';
-    return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+esc(L.name)+(on?' is answering':(L.paused?' is paused':' is off'))+'</b><span>'+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
+    return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+(on?'Your office is open':(L.paused?'Calls are paused':'Calls are off'))+'</b><span>'+officeLine()+'</span><span class="sm">'+esc(L.name)+' \\u00b7 '+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
       (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+'<button class="btn ghost sm" type="button" data-tab="max">Settings</button></div></div></div>';
   }
   if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
-  return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Always Open is on it</b><span>Reviews answered and your Google page kept current, day and night.'+(f.calls||S.client.regulated?'':' Max, your phone assistant, comes with your plan.')+'</span>'+
+  return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Your office is open</b><span>'+officeLine()+(f.calls||S.client.regulated?'':' Max, your phone line, comes with your plan.')+'</span>'+
     (f.calls||S.client.regulated?'':'<div class="acts"><button class="btn ghost sm" type="button" data-a="ask-max">Set up Max for your calls</button></div>')+'</div></div>';
 }
 function revBars(ms,cur){
@@ -864,7 +876,7 @@ function showQr(){
   sheet('<h2>Scan to review '+esc(S.client.business)+'</h2><div class="qrbox">'+svg+'</div><p class="fine">Opens your Google review page. Ask everyone, never offer anything for a review.</p><div class="acts"><a class="btn line" href="'+esc(BASE+'/help/qr')+'">Print a card</a><button class="btn ok" type="button" data-close="1">Done</button></div>');
 }
 function refer(){
-  var url=S.client.refLink,text=(S.line?'I use Always Open for my phone and reviews. Max answers when I can\\u2019t.':'I use Always Open for our reviews and Google profile.')+' They\\u2019ll do a free audit of your business too (I get a free month if you sign up and stay):';
+  var url=S.client.refLink,text=(S.line?'I use Always Open to run the back side of my business: calls, reviews and follow-ups, handled.':'I use Always Open for our reviews and Google profile.')+' They\\u2019ll do a free audit of your business too (I get a free month if you sign up and stay):';
   if(navigator.share){navigator.share({title:'Always Open',text:text,url:url}).catch(function(){});return;}
   var t=text+' '+url;
   try{navigator.clipboard.writeText(t).then(function(){toast('Link copied. Paste it in a text.');},function(){toast(url);});}catch(e){toast(url);}
