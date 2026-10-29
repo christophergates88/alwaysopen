@@ -100,12 +100,12 @@ export const PAGES = {
       ai: { q: 'What’s the number for Sinclair Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Sinclair Plumbing, 478-555-0142. They answer around the clock.' } }))
   },
   plumbing: {
-    plural: 'plumbers', short: 'Max answers in your company’s name, takes the address and what’s wrong, and tries your phone if it’s an emergency.', chips: true, type: 'Contractor or trade',
+    plural: 'plumbers', short: 'Calls answered, reviews replied to, quotes followed up and slow days filled, while you’re under a sink.', chips: true, type: 'Contractor or trade',
     cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sample Plumbing',
       ai: { q: 'What’s the number for Sample Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Sample Plumbing, 478-555-0142. They answer around the clock.' } }))
   },
   hvac: {
-    plural: 'heating and air companies', short: 'Max answers in your company’s name, takes the address and what’s wrong, and tries your phone when a house has no heat or AC.', chips: true, type: 'Contractor or trade',
+    plural: 'heating and air companies', short: 'Calls answered, reviews replied to, quotes followed up and slow days filled, while you’re up in an attic.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
       biz: 'Sample Heating and Air', owner: 'Sam', callTime: 'Sat 6:10 PM', urgent: true,
       problem: 'Our AC quit, and it’s 91 degrees in the house.',
@@ -120,7 +120,7 @@ export const PAGES = {
     })
   },
   builders: {
-    plural: 'builders', short: 'Max answers in your company’s name, takes the details for an estimate, and books the site visit.', chips: true, type: 'Contractor or trade',
+    plural: 'builders', short: 'Calls answered, reviews replied to, estimates followed up and site visits booked, while you’re on a job.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
       biz: 'Sample Builders', owner: 'Sam', callTime: 'Tue 7:40 PM',
       problem: 'We want to add a screened porch before spring.',
@@ -135,7 +135,7 @@ export const PAGES = {
     })
   },
   'auto-repair': {
-    plural: 'auto repair shops', short: 'Max answers in your shop’s name, takes the car and what’s wrong, and books the bay.', chips: true, type: 'Contractor or trade',
+    plural: 'auto repair shops', short: 'Calls answered, reviews replied to, estimates followed up and open bays filled, while you’re under a car.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
       biz: 'Sample Auto', owner: 'Sam', callTime: 'Wed 3:05 PM', urgent: true, cbWhen: 'within the hour',
       problem: 'My car won’t start, and I’m in the school pickup line.',
@@ -150,7 +150,7 @@ export const PAGES = {
     })
   },
   marine: {
-    plural: 'dock builders and marinas', short: 'Max answers while you’re out on the water, takes the dock and what’s wrong, and tries your phone if it’s urgent.', chips: true, type: 'Dock, marine or outdoor',
+    plural: 'dock builders and marinas', short: 'Calls answered, reviews replied to, quotes followed up and slow weeks filled, while you’re out on the water.', chips: true, type: 'Dock, marine or outdoor',
     cards: tradeCards({
       biz: 'Sample Marine', owner: 'Sam', callTime: 'Sat 5:48 PM', urgent: true,
       problem: 'Our boat lift jammed with the boat on it.',
@@ -165,7 +165,7 @@ export const PAGES = {
     })
   },
   salons: {
-    plural: 'salons and studios', short: 'Max answers in your salon’s name in the middle of a cut, books the visit, and sends it to your phone.', chips: true, type: 'Salon, spa or fitness',
+    plural: 'salons and studios', short: 'Calls answered, reviews replied to and open chairs filled from your own clients, while you’re mid-cut.', chips: true, type: 'Salon, spa or fitness',
     cards: tradeCards({
       biz: 'Sample Salon', owner: 'Jess', he: 'she', his: 'her', callTime: 'Tue 8:15 PM',
       problem: 'Do you have anything Saturday for a cut and color?',
@@ -180,7 +180,7 @@ export const PAGES = {
     })
   },
   restaurants: {
-    plural: 'restaurants and shops', short: 'Max answers in the Friday rush, takes catering requests and questions, and sends them to your phone.', chips: true, type: 'Restaurant or shop',
+    plural: 'restaurants and shops', short: 'Calls answered, reviews replied to, catering quotes followed up and slow nights filled, all through the rush.', chips: true, type: 'Restaurant or shop',
     cards: tradeCards({
       biz: 'Sample Kitchen', owner: 'Sam', callTime: 'Fri 7:05 PM',
       problem: 'Do you cater? We need lunch for forty on Tuesday.',
@@ -194,7 +194,7 @@ export const PAGES = {
     })
   },
   dental: {
-    plural: 'dental practices', short: 'Max answers when the front desk can’t, takes the name, number and what they need, nothing more, and sends it to your phone.', chips: false, type: 'Medical, dental or vet',
+    plural: 'dental practices', short: 'Calls answered when the front desk can’t, reviews replied to and appointments confirmed. Nothing ever says who is a patient.', chips: false, type: 'Medical, dental or vet',
     cards: [
       { key: 'max', title: 'Max answers', tag: TAG.every, call: true,
         why: 'Max takes the name, number and what they need, nothing more, and never talks fees, treatment or insurance.',
@@ -216,7 +216,7 @@ export const PAGES = {
     ]
   },
   insurance: {
-    modes: ['Independent', 'With a carrier'], plural: 'insurance agencies', short: 'Max takes messages after hours and never talks policies, rates or claims. Compliance Guard checks every word we write for you.', chips: false, type: 'Insurance agency',
+    modes: ['Independent', 'With a carrier'], plural: 'insurance agencies', short: 'After-hours calls answered, reviews replied to, your Google listing kept current. Compliance Guard checks every word we write for you.', chips: false, type: 'Insurance agency',
     cards: [
       { key: 'max', title: 'Max takes the message', tag: TAG.every, call: true,
         why: 'Max takes a name, number and a good time to call back, and never talks policies, rates or claims.',

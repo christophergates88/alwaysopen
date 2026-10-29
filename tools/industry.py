@@ -19,7 +19,7 @@ def build(key, d):
     s = re.sub(r'<meta property="og:description" content="[^"]*">', '<meta property="og:description" content="' + d['meta'] + '">', s, count=1)
     s = rep(s, 'This page covers what matters most to builders and remodelers.', 'This page covers what matters most to ' + d['who'] + '.')
     s = rep(s, '<p class="for">For builders, remodelers and contractors</p>', '<p class="for">For ' + d['who'] + '</p>')
-    s = rep(s, '<h1>The next job calls while you’re building this one.</h1>', '<h1>' + d['h1'] + '</h1>')
+    s = rep(s, '<h1>The next job, a new review and a quiet estimate, handled while you build this one.</h1>', '<h1>' + d['h1'] + '</h1>')
     s = re.sub(r'<p class="lede">.*?</p>', '<p class="lede">' + d['lede'] + '</p>', s, count=1, flags=re.S)
     # the day band: three cards
     s = re.sub(r'<div class="day" role="img" aria-label="[^"]*">', '<div class="day" role="img" aria-label="' + d['day_aria'] + '">', s, count=1)
@@ -129,8 +129,8 @@ PAGES = {
  'hvac': dict(
   only=dict(who='heating and air companies', ask='Do y’all do electrical? My breaker keeps tripping.', answer='We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.', job='new system', busy='Sam’s on a call in Greensboro.', cb='Breaker tripping'),
   title='HVAC companies', who='heating and air companies', biz='Sample Heating and Air', rivals='HVAC companies', plans_for='heating and air', ask_who='HVAC owners',
-  meta='Always Open for HVAC companies: Max answers the calls you miss on a service call, maintenance and estimate follow-ups go out on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
-  h1='July. 98 degrees. Their AC quit at 6 PM. They called four companies. One answered.',
+  meta='Always Open runs the back side of an HVAC company: every call answered, every review replied to, maintenance and estimate follow-ups on the day you pick, and slow days filled from your own customers. You approve it all from your phone.',
+  h1='July, 98 degrees, and you’re up in an attic. The calls, the reviews, the quotes? We’ve got them.',
   lede='We run the back side of a heating and air company while you’re on the job: every call answered, every review replied to, quotes followed up, and open days filled from your own customer list. On the phone, Max answers in your company’s name, tells callers your hours and service area, takes the address and what the system is doing, and tries your phone if it’s an emergency. Estimates get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on an HVAC owner\'s phone during one summer day. At 6:04 PM Max took a call from Dana Reyes whose AC stopped cooling. At 1:15 PM a follow-up on a $7,900 system estimate is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('6:04 PM', 'Max took a call', 'Urgent', 'Dana Reyes', '<p>AC stopped cooling about an hour ago, house is at 84. Two kids and a dog. Asked if anyone can come tonight.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -149,8 +149,8 @@ PAGES = {
  'plumbing': dict(
   only=dict(who='plumbers', ask='Do y’all do electrical? My water heater keeps tripping the breaker.', answer='We don’t do electrical, but Lane Electric, two miles from here, is on Always Open too.', job='water heater', busy='Sam’s under a house in Greensboro.', cb='Breaker tripping'),
   title='Plumbers', who='plumbers and drain companies', biz='Sample Plumbing', rivals='plumbers', plans_for='plumbers', ask_who='plumbers',
-  meta='Always Open for plumbers: Max answers the calls you miss under a sink, estimates get a follow-up on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
-  h1='Sunday, 11:12 PM. A customer’s water heater just quit. They called three places. One answered.',
+  meta='Always Open runs the back side of a plumbing company: every call answered, every review replied to, estimates followed up on the day you pick, and slow days filled from your own customers. You approve it all from your phone.',
+  h1='You’re under a sink. A new call, a new review, a quote gone quiet. We’ve got all three.',
   lede='We run the back side of a plumbing company while you’re on the job: every call answered, every review replied to, quotes followed up, and open days filled from your own customer list. On the phone, Max answers in your company’s name, tells callers your hours and service area, takes the address and what’s going on, and tries your phone if it’s an emergency. Estimates get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a plumber\'s phone during one day. At 11:12 PM Max took a call from Marcus Hill about a burst water heater. At 1:15 PM a follow-up on a $4,200 repipe estimate is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('11:12 PM', 'Max took a call', 'Urgent', 'Marcus Hill', '<p>Water heater let go, water in the garage, main is shut off. Asked how early someone can come.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -169,8 +169,8 @@ PAGES = {
  'dental': dict(
   regulated=True,
   title='Dental practices', who='dental practices', biz='Sample Family Dental', rivals='practices', plans_for='dental practices', ask_who='practice owners',
-  meta='Always Open for dental practices: Max answers the calls the front desk misses, takes a message with no treatment details, and every review gets a careful reply checked by Compliance Guard. You approve it all from your phone.',
-  h1='Monday, 7:50 AM. A cracked tooth. Your phones open at eight.',
+  meta='Always Open runs the back side of a dental practice: calls the front desk misses answered with no treatment details, every review replied to with Compliance Guard checking each word, and appointments confirmed. You approve it all from your phone.',
+  h1='7:50 AM. A cracked tooth is calling, a review needs a reply, Tuesday isn’t confirmed. Handled.',
   lede='We run the back side of a dental practice while you’re with a patient: every call answered, every review replied to, and appointments confirmed. On the phone, Max answers in your practice’s name, gives your hours and location, and takes a message with the caller’s name, number and what they need, nothing more. He never discusses fees, treatment or insurance. Every review gets a careful reply that Compliance Guard checks before you see it. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a practice owner\'s phone during one day. At 7:50 AM Max took a call from a caller with a cracked tooth who wants the first opening. At 1:15 PM a message from a patient who wants to move a Thursday visit. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('7:50 AM', 'Max took a call', 'First opening', 'A caller with a cracked tooth', '<p>Asked for the first opening today. Left a name and number. No other details taken.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -200,8 +200,8 @@ PAGES = {
  'auto-repair': dict(
   only=dict(who='auto repair shops', ask='Do y’all do windshields? Mine’s got a crack across it.', answer='We don’t do glass, but Lake Auto Glass, two miles from here, is on Always Open too.', to='Lake Auto Glass', trade='glass', job='brake job', busy='Sam’s got a car on the lift.', cb='Cracked windshield'),
   title='Auto repair shops', who='auto repair shops', biz='Sample Auto', rivals='shops', plans_for='auto repair', ask_who='shop owners',
-  meta='Always Open for auto repair shops: Max answers the calls you miss with your hands in an engine bay, estimates get a follow-up on the day you pick, and every finished repair turns into a review request. You approve it all from your phone.',
-  h1='Her car won’t start in the school pickup line. She’s calling you.',
+  meta='Always Open runs the back side of an auto repair shop: every call answered, every review replied to, estimates followed up on the day you pick, and open bays filled from your own customers. You approve it all from your phone.',
+  h1='You’re under a car. A new call, a new review, an estimate gone quiet. We’ve got all three.',
   lede='We run the back side of a repair shop while you’re on the job: every call answered, every review replied to, quotes followed up, and open days filled from your own customer list. On the phone, Max answers in your shop’s name, gives your hours and location, takes the year, make and what the car is doing, and tries your phone if someone is stranded. Estimates get a follow-up on the day you pick, and every finished repair turns into a review request and a post. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a shop owner\'s phone during one day. At 3:05 PM Max took a call from Priya Shah whose car will not start. At 1:15 PM a follow-up on a $1,450 brake and rotor estimate is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('3:05 PM', 'Max took a call', 'Stranded', 'Priya Shah', '<p>2016 Highlander, cranks but won’t start, in the pickup line at the elementary school. Asked about a tow and when you could look at it.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -220,8 +220,8 @@ PAGES = {
  'marine': dict(
   only=dict(who='dock builders and marinas', ask='Do y’all do seawalls? Mine’s washing out.', answer='We don’t do seawalls, but Oconee Shoreline, two miles from here, is on Always Open too.', to='Oconee Shoreline', trade='seawalls', job='lift repair', busy='Sam’s out on the water.', cb='Seawall washing out'),
   title='Docks and marine', who='dock builders, boat repair shops and marinas', biz='Sample Marine', rivals='marine businesses', plans_for='docks and marine', ask_who='marine owners',
-  meta='Always Open for dock builders, boat repair shops and marinas: Max answers the calls you miss out on the water, dock and repair quotes get a follow-up on the day you pick, and every finished job turns into a review request. You approve it all from your phone.',
-  h1='Memorial Day weekend. Their lift jammed with the boat on it. They called three marinas. One answered.',
+  meta='Always Open runs the back side of dock builders, boat repair shops and marinas: every call answered, every review replied to, quotes followed up on the day you pick, and slow weeks filled from your own customers. You approve it all from your phone.',
+  h1='Memorial Day weekend, out on the water. The calls, the reviews, the quotes back at the dock? Handled.',
   lede='We run the back side of a dock and marine business while you’re on the job: every call answered, every review replied to, quotes followed up, and open days filled from your own customer list. On the phone, Max answers in your company’s name, gives your hours and service area, takes the boat, the dock and what’s wrong, and tries your phone if it can’t wait. Dock and repair quotes get a follow-up on the day you pick, and every finished job turns into a review request and a post. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a marine owner’s phone during one spring day. At 9:12 AM Max took a call from Greg Hollis whose boat lift jammed with the boat on it. At 1:15 PM a follow-up on a $22,400 dock and lift quote is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('9:12 AM', 'Max took a call', 'Urgent', 'Greg Hollis', '<p>Boat lift stuck halfway up with the pontoon on it. Family is in for the holiday weekend. Asked if anyone can come out today.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -244,8 +244,8 @@ PAGES = {
  'salons': dict(
   only=dict(who='salons and studios', ask='Do y’all do lash extensions?', answer='We don’t do lashes, but Lake Lash Studio, two doors down, is on Always Open too.', to='Lake Lash Studio', trade='lashes', job='color', busy='Jess is mid-color.', will='She’ll call you at 4:15.', cb='Lash extensions'),
   title='Salons, spas and gyms', who='salons, spas, gyms and groomers', biz='Sample Salon', rivals='salons', plans_for='salons and studios', ask_who='salon and studio owners',
-  meta='Always Open for salons, spas, gyms and groomers: Max answers the calls you miss mid-appointment, appointments get a confirmation on the day you pick, and every visit can turn into a review request. You approve it all from your phone.',
-  h1='Your hands are full. The phone rings. That’s a new regular, if someone answers.',
+  meta='Always Open runs the back side of salons, spas, gyms and groomers: every call answered, every review replied to, appointments confirmed, and open chairs filled from your own clients. You approve it all from your phone.',
+  h1='Your hands are full. The phone rings, a review lands, Thursday has open chairs. We’ve got it.',
   lede='We run the back side of a salon or studio while your hands are busy: every call answered, every review replied to, quotes followed up, and open days filled from your own customer list. On the phone, Max answers in your business’s name, gives your hours and the prices you set, takes the caller’s name, the service and the day they want, and sends it to your phone in seconds. Appointments get a confirmation on the day you pick, and every visit can turn into a review request and a post. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a salon owner’s phone during one day. At 11:20 AM Max took a call from Ana Ruiz who wants a color correction before a wedding. At 1:15 PM a confirmation for Maria’s Thursday appointment is due, with the text already written. At 4:30 PM a reply to a five-star review is ready for approval.',
   day_cards=card('11:20 AM', 'Max took a call', 'New client', 'Ana Ruiz', '<p>Wants a color correction before a wedding on the 14th. Saturday morning if possible, any stylist.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +
@@ -277,8 +277,8 @@ PAGES = {
  'restaurants': dict(
   only=dict(who='restaurants and shops', ask='Do y’all do wedding cakes?', answer='We don’t do cakes, but Oconee Bakery, two blocks over, is on Always Open too.', to='Oconee Bakery', trade='cakes', job='catering order', busy='Sam’s on the line for lunch.', cb='Wedding cake'),
   title='Restaurants and shops', who='restaurants, cafes and shops', biz='Sample Kitchen', rivals='restaurants', plans_for='restaurants and shops', ask_who='restaurant and shop owners',
-  meta='Always Open for restaurants, cafes and shops: Max answers the calls you miss in the rush, catering and large-order quotes get a follow-up on the day you pick, and every review gets an answer. You approve it all from your phone.',
-  h1='Friday, 7 PM. Every table is full. The phone is ringing about lunch for forty.',
+  meta='Always Open runs the back side of restaurants, cafes and shops: every call answered, every review replied to, catering quotes followed up, and slow nights filled from your own regulars. You approve it all from your phone.',
+  h1='Friday, 7 PM, every table full. The phone, the reviews, next week’s slow Tuesday: we’ve got them.',
   lede='We run the back side of a restaurant or shop while the floor is full: every call answered, every review replied to, catering quotes followed up, and slow nights filled from your own customer list. On the phone, Max answers in your business’s name, gives your hours, holiday hours and directions from what you tell him, takes large-party and catering requests, and sends them to your phone in seconds. Catering quotes get a follow-up on the day you pick, every review gets an answer, and your specials go up as Google posts. <b>You approve it all from your phone.</b>',
   day_aria='Sample: three things on a restaurant owner’s phone during one day. At 7:08 PM Max took a call from Lauren Pike about an office lunch for 40. At 1:15 PM a follow-up on a $1,850 catering quote is due, with the text already written. At 4:30 PM a reply to a two-star review is ready for approval.',
   day_cards=card('7:08 PM', 'Max took a call', 'Catering', 'Lauren Pike', '<p>Office lunch for 40 next Thursday, half vegetarian. Wants a quote by Monday.</p>', ['Call back', 'Text'], hot=True) + '\n        ' +

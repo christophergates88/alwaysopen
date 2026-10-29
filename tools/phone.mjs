@@ -41,7 +41,12 @@ const CHIPS = [
   ['Spanish on every plan', 'Max and every reply answer in Spanish, with no add-on.']
 ];
 const TRADES = [['plumbing', 'Plumber'], ['hvac', 'Heating and air'], ['builders', 'Builder'], ['auto-repair', 'Auto repair'], ['marine', 'Docks and marine'], ['salons', 'Salon or gym'], ['restaurants', 'Restaurant or shop'], ['dental', 'Dental'], ['insurance', 'Insurance']];
-function set(key, p, on) {
+// The cards lead with what no answering service does (an open day filled, a check-in, a hand-off); Max answering
+// comes after, so a phone visitor's first card is never "we pick up the phone".
+const LEAD = ['fill', 'guard', 'check', 'radar', 'handoff', 'max', 'cb', 'storm', 'ai'];
+const rank = k => { const i = LEAD.indexOf(k); return i < 0 ? LEAD.length : i; };
+function set(key, p0, on) {
+  const p = Object.assign({}, p0, { cards: p0.cards.slice().sort((a, b) => rank(a.key) - rank(b.key)) });
   const n = p.cards.length;
   return '<div class="aos-set" data-set="' + key + '"' + (on ? '' : ' hidden') + '>' +
     (p.modes ? '<div class="aos-modes" role="group" aria-label="Kind of agency">' + p.modes.map((m, i) => '<button type="button" data-mode="' + i + '" aria-pressed="' + (i ? 'false' : 'true') + '">' + esc(m) + '</button>').join('') + '</div>' : '') +
@@ -52,10 +57,6 @@ function front(key, p) {
   const sub = p.sub || 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.';
   const home = key === 'index';
   return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
-    '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
-      (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
-    (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
-    '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
     '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
     '<form data-grade="' + (home ? 'plumbing' : key) + '" novalidate>' +
       '<label for="g-q">Business name</label><input id="g-q" name="q" autocomplete="organization" enterkeyhint="next" placeholder="As it shows on Google" required>' +
@@ -64,6 +65,11 @@ function front(key, p) {
       '<div class="aog-out" aria-live="polite"></div>' +
     '</form></div>\n' +
     '<div></div>' + '</div>\n' +
+    // The grade check first (it stays on the first two screens now that What we do sits above it), then the cards.
+    '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
+      (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
+    (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
+    '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
     '</section>\n<!--/ao:front-->';
 }
 
@@ -72,7 +78,7 @@ const CSS = `
 .ao-foldbar,.ao-dots,.lede-ph,.ph-only{display:none}
 /* the playable cards and the instant grade, on every screen size */
 /* the playable cards */
-.aos-head{padding-top:26px}
+.aos-head{padding-top:40px}
 .aos-head h2{font-size:1.65rem;line-height:1.08;color:#ECEEF3}
 .aos-head p{margin-top:8px;color:#A3ACBF;font-size:15px}
 .aos-rail{display:grid;grid-auto-flow:column;grid-auto-columns:88%;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;margin:16px calc(-1*max(16px,env(safe-area-inset-left,0px))) 0;padding:2px max(16px,env(safe-area-inset-left,0px)) 4px;scroll-padding-inline:max(16px,env(safe-area-inset-left,0px))}
@@ -145,7 +151,7 @@ const CSS = `
 .aos-carrier .aos-why.aos-alt{display:block!important}
 /* the instant grade */
 .aos-deck{display:grid;gap:0}
-.aog{margin-top:30px;padding:20px 16px;border-radius:18px;background:#171C27;border:1px solid rgba(255,106,94,.45);box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px -8px rgba(255,90,77,.45)}
+.aog{margin-top:22px;padding:20px 16px;border-radius:18px;background:#171C27;border:1px solid rgba(255,106,94,.45);box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px -8px rgba(255,90,77,.45)}
 .aog h3{font-size:1.4rem;line-height:1.1;color:#ECEEF3}
 .aog>p{margin-top:6px;color:#A3ACBF;font-size:15px}
 .aog form{display:grid;gap:6px;margin-top:14px}
@@ -169,8 +175,10 @@ const CSS = `
 .aog-find strong{color:#ECEEF3}
 .aog-full{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:12px;background:#FF5A4D;color:#1A0605;font-weight:700;text-decoration:none}
 @media (min-width:761px){
-.aos{padding-block:70px 60px;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);border-top:1px solid rgba(255,106,94,.28)}
-.aos-head{max-width:720px}.aos-head h2{font-size:clamp(2rem,4.4vw,3rem);line-height:1.03;color:#ECEEF3}.aos-head p{margin-top:10px;color:#A3ACBF;font-size:1.1rem}
+.aos{padding-block:70px 60px;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);border-top:1px solid rgba(255,106,94,.28);display:flex;flex-direction:column}
+/* on a computer the cards come first and the grade check after them, all in the page's 1,120 px column */
+.aos>*{width:100%;max-width:1120px;margin-inline:auto}.aos>.aos-deck{order:1}
+.aos>.aos-head{max-width:1120px}.aos-head h2,.aos-head>p{max-width:720px}.aos-head h2{font-size:clamp(2rem,4.4vw,3rem);line-height:1.03;color:#ECEEF3}.aos-head p{margin-top:10px;color:#A3ACBF;font-size:1.1rem}
 .aos-rail{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin:28px 0 0;padding:0;overflow:visible;scroll-snap-type:none}
 .aos-set .aos-modes{margin-top:28px}.aos-set .aos-modes+.aos-rail{margin-top:16px}
 .aos .ao-dots{display:none}
@@ -188,6 +196,8 @@ const CSS = `
 /* hero: the headline, one line, two buttons */
 .hero .stack,.hero .desk,.hero .hero-scene,.hero .lede,.hero .fine,.hero .onlylink,.hero .promise,.hero .day,.hero .everyone,.hero-grid>.day{display:none!important}
 .hero .lede-ph{display:block;font-size:1.08rem;line-height:1.5;color:var(--night-mute);margin-top:16px;max-width:32em}
+/* a trade page's headline is a whole moment, three things at once: a size that keeps it to five or six lines */
+.hero p.for+h1{font-size:clamp(2.05rem,8.6vw,2.4rem);line-height:1}
 .hero-grid{padding-block:6px 30px!important;gap:0!important}
 .hero .neon{margin-bottom:16px}
 .hero .ctas{margin-top:22px!important}
