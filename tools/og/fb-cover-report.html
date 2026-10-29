@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:"Tilt Neon";src:url("FONTS/TiltNeon.ttf")}
+@font-face{font-family:"Instrument Sans";src:url("FONTS/InstrumentSans.ttf");font-weight:400 700}
+html,body{margin:0}
+body{width:1640px;height:624px;overflow:hidden;position:relative;background:#0c0a0b;font-family:"Tilt Neon",sans-serif}
+svg.wall{position:absolute;inset:0}
+.spill{position:absolute;inset:0;background:
+ radial-gradient(520px 360px at 630px 290px,rgba(255,52,36,.30),transparent 70%),
+ radial-gradient(420px 340px at 1140px 300px,rgba(255,170,60,.16),transparent 70%),
+ radial-gradient(1100px 700px at 50% 45%,transparent 40%,rgba(0,0,0,.72) 100%)}
+.sign{position:absolute;left:372px;top:118px;width:516px;height:282px;box-sizing:border-box;border:7px solid #d7ecff;border-radius:40px;
+ box-shadow:0 0 4px #7cc0ff,0 0 14px #2f8cff,0 0 34px #2f8cff,0 0 70px rgba(47,140,255,.45),inset 0 0 6px #7cc0ff,inset 0 0 20px #2f8cff,inset 0 0 44px rgba(47,140,255,.3);
+ display:grid;justify-items:center;align-content:center;gap:2px}
+.wire{position:absolute;top:0;width:2px;height:118px;background:linear-gradient(#000,#3a3436)}
+.open{font-size:172px;line-height:1;letter-spacing:.07em;padding-left:.07em;color:#fff1ee;
+ text-shadow:0 0 2px #fff,0 0 6px #ff7468,0 0 14px #ff3b2f,0 0 28px #ff3b2f,0 0 54px #ff2414,0 0 100px rgba(255,36,20,.6)}
+.hours{font-size:36px;letter-spacing:.32em;padding-left:.32em;color:#fff8ec;margin-top:-4px;
+ text-shadow:0 0 2px #fff,0 0 6px #ffc46b,0 0 14px #ff9f1c,0 0 30px rgba(255,159,28,.6)}
+.list{position:absolute;left:962px;top:134px;display:grid;gap:14px}
+.list div{font-size:38px;line-height:1.15;color:#fff8ec;white-space:nowrap;display:flex;align-items:center;gap:20px;
+ text-shadow:0 0 2px #fff,0 0 6px #ffc46b,0 0 14px #ff9f1c,0 0 30px rgba(255,159,28,.55)}
+.list i{width:13px;height:13px;border-radius:50%;background:#fff0ee;box-shadow:0 0 4px #ff7468,0 0 10px #ff3b2f,0 0 22px #ff3b2f;flex:none}
+.call{position:absolute;left:372px;width:516px;top:432px;text-align:center;font-family:"Instrument Sans",sans-serif;font-weight:600;font-size:30px;color:#e9e4dc;letter-spacing:.01em}
+.call b{font-family:"Tilt Neon";font-weight:400;font-size:40px;color:#fff1ee;letter-spacing:.03em;display:block;margin-top:4px;
+ text-shadow:0 0 2px #fff,0 0 6px #ff7468,0 0 14px #ff3b2f,0 0 30px rgba(255,59,47,.6)}
+.glow{position:absolute;left:930px;top:70px;width:600px;height:500px;background:radial-gradient(closest-side,rgba(255,170,90,.22),transparent 72%)}
+.kicker{position:absolute;left:986px;top:34px;font-size:40px;color:#fff8ec;letter-spacing:.02em;text-shadow:0 0 2px #fff,0 0 6px #ffc46b,0 0 14px #ff9f1c,0 0 30px rgba(255,159,28,.55)}
+.paper{position:absolute;left:986px;top:104px;width:470px;box-sizing:border-box;padding:20px 24px 16px;background:#fbfaf7;border-radius:16px;transform:rotate(-1.6deg);
+ font-family:"Instrument Sans",sans-serif;color:#14171f;box-shadow:0 30px 60px -20px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.06),0 0 60px -10px rgba(255,90,60,.55)}
+.ph{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #e2ded6}
+.ph .lg{width:30px;height:30px;flex:none}
+.ph div{display:grid;line-height:1.15}.ph b{font-size:20px}.ph small{font-size:14px;color:#5a6170}.ph time{margin-left:auto;font-size:13px;color:#5a6170}
+.pb{display:flex;align-items:baseline;gap:12px;padding:10px 0 6px}.pb b{font-size:64px;line-height:.9;font-weight:700;letter-spacing:-.02em}
+.pb span{font-size:20px;font-weight:700;line-height:1.2}.pb small{display:block;font-size:14px;font-weight:400;color:#5a6170}
+.pg{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e2ded6}
+.pg div{padding:7px 0;border-bottom:1px solid #e2ded6;display:flex;align-items:baseline;gap:8px}.pg div:nth-child(odd){border-right:1px solid #e2ded6}.pg div:nth-child(even){padding-left:12px}
+.pg b{font-size:26px;font-weight:700}.pg span{font-size:15px;font-weight:600}
+.pc{margin-top:9px;padding:7px 10px;border-radius:10px;background:#e9f6ef;color:#0e4a2e;font-size:14px}
+.pw{margin-top:8px;padding:7px 10px;border-radius:10px;background:#fdecea;display:flex;justify-content:space-between;align-items:baseline}.pw span{font-size:15px;font-weight:600}.pw b{font-size:24px;color:#b42318}
+.pf{margin-top:7px;font-size:12.5px;color:#5a6170}
+</style></head><body>
+<svg class="wall" width="1640" height="624" xmlns="http://www.w3.org/2000/svg">
+ <defs>
+  <pattern id="b" width="192" height="76" patternUnits="userSpaceOnUse">
+   <rect width="192" height="76" fill="#120e0f"/>
+   <rect x="2" y="2" width="92" height="34" rx="2" fill="#2b1e1f"/><rect x="98" y="2" width="92" height="34" rx="2" fill="#2f2122"/>
+   <rect x="-46" y="40" width="92" height="34" rx="2" fill="#2d2021"/><rect x="50" y="40" width="92" height="34" rx="2" fill="#281c1d"/><rect x="146" y="40" width="92" height="34" rx="2" fill="#2d2021"/>
+  </pattern>
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/></filter>
+  <filter id="m"><feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="3" seed="9"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 -.25"/></filter>
+ </defs>
+ <rect width="1640" height="624" fill="url(#b)"/>
+ <rect width="1640" height="624" filter="url(#n)" opacity=".5"/>
+ <rect width="1640" height="624" filter="url(#m)"/>
+ <rect width="1640" height="624" fill="#000" opacity=".30"/>
+</svg>
+<div class="spill"></div>
+<div class="wire" style="left:440px"></div><div class="wire" style="left:818px"></div>
+<div class="sign"><div class="open">OPEN</div><div class="hours">24 HOURS</div></div>
+<div class="call">Call us, any hour<b>(706) 460-2226</b></div>
+<div class="glow"></div>
+<div class="kicker">Your month, on one page</div>
+<div class="paper">
+ <div class="ph"><svg class="lg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg><div><b>Mike&rsquo;s Plumbing</b><small>October, on one page</small></div><time>Nov 2</time></div>
+ <div class="pb"><b>14</b><span>calls answered<small>6 after hours or on a weekend</small></span></div>
+ <div class="pg"><div><b>5</b><span>jobs booked</span></div><div><b>3</b><span>reviews replied to</span></div><div><b>4</b><span>quotes followed up</span></div><div><b>2</b><span>posts on Google</span></div></div>
+ <div class="pc">Three-day check-ins: <b>8 said the job held up</b>, 1 told the owner first</div>
+ <div class="pw"><span>What it was worth</span><b>about $4,900</b></div>
+ <div class="pf">Sample. Yours comes on the 2nd of every month.</div>
+</div>
+</body></html>

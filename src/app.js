@@ -320,6 +320,8 @@ export async function apnsReach() {
 // ---------- API ----------
 let liveTable = false;
 async function apiState(env, c, ctx) {
+  // This month so far (insights.js) runs alongside everything else; a failure here never stops the app from loading.
+  const monthNowP = monthFor(env, c, 'now').then(monthNowOut).catch(() => null);
   const cid = c.client_id;
   const f = features(c);
   await ensureAuto(env).catch(() => {});
@@ -362,9 +364,7 @@ async function apiState(env, c, ctx) {
   let bill = null;
   try { bill = await env.DB.prepare('SELECT plan, status, max, paused_until FROM billing WHERE client_id = ?1').bind(cid).first(); } catch (e) { bill = null; }
   const line = rows(6)[0] || null;
-  // This month so far, for the Home card (insights.js). A failure here never stops the app from loading.
-  let monthNow = null;
-  try { monthNow = monthNowOut(await monthFor(env, c, 'now')); } catch (e) { monthNow = null; }
+  const monthNow = await monthNowP;
   let months = rows(2).map(r => {
     const d = parse(r.data) || {};
     return { month: r.month, label: d.label || r.month, stats: numbersOnly(d.stats), prev: d.prev || null, note: d.note || '', record: !!(d.record && (d.record.revs || d.record.posts)),

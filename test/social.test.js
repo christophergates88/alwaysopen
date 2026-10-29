@@ -42,16 +42,16 @@ test('connected: one post on a posting day in the 10 AM hour, to the Page and In
   assert.deepEqual(await socialCron(env, Date.parse('2026-11-02T14:15:00Z'), k.h), { skipped: 'not the hour' }, '9:15 AM is too early');
   assert.deepEqual(await socialCron(env, Date.parse('2026-11-03T15:15:00Z'), k.h), { skipped: 'not the hour' }, 'Tuesday is not a posting day');
   const r = await socialCron(env, monday10, k.h);
-  assert.deepEqual(r, { posted: true, theme: 'office', result: 'fb:ok,ig:ok' });
+  assert.deepEqual(r, { posted: true, theme: 'report', result: 'fb:ok,ig:ok' });
   assert.equal(world.calls.filter(c => c.host === 'api.anthropic.com').length, 1, 'Claude wrote the caption');
   const fb = world.calls.filter(c => c.host === 'graph.facebook.com').map(c => c.path);
   assert.deepEqual(fb, ['/v21.0/pg1/photos', '/v21.0/ig1/media', '/v21.0/ig1/media_publish']);
-  assert.match(world.calls.find(c => c.path === '/v21.0/pg1/photos').body, /url=https%3A%2F%2Falwaysopenoffice.com%2Fsocial%2Foffice.jpg/);
+  assert.match(world.calls.find(c => c.path === '/v21.0/pg1/photos').body, /url=https%3A%2F%2Falwaysopenoffice.com%2Fsocial%2Freport.jpg/);
   assert.deepEqual(await socialCron(env, monday10 + 20 * 60e3, k.h), { skipped: 'done today' });
   assert.equal(k.pings.length, 1); assert.equal(k.pings[0].t, 'Posted to Facebook and Instagram');
   const row = await db.prepare('SELECT day, theme, text, result FROM social_posts').first();
-  assert.deepEqual(row, { day: '2026-11-02', theme: 'office', text: world.caption, result: 'fb:ok,ig:ok' });
-  assert.match(await socialLine(env), /^posting to Always Open and Instagram Monday, Wednesday and Friday; last: 2026-11-02 \(office, fb:ok,ig:ok\)$/);
+  assert.deepEqual(row, { day: '2026-11-02', theme: 'report', text: world.caption, result: 'fb:ok,ig:ok' });
+  assert.match(await socialLine(env), /^posting to Always Open and Instagram Monday, Wednesday and Friday; last: 2026-11-02 \(report, fb:ok,ig:ok\)$/);
 });
 
 test('Claude down: our own words go up; Facebook down: one alert and the day is logged as failed', async () => {
@@ -60,23 +60,24 @@ test('Claude down: our own words go up; Facebook down: one alert and the day is 
   const world = { calls: [], claudeDown: true }; fakeNet(world);
   const k = hooks();
   const r = await socialCron(env, monday10, k.h);
-  assert.deepEqual(r, { posted: true, theme: 'office', result: 'fb:ok (own words)' });
+  assert.deepEqual(r, { posted: true, theme: 'report', result: 'fb:ok (own words)' });
   assert.equal((await db.prepare('SELECT text FROM social_posts').first()).text, THEMES[0].fallback);
   world.fbDown = true;
   const r2 = await socialCron(env, Date.parse('2026-11-04T15:15:00Z'), k.h);   // Wednesday
-  assert.equal(r2.posted, false); assert.equal(r2.theme, 'missed', 'the second post is the missed call');
+  assert.equal(r2.posted, false); assert.equal(r2.theme, 'office', 'the second post says what Always Open is');
   assert.match(r2.result, /^fb:fail \(Invalid OAuth access token\) \(own words\)$/);
   assert.equal(k.alerts.length, 1); assert.equal(k.alerts[0].type, 'social'); assert.match(k.alerts[0].detail, /did not go up: fb:fail/);
 });
 
 test('the rotation and the week numbers', async () => {
-  assert.equal(pickTheme(0).name, 'office', 'the first post says what Always Open is');
-  assert.equal(pickTheme(1).name, 'missed');
-  assert.equal(pickTheme(2).name, 'checkin');
-  assert.equal(pickTheme(5, { calls: 2 }).name, 'storm', 'too few calls to say anything');
-  assert.equal(pickTheme(5, { calls: 12 }).name, 'caught');
-  assert.equal(pickTheme(18, { calls: 12 }).name, 'caught');
-  assert.equal(pickTheme(11).name, 'max');
+  assert.equal(pickTheme(0).name, 'report', 'the first post is the monthly page');
+  assert.equal(pickTheme(1).name, 'office', 'then what Always Open is');
+  assert.equal(pickTheme(2).name, 'checkin', 'then the three-day check-in');
+  assert.equal(pickTheme(3).name, 'missed');
+  assert.equal(pickTheme(6, { calls: 2 }).name, 'storm', 'too few calls to say anything');
+  assert.equal(pickTheme(6, { calls: 12 }).name, 'caught');
+  assert.equal(pickTheme(20, { calls: 12 }).name, 'caught');
+  assert.equal(pickTheme(12).name, 'max');
   for (const th of THEMES) assert.doesNotMatch(th.about + ' ' + th.fallback, /\bAI\b/, th.name + ' never says AI');
   // Every theme has its card on the site and a caption to fall back on (only 'caught' waits for real numbers).
   const fs = await import('node:fs');
@@ -85,7 +86,7 @@ test('the rotation and the week numbers', async () => {
     assert.ok(th.about.length > 40, th.name);
     if (th.name !== 'caught') assert.match(th.fallback, /alwaysopenoffice\.com|460-2226/, th.name);
   }
-  assert.equal(new Set(THEMES.map(th => th.name)).size, 13);
+  assert.equal(new Set(THEMES.map(th => th.name)).size, 14);
   const db = makeDB(); const env = { DB: db };
   await db.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES ('c1', 'h1', 'Sinclair Plumbing', 1)").run();
   const now = Date.parse('2026-11-02T15:15:00Z');

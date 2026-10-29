@@ -1,9 +1,10 @@
-// Makes the thirteen neon-sign cards Always Open's own Facebook and Instagram posts use (public/social/<theme>.jpg, 1080 square,
+// Makes the fourteen neon-sign cards Always Open's own Facebook and Instagram posts use (public/social/<theme>.jpg, 1080 square,
 // one per theme in src/social.js) from tools/social/card.html. Needs the font files in tools/og/fonts or $OG_FONTS
 // (TiltNeon.ttf and InstrumentSans.ttf from github.com/google/fonts). Run: node tools/social/make.mjs
 import { createRequire } from 'node:module'; const { chromium } = createRequire(import.meta.url)('playwright'); import path from 'node:path'; import fs from 'node:fs'; import os from 'node:os'; import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CARDS = {
+  report: { h: 'Your month, <em>on one page.</em>', s: 'Calls answered, jobs booked, reviews replied to, three-day check-ins, and what it was all worth. <b>Yours comes on the 2nd of every month.</b>' },
   office: { h: 'The back side of your business, <em>run for you.</em>', s: 'Calls. Reviews. Follow-ups. Your calendar. Your name online. <b>You approve it all from your phone.</b>' },
   missed: { h: 'The call you <em>missed</em> just rang your competitor.', s: 'Most callers who get voicemail call the next name on Google. <b>Max answers every call, day or night.</b>' },
   checkin: { h: 'Three days later, Max <em>checks in.</em>', s: 'Did the job hold up? <b>A yes becomes a review ask. A no comes to you first.</b>' },
