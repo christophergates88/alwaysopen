@@ -12,6 +12,8 @@ import { markCredited } from './referral.js';
 import { mapAdmin, setShow, previewKey } from './map.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Addresses in a line become links you can tap (the text is escaped first, so nothing else turns into markup).
+const linkify = h => h.replace(/https:\/\/[^\s<,]+[^\s<,.)]/g, u => '<a href="' + u + '" style="color:inherit;word-break:break-all">' + u + '</a>');
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 
 // A link token made from the key but not the key itself, so the email link never exposes it.
@@ -151,7 +153,7 @@ export function boardText(items, link) {
 
 function boardHtml(items, tok, map) {
   const g = groups(items);
-  const sec = [...g].map(([name, list]) => '<section><h2>' + esc(name) + '</h2>' + list.map(x => '<div class="it" data-k="' + esc(x.key) + '"><div><b>' + esc(x.title) + '</b><span>' + esc(x.detail) + '</span></div><button type="button">Done</button></div>').join('') + '</section>').join('');
+  const sec = [...g].map(([name, list]) => '<section><h2>' + esc(name) + '</h2>' + list.map(x => '<div class="it" data-k="' + esc(x.key) + '"><div><b>' + esc(x.title) + '</b><span>' + linkify(esc(x.detail)) + '</span></div><button type="button">Done</button></div>').join('') + '</section>').join('');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>This week</title>' +
     '<style>:root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--soft:#F5F4F0;--ok:#1E7A4F}@media(prefers-color-scheme:dark){:root{--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--paper:#12151D;--soft:#1A1F2B}}' +
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:640px;margin:0 auto;padding:24px 16px 60px}h1{font-size:26px;margin:0 0 4px}h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:26px 0 8px}p{color:var(--slate);margin:0}' +
