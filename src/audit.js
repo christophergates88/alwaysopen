@@ -127,6 +127,7 @@ export async function runAudit(env, q, town) {
 export async function handleAudit(req, env, url, h) {
   const path = url.pathname;
   if (path === '/audit/tool') return new Response(TOOL_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
+  if (path === '/audit/letter') return letterRoute(req, env, url, h);
   if (req.method !== 'POST') return h.json({ ok: false, error: 'POST only' }, 405);
   let b = {};
   try { b = await req.json(); } catch (e) { return h.json({ ok: false, error: 'Bad request' }, 400); }
@@ -162,6 +163,31 @@ export async function handleAudit(req, env, url, h) {
   return h.json({ ok: false, error: 'Not found' }, 404);
 }
 
+// The grade letter (letter.js): GET with the ops board token for one letter on a phone; POST with the key for up to ten.
+async function letterRoute(req, env, url, h) {
+  const L = await import('./letter.js');
+  const page = html => new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS audits (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, q TEXT, town TEXT, kind TEXT, ip_hash TEXT, score INTEGER, data TEXT)').run();
+  if (req.method === 'GET') {
+    const ok = await (await import('./opsboard.js')).boardOk(env, url.searchParams.get('t') || '').catch(() => false);
+    if (!ok) return h.json({ ok: false, error: 'Open this from the ops board link.' }, 403);
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 120), town = String(url.searchParams.get('town') || '').trim().slice(0, 80);
+    if (q.length < 2) return h.json({ ok: false, error: 'Add ?q=business name&town=town to the link.' }, 400);
+    const r = await L.buildLetters(env, [{ q, town }], { offer: url.searchParams.get('offer'), phone: url.searchParams.get('phone') }, runAudit);
+    if (!r.letters.length) return h.json({ ok: false, error: 'Google did not find ' + q + (town ? ' in ' + town : '') + '. Try the exact name and town.' }, 404);
+    return page(L.letterPage(r.letters, r.missed));
+  }
+  if (req.method !== 'POST') return h.json({ ok: false, error: 'GET or POST only' }, 405);
+  if (!env.LEADS_KEY || !(await h.sameKey(req.headers.get('x-key') || '', env.LEADS_KEY))) return h.json({ ok: false, error: 'Wrong key.' }, 403);
+  let b = {}; try { b = await req.json(); } catch (e) { return h.json({ ok: false, error: 'Bad request' }, 400); }
+  const items = Array.isArray(b.items) ? b.items.map(x => ({ q: String((x && x.q) || '').trim().slice(0, 120), town: String((x && x.town) || '').trim().slice(0, 80) })).filter(x => x.q.length >= 2) : L.parseLines(b.lines);
+  if (!items.length) return h.json({ ok: false, error: 'Type at least one business name.' }, 400);
+  if (!env.PLACES_KEY) return h.json({ ok: false, error: 'The Google key is not set up yet.' }, 503);
+  const r = await L.buildLetters(env, items.slice(0, L.MAX_LETTERS), { offer: b.offer, phone: b.phone }, runAudit);
+  if (!r.letters.length) return h.json({ ok: false, error: 'Google did not find ' + (r.missed.join(', ') || 'those businesses') + '. Try the exact names and towns.', missed: r.missed }, 404);
+  return h.json({ ok: true, html: L.letterPage(r.letters, r.missed), texts: r.texts, missed: r.missed, count: r.letters.length }, 200);
+}
+
 // Chris's audit page: look a business up and print a one-page audit in the website's style.
 const TOOL_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Audit · Always Open</title><meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -195,12 +221,20 @@ table{width:100%;border-collapse:collapse;font-size:15px}td,th{text-align:left;p
 .fine{color:var(--ok)}
 h3{font:800 1.2rem var(--display);margin:0}
 .actions{display:flex;gap:10px;flex-wrap:wrap}
+.lt{margin-top:12px}.lt summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}.ltg{display:grid;gap:10px;max-width:640px}.ltg label{display:grid;gap:6px;color:#C9D0DC;font-size:14px}
+textarea{font:inherit;padding:12px;border-radius:11px;border:1.5px solid #262E40;background:#0F131B;color:#ECEEF3;resize:vertical}
+.lf{width:100%;height:80vh;border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:12px}
 @media (max-width:640px){form{grid-template-columns:1fr}.doc{padding:18px}}
 @media print{.bar,.actions{display:none}body{background:#fff}.wrap{padding:0}.doc{border:0}}
 </style></head><body>
 <div class="bar"><div class="in"><h1>One-click audit</h1>
 <form id="f"><input id="q" placeholder="Business name" required autocomplete="off"><input id="town" placeholder="Town, state"><button>Run audit</button></form>
-<div class="msg" id="msg"></div></div></div>
+<div class="msg" id="msg"></div>
+<details class="lt"><summary>Grade letters to print</summary><div class="ltg">
+<label>One business per line: name, town<textarea id="lines" rows="5" placeholder="Sinclair Plumbing, Eatonton&#10;Lane Electric, Eatonton"></textarea></label>
+<label>The offer on the letter<input id="offer" placeholder="Founding member: Starter at $149 a month, held for a year, starting the day you say yes."></label>
+<label>Your phone on the letter (optional)<input id="lphone" inputmode="tel" placeholder="Leave empty to use email"></label>
+<button type="button" id="mk">Make letters</button></div></details></div></div>
 <div class="wrap"><div id="out"></div></div>
 <script>
 var K='ao_audit_key';function key(){var k='';try{k=localStorage.getItem(K)||''}catch(e){}if(!k){k=prompt('Your Always Open key (the same one HQ uses):')||'';try{localStorage.setItem(K,k)}catch(e){}}return k}
@@ -218,6 +252,19 @@ document.getElementById('out').innerHTML='<div class="doc"><div class="top"><div
 '<div style="display:grid;gap:10px"><h3>What we found</h3>'+f+'</div>'+
 (a.fine.length?'<div><h3>Checked and fine</h3><p class="fine">'+a.fine.map(esc).join(' · ')+'</p></div>':'')+
 '<div><h3>What Always Open does</h3><p>Every review answered, your Google profile kept current, missed calls handled by Max, follow-ups on quotes and invoices, and a one-page report each month. Try it for a month; if it is not worth it, you do not pay. alwaysopenoffice.com · (706) 460-2226</p></div>'+
-'<div class="actions"><button onclick="print()">Save as PDF</button><button class="line" onclick="copyText()">Copy as text</button></div></div>';window.__a=a}
+'<div class="actions"><button onclick="print()">Save as PDF</button><button class="line" onclick="copyText()">Copy as text</button><button class="line" onclick="oneLetter()">Make the letter</button></div></div>';window.__a=a}
 function copyText(){var a=window.__a,b=a.business,t='Free audit for '+b.name+' (grade '+(a.grade||'')+', score '+a.score+'/100'+(a.areas?'; '+a.areas.map(function(x){return x.label+' '+x.grade}).join(', '):'')+')\\n\\n'+a.findings.map(function(x,i){return(i+1)+'. '+x.title+': '+x.saw+' '+x.fix}).join('\\n')+'\\n\\nAlways Open · alwaysopenoffice.com · (706) 460-2226';navigator.clipboard.writeText(t).then(function(){document.getElementById('msg').textContent='Copied.'})}
+var OF='ao_letter_offer',PH='ao_letter_phone';
+function getS(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}function setS(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+document.getElementById('offer').value=getS(OF);document.getElementById('lphone').value=getS(PH);
+function letters(body){var m=document.getElementById('msg'),of=document.getElementById('offer').value.trim(),ph=document.getElementById('lphone').value.trim();setS(OF,of);setS(PH,ph);body.offer=of;body.phone=ph;
+m.textContent='Looking each one up on Google and writing the letters. About ten seconds a business...';
+fetch('/audit/letter',{method:'POST',headers:{'content-type':'application/json','x-key':key()},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(d){
+if(!d.ok){m.textContent=d.error||'That did not work.';if(/key/i.test(d.error||'')){try{localStorage.removeItem(K)}catch(e){}}return}
+m.textContent=(d.count===1?'One letter is ready.':d.count+' letters are ready, one per page.')+(d.missed&&d.missed.length?' Google did not find: '+d.missed.join(', ')+'.':'');showLetters(d)}).catch(function(){m.textContent='No connection.'})}
+function showLetters(d){var out=document.getElementById('out');out.innerHTML='<div class="actions"><button type="button" id="pr">Print or save PDF</button><button type="button" class="line" id="ct">Copy the text versions</button></div><iframe class="lf" id="lf" title="Grade letters"></iframe>';
+var f=document.getElementById('lf');f.srcdoc=d.html;document.getElementById('pr').onclick=function(){f.contentWindow.focus();f.contentWindow.print()};
+document.getElementById('ct').onclick=function(){var t=(d.texts||[]).map(function(x){return x.name+'\\n'+x.text}).join('\\n\\n');navigator.clipboard.writeText(t).then(function(){document.getElementById('msg').textContent='Copied. Paste them into a text or email.'},function(){document.getElementById('msg').textContent=t})}}
+document.getElementById('mk').addEventListener('click',function(){var t=document.getElementById('lines').value;if(t.trim().length<2){document.getElementById('msg').textContent='Type at least one business: name, town.';return}letters({lines:t})});
+function oneLetter(){letters({items:[{q:document.getElementById('q').value,town:document.getElementById('town').value}]})}
 </script></body></html>`;

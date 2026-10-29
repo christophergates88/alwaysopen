@@ -216,7 +216,7 @@ async function serve(req, env, ctx) {
       try { const r = await handleBilling(req, env, url, { json, sameKey, notify: (t, b, pr) => billingNotify(env, ctx, t, b, pr), later: p => ctx.waitUntil(p) }); if (r && r.status >= 500) ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', 'Checkout/billing answered ' + r.status + ' on ' + path)); return r; }
       catch (e) { ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', ((e && e.message) || 'threw') + ' on ' + path)); return json({ ok: false, error: 'Something went wrong. Please try again.' }, 500); }
     }
-    if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash((r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
+    if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score' || path === '/audit/letter') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash((r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
     if (path === '/locations') { const k = req.headers.get('x-key') || ''; return handleLocations(req, env, !!env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)); }
