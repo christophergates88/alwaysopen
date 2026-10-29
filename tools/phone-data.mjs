@@ -258,7 +258,7 @@ export const FOLDS = {
   index: {
     try: 'Our own line. Call it and test him.',
     day: 'What happens at 2 AM, 7 AM and 4:45 PM while you work.',
-    only: 'The cards above, written out in full, plus what you can add.',
+    only: 'Tap to open all six, plus what you can add.',
     what: 'Reviews, your Google profile, posts and follow-ups, in detail.',
     all: 'Everything that comes with every plan, in one list.',
     audit: 'What the free audit covers, with a sample report.',
@@ -271,7 +271,7 @@ export const FOLDS = {
   },
   trade: {
     calls: 'How calls, follow-ups and reviews work for a business like yours.',
-    only: 'The cards above, written out in full.',
+    only: 'Tap to open all six.',
     math: 'Put in one job and see how many months it covers.',
     rules: 'No fake reviews, every customer asked, you approve what matters.',
     questions: 'Answers to what owners ask first.'

@@ -477,7 +477,7 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
   </div>
 </section>
 
-<section class="sec band alt only" id="only" data-label="Only here" data-fold="The cards above, written out in full.">
+<section class="sec band alt only" id="only" data-label="Only here" data-fold="Tap to open all six.">
   <div class="inner">
     <div class="head"><p class="eyebrow">Only here</p><h2>Three things nobody else does for salons and studios.</h2><p>Answering calls and reviews is table stakes. These are the parts built for the jobs salons and studios kept losing the same way.</p></div>
     <div class="onlygrid">
@@ -789,6 +789,14 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 .ao-foldbar svg{flex:none;margin-left:auto;width:22px;height:22px;color:var(--sign);transition:transform .2s}
 .ao-open>.ao-foldbar svg{transform:rotate(180deg)}
 .ao-foldbar:focus-visible{outline:3px solid var(--sign);outline-offset:-3px}
+/* "Six things nobody else does": lit like the OPEN sign, with a neon flicker, so it gets tapped */
+#only:not(.ao-open)>.ao-foldbar{margin:18px 0;padding:18px 16px;border:2px solid #FF6A5E;border-radius:16px;background:#0F131B;color:#ECEEF3;box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 22px rgba(255,90,77,.45),inset 0 0 16px rgba(255,90,77,.16)}
+#only:not(.ao-open)>.ao-foldbar .ao-ft{color:#FF8C82;text-shadow:0 0 10px rgba(255,106,94,.85)}
+#only:not(.ao-open)>.ao-foldbar .ao-fs{color:#C9CFDB}
+#only:not(.ao-open)>.ao-foldbar svg{color:#FF8C82}
+@keyframes aoSignFlick{0%,17%,21%,23%,52%,56%,100%{border-color:#FF6A5E;box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 22px rgba(255,90,77,.45),inset 0 0 16px rgba(255,90,77,.16)}19%,22%,54%{border-color:rgba(255,106,94,.3);box-shadow:none}}
+@keyframes aoTextFlick{0%,17%,21%,23%,52%,56%,100%{color:#FF8C82;text-shadow:0 0 10px rgba(255,106,94,.85)}19%,22%,54%{color:rgba(255,140,130,.45);text-shadow:none}}
+@media (prefers-reduced-motion:no-preference){#only:not(.ao-open)>.ao-foldbar{animation:aoSignFlick 3.8s linear infinite}#only:not(.ao-open)>.ao-foldbar .ao-ft{animation:aoTextFlick 3.8s linear infinite}}
 /* plans and add-ons swipe sideways */
 [data-swipe]:not(.aos-rail){display:grid!important;grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:88%;gap:12px!important;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:6px max(16px,env(safe-area-inset-left,0px)) 6px;scroll-padding-inline:max(16px,env(safe-area-inset-left,0px));align-items:start;padding-top:16px!important}
 [data-swipe]:not(.aos-rail)::-webkit-scrollbar{display:none}
