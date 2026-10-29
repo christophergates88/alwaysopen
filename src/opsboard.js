@@ -105,6 +105,7 @@ export async function boardItems(env) {
   } catch (e) { /* the board stands without it */ }
   const sys = [
     ['Hear Max on the website', hearLine],
+    ['Review asks for Always Open itself', await (async () => { try { return await (await import('./ourreviews.js')).asksLine(env); } catch (e) { return 'not read'; } })()],
     ['Always Open’s own Facebook and Instagram', socialLine],
     ['Always Open check (reviews and leads)', await (await import('./funding.js')).checkRunLine(env)],
     ['Twilio balance', await fundingStateLine(env)],

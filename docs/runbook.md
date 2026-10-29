@@ -73,6 +73,9 @@ every morning; if it does not arrive, that is itself the alarm, and the outside 
   call replaces it; "Take it down" on the same page hides the player. No customer call is ever recorded.
 - **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
   same figure in the app, the monthly report and the ops board. No average job, no dollars.
+- **Review asks for Always Open** (`src/ourreviews.js`): a month in, owners clearly getting value get one text (or email)
+  asking for a Google review of us, three a day at most. Off until `ALWAYS_OPEN_REVIEW_LINK` is set in `wrangler.toml`.
+  Replies come to your phone; a complaint arrives at high priority.
 - **Grade letters** (`src/letter.js`): on `/audit/tool`, "Make the letter" under an audit, or the "Grade letters to
   print" box for up to ten. One page each on Letter paper; competitors only as an average.
 

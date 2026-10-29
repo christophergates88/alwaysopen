@@ -121,6 +121,8 @@ export async function handleSms(req, env, form, sigOk) {
   await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, status, ext_id) VALUES (?1,'text',?2,?3,?4,'in',?5,'new',?6)").bind(cid, from10, name, body, now, sid).run().catch(() => {});
   const who = name || ('(' + from10.slice(0, 3) + ') ' + from10.slice(3, 6) + '-' + from10.slice(6));
   if (filled) return xml();
+  // An owner answering Always Open's own review ask: straight to Christopher's phone (ourreviews.js).
+  if (cid === OWN) { try { const app = await import('./app.js'); if (await (await import('./ourreviews.js')).onReply(env, from10, body, (t, b, pr, tag) => app.opsPing(env, t, b, pr, tag))) return xml(); } catch (e) { /* falls through to the inbox push */ } }
   const { pushClient } = await import('./app.js').catch(() => ({ pushClient: async () => {} }));
   await pushClient(env, cid, { aps: { alert: { title: 'Text from ' + who, body: body.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'inbox' }).catch(() => {});
   return xml();
