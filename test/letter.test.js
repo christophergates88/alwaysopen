@@ -28,7 +28,7 @@ test('a letter: the grade, the three worst findings, the trade paragraph, the de
   assert.equal(l.date, 'October 29, 2026');
   assert.equal(l.own, '4.2 stars from 12 reviews on Google today');
   assert.deepEqual(l.fixes.map(f => f.title), ['Fewer reviews than nearby competitors', 'Rating below 4.5', 'No hours on Google']);
-  assert.equal(l.kind, 'trade'); assert.match(l.pitch, /^Max answers your calls in your company’s name/);
+  assert.equal(l.kind, 'trade'); assert.match(l.pitch, /^We run the back side of your company/);
   assert.equal(l.offer, L.DEFAULT_OFFER);
   assert.match(l.contact, /email hello@alwaysopenoffice\.com/);
   const html = L.letterPage([l], []);

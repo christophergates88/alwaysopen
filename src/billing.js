@@ -12,7 +12,7 @@ import { queueLine, provisionLine, lineEnded } from './provision.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 export const PLANS = {
-  Starter: { cents: 14900, blurb: 'Max answers your calls (300 minutes a month), every review answered, your Google profile kept current, a monthly report and your own app.' },
+  Starter: { cents: 14900, blurb: 'Every review answered, your Google profile kept current, Max answering your calls (300 minutes a month), a monthly report and your own app.' },
   Growth: { cents: 29900, blurb: 'Starter, plus review requests after every job, posts from your photos, competitor watch and Storm Desk.' },
   Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and missed-call text-back from your own number.' }
 };

@@ -194,7 +194,7 @@ export const PAGES = {
     })
   },
   dental: {
-    plural: 'dental practices', short: 'Calls answered when the front desk can’t, reviews replied to and appointments confirmed. Nothing ever says who is a patient.', chips: false, type: 'Medical, dental or vet',
+    plural: 'dental practices', short: 'Calls answered when the front desk can’t, reviews replied to, your Google listing kept current. Nothing ever says who is a patient.', chips: false, type: 'Medical, dental or vet',
     cards: [
       { key: 'max', title: 'Max answers', tag: TAG.every, call: true,
         why: 'Max takes the name, number and what they need, nothing more, and never talks fees, treatment or insurance.',

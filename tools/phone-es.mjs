@@ -129,9 +129,9 @@ const TRADE = {
     lede: 'Llevamos la parte de atrás de un restaurante o tienda mientras el salón está lleno: cada llamada contestada, cada reseña respondida, cotizaciones de banquetes con seguimiento y noches flojas llenadas con su propia lista de clientes. Al teléfono, Max contesta con el nombre de su negocio, da su horario, el de los días festivos y cómo llegar, según lo que usted le diga, toma pedidos de grupos grandes y de banquetes, y se los manda a su teléfono en segundos. Las cotizaciones de banquetes reciben seguimiento el día que usted elija, cada reseña recibe respuesta y sus especiales se publican en Google. <b>Usted lo aprueba todo desde su teléfono.</b>',
     ph: 'Llamadas contestadas, reseñas respondidas, cotizaciones de banquetes con seguimiento y noches flojas llenadas, en plena hora pico.' },
   dental: { plural: 'consultorios dentales', for: 'Para consultorios dentales',
-    h1: '7:50 AM. Llama un diente roto, una reseña espera respuesta, el martes no está confirmado. Atendido.',
-    lede: 'Llevamos la parte de atrás de un consultorio dental mientras usted está con un paciente: cada llamada contestada, cada reseña respondida, y citas confirmadas. Al teléfono, Max contesta con el nombre de su consultorio, da su horario y ubicación, y toma un recado con el nombre, el número y lo que necesita quien llama, nada más. Nunca habla de tarifas, tratamientos ni seguros. Cada reseña recibe una respuesta cuidadosa que Compliance Guard revisa antes de que usted la vea. <b>Usted lo aprueba todo desde su teléfono.</b>',
-    ph: 'Llamadas contestadas cuando la recepción no puede, reseñas respondidas y citas confirmadas. Nada dice nunca quién es paciente.' },
+    h1: '7:50 AM. Llama un diente roto, una reseña espera respuesta, Google muestra el horario viejo. Atendido.',
+    lede: 'Llevamos la parte de atrás de un consultorio dental mientras usted está con un paciente: cada llamada contestada, cada reseña respondida, y su perfil de Google al día. Al teléfono, Max contesta con el nombre de su consultorio, da su horario y ubicación, y toma un recado con el nombre, el número y lo que necesita quien llama, nada más. Nunca habla de tarifas, tratamientos ni seguros. Cada reseña recibe una respuesta cuidadosa que Compliance Guard revisa antes de que usted la vea. <b>Usted lo aprueba todo desde su teléfono.</b>',
+    ph: 'Llamadas contestadas cuando la recepción no puede, reseñas respondidas y su perfil de Google al día. Nada dice nunca quién es paciente.' },
   insurance: { plural: 'agencias de seguros', for: 'Para agencias de seguros', h1: 'Subieron las tarifas. <span>Las reseñas vinieron después.</span>',
     lede: 'Always Open contesta cada reseña de su agencia con la redacción que aprobó su encargado de cumplimiento. Compliance Guard revisa cada respuesta antes de que usted la vea, y <b>nada se publica hasta que usted toque Aprobar</b>. Nunca vemos su lista de clientes.',
     ph: 'Llamadas fuera de horario contestadas, reseñas respondidas y su perfil de Google al día. Compliance Guard revisa cada palabra que escribimos por usted.',
@@ -184,17 +184,20 @@ const esPillar = (n, swap) => { const e = ES_DOES.find(x => x.s === '#does .pill
 const NO_FULL_MAX = h => h.replace('<li><b>Full Max</b><span>: si quiere que lo rutinario salga solo</span></li>', '');
 export function esDoesFor(key) {
   if (key === 'dental') return [
-    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma el recado</b><span>: nombre, número y lo que necesitan; nunca tarifas, tratamientos ni seguros</span></li><li><b>Cada recado en su teléfono</b><span>: en segundos, con el número de quien llamó</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
-    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Seguimiento de citas</b><span>: confirmaciones y recordatorios, con el texto ya escrito</span></li><li><b>Recordatorios de temporada</b><span>: a pacientes que aceptaron mensajes</span></li><li><b>Horario de días festivos</b><span>: y cierres publicados en Google, con su OK</span></li>' },
-    { s: '#does .pillar:nth-child(3) a', h: 'Qué incluye cada plan' + AR },
-    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Llene mi semana</b><span>: un día libre se ofrece a pacientes anteriores que aceptaron mensajes; el primer sí queda agendado</span></li><li><b>Solicitudes de cita</b><span>: a cualquier hora, y cada recado registrado</span></li><li><b>Confirmaciones de citas</b><span>: para que queden menos sillas vacías</span></li>' },
+    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma el recado</b><span>: nombre, número y lo que necesitan; nunca tarifas, tratamientos ni seguros</span></li><li><b>Llamadas urgentes, si las quiere</b><span>: pasadas a su teléfono, o cada recado ahí en segundos</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
+    { s: '#does .pillar:nth-child(3) h3', h: 'Cada palabra, con cuidado' },
+    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Redacción que usted aprueba una vez</b><span>: cada respuesta parte de ella</span></li><li><b>Nunca confirma a un paciente</b><span>: nunca se menciona una visita ni un tratamiento</span></li><li><b>Horario de días festivos</b><span>: y cierres publicados en Google, con su OK</span></li>' },
+    { s: '#does .pillar:nth-child(3) a', h: 'Cómo trabajamos' + AR },
+    { s: '#does .pillar:nth-child(4) h3', h: 'Sin datos de pacientes' },
+    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Sin lista de pacientes</b><span>: trabajamos solo con páginas públicas</span></li><li><b>Solicitudes de cita</b><span>: a cualquier hora, y cada recado registrado</span></li><li><b>Nada sobre tratamientos</b><span>: Max toma nombre, número y lo que necesitan</span></li>' },
+    { s: '#does .pillar:nth-child(4) a', h: 'Qué incluye Growth' + AR },
     { s: '#does .pillar:nth-child(5) ul', h: MAP_STORM_ES },
     esPillar(6, NO_FULL_MAX)
   ];
   if (key === 'insurance') return [
     esPillar(2, h => h.replace('<li><b>Vigilancia de la competencia</b><span>: cómo se compara con los negocios cercanos, cada mes</span></li>', '<li><b>Avisos el mismo día</b><span>: por una reseña mala, para que usted llame primero</span></li>')),
     esPillar(6, NO_FULL_MAX),
-    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma recados fuera de horario</b><span>: nombre, número y una buena hora para llamar; nunca pólizas, tarifas ni reclamos</span></li><li><b>Cada recado en su teléfono</b><span>: en segundos, con el número de quien llamó</span></li><li><b>Inglés y español</b><span>: respuestas y recados, sin costo extra</span></li>' },
+    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma recados fuera de horario</b><span>: nombre, número y una buena hora para llamar; nunca pólizas, tarifas ni reclamos</span></li><li><b>Llamadas urgentes, si las quiere</b><span>: pasadas a su teléfono, o cada recado ahí en segundos</span></li><li><b>Inglés y español</b><span>: respuestas y recados, sin costo extra</span></li>' },
     { s: '#does .pillar:nth-child(3) h3', h: 'Antes que la noticia' },
     { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Rate-Shock Radar</b><span>: sepa de una ola de alzas antes de que llegue a su página</span></li><li><b>Publicaciones educativas</b><span>: del calendario de la agencia; enseñan, nunca venden</span></li><li><b>Kit para pedir reseñas</b><span>: para que los clientes contentos sepan a dónde ir</span></li>' },
     { s: '#does .pillar:nth-child(3) a', h: 'Vea Rate-Shock Radar' + AR },
