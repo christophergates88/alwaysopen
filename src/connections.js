@@ -21,9 +21,9 @@ export async function markBroken(env, cid, kind, why) {
   const r = await env.DB.prepare('INSERT INTO connection_health (client_id, kind, broken_at, why, checked_at) VALUES (?1, ?2, ?3, ?4, ?3) ON CONFLICT(client_id, kind) DO UPDATE SET broken_at = COALESCE(connection_health.broken_at, excluded.broken_at), why = excluded.why, checked_at = excluded.checked_at RETURNING told_at, broken_at').bind(cid, kind, now, String(why || '').slice(0, 120)).first();
   return { fresh: !(r && r.told_at) };
 }
-export async function markOk(env, cid, kind) {
+export async function markOk(env, cid, kind, now) {
   await ensureConnections(env);
-  await env.DB.prepare('INSERT INTO connection_health (client_id, kind, broken_at, why, checked_at, told_at) VALUES (?1, ?2, NULL, \'\', ?3, NULL) ON CONFLICT(client_id, kind) DO UPDATE SET broken_at = NULL, why = \'\', checked_at = excluded.checked_at, told_at = NULL').bind(cid, kind, new Date().toISOString()).run();
+  await env.DB.prepare('INSERT INTO connection_health (client_id, kind, broken_at, why, checked_at, told_at) VALUES (?1, ?2, NULL, \'\', ?3, NULL) ON CONFLICT(client_id, kind) DO UPDATE SET broken_at = NULL, why = \'\', checked_at = excluded.checked_at, told_at = NULL').bind(cid, kind, new Date(now || Date.now()).toISOString()).run();
 }
 // For the app: which connections need the owner, with a plain line each.
 export async function brokenFor(env, cid) {

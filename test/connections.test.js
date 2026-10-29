@@ -38,10 +38,10 @@ test('a refused calendar: one push, one alert, a card with the text, and a recon
   // Within the day nothing is re-checked.
   r = await connectionsCron(env, now + 26 * 3600e3, h);
   assert.equal(r.checked, 0);
-  await markOk(env, 'c1', 'calendar');
+  await markOk(env, 'c1', 'calendar', now + 26 * 3600e3);
   assert.equal((await brokenFor(env, 'c1')).length, 0);
-  // Broken again later: told again, because it was fixed in between.
-  r = await connectionsCron(env, now + 50 * 3600e3, h);
+  // Broken again a day after the reconnect: told again, because it was fixed in between.
+  r = await connectionsCron(env, now + 51 * 3600e3, h);
   assert.equal(r.told, 1);
 });
 

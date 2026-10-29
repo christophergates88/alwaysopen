@@ -356,6 +356,9 @@ function withSiteHeaders(res, url) {
   out.headers.set('x-content-type-options', 'nosniff');
   out.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   out.headers.set('x-frame-options', 'SAMEORIGIN');
+  // Our public brand pictures (logo, share and social images) can be read by other sites, so a page editor (like
+  // Facebook's, when Claude sets the Page's cover and logo) can draw them. Nothing private lives at these paths.
+  if (/^\/(social\/[\w-]+\.(jpg|png)|icon-512\.png|og\d?\.(png|jpg))$/.test(url.pathname)) out.headers.set('access-control-allow-origin', '*');
   // Keep search engines off the temporary workers.dev address; the real domain is indexed.
   if (url.hostname.endsWith('.workers.dev')) out.headers.set('x-robots-tag', 'noindex');
   return out;
