@@ -45,6 +45,16 @@ jobs:
             if [ -n "$OPS_KEY" ]; then curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"why\":\"$(echo "$bad" | tr -d '"' | cut -c1-300)\"}" https://alwaysopenoffice.com/ops/deploy-failed || true; fi
             exit 1
           fi
+      - name: Check that alert emails still send (no rollback for this one)
+        env:
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+        run: |
+          [ -n "$OPS_KEY" ] || exit 0
+          m=$(curl -sS -m 30 -X POST -H "x-key: $OPS_KEY" https://alwaysopenoffice.com/ops/mail-test || echo '{"ok":false,"result":"no answer"}')
+          echo "$m"
+          echo "$m" | grep -q '"ok":true' && exit 0
+          curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"why\":\"the site is live, but the alert email test failed: $(echo "$m" | tr -d '"\\' | cut -c1-200)\"}" https://alwaysopenoffice.com/ops/deploy-failed || true
+          exit 1
       - name: Tell Christopher if the deploy failed
         if: failure()
         env:

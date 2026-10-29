@@ -35,7 +35,7 @@ crons = ["*/10 * * * *", "17 12 * * 1"]
 [vars]
 RADAR_TOWNS = "Eatonton, GA|Madison, GA|Greensboro, GA|Milledgeville, GA|Monticello, GA|Gray, GA|Sparta, GA|Macon, GA"
 STORM_COUNTIES = "237:Putnam,009:Baldwin,211:Morgan,133:Greene,141:Hancock,159:Jasper,169:Jones,319:Wilkinson,303:Washington,021:Bibb,289:Twiggs,207:Monroe,217:Newton,297:Walton,219:Oconee,059:Clarke,035:Butts,153:Houston,225:Peach,175:Laurens,167:Johnson,301:Warren,265:Taliaferro,221:Oglethorpe,125:Glascock"
-MAIL_FROM = "forms@lakecountryfoamparty.com"
+MAIL_FROM = "forms@alwaysopenoffice.com"
 MAIL_TO = "christophergates.cg@gmail.com"
 # Always Open's approved ISV reseller profile in Twilio Trust Hub (not a secret). Each client's texting registration is assigned to it.
 # Once Google approves Business Profile access, the site drafts review replies for clients it reaches through the API

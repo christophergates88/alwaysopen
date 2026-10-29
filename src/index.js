@@ -8,7 +8,7 @@ import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
 import { opsAlert, watched, healthCron, healthDetail, healthStatus, crashed } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
-import { handleApp, aasa, photoGet, audioGet, appCron, handleQuote, handleLocations, opsPing } from './app.js';
+import { handleApp, aasa, photoGet, audioGet, appCron, handleQuote, handleLocations, opsPing, pushClient } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
 import { handleAudit } from './audit.js';
 import { handleBilling, stripe as stripeCall } from './billing.js';
@@ -32,6 +32,11 @@ import { aiCheckCron } from './aicheck.js';
 import { monthReportCron } from './report.js';
 import { fillCron } from './fillweek.js';
 import { weeklyGrade, queueSet } from './grades.js';
+import { minutesCron } from './minutes.js';
+import { morningCron } from './morning.js';
+import { connectionsCron } from './connections.js';
+import { tryRefresh as gcalRefresh } from './gcal.js';
+import { tryRefresh as gbpRefresh } from './gbp.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
 export { CallRoom };
@@ -164,11 +169,19 @@ async function serve(req, env, ctx) {
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       try { return json(await seedDemo(env, { ensureBiz, ensureInvoices, ensureRivals, ensureReviews, isoWeek: rivalWeek })); } catch (e) { return json({ ok: false, error: String((e && e.message) || e).slice(0, 200) }, 500); }
     }
+    if (path === '/ops/mail-test') {
+      // The deploy calls this once: an email to Christopher from the sending address, so a broken address fails the deploy, not a customer.
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const { mailOwner } = await import('./app.js');
+      const r = await mailOwner(env, 'Always Open deployed', 'A new version of the site and Worker is live. This email is the deploy’s check that alert emails still arrive from ' + (env.MAIL_FROM || 'the sending address') + '.');
+      return json({ ok: r === 'sent', result: r, from: env.MAIL_FROM || '' }, r === 'sent' ? 200 : 500);
+    }
     if (path === '/ops/deploy-failed') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       let why = ''; try { why = String((await req.json()).why || '').slice(0, 300); } catch (e) { why = ''; }
-      const r = await opsAlert(env, 'deploy', '', why ? 'A deploy was rolled back because the live check failed: ' + why + '. The site is on the previous version. Open the Actions tab of christophergates88/alwaysopen to see why.' : 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
+      const r = await opsAlert(env, 'deploy', '', why ? (/^the site is live/.test(why) ? why.charAt(0).toUpperCase() + why.slice(1) + '. Check the sending address in Cloudflare Email Routing.' : 'A deploy was rolled back because the live check failed: ' + why + '. The site is on the previous version. Open the Actions tab of christophergates88/alwaysopen to see why.') : 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
       return json({ ok: true, alert: r }, 200);
     }
     if (path === '/lead') {
@@ -219,7 +232,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); ctx.waitUntil(watched(env, 'maxweek', weeklyGrade(env, Date.now(), (t, b) => opsPing(env, t, b, 'default', 'telephone_receiver')))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 

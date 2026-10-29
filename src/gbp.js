@@ -40,6 +40,7 @@ export async function saveRefresh(env, who, refresh) {
   await ensureGbp(env);
   await env.DB.prepare('INSERT OR REPLACE INTO gbp_tokens (client_id, refresh, connected_at) VALUES (?1, ?2, ?3)').bind(who, refresh, new Date().toISOString()).run();
   tokens.delete(who);
+  try { await (await import('./connections.js')).markOk(env, who, 'profile'); } catch (e) { /* fine */ }
 }
 export async function accessToken(env, who) {
   const c = tokens.get(who);
@@ -50,9 +51,23 @@ export async function accessToken(env, who) {
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.access_token) return null;
+  if (!r.ok || !j.access_token) {
+    try { const cn = await import('./connections.js'); if (cn.refusedForGood(r.status, j)) await cn.markBroken(env, who, 'profile', j.error || ('Google answered ' + r.status)); } catch (e) { /* the cron will find it */ }
+    return null;
+  }
   tokens.set(who, { tok: j.access_token, exp: Date.now() + (+j.expires_in || 3000) * 1000 });
+  try { const cn = await import('./connections.js'); await cn.markOk(env, who, 'profile'); } catch (e) { /* fine */ }
   return j.access_token;
+}
+// For the daily connection check: refresh without caching, and say what Google said.
+export async function tryRefresh(env, who) {
+  await ensureGbp(env);
+  const row = await env.DB.prepare('SELECT refresh FROM gbp_tokens WHERE client_id = ?1').bind(who).first();
+  if (!row) return { ok: false, status: 404, body: { error: 'no token' } };
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok && !!j.access_token, status: r.status, body: j };
 }
 export async function connected(env) {
   try { await ensureGbp(env); return !!(await env.DB.prepare('SELECT 1 AS x FROM gbp_tokens WHERE client_id = ?1').bind(AGENCY).first()); } catch (e) { return false; }

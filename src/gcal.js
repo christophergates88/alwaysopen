@@ -94,6 +94,7 @@ export async function handleGoogle(req, env, url) {
     let tz = '';
     try { const e = await fetch(API + '?maxResults=1', { headers: { authorization: 'Bearer ' + j.access_token } }); tz = ((await e.json()) || {}).timeZone || ''; } catch (e) { /* set on first use */ }
     await env.DB.prepare('INSERT OR REPLACE INTO gcal_tokens (client_id, refresh, tz, connected_at) VALUES (?1, ?2, ?3, ?4)').bind(st[0], j.refresh_token, tz, new Date().toISOString()).run();
+    try { await (await import('./connections.js')).markOk(env, st[0], 'calendar'); } catch (e) { /* fine */ }
     return page('Calendar connected', 'Max can now offer open times from your Google Calendar and book them for callers. You can close this page and go back to the app.');
   }
   if (path === '/google/disconnect' && req.method === 'POST') {
@@ -109,8 +110,13 @@ export async function handleGoogle(req, env, url) {
 }
 
 export async function gcalStatus(env, cid) {
-  try { await ensureGcal(env); const r = await env.DB.prepare('SELECT connected_at FROM gcal_tokens WHERE client_id = ?1').bind(cid).first(); return { connected: !!r, since: r ? r.connected_at : '' }; }
-  catch (e) { return { connected: false, since: '' }; }
+  try {
+    await ensureGcal(env);
+    const r = await env.DB.prepare('SELECT connected_at FROM gcal_tokens WHERE client_id = ?1').bind(cid).first();
+    let needsReconnect = false;
+    try { const cn = await import('./connections.js'); needsReconnect = !!r && (await cn.brokenFor(env, cid)).some(b => b.kind === 'calendar'); } catch (e) { needsReconnect = false; }
+    return { connected: !!r, since: r ? r.connected_at : '', needsReconnect };
+  } catch (e) { return { connected: false, since: '', needsReconnect: false }; }
 }
 
 async function access(env, cid) {
@@ -120,7 +126,17 @@ async function access(env, cid) {
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
   const j = await r.json().catch(() => ({}));
+  try { const cn = await import('./connections.js'); if (r.ok && j.access_token) await cn.markOk(env, cid, 'calendar'); else if (cn.refusedForGood(r.status, j)) await cn.markBroken(env, cid, 'calendar', j.error || ('Google answered ' + r.status)); } catch (e) { /* the cron will find it */ }
   return r.ok && j.access_token ? { token: j.access_token, tz: row.tz || 'America/New_York' } : null;
+}
+export async function tryRefresh(env, cid) {
+  await ensureGcal(env);
+  const row = await env.DB.prepare('SELECT refresh FROM gcal_tokens WHERE client_id = ?1').bind(cid).first();
+  if (!row) return { ok: false, status: 404, body: { error: 'no token' } };
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok && !!j.access_token, status: r.status, body: j };
 }
 
 // Offset (minutes) of a time zone at a given instant, so slot times are built in the owner's own zone.

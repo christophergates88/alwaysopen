@@ -365,7 +365,7 @@ function vHome(){
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
   if(isTech()&&SEG==='settings')SEG='today';
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.'+(S.client.tier?' You’re on <b class="tier">'+esc(S.client.tier)+'</b>.':'')+'</p>'+segBar(items+calls+due);
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.'+(S.client.tier?' You’re on <b class="tier">'+esc(S.client.tier)+'</b>.':'')+'</p>'+reconnectCards()+segBar(items+calls+due);
   if(SEG==='customers'){
     h+=inboxRow()+jobsBlock()+(isTech()?'':quotesBlock()+payBlock()+invBlock())+pastBlock()+linkBlock()+mapCard();
     return h;
@@ -638,6 +638,7 @@ function vMax(){
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
     if(S.maxStats&&S.maxStats.calls)h+='<p class="fine" style="margin:8px 2px 0">Last 30 days: '+S.maxStats.calls+(S.maxStats.calls===1?' call':' calls')+', '+S.maxStats.booked+' booked, '+S.maxStats.hungUp+' hung up early.</p>';
+    if(S.minutes){var mm=S.minutes,pc=Math.min(100,mm.pct||0);h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>Minutes this month</b><span class="fine">'+mm.used+' of '+mm.included+'</span></div><div style="height:8px;border-radius:99px;background:var(--panel);margin:8px 0 6px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(mm.over?'var(--sign)':pc>=80?'var(--warn,#F2C46B)':'var(--ok)')+'"></div></div><p class="fine">'+(mm.over?mm.over+' minutes past your plan so far, $'+(mm.overCents/100).toFixed(2)+' at 25¢ a minute on your next invoice. Max keeps answering.':pc>=80?'Getting close. Past '+mm.included+', minutes are 25¢ each. Max keeps answering.':'Every plan comes with 300 minutes of Max a month.')+'</p></div>';}
     h+='<h2>What '+esc(L.name)+' knows</h2><div class="card form">'+
       '<label>Your hours<input type="text" id="lh" maxlength="300" value="'+esc(L.hours)+'" placeholder="For example: Mon to Fri 8 to 5, Sat 9 to 1"></label>'+
       '<label>What should '+esc(L.name)+' tell callers?<textarea id="lo" maxlength="800" placeholder="Specials, how you book, areas you serve, anything to steer clear of.">'+esc(L.owner)+'</textarea></label>'+
@@ -656,6 +657,12 @@ function vMax(){
   return h;
 }
 function hhmm(m){m=+m||0;var h=Math.floor(m/60),mm=m%60;return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm;}
+// A Google connection Google refused: one card with the button, until it is connected again.
+function reconnectCards(){
+  var list=S.reconnect||[];if(!list.length)return '';
+  var code=encodeURIComponent(BASE.split('/').pop());
+  return list.map(function(b){var cal=b.kind==='calendar';return '<div class="card" style="border-color:var(--sign);box-shadow:0 0 0 1px rgba(255,106,94,.2)"><b>'+(cal?'Reconnect Google Calendar':'Reconnect your Google Business Profile')+'</b><p class="note" style="margin:6px 0 10px">'+esc(b.text)+'</p><div class="acts"><a class="btn red sm" href="'+(cal?'/google/connect?code='+code:'/google/gbp?code='+code)+'">Connect</a></div></div>';}).join('');
+}
 function mins(v){var p=String(v||'').split(':');return (+p[0]||0)*60+(+p[1]||0);}
 function bookCard(L){
   var B=L.booking,d=B.days||{},wk=d.Mon||d.Tue||d.Wed||d.Thu||d.Fri||[480,1020];
@@ -666,8 +673,8 @@ function bookCard(L){
     '<label>A visit takes<select id="bk-len">'+[30,60,90,120,180,240].map(function(m){return '<option value="'+m+'"'+(B.slotMin===m?' selected':'')+'>'+(m<60?m+' minutes':(m/60)+(m===60?' hour':' hours'))+'</option>';}).join('')+'</select></label>'+
     '<label>Time between visits<select id="bk-buf">'+[0,15,30,60].map(function(m){return '<option value="'+m+'"'+(B.bufferMin===m?' selected':'')+'>'+(m?m+' minutes':'None')+'</option>';}).join('')+'</select></label>'+
     row('wk','Weekdays',wk)+row('sat','Saturday',d.Sat)+row('sun','Sunday',d.Sun)+
-    '<p class="fine">'+esc(L.name)+' offers two times at a time, at least two hours out, and never the same time twice.'+(cal.connected?' Your Google Calendar is connected, so busy times there are skipped too.':' Connect Google Calendar (optional) so '+esc(L.name)+' never double-books with your own plans.')+'</p>'+
-    '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
+    '<p class="fine">'+esc(L.name)+' offers two times at a time, at least two hours out, and never the same time twice.'+(cal.needsReconnect?' Google stopped answering for your calendar. Connect it again below.':cal.connected?' Your Google Calendar is connected, so busy times there are skipped too.':' Connect Google Calendar (optional) so '+esc(L.name)+' never double-books with your own plans.')+'</p>'+
+    '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.needsReconnect?'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Reconnect Google Calendar</a>':cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
 }
 function afterCard(L){
   var A=S.after;

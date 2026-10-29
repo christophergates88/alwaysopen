@@ -427,6 +427,8 @@ async function apiState(env, c, ctx) {
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.after = (line && !c.staff && !+c.regulated) ? await afterState(env, cid, line) : null; } catch (e) { out.after = null; }
   try { out.maxStats = (f.calls && line) ? await (await import('./grades.js')).ownerStats(env, cid) : null; } catch (e) { out.maxStats = null; }
+  try { out.minutes = (f.calls && line && !c.staff) ? await (await import('./minutes.js')).meterFor(env, cid) : null; } catch (e) { out.minutes = null; }
+  try { out.reconnect = c.staff ? [] : await (await import('./connections.js')).brokenFor(env, cid); } catch (e) { out.reconnect = []; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
   try { out.texting = c.staff || cid === 'demo-plumbing' ? null : await textingState(env, c); } catch (e) { out.texting = null; }

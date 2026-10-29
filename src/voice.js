@@ -113,9 +113,14 @@ async function incoming(env, f) {
   // Numbers listed as testers on the line (the owner trying it out) skip the per-caller limit, and their calls are
   // marked as tests: no lead, no push, kept out of the counts.
   const tester = String((parse(line.facts) || {}).testers || '').split(/[,\s]+/).filter(x => E164.test(x)).indexOf(from) > -1;
-  const limited = (!tester && n(a) >= PER_CALLER_HOUR) || n(b) >= PER_LINE_DAY;
+  // The daily safety cap: 120 minutes in a day on one line is a robocall storm or abuse, not a busy day.
+  let capped = false;
+  try { capped = !tester && await (await import('./minutes.js')).overDailyCap(env, to, now); } catch (e) { capped = false; }
+  const limited = (!tester && n(a) >= PER_CALLER_HOUR) || n(b) >= PER_LINE_DAY || capped;
+  if (capped) opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had over 120 minutes of calls in a day. Callers now hear a short message asking them to text or call back. If it is a real rush, raise the cap; if it is a storm, check the callers in the app.').catch(() => {});
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', ?8, 0, ?9)")
     .bind(sid, line.client_id, to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
+  if (capped) return twiml(say('Thanks for calling ' + biz + '. We are getting a lot of calls right now. Please text this number, or call back in an hour. Goodbye.') + '<Hangup/>');
   if (limited) return twiml(say('Thanks for calling ' + biz + '. We have your number and will call you back as soon as we can. Goodbye.') + '<Hangup/>');
   if (!tester && f.get('AoTest') !== '1' && line.client_id !== OWN_ID) liveCallStart(env, line.client_id, sid, line.business || '', spokenNumber(from, true)).catch(() => {});
   const t = await callToken(env, sid);
