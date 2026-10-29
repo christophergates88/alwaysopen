@@ -129,13 +129,14 @@ export async function slowChecks(env, h) {
   // ntfy: the topic answers.
   if (!env.NTFY_URL) out.push({ name: 'ntfy', ok: false, why: 'no push topic set: nothing reaches your phone' });
   else {
-    try { const r = await f(env.NTFY_URL, { method: 'HEAD' }); out.push({ name: 'ntfy', ok: r.ok || r.status === 405, why: r.ok || r.status === 405 ? '' : 'ntfy answered ' + r.status + ': pushes to your phone may not be arriving' }); }
+    // Reachable is what matters (a protected topic answers 401 or 403 and is still fine); only no answer or a 5xx is a problem.
+    try { const r = await f(env.NTFY_URL.replace(/\/$/, '') + '/json?poll=1&since=1s', { method: 'GET' }); out.push({ name: 'ntfy', ok: r.status < 500, why: r.status < 500 ? '' : 'ntfy answered ' + r.status + ': pushes to your phone may not be arriving' }); }
     catch (e) { out.push({ name: 'ntfy', ok: false, why: 'ntfy could not be reached: pushes to your phone are not arriving' }); }
   }
   // Twilio: every live number still points at our webhook and has the fallback.
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
     try {
-      const lines = ((await env.DB.prepare('SELECT number, business FROM voice_lines WHERE on_air = 1').all()).results) || [];
+      const lines = ((await env.DB.prepare('SELECT number, business, transfer_to FROM voice_lines WHERE on_air = 1').all()).results) || [];
       const wrong = [];
       for (const l of lines) {
         if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
@@ -143,8 +144,13 @@ export async function slowChecks(env, h) {
         const j = await r.json().catch(() => ({}));
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
         if (!pn) { wrong.push((l.business || l.number) + ' (not in the Twilio account)'); continue; }
-        if (String(pn.voice_url || '') !== 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY) wrong.push((l.business || l.number) + ' (webhook points elsewhere)');
-        else if (!/twimlets\.com\/echo/.test(String(pn.voice_fallback_url || ''))) wrong.push((l.business || l.number) + ' (no fallback message; run the Twilio setup)');
+        if (String(pn.voice_url || '') !== 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY) { wrong.push((l.business || l.number) + ' (webhook points elsewhere)'); continue; }
+        if (!/twimlets\.com\/echo/.test(String(pn.voice_fallback_url || ''))) {
+          // Our number, no fallback yet: set it now rather than nag. Setting a fallback changes nothing about live calls.
+          const { fallbackUrl } = await import('./provision.js');
+          const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ VoiceFallbackUrl: fallbackUrl(l.business, l.transfer_to), VoiceFallbackMethod: 'GET' }).toString() });
+          if (!u.ok) wrong.push((l.business || l.number) + ' (no fallback message, and Twilio would not take one: ' + u.status + ')');
+        }
       }
       out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : '' });
     } catch (e) { out.push({ name: 'twilio-numbers', ok: false, why: 'could not read the numbers from Twilio' }); }
@@ -191,8 +197,8 @@ export async function healthCron(env) {
 
 // GET /health: "ok" (200) for the outside monitor, or "not ok: ..." (503) when a check fails or the 10-minute cron has
 // not finished in 25 minutes. With the key, the detail: every check and the last run of every job.
-export async function healthStatus(env, now) {
-  const res = (await healthChecks(env)).concat(await slowResults(env, now));
+export async function healthStatus(env, now, core) {
+  const res = (await healthChecks(env)).concat(core ? [] : await slowResults(env, now));
   const age = await cronAge(env, now);
   // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
   const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };

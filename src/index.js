@@ -59,7 +59,8 @@ async function serve(req, env, ctx) {
       const k = req.headers.get('x-key') || '';
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
       // The outside monitor reads this: 200 "ok", or 503 naming the failed checks (no details that could help an attacker).
-      let h; try { h = await healthStatus(env); } catch (e) { h = { ok: false, checks: [{ name: 'health', ok: false }] }; }
+      // ?core=1 (the deploy's check) looks only at what a deploy can change: the Worker, the database, the keys and the cron.
+      let h; try { h = await healthStatus(env, Date.now(), url.searchParams.get('core') === '1'); } catch (e) { h = { ok: false, checks: [{ name: 'health', ok: false }] }; }
       return new Response(h.ok ? 'ok' : 'not ok: ' + h.checks.filter(c => !c.ok).map(c => c.name).join(', '), { status: h.ok ? 200 : 503, headers: { 'cache-control': 'no-store' } });
     }
     if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);

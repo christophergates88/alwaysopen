@@ -29,7 +29,7 @@ jobs:
           bad=""
           for i in 1 2 3; do
             bad=""
-            h=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" https://alwaysopenoffice.com/health || echo 000)
+            h=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "https://alwaysopenoffice.com/health?core=1" || echo 000)
             [ "$h" = "200" ] || bad="health answered $h"
             for p in "/|Your business" "/insurance|Compliance Guard" "/app/LZbZROIqlA85xuGEgarAuKRRO3IuO1En|Demo Plumbing"; do
               url="${p%%|*}"; want="${p#*|}"
