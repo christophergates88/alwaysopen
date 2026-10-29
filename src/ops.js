@@ -130,8 +130,11 @@ export async function slowChecks(env, h) {
   if (!env.NTFY_URL) out.push({ name: 'ntfy', ok: false, why: 'no push topic set: nothing reaches your phone' });
   else {
     // Reachable is what matters (a protected topic answers 401 or 403 and is still fine); only no answer or a 5xx is a problem.
-    try { const r = await f(env.NTFY_URL.replace(/\/$/, '') + '/json?poll=1&since=1s', { method: 'GET' }); out.push({ name: 'ntfy', ok: r.status < 500, why: r.status < 500 ? '' : 'ntfy answered ' + r.status + ': pushes to your phone may not be arriving' }); }
-    catch (e) { out.push({ name: 'ntfy', ok: false, why: 'ntfy could not be reached: pushes to your phone are not arriving' }); }
+    // ntfy.sh sits behind Cloudflare and now and then answers 5xx for a few seconds: ask again once before calling it down.
+    const poll = async () => { try { return (await f(env.NTFY_URL.replace(/\/$/, '') + '/json?poll=1&since=1s', { method: 'GET' })).status; } catch (e) { return 0; } };
+    let st = await poll();
+    if (!st || st >= 500) { await (h.sleep || (ms => new Promise(r => setTimeout(r, ms))))(4000); st = await poll(); }
+    out.push({ name: 'ntfy', ok: st > 0 && st < 500, why: st > 0 && st < 500 ? '' : (st ? 'ntfy answered ' + st + ' twice: pushes to your phone may not be arriving' : 'ntfy could not be reached: pushes to your phone are not arriving') });
   }
   // Twilio: every live number still points at our webhook and has the fallback.
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {

@@ -123,7 +123,15 @@ test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; e
     assert.doesNotMatch(h.checks.find(c => c.name === 'twilio-numbers').why, /Demo/, 'the demo number is made up and skipped');
     const core = await healthStatus(env, now + 62 * 60000, true);
     assert.equal(core.checks.some(c => c.name === 'apple-push'), false, 'the deploy check ignores the hourly results');
-    const stale = await healthStatus(env, now + 5 * 3600e3);
+    // ntfy blinks (one 522, then fine): not a failure. Down twice: one alert.
+    world.apple = [400, '{"reason":"BadDeviceToken"}']; world.voice_url = 'https://alwaysopenoffice.com/voice/in/vk';
+    let polls = 0; const blink = async (url, init) => { if (String(url).includes('/json?poll')) { polls++; return new Response('', { status: polls === 1 ? 522 : 200 }); } return f(url, init); };
+    r = await slowCron(env, now + 122 * 60000, { fetch: blink, apnsJwt: async () => 'jwt', sleep: async () => {} });
+    assert.deepEqual(r.bad, [], 'one blink is not an outage'); assert.equal(polls, 2);
+    world.ntfy = 522;
+    r = await slowCron(env, now + 183 * 60000, { fetch: f, apnsJwt: async () => 'jwt', sleep: async () => {} });
+    assert.deepEqual(r.bad, ['ntfy']);
+    const stale = await healthStatus(env, now + 8 * 3600e3);
     assert.equal(stale.checks.some(c => c.name === 'apple-push'), false, 'a result older than three hours is not shown as current');
   } finally { globalThis.fetch = realFetch; }
 });
