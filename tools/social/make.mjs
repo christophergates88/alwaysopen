@@ -1,9 +1,10 @@
-// Makes the twelve neon-sign cards Always Open's own Facebook and Instagram posts use (public/social/<theme>.jpg, 1080 square,
+// Makes the thirteen neon-sign cards Always Open's own Facebook and Instagram posts use (public/social/<theme>.jpg, 1080 square,
 // one per theme in src/social.js) from tools/social/card.html. Needs the font files in tools/og/fonts or $OG_FONTS
 // (TiltNeon.ttf and InstrumentSans.ttf from github.com/google/fonts). Run: node tools/social/make.mjs
 import { createRequire } from 'node:module'; const { chromium } = createRequire(import.meta.url)('playwright'); import path from 'node:path'; import fs from 'node:fs'; import os from 'node:os'; import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CARDS = {
+  office: { h: 'The back side of your business, <em>run for you.</em>', s: 'Calls. Reviews. Follow-ups. Your calendar. Your name online. <b>You approve it all from your phone.</b>' },
   missed: { h: 'The call you <em>missed</em> just rang your competitor.', s: 'Most callers who get voicemail call the next name on Google. <b>Max answers every call, day or night.</b>' },
   checkin: { h: 'Three days later, Max <em>checks in.</em>', s: 'Did the job hold up? <b>A yes becomes a review ask. A no comes to you first.</b>' },
   grade: { h: 'How does your business <em>look</em> on Google right now?', s: 'Type your business name and town. <b>Your grade shows in a few seconds.</b> Free, no sign-up.' },
@@ -15,7 +16,7 @@ const CARDS = {
   local: { h: 'Lake Country, Georgia. <em>Anywhere</em> in the U.S.', s: 'Calls answered. Reviews handled. Jobs followed up. <b>You approve it all from your phone.</b>' },
   callback: { h: 'Not “someday.” <em>4:15 today.</em>', s: 'Max books the call-back from your calendar, <b>and sets a new time if it slips.</b>' },
   max: { h: 'Want to hear what your callers <em>would get?</em>', s: '', x: '<div class="box"><span>CALL MAX. WE DARE YOU.</span><b>(706) 460-2226</b></div>' },
-  assistants: { h: 'What does AI say <em>about you?</em>', s: 'Once a month we ask the answer assistants about your business, <b>and fix what they get wrong.</b>' }
+  assistants: { h: 'What do answer assistants <em>say about you?</em>', s: 'Once a month we ask the answer assistants about your business, <b>and fix what they get wrong.</b>' }
 };
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1080, height: 1080 } });
 const base = fs.readFileSync(path.join(here, 'card.html'), 'utf8').split('FONTS').join('file://' + (process.env.OG_FONTS || path.join(here, '..', 'og', 'fonts')));
