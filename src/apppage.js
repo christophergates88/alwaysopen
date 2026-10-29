@@ -336,7 +336,7 @@ function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.li
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
 function row(go,icon,title,sub){return '<button class="row" type="button" data-go="'+go+'">'+icon+'<div><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+ICON.chev+'</button>';}
 function qt(a,icon,title,sub){return '<button class="qt" type="button" data-a="'+a+'">'+icon+'<b>'+esc(title)+'</b><span>'+esc(sub)+'</span></button>';}
-function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'.</div>';}
+function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional.'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'</div>';}
 var FL=null,FLASKED=false;
 function flCard(){
   if(!S.firstLookDue)return '';
