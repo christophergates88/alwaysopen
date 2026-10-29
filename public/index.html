@@ -576,6 +576,21 @@ a.chip:hover{border-color:var(--ink)}
 @keyframes rpGlow{0%,100%{box-shadow:0 0 0 1px rgba(255,106,94,.14),0 0 28px rgba(255,90,77,.28),inset 0 0 22px rgba(255,90,77,.06),0 40px 70px -34px rgba(0,0,0,.95)}50%{box-shadow:0 0 0 1px rgba(255,106,94,.24),0 0 42px rgba(255,90,77,.44),inset 0 0 30px rgba(255,90,77,.1),0 40px 70px -34px rgba(0,0,0,.95)}}
 @media (prefers-reduced-motion:no-preference){.rp-ping{animation:rpIn .6s .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rpIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}.report{animation:rpGlow 3.2s ease-in-out infinite}}
 /* /ao:report css */
+/* hero: report first. The left side says it in two lines and points at the page; the report carries the rest. */
+@media (min-width:761px){
+.hero-grid{align-items:start;padding-block:26px 76px}
+.hero h1{font-size:clamp(2.8rem,5vw,4.4rem);line-height:.98}
+.hero .neon{margin-bottom:22px}
+.hero .hero-scene{background:none;border:0;border-left:3px solid var(--night-sign);border-radius:0;box-shadow:none;padding:2px 0 2px 16px;font:600 1.12rem/1.45 var(--body);color:#C9CFDB;max-width:34em;margin-top:20px}
+.hero .hero-scene:hover{transform:none}
+.hero .lede{display:none}
+.hero .lede-ph{display:block;font-size:1.2rem;line-height:1.5;color:var(--night-ink);max-width:28em;margin-top:18px}
+.hero .ctas{margin-top:26px}
+.hero .onlylink{display:none}
+.hero .rp-wrap{padding-top:34px}
+.hero .report{width:min(480px,100%)}
+}
+/* /hero: report first */
 </style>
 
 <meta property="og:title" content="Always Open: your business, always open">
