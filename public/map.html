@@ -115,7 +115,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       <p id="sh-hours"></p><p id="sh-answered" class="answered"></p>
       <div class="row" id="sh-acts"></div>
     </div>
-    <p class="demotag" id="demotag" hidden><b>Sample map.</b> Made-up businesses around Lake Oconee, to show how it works. Real ones show up as they join.</p>
+    <p class="demotag" id="demotag" hidden><b>Sample map.</b> Made-up businesses around Lake Oconee and Lake Sinclair, to show how it works. Real ones show up as they join.</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
@@ -158,15 +158,15 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
   var HOME = [33.3268, -83.3885];
   var SAMPLE = [
     { id: 's1', name: 'Sample Plumbing', kind: 'Plumber', town: 'Eatonton', lat: 33.329, lng: -83.386, hours: 'Mon to Fri 7 to 6, Sat 8 to noon. Emergencies any hour.', answered: 'Answered 46 calls this month, 19 after hours' },
-    { id: 's2', name: 'Sample Agency', kind: 'Insurance agency', town: 'Eatonton', lat: 33.322, lng: -83.381, hours: 'Mon to Fri 9 to 5', answered: 'Answered 22 after-hours calls this month' },
-    { id: 's3', name: 'Sample Electric', kind: 'Electrician', town: 'Eatonton', lat: 33.309, lng: -83.402, hours: 'Mon to Fri 7:30 to 5', answered: 'Answered 31 calls this month', handoff: 'Took 4 callers put through from Sample Plumbing' },
+    { id: 's2', name: 'Sample Agency', kind: 'Insurance agency', town: 'Monticello', lat: 33.305, lng: -83.684, hours: 'Mon to Fri 9 to 5', answered: 'Answered 22 after-hours calls this month' },
+    { id: 's3', name: 'Sample Electric', kind: 'Electrician', town: 'Eatonton', lat: 33.392, lng: -83.404, hours: 'Mon to Fri 7:30 to 5', answered: 'Answered 31 calls this month', handoff: 'Took 4 callers put through from Sample Plumbing' },
     { id: 's4', name: 'Sample Marine', kind: 'Docks and boat repair', town: 'Lake Oconee', lat: 33.418, lng: -83.268, hours: 'Mon to Sat 8 to 5', answered: 'Answered 38 calls this month, 12 on the weekend' },
     { id: 's5', name: 'Sample Kitchen', kind: 'Restaurant', town: 'Lake Sinclair', lat: 33.172, lng: -83.287, hours: 'Tue to Sun 11 to 9', answered: 'Answered 64 calls this month, most during the dinner rush' },
     { id: 's6', name: 'Sample Builders', kind: 'Builder and remodeler', town: 'Greensboro', lat: 33.571, lng: -83.181, hours: 'Mon to Fri 7 to 5', answered: 'Answered 27 calls this month' },
     { id: 's7', name: 'Sample Heating and Air', kind: 'HVAC', town: 'Madison', lat: 33.589, lng: -83.476, hours: 'Mon to Fri 7 to 6. No-heat calls any hour.', answered: 'Answered 52 calls this month, 21 after hours' },
-    { id: 's8', name: 'Sample Family Dental', kind: 'Dentist', town: 'Madison', lat: 33.601, lng: -83.459, hours: 'Mon to Thu 8 to 5', answered: 'Took 18 messages after hours this month' },
+    { id: 's8', name: 'Sample Family Dental', kind: 'Dentist', town: 'Sparta', lat: 33.276, lng: -82.976, hours: 'Mon to Thu 8 to 5', answered: 'Took 18 messages after hours this month' },
     { id: 's9', name: 'Sample Auto', kind: 'Auto repair', town: 'Milledgeville', lat: 33.087, lng: -83.239, hours: 'Mon to Fri 7:30 to 5:30', answered: 'Answered 40 calls this month' },
-    { id: 's10', name: 'Sample Salon', kind: 'Salon', town: 'Milledgeville', lat: 33.074, lng: -83.222, hours: 'Tue to Sat 9 to 6', answered: 'Answered 35 calls this month, mid-appointment' }
+    { id: 's10', name: 'Sample Salon', kind: 'Salon', town: 'Gray', lat: 33.009, lng: -83.534, hours: 'Tue to Sat 9 to 6', answered: 'Answered 35 calls this month, mid-appointment' }
   ];
   function miles(a, b) {
     var r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
@@ -192,7 +192,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
     all = demo ? SAMPLE.slice() : (res.businesses || []); data = all.slice();
     $('#q').value = ''; $('#sheet').hidden = true;
     $('#demotag').hidden = !demo; $('#getlisted').hidden = !demo; $('#map').hidden = false;
-    if (demo) say((precise ? 'Nothing listed within 50 miles of you yet' : 'Nothing listed near your area yet') + ', so here is a sample: ' + data.length + ' made-up businesses around Lake Oconee, closest first.');
+    if (demo) say((precise ? 'Nothing listed within 50 miles of you yet' : 'Nothing listed near your area yet') + ', so here is a sample: ' + data.length + ' made-up businesses around Lake Oconee and Lake Sinclair, closest first.');
     else say(res.preview ? 'Preview: every listed business, closest first. The public only sees an area once five are within 50 miles.' : data.length + (data.length === 1 ? ' business' : ' businesses') + ' within ' + res.radius + ' miles' + (precise ? ' of you' : ' of your area') + ', closest first.');
     $('#list').innerHTML = data.map(rowHtml).join('');
     draw();
