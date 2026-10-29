@@ -183,6 +183,17 @@ async function serve(req, env, ctx) {
       if (req.method === 'POST') { let b = {}; try { b = await req.json(); } catch (e) {} return json(await P.relayDone(env, b)); }
       return json(await P.relayTake(env));
     }
+    if (path === '/ops/test-call') {
+      // Christopher's yes to the 4 AM test call (drill.js): "Turn on 4 AM test call" on the Mac posts here with the key,
+      // after he types yes to the price. The next 10-minute run buys the test number; the first call is at 4 AM.
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const D = await import('./drill.js');
+      await D.ensureDrill(env);
+      const have = await env.DB.prepare("SELECT v FROM drill_meta WHERE k = 'from'").first();
+      if (!have) await env.DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('buy', 'approved')").run();
+      return json({ ok: true, status: have ? 'already on: the test number is ' + have.v : 'approved: the test number is bought in the next 10 minutes, and the first test call is at 4 AM' });
+    }
     if (path === '/ops/seed-demo') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);

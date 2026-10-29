@@ -91,3 +91,14 @@ test('Max’s backup switch: on, every turn goes to the backup model without try
   r = await V.brain(env, 'You are a test.', [{ role: 'user', content: 'Hi' }], null, 20);
   assert.equal(world.calls.filter(c => c.url.includes('anthropic')).length, 1, 'back on Claude');
 });
+
+test('/ops/test-call: only with the key; it records the yes, and the next run buys the number', async () => {
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  const { default: worker } = await import('../src/index.js');
+  const site = H.makeClient(worker, env);
+  assert.equal((await site.call('/ops/test-call', { method: 'POST', headers: { 'x-key': 'nope' } })).status, 403);
+  const r = await site.call('/ops/test-call', { method: 'POST', headers: { 'x-key': env.LEADS_KEY } });
+  assert.match(r.json().status, /^approved/);
+  assert.equal((await DB.prepare("SELECT v FROM drill_meta WHERE k = 'buy'").first()).v, 'approved');
+});
