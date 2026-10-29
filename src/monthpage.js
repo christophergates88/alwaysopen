@@ -72,7 +72,7 @@ export function renderMonthPage(v) {
     '<style>' + CSS + '</style></head><body><main class="page">' +
     '<div class="tools">' + actions + '</div>' +
     (v.sample ? '<p class="samplebar"><b>Sample.</b> A made-up plumber and made-up numbers, built by the same code that builds a real client’s page.</p>' : '') +
-    '<header class="hd"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>Always Open</div>' +
+    '<div class="sheet"><header class="hd"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>Always Open</div>' +
     '<h1>' + esc(v.business || 'Your business') + '</h1><p class="when-made">' + esc(v.label || '') + (v.mtd ? ', so far' : ', on one page') + (v.sentText ? ' · ' + esc(v.sentText) : '') + '</p></header>' +
     '<section class="lead"><div class="big"><b>' + (c.n || 0) + '</b><span>' + (v.regulated ? 'calls answered' : 'calls answered') + '<small>' + (c.n ? c.after + ' after hours or on a weekend' + (c.leads ? ', ' + pl(c.leads, 'lead', 'leads') + ' left their details' : '') : 'No calls to Max this month') + '</small>' + delta(vs && vs.calls, vl) + '</span></div>' + worth + '</section>' +
     '<section class="tiles">' + tiles.map(t => '<div><b>' + t[0] + '</b><span>' + esc(t[1]) + '</span><small>' + esc(t[2]) + '</small>' + delta(t[3], vl) + '</div>').join('') + '</section>' +
@@ -85,7 +85,7 @@ export function renderMonthPage(v) {
     '<section class="next"><h2>One thing for next month</h2><p>' + esc(next) + '</p></section>' +
     '<footer class="ft"><p>' + (v.record ? 'Every review, reply and post this month is in your <a href="' + esc(v.record) + '">record of public communications</a>. ' : 'Every review, reply and post is kept in a monthly record. ') +
     'Questions about this page? ' + SUPPORT_NAME + ' answers, usually the same business day: hello@alwaysopenoffice.com' + (v.sample ? '' : ', or Ask us in the app') + '.</p>' +
-    '<p>Made by Always Open' + (v.sample ? '. Sample: made-up business and numbers.' : ' for ' + esc(v.business || 'your business') + (/\.$/.test(v.business || '') ? '' : '.') + ' Counts come from Max’s calls, your app and your Google profile.') + '</p></footer>' +
+    '<p>Made by Always Open' + (v.sample ? '. Sample: made-up business and numbers.' : ' for ' + esc(v.business || 'your business') + (/\.$/.test(v.business || '') ? '' : '.') + ' Counts come from Max’s calls, your app and your Google profile.') + '</p></footer></div>' +
     '</main><script>(function(){var p=document.getElementById("pdf");if(p)p.onclick=function(){window.print();};var s=document.getElementById("share");if(s&&navigator.share){s.hidden=false;s.onclick=function(){navigator.share({title:document.title,url:location.href}).catch(function(){});};}})();</script></body></html>';
 }
 function ordinal(n) { return n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); }
@@ -114,7 +114,24 @@ const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;
   '.check{background:var(--ok-soft)}.check h2{color:var(--ok)}.ck{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 6px}.ck div{display:flex;gap:10px;align-items:baseline}.ck b{font:850 2rem/1 "Archivo","Arial Narrow",system-ui,sans-serif;color:var(--ok)}.ck span{font-size:14px}.check .sub{margin:0}' +
   '.next{background:var(--ok-soft)}.next p{margin:0;font-weight:600}' +
   '.ft{border-radius:0 0 18px 18px;padding:14px 24px 18px;font-size:12.5px;color:var(--slate)}.ft p{margin:4px 0}.ft a{color:inherit}' +
-  '@media (max-width:640px){.lead,.when,.two{grid-template-columns:1fr}.two section+section{border-left:0;border-top:1px solid var(--line)}.tiles{grid-template-columns:1fr 1fr}.tiles div:nth-child(2){border-right:0}.tiles div:nth-child(-n+2){border-bottom:1px solid var(--line)}.hd,.lead,section,.ft{padding-left:16px;padding-right:16px}.big b{font-size:3.2rem}}' +
+  '@media (max-width:640px){.lead,.when,.two,.ck{grid-template-columns:1fr}.two section+section{border-left:0;border-top:1px solid var(--line)}.tiles{grid-template-columns:1fr 1fr}.tiles div:nth-child(2){border-right:0}.tiles div:nth-child(-n+2){border-bottom:1px solid var(--line)}.hd,.lead,section,.ft{padding-left:16px;padding-right:16px}.big b{font-size:3.2rem}}' +
+  // On screen the page is lit like the OPEN sign on the website: a dark sheet with a slow red glow, the big number in
+  // neon, check-ins in green. Printing and Save as PDF keep the plain paper version above (nothing here applies).
+  '@media screen{:root{--ink:#ECEEF3;--slate:#A3ACBF;--line:rgba(255,255,255,.08);--paper:transparent;--sign:#FF5A4D;--sign-soft:rgba(255,90,77,.1);--ok:#5CC9A4;--ok-soft:rgba(92,201,164,.07);color-scheme:dark}' +
+  'html{background:radial-gradient(900px 520px at 85% -8%,rgba(217,45,32,.24),transparent 62%),linear-gradient(170deg,#141A27 0%,#0D1017 60%) fixed #0D1017}' +
+  '.sheet{border:1.5px solid rgba(255,106,94,.55);border-radius:20px;overflow:hidden;background:radial-gradient(600px 260px at 12% 0%,rgba(255,90,77,.1),transparent 70%),linear-gradient(170deg,#1A2131 0%,#121722 100%);box-shadow:0 0 0 1px rgba(255,106,94,.14),0 0 34px rgba(255,90,77,.3),inset 0 0 30px rgba(255,90,77,.05),0 40px 80px -40px rgba(0,0,0,.9)}' +
+  '.hd,.ft{border-radius:0}.brand{color:#FF8C82;text-shadow:0 0 10px rgba(255,106,94,.5)}.brand svg{filter:drop-shadow(0 0 8px rgba(255,106,94,.55))}h1{color:#fff}' +
+  '.big b{color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.75),0 0 34px rgba(255,90,77,.5)}.big span{color:#fff}' +
+  '.worth{background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.5);box-shadow:0 0 18px rgba(255,90,77,.18),inset 0 0 14px rgba(255,90,77,.08)}.worth b{color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.7)}' +
+  '.worth.calm{background:rgba(92,201,164,.07);border-color:rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14)}.worth.calm b{color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}' +
+  '.tiles b,.trio b{color:#fff;text-shadow:0 0 14px rgba(255,255,255,.2)}em.up{color:#7EE0BE}em.down{color:#FF8C82}' +
+  '.check{background:rgba(92,201,164,.07);border-top:1px solid rgba(92,201,164,.35);border-bottom:1px solid rgba(92,201,164,.35);box-shadow:inset 0 0 26px rgba(92,201,164,.08)}.check h2,.ck b{color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}' +
+  '.bar i{background:#2B3346}.bar.pk i{background:#FF5A4D;box-shadow:0 0 14px rgba(255,90,77,.6)}.hbar i{background:#FF5A4D;box-shadow:0 0 10px rgba(255,90,77,.5)}' +
+  '.next{background:rgba(92,201,164,.07)}.next h2{color:#7EE0BE}.next p{color:#fff}' +
+  '.btn{box-shadow:0 0 18px rgba(255,90,77,.35)}.btn.ghost{color:#FF8C82;border-color:rgba(255,106,94,.7);box-shadow:none}' +
+  '.samplebar{border:1px solid rgba(255,106,94,.4);color:#ECEEF3}.ft a{color:#FF8C82}' +
+  '@keyframes shGlow{0%,100%{box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px rgba(255,90,77,.24),inset 0 0 26px rgba(255,90,77,.04),0 40px 80px -40px rgba(0,0,0,.9)}50%{box-shadow:0 0 0 1px rgba(255,106,94,.22),0 0 44px rgba(255,90,77,.4),inset 0 0 34px rgba(255,90,77,.08),0 40px 80px -40px rgba(0,0,0,.9)}}' +
+  '@media (prefers-reduced-motion:no-preference){.sheet{animation:shGlow 3.2s ease-in-out infinite}}}' +
   '@media print{@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools,.samplebar{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
 
 // The website's sample: a made-up plumber, in the same shape as a real month, run through the same findings.
