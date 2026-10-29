@@ -2,7 +2,7 @@
 // Christopher makes himself:
 //   1. He opens /ops/hear-max?t=<ops board token> on his phone, types the number he will call from, and taps Ready.
 //      That arms the Always Open line for 30 minutes, for that one number, for one call.
-//   2. He calls (706) 460-2226 from that number. Max answers as the demo plumbing line (its greeting already says the
+//   2. He calls (706) 460-2226 from that number. Max answers as Mike’s Plumbing, a made-up plumber with real prices and hours on file (its greeting already says the
 //      call may be recorded), and Twilio records that call only (<Start><Recording>). The call is marked a test.
 //   3. When the recording is done, Twilio calls /voice/recorded/<VOICE_KEY>; we fetch the MP3, keep it in hear_max, delete
 //      Twilio's copy, and push "Hear Max sample saved". A 10-minute job does the same if that callback never came.
@@ -18,6 +18,8 @@ const ready = new WeakSet();
 export async function ensureHear(env) {
   if (ready.has(env.DB)) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS hear_max (id TEXT PRIMARY KEY, call_sid TEXT, at TEXT, seconds INTEGER, lang TEXT DEFAULT 'en', mime TEXT, data BLOB, caption TEXT DEFAULT '', current INTEGER DEFAULT 0)").run();
+  // The part of the call the site plays: starting mid-call, at the hard question, so the first thing a visitor hears is Max handling it.
+  for (const c of ['start_at INTEGER DEFAULT 0', 'end_at INTEGER DEFAULT 0']) { try { await env.DB.prepare('ALTER TABLE hear_max ADD COLUMN ' + c).run(); } catch (e) { /* already there */ } }
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS hear_max_arm (k TEXT PRIMARY KEY, from_ TEXT, as_client TEXT, lang TEXT DEFAULT 'en', until TEXT, call_sid TEXT DEFAULT '', used_at TEXT DEFAULT '', status TEXT DEFAULT '')").run();
   ready.add(env.DB);
 }
@@ -115,14 +117,22 @@ async function transcriptOf(env, callSid) {
 }
 export async function current(env, lang) {
   await ensureHear(env);
-  return env.DB.prepare('SELECT id, call_sid, at, seconds, caption, lang FROM hear_max WHERE current = 1 AND lang = ?1 ORDER BY at DESC LIMIT 1').bind(lang === 'es' ? 'es' : 'en').first().catch(() => null);
+  return env.DB.prepare('SELECT id, call_sid, at, seconds, caption, lang, start_at, end_at FROM hear_max WHERE current = 1 AND lang = ?1 ORDER BY at DESC LIMIT 1').bind(lang === 'es' ? 'es' : 'en').first().catch(() => null);
 }
 export async function serveJson(env, url) {
   const lang = url.searchParams.get('lang') === 'es' ? 'es' : 'en';
   const c = await current(env, lang);
   const head = { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', 'access-control-allow-origin': '*' };
   if (!c) return new Response(JSON.stringify({ ok: false }), { status: 404, headers: head });
-  return new Response(JSON.stringify({ ok: true, src: '/hear-max' + (lang === 'es' ? '-es' : '') + '.mp3?v=' + encodeURIComponent(c.id.slice(-8)), seconds: c.seconds, caption: c.caption, lines: await transcriptOf(env, c.call_sid) }), { headers: head });
+  const w = clipOf(c);
+  return new Response(JSON.stringify({ ok: true, src: '/hear-max' + (lang === 'es' ? '-es' : '') + '.mp3?v=' + encodeURIComponent(c.id.slice(-8)), seconds: w.to - w.from, from: w.from, to: w.to, caption: c.caption, lines: await transcriptOf(env, c.call_sid) }), { headers: head });
+}
+// The window the site plays, in whole seconds inside the recording.
+export function clipOf(c) {
+  const len = Math.max(0, +c.seconds || 0);
+  const from = Math.min(Math.max(0, +c.start_at || 0), Math.max(0, len - 5));
+  const to = (+c.end_at || 0) > from + 4 ? Math.min(+c.end_at, len) : len;
+  return { from, to };
 }
 // The MP3, with byte ranges: Safari asks for bytes=0-1 first and plays nothing without a 206.
 export async function serveAudio(env, req, lang) {
@@ -148,20 +158,26 @@ export async function armPage(env, req, url, okToken) {
   let note = '';
   if (req.method === 'POST') {
     const f = await req.formData().catch(() => new FormData());
-    if (f.get('action') === 'remove') { await env.DB.prepare('UPDATE hear_max SET current = 0 WHERE lang = ?1').bind(f.get('lang') === 'es' ? 'es' : 'en').run(); note = 'Taken down. The site shows no player until you record a new one.'; }
+    if (f.get('action') === 'clip') {
+      const lang = f.get('lang') === 'es' ? 'es' : 'en', num = k => Math.max(0, Math.round(+String(f.get(k) || '0').replace(/[^\d.]/g, '') || 0));
+      const cap = String(f.get('caption') || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+      await env.DB.prepare('UPDATE hear_max SET start_at = ?1, end_at = ?2' + (cap ? ', caption = ?4' : '') + ' WHERE current = 1 AND lang = ?3').bind(num('start'), num('end'), lang, cap).run();
+      note = 'Saved. The site now plays the part you picked.';
+    }
+    else if (f.get('action') === 'remove') { await env.DB.prepare('UPDATE hear_max SET current = 0 WHERE lang = ?1').bind(f.get('lang') === 'es' ? 'es' : 'en').run(); note = 'Taken down. The site shows no player until you record a new one.'; }
     else { const r = await arm(env, f.get('from'), f.get('lang')); note = r.ok ? 'READY' : r.error; }
   }
   const a = await env.DB.prepare("SELECT * FROM hear_max_arm WHERE k = 'arm'").first().catch(() => null);
   const en = await current(env, 'en'), es = await current(env, 'es');
   const armed = a && a.status === 'armed' && Date.parse(a.until) > Date.now();
   const say = { calling: 'A call is on or just ended. The recording shows up here within a few minutes.', saved: 'Saved and live on the site.', 'too short': 'The last call was too short to use. Arm again and talk for 20 to 30 seconds.', missed: 'The last call left no recording. Arm again and call.' };
-  const live = (c, l) => c ? '<div class="card"><b>' + (l === 'es' ? 'Spanish sample' : 'Live on the site') + ': ' + c.seconds + ' seconds</b><p>' + esc(c.caption) + '</p><audio controls preload="none" src="/hear-max' + (l === 'es' ? '-es' : '') + '.mp3?v=' + esc(c.id.slice(-8)) + '"></audio><form method="post"><input type="hidden" name="action" value="remove"><input type="hidden" name="lang" value="' + l + '"><button class="line">Take it down</button></form></div>' : '';
+  const live = (c, l) => { if (!c) return ''; const w = clipOf(c); return '<div class="card"><b>' + (l === 'es' ? 'Spanish sample' : 'Live on the site') + ': ' + (w.to - w.from) + ' seconds' + (w.from ? ', starting ' + w.from + ' seconds in' : '') + '</b><p>' + esc(c.caption) + '</p><audio controls preload="none" src="/hear-max' + (l === 'es' ? '-es' : '') + '.mp3?v=' + esc(c.id.slice(-8)) + '"></audio><p>That is the whole recording (' + c.seconds + ' seconds). Find where the hard question starts, then set the part the site plays.</p><form method="post" class="clip"><input type="hidden" name="action" value="clip"><input type="hidden" name="lang" value="' + l + '"><label>Start at second<input name="start" inputmode="numeric" value="' + w.from + '"></label><label>End at second (0 = the end)<input name="end" inputmode="numeric" value="' + (+c.end_at || 0) + '"></label><label>Caption under the player<input name="caption" value="' + esc(c.caption) + '"></label><button>Save the part the site plays</button></form><form method="post"><input type="hidden" name="action" value="remove"><input type="hidden" name="lang" value="' + l + '"><button class="line">Take it down</button></form></div>'; };
   const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Hear Max sample</title><style>' +
     'body{margin:0;background:#0F131B;color:#ECEEF3;font:16px/1.5 system-ui,-apple-system,sans-serif;padding:20px 16px}main{max-width:520px;margin:0 auto;display:grid;gap:14px}h1{margin:0;font-size:1.6rem}p{margin:0;color:#C9D0DC}' +
     '.card{border:1.5px solid #262E40;border-radius:16px;padding:16px;display:grid;gap:10px}.ok{border-color:#FF6A5E;box-shadow:0 0 24px rgba(255,90,77,.3)}label{display:grid;gap:6px;font-weight:600}input,select{font:inherit;padding:12px;border-radius:11px;border:1.5px solid #262E40;background:#171D2C;color:#ECEEF3}' +
     'button,.call{font:700 17px system-ui,sans-serif;min-height:48px;padding:12px 18px;border-radius:12px;border:0;background:#D92D20;color:#fff;text-decoration:none;text-align:center;display:block}button.line{background:transparent;border:2px solid #C9D0DC;color:#ECEEF3}audio{width:100%}</style></head><body><main>' +
     '<h1>Hear Max on the website</h1><p>One staged call becomes the sample visitors play on the home page. Only your number, only for the next 30 minutes, only one call. Max answers as the demo plumbing line, and its greeting already says the call may be recorded.</p>' +
-    (note === 'READY' || armed ? '<div class="card ok"><b>Ready. Call now from ' + esc(a.from_) + '.</b><p>Ask for a plumber tonight (a leaking water heater works), give a made-up name and callback number, and hang up after Max confirms. Twenty to thirty seconds is plenty.' + (a.lang === 'es' ? ' Speak Spanish the whole call.' : '') + '</p><a class="call" href="tel:+17064602226">Call (706) 460-2226</a><p>Ready until ' + esc(new Date(a.until).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })) + '.</p></div>' : '') +
+    (note === 'READY' || armed ? '<div class="card ok"><b>Ready. Call now from ' + esc(a.from_) + '.</b><p>Play the tough caller from the script: start simple, then ask the hard question all at once. Give a made-up name and number, and hang up after Max wraps up. A minute or two is fine; you pick the part the site plays afterward. Twenty to thirty seconds is plenty.' + (a.lang === 'es' ? ' Speak Spanish the whole call.' : '') + '</p><a class="call" href="tel:+17064602226">Call (706) 460-2226</a><p>Ready until ' + esc(new Date(a.until).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })) + '.</p></div>' : '') +
     (note && note !== 'READY' ? '<div class="card"><p>' + esc(note) + '</p></div>' : '') +
     (!armed && a && say[a.status] ? '<div class="card"><p>' + esc(say[a.status]) + '</p></div>' : '') +
     live(en, 'en') + live(es, 'es') +

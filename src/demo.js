@@ -2,6 +2,20 @@
 // The app labels every screen "Sample data" for this client, and the cron jobs that reach out (invoice reminders,
 // competitor lookups, weekly emails) skip it, so nothing sample ever counts as real or leaves the system.
 export const DEMO_ID = 'demo-plumbing';
+// The phone line a website visitor hears in the Hear Max sample: a made-up plumber that sounds real, with the facts Max
+// quotes from. (The app's demo account keeps its own name.)
+export const SAMPLE_LINE_NAME = 'Mike\u2019s Plumbing';
+export const SAMPLE_LINE_FACTS = {
+  "services": "Plumbing repair and replacement for homes and small businesses: leaks and burst pipes, water heaters (tank and tankless), drains and sewer lines, toilets and fixtures, repiping.",
+  "area": "Eatonton, Lake Oconee, Lake Sinclair, Greensboro, Madison and Milledgeville.",
+  "hours": "Monday to Friday 7 AM to 6 PM, Saturday 8 AM to noon. Emergencies any hour, any day.",
+  "prices": "Service call is 89 dollars during business hours and goes toward the repair. After-hours emergency visit is 189 dollars, also put toward the repair. Water heater replacement usually runs 1,450 to 1,900 dollars installed. Drain clearing starts at 175 dollars. Estimates for water heaters and repiping are free.",
+  "booking": "Next-day visits are usually open at 8 AM and 1 PM. Emergencies get a plumber the same night.",
+  "urgent": "water pouring or flooding, no water at all, sewage backing up, a gas smell near the water heater",
+  "next": "Mike, who owns the business, gets the details right away. On an emergency he calls back within 15 minutes and can usually be there within the hour around Eatonton.",
+  "owner": "If water is pouring, tell them to shut the main water valve, or the cold water valve on top of the water heater. Seniors get 10 percent off. We call back on whatever number the caller gives, it does not have to be the one they called from.",
+  "notes": "Licensed and insured. Mike has been a plumber for 20 years."
+ };
 export const isDemo = id => id === DEMO_ID;
 
 const H = 3600e3, D = 24 * H;
@@ -87,7 +101,7 @@ export async function seedDemo(env, mods, now) {
   // Tier and features so every part of the app shows. The sign-in code is not touched.
   st.push(env.DB.prepare("UPDATE app_clients SET tier = 'Pro', feats = 'calls,followups,textback', business = CASE WHEN business = '' THEN 'Demo Plumbing' ELSE business END, updated = ?1 WHERE client_id = ?2").bind(iso(now), cid));
   const line = '+14045550100';
-  st.push(env.DB.prepare("INSERT OR REPLACE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, 0, 'plumbing', 'Sampleton', '{}', '', 'never', 0, ?4, '{}')").bind(line, cid, c.business || 'Demo Plumbing', iso(now)));
+  st.push(env.DB.prepare("INSERT OR REPLACE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, 0, 'plumbing', 'Eatonton', ?5, '', 'never', 0, ?4, '{}')").bind(line, cid, SAMPLE_LINE_NAME, iso(now), JSON.stringify(SAMPLE_LINE_FACTS)));
   st.push(env.DB.prepare('INSERT OR REPLACE INTO app_settings (client_id, avg_job, win_rate, updated) VALUES (?1, 380, 40, ?2)').bind(cid, iso(now)));
   // 20 calls
   CALLS.forEach((r, i) => {

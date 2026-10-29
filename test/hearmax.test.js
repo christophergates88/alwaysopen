@@ -96,6 +96,13 @@ test('a call too short to use is not kept, and the page says why; taking it down
   const page = await site.call('/ops/hear-max?t=' + tok);
   assert.match(page.text, /too short to use/);
   assert.match(page.text, /Live on the site: 24 seconds/, 'the earlier good one is still live');
+  // The site plays only the part picked: from the hard question on, with the caption Christopher wrote.
+  const set = await site.call('/ops/hear-max?t=' + tok, { form: { action: 'clip', lang: 'en', start: '9', end: '0', caption: 'Mike’s Plumbing, a made-up business' } });
+  assert.match(set.text, /Live on the site: 15 seconds, starting 9 seconds in/);
+  const w = (await site.call('/hear-max.json')).json();
+  assert.equal(w.from, 9); assert.equal(w.to, 24); assert.equal(w.seconds, 15); assert.equal(w.caption, 'Mike’s Plumbing, a made-up business');
+  assert.deepEqual(HM.clipOf({ seconds: 24, start_at: 40, end_at: 0 }), { from: 19, to: 24 }, 'a start past the end still leaves five seconds');
+  assert.deepEqual(HM.clipOf({ seconds: 60, start_at: 10, end_at: 12 }), { from: 10, to: 60 }, 'an end too close to the start plays to the end');
   await site.call('/ops/hear-max?t=' + tok, { form: { action: 'remove', lang: 'en' } });
   assert.equal((await site.call('/hear-max.json')).status, 404);
 });

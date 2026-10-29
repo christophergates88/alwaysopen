@@ -5,8 +5,8 @@
   if (!slots.length || !window.fetch) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var lang = (document.documentElement.getAttribute('data-lang') || '') === 'es' ? 'es' : 'en';
-  var TT = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', caller: 'Caller', note: 'A real call to our demo line, recorded with the caller’s OK. Max never records your customers.' },
-             es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', caller: 'Quien llama', note: 'Una llamada real a nuestra línea de prueba, grabada con el permiso de quien llamó. Max nunca graba a sus clientes.' } };
+  var TT = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', caller: 'Caller', note: 'A real call to our demo line, recorded with the caller’s OK. Max never records your customers.', mid: 'We join this call partway through, right at the hard part.' },
+             es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', caller: 'Quien llama', note: 'Una llamada real a nuestra línea de prueba, grabada con el permiso de quien llamó. Max nunca graba a sus clientes.', mid: 'Entramos a la llamada a la mitad, justo en la parte difícil.' } };
   var T = TT[lang];
   var css = '.hm{margin:18px 0 0;display:grid;gap:8px;max-width:520px;color:inherit}' +
     '.hm-b{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:8px 16px 8px 8px;border:2px solid #FF6A5E;border-radius:999px;background:transparent;color:inherit;font-weight:700;font-size:16px;line-height:1.2;font-family:inherit;cursor:pointer;text-align:left;box-shadow:0 0 18px rgba(255,90,77,.25)}' +
@@ -33,16 +33,19 @@
     var lines = (d.lines || []).map(function (l) { return '<dt>' + esc(l.who === 'Caller' ? T.caller : l.who) + '</dt><dd>' + esc(l.t) + '</dd>'; }).join('');
     slot.className = 'hm';
     slot.innerHTML = '<button type="button" class="hm-b" aria-pressed="false"><span class="hm-i">' + PLAY + '</span><span class="hm-t"><span class="hm-l">' + esc(T.play) + '</span><small>' + d.seconds + T.left + '</small></span></button>' +
-      '<div class="hm-p" aria-hidden="true"><i></i></div><p class="hm-c">' + esc(d.caption) + '</p>' +
+      '<div class="hm-p" aria-hidden="true"><i></i></div><p class="hm-c">' + esc(d.caption) + (d.from ? ' ' + esc(T.mid) : '') + '</p>' +
       (lines ? '<details><summary>' + esc(T.read) + '</summary><dl>' + lines + '</dl></details>' : '') + '<p class="hm-n">' + esc(T.note) + '</p>';
     slot.hidden = false;
     var btn = slot.querySelector('.hm-b'), icon = slot.querySelector('.hm-i'), lab = slot.querySelector('.hm-l'), left = slot.querySelector('small'), bar = slot.querySelector('.hm-p i'), audio = null;
     function show(playing) { btn.setAttribute('aria-pressed', playing ? 'true' : 'false'); icon.innerHTML = playing ? PAUSE : PLAY; lab.textContent = playing ? T.pause : T.play; }
     btn.addEventListener('click', function () {
       if (!audio) {
-        audio = new Audio(); audio.preload = 'none'; audio.src = d.src;
-        audio.addEventListener('timeupdate', function () { var dur = audio.duration || d.seconds; bar.style.width = Math.min(100, 100 * audio.currentTime / dur) + '%'; left.textContent = Math.max(0, Math.ceil(dur - audio.currentTime)) + T.left; });
-        audio.addEventListener('ended', function () { show(false); bar.style.width = '0'; left.textContent = d.seconds + T.left; audio.currentTime = 0; });
+        audio = new Audio(); audio.preload = 'none'; audio.src = d.src + (d.from ? '#t=' + d.from : '');
+        var from = +d.from || 0, to = +d.to || 0, started = false;
+        audio.addEventListener('loadedmetadata', function () { if (from && !started) { try { audio.currentTime = from; } catch (e) {} } started = true; });
+        audio.addEventListener('timeupdate', function () { if (to && audio.currentTime >= to) { audio.pause(); try { audio.currentTime = from; } catch (e) {} bar.style.width = '0'; left.textContent = d.seconds + T.left; } });
+        audio.addEventListener('timeupdate', function () { var end = to || audio.duration || d.seconds, dur = Math.max(1, end - from), at = Math.max(0, audio.currentTime - from); bar.style.width = Math.min(100, 100 * at / dur) + '%'; left.textContent = Math.max(0, Math.ceil(dur - at)) + T.left; });
+        audio.addEventListener('ended', function () { show(false); bar.style.width = '0'; left.textContent = d.seconds + T.left; try { audio.currentTime = from; } catch (e) {} });
         audio.addEventListener('pause', function () { show(false); });
         audio.addEventListener('play', function () { if (current && current !== audio) current.pause(); current = audio; show(true); });
       }
