@@ -385,7 +385,9 @@ function vHome(){
     h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  h+=install()+flCard()+bizTop()+liveCard()+monthNowCard()+heroCard()+moneyCard()+homeRefer();
+  // The month leads Home once there is anything in it; a brand-new account sees its setup list first.
+  var mn=S.monthNow,busy=mn&&((+mn.calls||0)+(+mn.reviews||0)+(+mn.booked||0)+(+mn.followups||0))>0;
+  h+=install()+flCard()+(busy?monthNowCard():'')+bizTop()+liveCard()+(busy?'':monthNowCard())+heroCard()+moneyCard()+homeRefer();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
