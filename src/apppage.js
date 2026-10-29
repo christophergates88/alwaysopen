@@ -411,7 +411,7 @@ function upCard(){
 }
 function mapCard(){
   var m=S.map;if(!m)return '';
-  return '<div class="feature" id="map"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map" target="_blank" rel="noopener">Open the map</a></div></div>';
+  return '<div class="feature" id="map"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map?real=1" target="_blank" rel="noopener">Open the map</a></div></div>';
 }
 function moreCard(){
   var r=[];

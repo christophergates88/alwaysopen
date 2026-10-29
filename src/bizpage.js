@@ -99,7 +99,7 @@ function setBlock(){
 function mapNote(){var m=S.map;if(!m)return '';if(!m.show)return m.regulated?'Off. Regulated businesses are only listed if they turn it on.':'Off. You are not on the public map.';
   return 'Shows your name, type and town'+(m.phone?', '+m.phone:'')+(m.address?', '+m.address:'')+'. The list is sorted by distance only.';}
 function mapSheet(){var m=S.map||{};
-  sheet('<h2>Your map listing</h2><p class="fine">The <a href="/map" target="_blank" rel="noopener">Always Open map</a> lists the businesses we work for. It shows your name, type and town. A phone number and street address show only if you add them here. Changes show within about ten minutes.</p>'+
+  sheet('<h2>Your map listing</h2><p class="fine">The <a href="/map?real=1" target="_blank" rel="noopener">Always Open map</a> lists the businesses we work for. It shows your name, type and town. A phone number and street address show only if you add them here. Changes show within about ten minutes.</p>'+
   '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="mp-show"'+(m.show?' checked':'')+'> <span>Show me on the map</span></label>'+
   '<label>Business phone for the map (optional)<input id="mp-phone" type="tel" inputmode="tel" value="'+esc(m.phone||'')+'" placeholder="(478) 555-0142"></label>'+
   '<label>Street address for the map (optional)<input id="mp-addr" value="'+esc(m.address||'')+'" placeholder="Leave blank to show only your town"></label>'+
