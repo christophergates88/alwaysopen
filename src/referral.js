@@ -249,8 +249,20 @@ export async function referralState(env, c, now) {
     earned: rows.filter(r => r.status === 'credited').length,
     waiting: rows.filter(r => r.status === 'pending' || r.status === 'earned' || r.status === 'crediting').length,
     bank: (bk && +bk.cents) || 0,
-    list: rows.slice(0, 12).map(r => ({ business: r.business || 'A business', label: label(r.status), status: kind(r.status) }))
+    list: rows.slice(0, 12).map(r => ({ business: r.business || 'A business', label: label(r.status), status: kind(r.status) })),
+    nudge: nudgeOf(rows, now)
   };
+}
+// The one line Home shows every day: the newest referral that is moving, or the plain invitation. `key` changes when the
+// state does, so a card the owner put away comes back when there is news. Pure, for tests.
+export function nudgeOf(rows, now) {
+  const biz = r => r.business || 'A business';
+  const w = rows.find(r => r.status === 'pending'), e = rows.find(r => r.status === 'earned' || r.status === 'crediting');
+  const a = rows.find(r => r.status === 'credited' && r.credited_at && (now || Date.now()) - Date.parse(r.credited_at) < 30 * DAY);
+  if (e) return { kind: 'earned', key: 'earned:' + biz(e), text: biz(e) + ' stayed three months. Your free month is on its way.' };
+  if (a) return { kind: 'applied', key: 'applied:' + biz(a), text: 'Your free month for sending ' + biz(a) + ' is applied to your account.' };
+  if (w) return { kind: 'waiting', key: 'waiting:' + biz(w), text: biz(w) + ' signed up from your link. When they’ve stayed three months, your next month is free.' };
+  return { kind: 'invite', key: 'invite', text: 'Know an owner who misses calls? Send them your link. When they’ve stayed three months, your next month is free.' };
 }
 
 // By hand: the weekly list ticks a manual referral off.

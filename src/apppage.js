@@ -148,6 +148,7 @@ a.btn{color:inherit}
 .cblist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}.cbrow{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.cbrow .fine{display:block}.cbrow .acts{display:flex;flex-wrap:wrap;gap:8px}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
+.refhome{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:0 0 14px;display:grid;gap:8px}.refhome.news{border-color:rgba(255,106,94,.45)}.refhome p{margin:0;font-size:15px}.refhome .acts{display:flex;align-items:center;justify-content:space-between;gap:10px}.refhome .x{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--slate);font-size:22px;cursor:pointer;border-radius:10px}
 .money{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:8px}.money.on{border-color:rgba(255,106,94,.55);box-shadow:var(--glow)}
 .money .mh{font:600 13px var(--mono);color:var(--slate);margin:0}.money .mv{font:850 2.4rem/1 var(--display);font-stretch:92%;color:var(--sign);margin:2px 0 0}.money .mv small{display:block;font:600 15px/1.3 var(--body);color:var(--slate);margin-top:4px}
 .money .mr{color:var(--slate);font-size:14px;margin:0}.money details summary{cursor:pointer;color:var(--slate);font-size:14px;min-height:44px;display:flex;align-items:center}.money details p{margin:0 0 6px;font-size:14px}
@@ -381,7 +382,7 @@ function vHome(){
     h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  h+=install()+flCard()+bizTop()+liveCard()+heroCard()+moneyCard();
+  h+=install()+flCard()+bizTop()+liveCard()+heroCard()+moneyCard()+homeRefer();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -483,6 +484,14 @@ function moneyCard(){
   return '<div class="money'+(m.avgJob&&m.mid?' on':'')+'"><p class="mh">What '+esc(S.line?S.line.name:'Max')+' caught in '+esc(String(m.label||'').split(' ')[0]||'this month')+'</p>'+big+
     '<details><summary>How this is figured</summary><p>'+esc(m.explained||'')+'</p><p class="fine">After hours means evenings, nights and weekends in your own time. It is an estimate from your numbers, not a promise.</p></details>'+last+
     (own?'<div class="acts"><button class="btn '+(m.avgJob?'ghost':'line')+' sm" type="button" data-a="money-set">'+(m.avgJob?'Change my numbers':'Set my average job')+'</button></div>':'')+'</div>';
+}
+// Referrals on Home: one line every day, with Share. Owners only; never for regulated businesses or the sample account.
+// Put away for 30 days with the x; it comes back sooner when the referral state changes.
+function homeRefer(){
+  var r=S.referrals;if(!r||!r.nudge||!isOwner()||S.client.regulated||S.sample)return '';
+  var k=r.nudge.key,x=null;try{x=JSON.parse(store('ao_ref_x')||'null');}catch(e){x=null;}
+  if(x&&x.k===k&&Date.now()-x.at<30*864e5)return '';
+  return '<div class="refhome'+(r.nudge.kind==='invite'?'':' news')+'"><p>'+esc(r.nudge.text)+'</p><div class="acts"><button class="btn line sm" type="button" data-a="refer">Share your link</button><button class="x" type="button" data-a="ref-x" aria-label="Put this away for 30 days">×</button></div></div>';
 }
 function moneySheet(){
   var m=(S.money||{}).thisMonth||{};
@@ -855,7 +864,7 @@ function showQr(){
   sheet('<h2>Scan to review '+esc(S.client.business)+'</h2><div class="qrbox">'+svg+'</div><p class="fine">Opens your Google review page. Ask everyone, never offer anything for a review.</p><div class="acts"><a class="btn line" href="'+esc(BASE+'/help/qr')+'">Print a card</a><button class="btn ok" type="button" data-close="1">Done</button></div>');
 }
 function refer(){
-  var url=S.client.refLink,text='I use Always Open for our reviews and Google profile. They\\u2019ll do a free audit of your business too (I get a free month if you sign up and stay):';
+  var url=S.client.refLink,text=(S.line?'I use Always Open for my phone and reviews. Max answers when I can\\u2019t.':'I use Always Open for our reviews and Google profile.')+' They\\u2019ll do a free audit of your business too (I get a free month if you sign up and stay):';
   if(navigator.share){navigator.share({title:'Always Open',text:text,url:url}).catch(function(){});return;}
   var t=text+' '+url;
   try{navigator.clipboard.writeText(t).then(function(){toast('Link copied. Paste it in a text.');},function(){toast(url);});}catch(e){toast(url);}
@@ -961,6 +970,7 @@ document.addEventListener('click',function(e){
   else if(a==='line-on')lineSave({onAir:true});
   else if(a==='sign')signTap();
   else if(a==='money-set')moneySheet();
+  else if(a==='ref-x'){store('ao_ref_x',JSON.stringify({k:(S.referrals&&S.referrals.nudge||{}).key,at:Date.now()}));render();}
   else if(a==='filt'){FILT=t.dataset.k;render();}
   else if(a==='tile')tileSheet(t.dataset.k,t.dataset.m);
   else if(a==='jump'){e.preventDefault();var el2=document.getElementById(t.dataset.to);if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});}
