@@ -39,17 +39,24 @@ const CHIPS = [
   ['The Always Open map', 'Every Always Open business on one map, closest first. Nobody pays to be on it.'],
   ['Spanish on every plan', 'Max and every reply answer in Spanish, with no add-on.']
 ];
-function front(key, p) {
+const TRADES = [['plumbing', 'Plumber'], ['hvac', 'Heating and air'], ['builders', 'Builder'], ['auto-repair', 'Auto repair'], ['marine', 'Docks and marine'], ['salons', 'Salon or gym'], ['restaurants', 'Restaurant or shop'], ['dental', 'Dental'], ['insurance', 'Insurance']];
+function set(key, p, on) {
   const n = p.cards.length;
+  return '<div class="aos-set" data-set="' + key + '"' + (on ? '' : ' hidden') + '>' +
+    (p.modes ? '<div class="aos-modes" role="group" aria-label="Kind of agency">' + p.modes.map((m, i) => '<button type="button" data-mode="' + i + '" aria-pressed="' + (i ? 'false' : 'true') + '">' + esc(m) + '</button>').join('') + '</div>' : '') +
+    '<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, ' + n + ' cards">' + p.cards.map((c, i) => card(c, i, n)).join('') + '</div></div>';
+}
+function front(key, p) {
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
   const sub = p.sub || 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.';
+  const home = key === 'index';
   return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
     '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
-      (p.modes ? '<div class="aos-modes" role="group" aria-label="Kind of agency">' + p.modes.map((m, i) => '<button type="button" data-mode="' + i + '" aria-pressed="' + (i ? 'false' : 'true') + '">' + esc(m) + '</button>').join('') + '</div>' : '') + '</div>\n' +
-    '<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, ' + n + ' cards">' + p.cards.map((c, i) => card(c, i, n)).join('') + '</div>\n' +
+      (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
+    (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
     '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
     '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
-    '<form data-grade="' + (key === 'index' ? '' : key) + '" novalidate>' +
+    '<form data-grade="' + (home ? 'plumbing' : key) + '" novalidate>' +
       '<label for="g-q">Business name</label><input id="g-q" name="q" autocomplete="organization" enterkeyhint="next" placeholder="As it shows on Google" required>' +
       '<label for="g-town">Town</label><input id="g-town" name="town" autocomplete="address-level2" enterkeyhint="go" placeholder="Eatonton, GA">' +
       '<button class="aog-go" type="submit">Check my grade</button>' +
@@ -120,6 +127,14 @@ const CSS = `
 .aos .aos-also details[open] summary::after{content:"–"}
 .aos .aos-also details p{padding:0 0 14px;margin:0;color:#A3ACBF;font-size:15px}
 .aos-sample{margin-top:10px;font-size:15px;color:#8892A6}
+/* pick a trade (home page) */
+.aos-pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px}
+.aos-pick span{font-size:15px;color:#A3ACBF;margin-right:2px}
+.aos-pick button{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid #3A4357;background:transparent;color:#ECEEF3;font:600 15px var(--body);cursor:pointer}
+.aos-pick button[aria-pressed="true"]{background:#FF6A5E;border-color:#FF6A5E;color:#1A0605}
+.aos-pick button:focus-visible{outline:3px solid #ECEEF3;outline-offset:2px}
+.aos-set[hidden]{display:none!important}
+.aos-set .aos-modes{margin:16px 0 0}
 /* independent or with a carrier */
 .aos-modes{display:inline-flex;margin-top:14px;padding:3px;border-radius:999px;background:#0B0F16;border:1px solid #262E40}
 .aos-modes button{min-height:44px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:#C9D0DC;font:600 15px var(--body);cursor:pointer}
@@ -156,6 +171,7 @@ const CSS = `
 .aos{padding-block:70px 60px;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);border-top:1px solid rgba(255,106,94,.28)}
 .aos-head{max-width:720px}.aos-head h2{font-size:clamp(2rem,4.4vw,3rem);line-height:1.03;color:#ECEEF3}.aos-head p{margin-top:10px;color:#A3ACBF;font-size:1.1rem}
 .aos-rail{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin:28px 0 0;padding:0;overflow:visible;scroll-snap-type:none}
+.aos-set .aos-modes{margin-top:28px}.aos-set .aos-modes+.aos-rail{margin-top:16px}
 .aos .ao-dots{display:none}
 .aos-deck{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:40px;align-items:start;margin-top:40px}
 .aog{margin-top:0}
@@ -165,6 +181,9 @@ const CSS = `
 .js .only{padding-block:40px}
 }
 @media (max-width:760px){
+.aos-pick{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:2px max(16px,env(safe-area-inset-left,0px))}
+.aos-pick::-webkit-scrollbar{display:none}
+.aos-pick span,.aos-pick button{flex:none;white-space:nowrap}
 /* hero: the headline, one line, two buttons */
 .hero .stack,.hero .desk,.hero .hero-scene,.hero .lede,.hero .fine,.hero .onlylink,.hero .promise,.hero .day,.hero .everyone,.hero-grid>.day{display:none!important}
 .hero .lede-ph{display:block;font-size:1.08rem;line-height:1.5;color:var(--night-mute);margin-top:16px;max-width:32em}
@@ -276,7 +295,7 @@ const JS = `(function () {
   // The playable cards: tap a choice and the scene plays out.
   d.querySelectorAll('.aos-card').forEach(function (c) {
     var scn = c.querySelector('.aos-scn'), allPaths = [].slice.call(c.querySelectorAll('.aos-path')), btns = [].slice.call(c.querySelectorAll('.aos-ch button')), timers = [];
-    var sec = c.closest('.aos');
+    var sec = c.closest('.aos-set') || c.closest('.aos');
     var paths = function () { var alt = sec.classList.contains('aos-carrier') && allPaths.some(function (p) { return p.classList.contains('aos-alt'); }); return allPaths.filter(function (p) { return p.classList.contains('aos-alt') === alt; }); };
     var down = function () { scn.scrollTo({ top: scn.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }); };
     c.classList.add('aos-live');
@@ -299,9 +318,28 @@ const JS = `(function () {
     });
   });
 
+  // The home page: the cards follow the visitor's trade, picked above the cards or from the business tiles further down.
+  var pick = d.querySelector('.aos-pick');
+  if (pick) {
+    var TILE = { trades: 'plumbing', marine: 'marine', salon: 'salons', food: 'restaurants', insurance: 'insurance', health: 'dental' };
+    var choose = function (k, scroll) {
+      if (!d.querySelector('.aos-set[data-set="' + k + '"]')) return;
+      d.querySelectorAll('.aos-set').forEach(function (s) { s.hidden = s.getAttribute('data-set') !== k; });
+      pick.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pick') === k)); });
+      var f = d.querySelector('form[data-grade]'); if (f) f.setAttribute('data-grade', k);
+      var rail = d.querySelector('.aos-set:not([hidden]) .aos-rail'); if (rail) { rail.scrollLeft = 0; rail.dispatchEvent(new Event('scroll')); }
+      try { sessionStorage.setItem('ao_from', k); } catch (x) {}
+      if (scroll) d.getElementById('go').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+    };
+    pick.addEventListener('click', function (e) { var b = e.target.closest('button[data-pick]'); if (b) choose(b.getAttribute('data-pick'), false); });
+    d.querySelectorAll('.indtile[data-ind]').forEach(function (t) { t.addEventListener('click', function () { choose(TILE[t.getAttribute('data-ind')] || 'plumbing', false); }); });
+    var fromQ = /[?&]from=([a-z-]+)/.exec(location.search); var fromS = ''; try { fromS = sessionStorage.getItem('ao_from') || ''; } catch (x) {}
+    if (fromQ) choose(fromQ[1], false); else if (fromS) choose(fromS, false);
+  }
+
   // Independent or with a carrier: the endings change, nothing else does.
   d.querySelectorAll('.aos-modes').forEach(function (g) {
-    var sec = g.closest('.aos');
+    var sec = g.closest('.aos-set') || g.closest('.aos');
     g.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-mode]'); if (!b) return;
       var carrier = b.getAttribute('data-mode') === '1';
@@ -318,9 +356,10 @@ const JS = `(function () {
   // The instant grade, right where it was asked.
   function esc(x) { return String(x == null ? '' : x).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
   d.querySelectorAll('form[data-grade]').forEach(function (f) {
-    var out = f.querySelector('.aog-out'), go = f.querySelector('button[type=submit]'), from = f.getAttribute('data-grade') || '';
+    var out = f.querySelector('.aog-out'), go = f.querySelector('button[type=submit]');
     f.addEventListener('submit', function (e) {
       e.preventDefault();
+      var from = f.getAttribute('data-grade') || '';
       var q = f.q.value.trim(), town = f.town.value.trim();
       if (q.length < 2) { out.innerHTML = '<p class="aog-msg">Type your business name first.</p>'; f.q.focus(); return; }
       var label = go.textContent; go.disabled = true; go.textContent = 'Checking…';
