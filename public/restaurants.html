@@ -293,22 +293,23 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 .rp-top b{font:800 1.05rem var(--display);font-stretch:94%;color:#fff}
 .rp-top span{font-size:13px;color:#A3ACBF}
 .rp-top time{margin-left:auto;font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#FF8C82;white-space:nowrap;text-shadow:0 0 10px rgba(255,106,94,.6)}
-.rp-hero{display:flex;align-items:baseline;gap:14px;padding:16px 0 12px}
-.rp-hero b{font:850 4.2rem/.9 var(--display);font-stretch:88%;letter-spacing:-.01em;color:#FF6A5E;text-shadow:0 0 10px rgba(255,106,94,.75),0 0 30px rgba(255,90,77,.5)}
-.rp-hero span{font:700 1.05rem/1.2 var(--display);font-stretch:94%;color:#fff}
-.rp-hero small{display:block;font:400 13px/1.35 var(--body);color:#A3ACBF;margin-top:3px}
-.rp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.rp-grid div{padding:10px 12px;display:grid;gap:2px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
-.rp-grid b{font:850 1.6rem/1 var(--display);font-stretch:90%;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.22)}
-.rp-grid span{font-size:13.5px;font-weight:600;color:#ECEEF3}
-.rp-grid small{font-size:12.5px;color:#A3ACBF;line-height:1.3}
-.rp-worth{margin:10px 0 0;padding:11px 13px;border-radius:12px;background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.5);box-shadow:0 0 18px rgba(255,90,77,.18),inset 0 0 14px rgba(255,90,77,.08);display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.rp-worth span{font-size:13.5px;font-weight:600;color:#ECEEF3}
-.rp-worth b{font:850 1.5rem/1 var(--display);font-stretch:90%;color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.7)}
-.rp-worth small{flex-basis:100%;font-size:12.5px;color:#A3ACBF}
-.rp-check{margin:10px 0 0;padding:9px 12px;border-radius:12px;background:rgba(92,201,164,.07);border:1px solid rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14);color:#C5EBDD;font-size:13px;line-height:1.4}
+.rp-hero{display:grid;gap:2px;padding:18px 0 14px;border-bottom:1px solid rgba(255,255,255,.09)}
+.rp-lab{font:500 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#FF8C82}
+.rp-hero b{font:850 clamp(3rem,9vw,3.9rem)/1 var(--display);font-stretch:88%;letter-spacing:-.01em;color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.8),0 0 36px rgba(255,90,77,.5)}
+.rp-hero small{font:400 13px/1.35 var(--body);color:#A3ACBF}
+.rp-hero.calm b{color:#fff;text-shadow:0 0 16px rgba(255,255,255,.25)}
+.rp-line{display:flex;align-items:baseline;gap:10px;padding:12px 0 10px}
+.rp-line b{font:850 2rem/1 var(--display);font-stretch:90%;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.22)}
+.rp-line span{font:700 1rem/1.2 var(--display);font-stretch:94%;color:#fff}
+.rp-line small{display:block;font:400 12.5px/1.3 var(--body);color:#A3ACBF;margin-top:2px}
+.rp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.rp-grid div{padding:9px 10px;display:grid;gap:1px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);min-width:0}
+.rp-grid b{font:850 1.3rem/1 var(--display);font-stretch:90%;color:#ECEEF3}
+.rp-grid span{font-size:12px;font-weight:600;color:#C9CFDB;line-height:1.2}
+.rp-grid small{font-size:11px;color:#8C95A8;line-height:1.25}
+.rp-check{margin:10px 0 0;padding:8px 12px;border-radius:12px;background:rgba(92,201,164,.07);border:1px solid rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14);color:#C5EBDD;font-size:13px;line-height:1.4}
 .rp-check b{font-weight:700;color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}
-.rp-foot{margin:10px 0 0;font-size:12.5px;color:#8C95A8}
+@media (max-width:420px){.rp-grid{grid-template-columns:1fr 1fr}}
 .rp-ping{position:absolute;top:0;right:max(0px,calc(50% - 250px));z-index:2;display:flex;gap:8px;align-items:center;background:rgba(23,28,39,.94);color:#ECEEF3;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 12px;font-size:13px;box-shadow:0 18px 34px -18px rgba(0,0,0,.8),0 0 18px rgba(255,90,77,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .rp-ping svg{width:20px;height:20px;flex:none}
 .rp-ping b{font-weight:700}
@@ -363,12 +364,12 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
       <!--ao:report-->
       <div class="rp-wrap">
         <div class="rp-ping" aria-hidden="true"><svg viewBox="0 0 64 64"><use href="#logo"/></svg><span><b>Your October page is ready</b><br><time>Nov 2, 7:00 AM</time></span></div>
-        <div class="report" role="img" aria-label="Sample monthly report for Sample Kitchen, October: 64 calls answered (41 during the dinner rush); 6 catering requests (2 booked); 11 reviews replied to (Rating 4.3 to 4.5); 4 quotes followed up (lunch for 40 said yes); 5 posts on Google (specials and holiday hours); three-day check-ins: 3 held up, 0 told the owner first; what it was worth: about $3,100.">
+        <div class="report" role="img" aria-label="Sample monthly report for Sample Kitchen, October: what it was worth about $3,100; 64 calls answered (41 during the dinner rush); 6 catering requests (2 booked); 11 reviews replied to (Rating 4.3 to 4.5); 4 quotes followed up (lunch for 40 said yes); 5 posts on Google (specials and holiday hours); three-day check-ins: 3 held up, 0 told the owner first.">
           <div class="rp-top"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg><div><b>Sample Kitchen</b><span>October, on one page</span></div><time>Nov 2</time></div>
-          <p class="rp-hero"><b>64</b><span>calls answered<small>41 during the dinner rush</small></span></p>
+          <p class="rp-hero"><span class="rp-lab">What October was worth</span><b>about $3,100</b><small>in catering and large orders</small></p>
+          <p class="rp-line"><b>64</b><span>calls answered<small>41 during the dinner rush</small></span></p>
           <div class="rp-grid"><div><b>6</b><span>catering requests</span><small>2 booked</small></div><div><b>11</b><span>reviews replied to</span><small>Rating 4.3 to 4.5</small></div><div><b>4</b><span>quotes followed up</span><small>lunch for 40 said yes</small></div><div><b>5</b><span>posts on Google</span><small>specials and holiday hours</small></div></div>
-          <p class="rp-check">Three-day check-ins: <b>3 customers said the job held up</b>.</p><p class="rp-worth"><span>What it was worth</span><b>about $3,100</b><small>in catering and large orders</small></p>
-          <p class="rp-foot">Every reply and post is on file with this page.</p>
+          <p class="rp-check"><b>3</b> customers said the job held up on the three-day check-in.</p>
         </div>
         <p class="rp-cap">Sample report for a made-up restaurant. Yours comes on the 2nd of every month. <a href="/sample-report">See the whole page</a></p>
       </div>
@@ -763,8 +764,8 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 .hero p.for+h1{font-size:clamp(2.05rem,8.6vw,2.4rem);line-height:1}
 /* the monthly report leads the phone hero too: compact, no floating note */
 .hero .rp-wrap{padding-top:0;margin-top:22px}.hero .rp-ping{display:none}.hero .report{padding:14px 15px 12px}
-.hero .rp-hero{padding:10px 0 8px}.hero .rp-hero b{font-size:2.8rem}.hero .rp-grid b{font-size:1.35rem}.hero .rp-grid div{padding:8px 10px}
-.hero .rp-foot{display:none}.hero .rp-check{font-size:13px;padding:8px 10px}.hero .rp-worth{margin-top:10px;padding:9px 11px}
+.hero .rp-hero{padding:10px 0 8px}.hero .rp-hero b{font-size:2.8rem}.hero .rp-grid b{font-size:1.15rem}.hero .rp-grid div{padding:8px 10px}
+.hero .rp-check{font-size:13px;padding:8px 10px}.hero .rp-hero{padding:12px 0 10px}
 .hero-grid{padding-block:6px 30px!important;gap:0!important}
 .hero .neon{margin-bottom:16px}
 .hero .ctas{margin-top:22px!important}

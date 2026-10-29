@@ -200,8 +200,8 @@ const CSS = `
 .hero p.for+h1{font-size:clamp(2.05rem,8.6vw,2.4rem);line-height:1}
 /* the monthly report leads the phone hero too: compact, no floating note */
 .hero .rp-wrap{padding-top:0;margin-top:22px}.hero .rp-ping{display:none}.hero .report{padding:14px 15px 12px}
-.hero .rp-hero{padding:10px 0 8px}.hero .rp-hero b{font-size:2.8rem}.hero .rp-grid b{font-size:1.35rem}.hero .rp-grid div{padding:8px 10px}
-.hero .rp-foot{display:none}.hero .rp-check{font-size:13px;padding:8px 10px}.hero .rp-worth{margin-top:10px;padding:9px 11px}
+.hero .rp-hero{padding:10px 0 8px}.hero .rp-hero b{font-size:2.8rem}.hero .rp-grid b{font-size:1.15rem}.hero .rp-grid div{padding:8px 10px}
+.hero .rp-check{font-size:13px;padding:8px 10px}.hero .rp-hero{padding:12px 0 10px}
 .hero-grid{padding-block:6px 30px!important;gap:0!important}
 .hero .neon{margin-bottom:16px}
 .hero .ctas{margin-top:22px!important}

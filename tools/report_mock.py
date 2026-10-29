@@ -12,22 +12,23 @@ CSS = """/* ao:report css: the sample monthly report in the hero, lit like the O
 .rp-top b{font:800 1.05rem var(--display);font-stretch:94%;color:#fff}
 .rp-top span{font-size:13px;color:#A3ACBF}
 .rp-top time{margin-left:auto;font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#FF8C82;white-space:nowrap;text-shadow:0 0 10px rgba(255,106,94,.6)}
-.rp-hero{display:flex;align-items:baseline;gap:14px;padding:16px 0 12px}
-.rp-hero b{font:850 4.2rem/.9 var(--display);font-stretch:88%;letter-spacing:-.01em;color:#FF6A5E;text-shadow:0 0 10px rgba(255,106,94,.75),0 0 30px rgba(255,90,77,.5)}
-.rp-hero span{font:700 1.05rem/1.2 var(--display);font-stretch:94%;color:#fff}
-.rp-hero small{display:block;font:400 13px/1.35 var(--body);color:#A3ACBF;margin-top:3px}
-.rp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.rp-grid div{padding:10px 12px;display:grid;gap:2px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
-.rp-grid b{font:850 1.6rem/1 var(--display);font-stretch:90%;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.22)}
-.rp-grid span{font-size:13.5px;font-weight:600;color:#ECEEF3}
-.rp-grid small{font-size:12.5px;color:#A3ACBF;line-height:1.3}
-.rp-worth{margin:10px 0 0;padding:11px 13px;border-radius:12px;background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.5);box-shadow:0 0 18px rgba(255,90,77,.18),inset 0 0 14px rgba(255,90,77,.08);display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.rp-worth span{font-size:13.5px;font-weight:600;color:#ECEEF3}
-.rp-worth b{font:850 1.5rem/1 var(--display);font-stretch:90%;color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.7)}
-.rp-worth small{flex-basis:100%;font-size:12.5px;color:#A3ACBF}
-.rp-check{margin:10px 0 0;padding:9px 12px;border-radius:12px;background:rgba(92,201,164,.07);border:1px solid rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14);color:#C5EBDD;font-size:13px;line-height:1.4}
+.rp-hero{display:grid;gap:2px;padding:18px 0 14px;border-bottom:1px solid rgba(255,255,255,.09)}
+.rp-lab{font:500 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#FF8C82}
+.rp-hero b{font:850 clamp(3rem,9vw,3.9rem)/1 var(--display);font-stretch:88%;letter-spacing:-.01em;color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.8),0 0 36px rgba(255,90,77,.5)}
+.rp-hero small{font:400 13px/1.35 var(--body);color:#A3ACBF}
+.rp-hero.calm b{color:#fff;text-shadow:0 0 16px rgba(255,255,255,.25)}
+.rp-line{display:flex;align-items:baseline;gap:10px;padding:12px 0 10px}
+.rp-line b{font:850 2rem/1 var(--display);font-stretch:90%;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.22)}
+.rp-line span{font:700 1rem/1.2 var(--display);font-stretch:94%;color:#fff}
+.rp-line small{display:block;font:400 12.5px/1.3 var(--body);color:#A3ACBF;margin-top:2px}
+.rp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.rp-grid div{padding:9px 10px;display:grid;gap:1px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);min-width:0}
+.rp-grid b{font:850 1.3rem/1 var(--display);font-stretch:90%;color:#ECEEF3}
+.rp-grid span{font-size:12px;font-weight:600;color:#C9CFDB;line-height:1.2}
+.rp-grid small{font-size:11px;color:#8C95A8;line-height:1.25}
+.rp-check{margin:10px 0 0;padding:8px 12px;border-radius:12px;background:rgba(92,201,164,.07);border:1px solid rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14);color:#C5EBDD;font-size:13px;line-height:1.4}
 .rp-check b{font-weight:700;color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}
-.rp-foot{margin:10px 0 0;font-size:12.5px;color:#8C95A8}
+@media (max-width:420px){.rp-grid{grid-template-columns:1fr 1fr}}
 .rp-ping{position:absolute;top:0;right:max(0px,calc(50% - 250px));z-index:2;display:flex;gap:8px;align-items:center;background:rgba(23,28,39,.94);color:#ECEEF3;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 12px;font-size:13px;box-shadow:0 18px 34px -18px rgba(0,0,0,.8),0 0 18px rgba(255,90,77,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .rp-ping svg{width:20px;height:20px;flex:none}
 .rp-ping b{font-weight:700}
@@ -89,23 +90,26 @@ def e(s):
 def render(key):
     r = PAGES[key]
     n, lab, note = r['hero']
-    aria = 'Sample monthly report for ' + r['biz'] + ', ' + MONTH + ': ' + n + ' ' + lab + ' (' + note + '); ' + \
+    aria = 'Sample monthly report for ' + r['biz'] + ', ' + MONTH + ': ' + \
+        (r['worth'][0].lower() + ' ' + r['worth'][1] + '; ' if r['worth'] else '') + n + ' ' + lab + ' (' + note + '); ' + \
         '; '.join(c[0] + ' ' + c[1] + ' (' + c[2] + ')' for c in r['cells']) + \
-        ('; three-day check-ins: ' + str(r['check'][0]) + ' held up, ' + str(r['check'][1]) + ' told the owner first' if r.get('check') else '') + \
-        ('; ' + r['worth'][0].lower() + ': ' + r['worth'][1] + '.' if r['worth'] else '.')
+        ('; three-day check-ins: ' + str(r['check'][0]) + ' held up, ' + str(r['check'][1]) + ' told the owner first' if r.get('check') else '') + '.'
     cells = ''.join('<div><b>' + e(c[0]) + '</b><span>' + e(c[1]) + '</span><small>' + e(c[2]) + '</small></div>' for c in r['cells'])
     ck = r.get('check')
-    check = ('<p class="rp-check">Three-day check-ins: <b>' + str(ck[0]) + ' customers said the job held up</b>' + (', and ' + str(ck[1]) + ' told you about a problem first, before it could become a review.' if ck[1] else '.') + '</p>') if ck else ''
-    worth = ('<p class="rp-worth"><span>' + e(r['worth'][0]) + '</span><b>' + e(r['worth'][1]) + '</b><small>' + e(r['worth'][2]) + '</small></p>') if r['worth'] else ''
-    foot = r.get('foot', 'Every reply and post is on file with this page.')
+    check = ('<p class="rp-check"><b>' + str(ck[0]) + '</b> customers said the job held up on the three-day check-in' + (', and <b>' + str(ck[1]) + '</b> told you about a problem first.' if ck[1] else '.') + '</p>') if ck else ''
+    if r['worth']:
+        # money leads; the calls are the supporting line
+        hero = ('<p class="rp-hero"><span class="rp-lab">' + e(r['worth'][0]).replace('What it was worth', 'What ' + MONTH + ' was worth') + '</span><b>' + e(r['worth'][1]) + '</b><small>' + e(r['worth'][2]) + '</small></p>\n'
+                '          <p class="rp-line"><b>' + e(n) + '</b><span>' + e(lab) + '<small>' + e(note) + '</small></span></p>\n')
+    else:
+        hero = '<p class="rp-hero calm"><span class="rp-lab">' + MONTH + '</span><b>' + e(n) + '</b><small>' + e(lab) + '. ' + e(note) + '</small></p>\n'
     return ('<!--ao:report-->\n      <div class="rp-wrap">\n'
             '        <div class="rp-ping" aria-hidden="true"><svg viewBox="0 0 64 64"><use href="#logo"/></svg><span><b>Your ' + MONTH + ' page is ready</b><br><time>' + SENT + ', 7:00 AM</time></span></div>\n'
             '        <div class="report" role="img" aria-label="' + e(aria) + '">\n'
             '          <div class="rp-top"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#logo"/></svg><div><b>' + e(r['biz']) + '</b><span>' + MONTH + ', on one page</span></div><time>' + SENT + '</time></div>\n'
-            '          <p class="rp-hero"><b>' + e(n) + '</b><span>' + e(lab) + '<small>' + e(note) + '</small></span></p>\n'
+            '          ' + hero +
             '          <div class="rp-grid">' + cells + '</div>\n'
-            '          ' + check + worth + '\n'
-            '          <p class="rp-foot">' + e(foot) + '</p>\n'
+            '          ' + check + '\n'
             '        </div>\n'
             '        <p class="rp-cap">Sample report for ' + e(r['who']) + '. Yours comes on the 2nd of every month.' + ('' if key in ('dental', 'insurance') else ' <a href="/sample-report">See the whole page</a>') + '</p>\n'
             '      </div>\n      <!--/ao:report-->')
