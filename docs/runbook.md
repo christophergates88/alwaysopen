@@ -90,6 +90,25 @@ Texts are covered the same way: every 10 minutes `smsSweep` (src/sms.js) asks Tw
 never reached the site and handles them as if they had just arrived (inbox, owner push, STOP). Automatic answers to
 HELP or START are not sent that late.
 
+## Checks and balances (src/checks.js)
+
+Every 10 minutes, each at its own pace, with the open items in the 7 AM push:
+
+- **Drafts waiting on an owner**: reminders at 1 day and 3 days (a review under 4 stars after 6 hours), by push, or by
+  email to owners who signed up online and have no app. Clients with drafts older than 3 days are in the 7 AM push.
+- **New clients never set up**: a line with no real call gets the forwarding steps on day 2 and day 5; you hear on day 7.
+- **Client messages**: an automatic "Got it, Katie will reply by …", a push to you after 4 business hours unanswered,
+  the 7 AM push after a business day. Answer in HQ so it shows in their app (an answer is any reply that isn't the
+  automatic one).
+- **Spending**: Claude use on calls, minutes and texts in the last 24 hours against a normal day; 3x is `spend:<kind>`.
+  Texts also have a hard ceiling in `sms.js`: 60 automatic texts an hour per business, 400 in all (`text-ceiling`).
+- **Paying and served** (daily): Stripe's status for every subscription. Canceled in Stripe but still on is turned off;
+  paying but switched off, or unpaid for two weeks and still served, is a note for you. It also keeps the Stripe webhook
+  listening for every event the site handles, including chargebacks (`stripe-dispute`, with the deadline and the
+  client's history).
+- **Delivery**: texts carriers stopped delivering (`text-delivery`, error 30007 is filtering) and the domain's SPF and
+  DMARC records (`mail-records`).
+
 ## The 4 AM test call and the backup switch
 
 Every night at 4 AM Eastern, `src/drill.js` calls Always Open's own line from a test number of ours (listed as a tester,

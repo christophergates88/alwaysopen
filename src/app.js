@@ -746,6 +746,8 @@ async function apiMessage(req, env, ctx, c) {
   const ins = await env.DB.prepare("INSERT INTO app_messages (client_id, at, by, text, hq_synced, dir, notified) VALUES (?1, ?2, ?3, ?4, 0, 'in', 1)")
     .bind(c.client_id, at, by, text).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
+  // "Got it, Katie will reply by …" so nobody wonders whether it went through (checks.js; once every 4 hours at most).
+  try { await (await import('./checks.js')).ackMessage(env, c.client_id, by); } catch (e) { /* the message itself is saved */ }
   const title = (kind === 'hours' ? 'Hours change from ' : 'Message from ') + (c.business || 'a client');
   ctx.waitUntil(Promise.all([
     ntfy(env, title, by + ': ' + text.slice(0, 700), kind === 'hours' ? 'high' : 'default', kind === 'hours' ? 'clock4' : 'speech_balloon'),

@@ -9,7 +9,8 @@ const STOP_RE = /^\s*(stop|stopall|unsubscribe|cancel|end|quit|no more|don'?t te
 const START_RE = /^\s*(start|unstop|yes|resume)\b/i;
 const HELP_RE = /^\s*(help|info)\b/i;
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
-const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway']);   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
+const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway']);
+const TEXTS_PER_CLIENT_HOUR = 60, TEXTS_PER_HOUR = 400;   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
 
 export function textingReady(env) { return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN); }
 
@@ -76,6 +77,19 @@ export async function sendText(env, o) {
   await ensureSms(env);
   if (await optedOut(env, cid, to10)) { await log('skipped', 'opted out'); return { ok: false, why: 'opted out' }; }
   if (!ANYTIME.has(kind)) { const h = hourIn(o.tz); if (h < 8 || h >= 21) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; } }
+  // The hourly ceiling: something looping can't text hundreds of customers before anyone looks. What an owner types
+  // (reply) and tests always go; automatic texts wait for the next hour (checks.js watches the daily totals too).
+  if (kind !== 'reply' && kind !== 'test') {
+    const hour = new Date(Date.now() - 3600e3).toISOString(), sent = "status NOT IN ('skipped', 'held', 'failed')";
+    const [mine, all] = await Promise.all([
+      env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at > ?2 AND ' + sent).bind(cid, hour).first().catch(() => null),
+      env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE at > ?1 AND ' + sent).bind(hour).first().catch(() => null)]);
+    if ((mine && +mine.n >= TEXTS_PER_CLIENT_HOUR) || (all && +all.n >= TEXTS_PER_HOUR)) {
+      await log('held', 'hourly ceiling');
+      try { await (await import('./ops.js')).opsAlert(env, 'text-ceiling', cid, (mine && +mine.n >= TEXTS_PER_CLIENT_HOUR ? 'One business sent ' + mine.n : 'All businesses together sent ' + all.n) + ' automatic texts in the last hour, so automatic texts are waiting for the next hour. Look at the ops board for what is sending them.'); } catch (e) { /* the hold stands */ }
+      return { ok: false, why: 'held: hourly ceiling', retry: true };
+    }
+  }
   const form = new URLSearchParams({ To: '+1' + to10, Body: body });
   // The A2P campaign lives on a Messaging Service; the text still goes out from the client's own number so replies reach their line.
   const sender = await senderFor(env, cid);

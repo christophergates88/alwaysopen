@@ -19,7 +19,7 @@ export const PLANS = {
 const MAX = { cents: 14900, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
 const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
-const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted'];
+export const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = c => '$' + (c / 100).toFixed(0);
@@ -299,6 +299,9 @@ export async function handleBilling(req, env, url, h) {
     else if (ev.type === 'invoice.payment_failed') await bySub(o.subscription, 'past_due', 'payment failed. Stripe retries automatically and emails them.');
     else if (ev.type === 'invoice.paid' && o.billing_reason !== 'subscription_create') await bySub(o.subscription, 'active', '');
     else if (ev.type === 'customer.subscription.deleted') await bySub(o.id, 'canceled', 'subscription ended. Their app is off.');
+    // Stripe's own status after retries run out (unpaid, past_due, paused): kept so the daily check sees it (checks.js).
+    else if (ev.type === 'customer.subscription.updated' && /^(active|trialing|past_due|unpaid|paused)$/.test(o.status || '')) await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE sub = ?3 AND status != ?1').bind(o.status, new Date().toISOString(), o.id).run();
+    else if (ev.type === 'charge.dispute.created' || ev.type === 'charge.dispute.closed') await dispute(env, ev.type, o, h);
     return new Response('ok');
   }
   if (path === '/billing/setup') {
@@ -307,6 +310,44 @@ export async function handleBilling(req, env, url, h) {
     return h.json(await setupStripe(env), 200);
   }
   return new Response('Not found', { status: 404 });
+}
+
+// A chargeback. The deadline to answer is short and missing it loses the payment and a fee, so Christopher hears the
+// same day, with the client's history (calls Max took, replies and posts, months as a client) as the evidence.
+export async function dispute(env, type, o, h) {
+  let cust = '';
+  try { if (o.charge) cust = String((await stripe(env, 'GET', 'charges/' + (typeof o.charge === 'string' ? o.charge : o.charge.id))).customer || ''); } catch (e) { cust = ''; }
+  const b = cust ? await env.DB.prepare('SELECT client_id, business, created FROM billing WHERE customer = ?1').bind(cust).first() : null;
+  const amt = '$' + ((+o.amount || 0) / 100).toFixed(2), biz = (b && b.business) || 'a customer we could not match';
+  if (type === 'charge.dispute.closed') {
+    if (h.notify) await h.notify('Chargeback closed: ' + biz, 'The ' + amt + ' dispute closed as "' + (o.status || '?') + '" (won means the money stays with you).', 'default');
+    return;
+  }
+  const due = o.evidence_details && o.evidence_details.due_by ? new Date(o.evidence_details.due_by * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' }) : 'soon';
+  let hist = '';
+  if (b) {
+    const q = async sql => { const r = await env.DB.prepare(sql).bind(b.client_id).first().catch(() => null); return +(r && r.n) || 0; };
+    const calls = await q("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('limited', 'spam')");
+    const done = await q("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND status = 'approved'");
+    const months = b.created ? Math.max(1, Math.round((Date.now() - Date.parse(b.created)) / (30 * 864e5))) : 0;
+    hist = ' Their history, your evidence: ' + calls + ' calls answered by Max, ' + done + ' replies and posts they approved, ' + months + (months === 1 ? ' month' : ' months') + ' as a client, plus their monthly reports.';
+  }
+  const why = o.reason ? ' Reason given: ' + String(o.reason).replace(/_/g, ' ') + '.' : '';
+  const ops = await import('./ops.js');
+  await ops.opsAlert(env, 'stripe-dispute', (b && b.client_id) || '', 'Chargeback: ' + biz + ' disputed ' + amt + '.' + why + ' Answer by ' + due + ' in the Stripe dashboard, Payments, Disputes, or the money and a fee are lost.' + hist);
+}
+
+// The webhook endpoint listens for every event in EVENTS. One set up before an event was added gets it here (checks.js
+// runs this once a day), so a new event never depends on remembering to change Stripe by hand.
+export async function ensureEvents(env, call) {
+  call = call || stripe;
+  const w = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first().catch(() => null);
+  if (!w || !w.v) return 'no endpoint';
+  const ep = await call(env, 'GET', 'webhook_endpoints/' + w.v);
+  const have = ep.enabled_events || [];
+  if (have.includes('*') || EVENTS.every(e => have.includes(e))) return 'ok';
+  await call(env, 'POST', 'webhook_endpoints/' + w.v, { enabled_events: EVENTS });
+  return 'added';
 }
 
 // One-time Stripe setup (webhook + portal settings). Runs by itself the first time the signup page loads.

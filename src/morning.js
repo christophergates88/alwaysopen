@@ -57,6 +57,7 @@ export async function morningCron(env, now, h) {
   const health = await h.health();
   let drill = '';
   try { drill = await (await import('./drill.js')).drillLine(env, now); } catch (e) { drill = ''; }
+  try { const more = await (await import('./checks.js')).morningChecks(env, now); if (more) drill = (drill ? drill + ' ' : '') + more; } catch (e) { /* the push still goes */ }
   const text = morningText(health, await morningCounts(env, now), await nightList(env), drill);
   await h.ping(text.title, text.body, health.ok ? 'default' : 'high', health.ok ? 'sunrise' : 'warning');
   return { sent: true, ok: health.ok };

@@ -215,7 +215,10 @@ test('a message to the team reaches Christopher by push and email', async () => 
   const before = world.pushes.length, mails = world.mail.length;
   const r = await site.call(A('/api/message'), { json: { text: 'We are closed Monday for the holiday.', kind: 'hours' } });
   assert.equal(r.status, 200, r.text);
-  assert.equal((await all('SELECT * FROM app_messages WHERE client_id = ?1', cid)).length, 1);
+  const rows = await all('SELECT dir, by, text FROM app_messages WHERE client_id = ?1 ORDER BY id', cid);
+  assert.deepEqual(rows.map(m => m.dir), ['in', 'out'], 'their message, then the automatic note saying when Katie answers');
+  assert.equal(rows[1].by, 'Always Open (automatic)');
+  assert.match(rows[1].text, /^Got it\. Katie will reply (within a few hours|by 10 AM [A-Za-z]+)\.$/);
   assert.ok(world.pushes.length > before && world.mail.length > mails);
   assert.ok(world.pushes.at(-1).title.startsWith('Hours change'));
   assert.equal((await site.call(A('/api/message'), { json: { text: '  ' } })).status, 400);
