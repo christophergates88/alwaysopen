@@ -216,6 +216,18 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
     if (!map) {
       map = new maplibregl.Map({ container: 'map', style: STYLE, center: [data[0].lng, data[0].lat], zoom: 9, attributionControl: { compact: true } });
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      // The stock dark style is near-black, so the land, the lakes and the roads disappear on a phone. Lift it to the
+      // site's night colors: blue lakes, readable roads and town names, and the neon pins still the brightest thing.
+      map.on('style.load', function () {
+        var P = [['background', 'background-color', '#131A28'], ['water', 'fill-color', '#18406A'], ['waterway', 'line-color', '#1F4C7A'],
+          ['landcover_wood', 'fill-color', '#16231D'], ['landuse_park', 'fill-color', '#16231D'], ['landuse_residential', 'fill-color', '#18202F'], ['building', 'fill-color', '#1D2433'],
+          ['highway_path', 'line-color', '#252E40'], ['highway_minor', 'line-color', '#2C3549'], ['highway_major_casing', 'line-color', 'rgba(110,122,150,.55)'],
+          ['highway_major_inner', 'line-color', '#384259'], ['highway_major_subtle', 'line-color', '#3D4860'], ['highway_motorway_casing', 'line-color', 'rgba(130,142,170,.6)'],
+          ['highway_motorway_subtle', 'line-color', '#44506A'], ['boundary_state', 'line-color', '#3E4860'],
+          ['water_name', 'text-color', '#8DB4DA'], ['highway_name_other', 'text-color', '#7E889D'], ['highway_name_motorway', 'text-color', '#8C96AA']];
+        ['place_other', 'place_suburb', 'place_village', 'place_town', 'place_city', 'place_city_large', 'place_state'].forEach(function (id) { P.push([id, 'text-color', '#B9C0CE'], [id, 'text-halo-color', '#0F131B'], [id, 'text-halo-width', 1.4]); });
+        P.forEach(function (x) { if (map.getLayer(x[0])) { try { map.setPaintProperty(x[0], x[1], x[2]); } catch (e) { /* a renamed layer just keeps the stock color */ } } });
+      });
     }
     markers.forEach(function (m) { m.remove(); }); markers = [];
     var bounds = new maplibregl.LngLatBounds();
