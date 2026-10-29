@@ -64,17 +64,26 @@ test('Claude down: our own words go up; Facebook down: one alert and the day is 
   assert.equal((await db.prepare('SELECT text FROM social_posts').first()).text, THEMES[0].fallback);
   world.fbDown = true;
   const r2 = await socialCron(env, Date.parse('2026-11-04T15:15:00Z'), k.h);   // Wednesday
-  assert.equal(r2.posted, false); assert.equal(r2.theme, 'grade', 'no real calls yet, so the numbers post gives way to the next theme');
+  assert.equal(r2.posted, false); assert.equal(r2.theme, 'checkin', 'the second post is the three-day check-in');
   assert.match(r2.result, /^fb:fail \(Invalid OAuth access token\) \(own words\)$/);
   assert.equal(k.alerts.length, 1); assert.equal(k.alerts[0].type, 'social'); assert.match(k.alerts[0].detail, /did not go up: fb:fail/);
 });
 
 test('the rotation and the week numbers', async () => {
   assert.equal(pickTheme(0).name, 'missed');
-  assert.equal(pickTheme(1, { calls: 2 }).name, 'grade', 'too few calls to say anything');
-  assert.equal(pickTheme(1, { calls: 12 }).name, 'caught');
-  assert.equal(pickTheme(7, { calls: 12 }).name, 'caught');
-  assert.equal(pickTheme(5).name, 'max');
+  assert.equal(pickTheme(1).name, 'checkin');
+  assert.equal(pickTheme(4, { calls: 2 }).name, 'storm', 'too few calls to say anything');
+  assert.equal(pickTheme(4, { calls: 12 }).name, 'caught');
+  assert.equal(pickTheme(16, { calls: 12 }).name, 'caught');
+  assert.equal(pickTheme(10).name, 'max');
+  // Every theme has its card on the site and a caption to fall back on (only 'caught' waits for real numbers).
+  const fs = await import('node:fs');
+  for (const th of THEMES) {
+    assert.ok(fs.existsSync(new URL('../public/social/' + th.card, import.meta.url)), th.card);
+    assert.ok(th.about.length > 40, th.name);
+    if (th.name !== 'caught') assert.match(th.fallback, /alwaysopenoffice\.com|460-2226/, th.name);
+  }
+  assert.equal(new Set(THEMES.map(th => th.name)).size, 12);
   const db = makeDB(); const env = { DB: db };
   await db.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES ('c1', 'h1', 'Sinclair Plumbing', 1)").run();
   const now = Date.parse('2026-11-02T15:15:00Z');

@@ -17,16 +17,28 @@ export const POST_HOUR = 10;          // Eastern
 export const THEMES = [
   { name: 'missed', card: 'missed.jpg', about: 'The call the business missed. Most callers who reach voicemail hang up and call the next name on Google. Max answers every call, day or night, and texts the owner the lead.',
     fallback: 'Most callers who get voicemail don’t leave a message. They call the next name on Google. Max picks up every call to your business, day or night, and texts you who called and what they need. alwaysopenoffice.com' },
-  { name: 'caught', card: 'caught.jpg', about: 'What Max caught this week for the businesses we work for. Use the numbers given, nothing else.',
-    fallback: '' },   // only posted with real numbers; otherwise the next theme runs
+  { name: 'checkin', card: 'checkin.jpg', about: 'The three-day check-in. Three days after a job, Max calls the customer to ask whether the work held up. Pressing 1 turns into a review request; pressing 2 reaches the owner first, so they can fix it before it becomes a bad review.',
+    fallback: 'Three days after the job, Max calls your customer: did it hold up? A yes turns into a review request. A no comes straight to you, so you can make it right before it turns into a one-star review. alwaysopenoffice.com' },
   { name: 'grade', card: 'grade.jpg', about: 'The free grade: type a business name and town at alwaysopenoffice.com and the grade shows in a few seconds (reviews, Google profile, hours, website). No sign-up.',
     fallback: 'How does your business look to someone searching Google right now? Type your business name and town at alwaysopenoffice.com and your grade shows up in a few seconds. Free, no sign-up, no call from us.' },
+  { name: 'fillweek', card: 'fillweek.jpg', about: 'Fill my week. When a day on the owner\'s calendar is wide open, past customers who are due for service, and said yes to texts, get offered the open time by text. The first yes is booked on the calendar.',
+    fallback: 'Got a wide-open Thursday? Always Open texts past customers who are due for service, and said yes to texts, and offers them the time. The first yes goes on your calendar. alwaysopenoffice.com' },
+  { name: 'caught', card: 'caught.jpg', about: 'What Max caught this week for the businesses we work for. Use the numbers given, nothing else.',
+    fallback: '' },   // only posted with real numbers; otherwise the next theme runs
+  { name: 'storm', card: 'storm.jpg', about: 'Storm Desk. When the National Weather Service issues a warning for the business\'s county, a storm-day post is drafted that minute. The owner approves it from their phone and it goes up on their Google profile while people are searching.',
+    fallback: 'When a storm warning hits your county, Always Open drafts a storm-day post for your business that same minute. Approve it from wherever you are, and it goes up on your Google profile while people are searching. alwaysopenoffice.com' },
   { name: 'tip', card: 'tip.jpg', about: 'One practical tip for a small business owner, given below. Just the tip, in plain words, and one line on how Always Open does it for them.',
     fallback: 'Reply to every review within a day, the good ones too. People read the replies as closely as the reviews, and Google notices a business that answers. Always Open drafts every reply for you to approve from your phone. alwaysopenoffice.com' },
+  { name: 'handoff', card: 'handoff.jpg', about: 'Hand-offs between businesses. When a caller needs work the business does not do, Max offers to put them through to a nearby business on Always Open, and that business can send work back.',
+    fallback: 'A caller needs work you don\u2019t do? Max offers to put them through to a nearby business on Always Open, and theirs can send work back to you. The caller gets helped either way. alwaysopenoffice.com' },
   { name: 'local', card: 'local.jpg', about: 'Always Open is based in Lake Country, Georgia (Eatonton and Milledgeville) and works with businesses anywhere in the U.S. Everything is approved by the owner from their phone; nothing goes out in their name without their OK.',
     fallback: 'We’re a small company in Lake Country, Georgia, working for plumbers, HVAC companies, salons, agencies and shops anywhere in the U.S. Calls answered, reviews handled, jobs followed up. You approve it all from your phone. alwaysopenoffice.com' },
+  { name: 'callback', card: 'callback.jpg', about: 'Call-backs with a time on them. Instead of "someone will call you," Max books a call-back time from the owner\'s calendar, and if it slips, calls the customer to set a new one.',
+    fallback: 'No more \u201csomeone will call you back.\u201d Max books a real call-back time from your calendar, like 4:15 today. If it slips, he calls the customer to set a new one. alwaysopenoffice.com' },
   { name: 'max', card: 'max.jpg', about: 'Meet Max, the phone line. Anyone can call (706) 460-2226 right now and hear how Max answers for a business. Dare them to.',
-    fallback: 'Want to hear what your callers would get? Call Max. We dare you. (706) 460-2226. He answers for businesses like yours day and night, takes the details, and texts the owner. alwaysopenoffice.com' }
+    fallback: 'Want to hear what your callers would get? Call Max. We dare you. (706) 460-2226. He answers for businesses like yours day and night, takes the details, and texts the owner. alwaysopenoffice.com' },
+  { name: 'assistants', card: 'assistants.jpg', about: 'What AI assistants say about the business. More customers ask an answer assistant who to call. Once a month Always Open asks them about each business it works for and fixes whatever they get wrong at the source, such as an old phone number on a listing site.',
+    fallback: 'More customers ask an AI assistant who to call. Does it give the right number for your business? Once a month we ask them about you, and fix whatever they get wrong at the source. alwaysopenoffice.com' }
 ];
 export const TIPS = [
   'Reply to every review within a day, the good ones too. People read the replies as closely as the reviews.',
@@ -77,7 +89,7 @@ export function caughtFallback(n) {
   return 'This week Max answered ' + w(n.calls, 'call', 'calls') + ' for the businesses we work for' + (n.after ? ', ' + w(n.after, 'of them', 'of them') + ' after hours or on the weekend' : '') + (n.leads ? ', and passed on ' + w(n.leads, 'new lead', 'new leads') : '') + (n.booked ? ' with ' + w(n.booked, 'job booked', 'jobs booked') : '') + '. Every one of those callers heard a real answer instead of voicemail. alwaysopenoffice.com';
 }
 
-const SYS = 'You write the Facebook and Instagram caption for Always Open, a small company in Lake Country, Georgia that answers phones for small businesses (Max, its AI phone line, takes the call and texts the owner), replies to their reviews, keeps their Google profile current and follows up on jobs. The owner approves everything from their phone. ' +
+const SYS = 'You write the Facebook and Instagram caption for Always Open, a small company in Lake Country, Georgia that answers phones for small businesses (Max, its AI phone line, takes the call and texts the owner), replies to their reviews, keeps their Google profile current and follows up on jobs. It also calls customers three days after a job, offers open days to past customers, drafts storm-day posts, books call-backs at set times, passes callers to nearby member businesses and checks what AI assistants say about each business. The owner approves everything from their phone. ' +
   'Return only the caption: two to four short sentences, plain words, warm and direct, written to a small business owner. No hype, no emoji, no hashtags, no exclamation marks, no quotes around it, no "we" claims that are not in the notes. Use only the numbers in the notes and say nothing about results we did not measure. End with alwaysopenoffice.com or, when the notes give it, the phone number.';
 export async function writeCaption(env, theme, notes) {
   if (!env.ANTHROPIC_API_KEY) return '';
