@@ -71,7 +71,6 @@ export function renderMonthPage(v) {
     '<title>' + esc(title) + '</title>' +
     '<style>' + CSS + '</style></head><body><main class="page">' +
     '<div class="tools">' + actions + '</div>' +
-    (v.sample ? '<p class="samplebar"><b>Sample.</b> A made-up plumber and made-up numbers, built by the same code that builds a real client’s page.</p>' : '') +
     '<div class="sheet"><header class="hd"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>Always Open</div>' +
     '<h1>' + esc(v.business || 'Your business') + '</h1><p class="when-made">' + esc(v.label || '') + (v.mtd ? ', so far' : ', on one page') + (v.sentText ? ' · ' + esc(v.sentText) : '') + '</p></header>' +
     '<section class="lead"><div class="big"><b>' + (c.n || 0) + '</b><span>' + (v.regulated ? 'calls answered' : 'calls answered') + '<small>' + (c.n ? c.after + ' after hours or on a weekend' + (c.leads ? ', ' + pl(c.leads, 'lead', 'leads') + ' left their details' : '') : 'No calls to Max this month') + '</small>' + delta(vs && vs.calls, vl) + '</span></div>' + worth + '</section>' +
@@ -94,7 +93,6 @@ const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;
   '*{box-sizing:border-box}html{background:#ECE9E2}body{margin:0;color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}' +
   '.page{max-width:820px;margin:0 auto;padding:18px 16px 40px}' +
   '.tools{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}.btn{display:inline-flex;align-items:center;min-height:44px;padding:10px 16px;border-radius:12px;border:2px solid var(--sign);background:var(--sign);color:#fff;font:600 15px system-ui,sans-serif;text-decoration:none;cursor:pointer}.btn.ghost{background:transparent;color:var(--sign)}' +
-  '.samplebar{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:var(--sign-soft);font-size:14px}' +
   '.hd,.lead,.tiles,section,.two,.ft{background:var(--paper)}' +
   '.hd{border-radius:18px 18px 0 0;padding:22px 24px 12px;border-bottom:1px solid var(--line)}' +
   '.brand{display:flex;align-items:center;gap:8px;font:800 14px system-ui,sans-serif;color:var(--slate)}.brand svg{width:22px;height:22px}' +
@@ -129,10 +127,10 @@ const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;
   '.bar i{background:#2B3346}.bar.pk i{background:#FF5A4D;box-shadow:0 0 14px rgba(255,90,77,.6)}.hbar i{background:#FF5A4D;box-shadow:0 0 10px rgba(255,90,77,.5)}' +
   '.next{background:rgba(92,201,164,.07)}.next h2{color:#7EE0BE}.next p{color:#fff}' +
   '.btn{box-shadow:0 0 18px rgba(255,90,77,.35)}.btn.ghost{color:#FF8C82;border-color:rgba(255,106,94,.7);box-shadow:none}' +
-  '.samplebar{border:1px solid rgba(255,106,94,.4);color:#ECEEF3}.ft a{color:#FF8C82}' +
+  '.ft a{color:#FF8C82}' +
   '@keyframes shGlow{0%,100%{box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px rgba(255,90,77,.24),inset 0 0 26px rgba(255,90,77,.04),0 40px 80px -40px rgba(0,0,0,.9)}50%{box-shadow:0 0 0 1px rgba(255,106,94,.22),0 0 44px rgba(255,90,77,.4),inset 0 0 34px rgba(255,90,77,.08),0 40px 80px -40px rgba(0,0,0,.9)}}' +
   '@media (prefers-reduced-motion:no-preference){.sheet{animation:shGlow 3.2s ease-in-out infinite}}}' +
-  '@media print{@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools,.samplebar{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
+  '@media print{@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
 
 // The website's sample: a made-up plumber, in the same shape as a real month, run through the same findings.
 export function samplePage() {

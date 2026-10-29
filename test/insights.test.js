@@ -71,6 +71,7 @@ test('the one-page report: check-ins have their own band, print fits a Letter pa
   assert.match(html, /When your phone rang/); assert.match(html, /Why callers didn’t book/); assert.match(html, /What it means/);
   assert.match(html, /@page\{size:letter/); assert.match(html, /print-color-adjust:exact/);
   assert.match(html, /Katie answers/);
-  assert.match(html, /<b>Sample\.<\/b>/);
+  assert.match(html, /Sample: made-up business and numbers\./, 'still labeled a sample, in the footer');
+  assert.doesNotMatch(html, /samplebar|same code that builds/, 'no note across the top');
   assert.doesNotMatch(html, /\bAI\b/);
 });
