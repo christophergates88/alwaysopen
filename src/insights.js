@@ -35,7 +35,7 @@ export async function gather(env, cid, startIso, endIso) {
     all('SELECT from_id, to_id FROM handoffs WHERE (from_id = ?1 OR to_id = ?1) AND at >= ?2 AND at < ?3', cid, a, b),
     all('SELECT kind, COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at >= ?2 AND at < ?3 GROUP BY kind', cid, a, b),
     all("SELECT stars, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind IN ('reply', 'review') AND created >= ?2 AND created < ?3", cid, a, b),
-    all("SELECT stage, amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND updated >= ?2 AND updated < ?3", cid, a, b),
+    all("SELECT stage, ROUND(amount / 100.0) AS amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND updated >= ?2 AND updated < ?3", cid, a, b),
     one('SELECT calls, clicks, directions FROM gbp_metrics WHERE client_id = ?1 AND month = ?2', cid, ym),
     one('SELECT week FROM rival_snap WHERE client_id = ?1 AND at < ?2 ORDER BY week DESC LIMIT 1', cid, b)
   ]);

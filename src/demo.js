@@ -82,6 +82,48 @@ const RIVALS = [
   ['DEMO_RIVAL_D_0001', 'Oakline Plumbing (sample)', 0, 4.9, 64, 4.9, 57]
 ];
 
+// Callers who didn't book, and what they said: [daysAgo, reason, note]
+const LOST = [[2, 'price', 'Wanted the disposal swapped for under $150.'], [6, 'price', 'Comparing three quotes on a water heater.'], [11, 'timing', 'Needed someone Sunday morning.'],
+  [16, 'price', 'Asked about the service call fee and passed.'], [20, 'distance', 'Lives outside the service area.']];
+const CALLBACKS = [0, 1, 4, 6, 11, 19];          // CALLS rows Max promised a call back on, all kept
+const VISITS = [2, 8, 10, 13, 17];               // CALLS rows booked into a visit on the call itself
+// Three-day check-ins: [name, n, job, daysAgo, held up, note]
+const CHECKINS = [['Rudy Alvarez', 8, 'Garbage disposal', 1, 0, 'Disposal is humming again. Asked for someone to come back out.'], ['Hannah Pruitt', 9, 'Dishwasher hookup', 2, 1],
+  ['Gerald Stone', 10, 'Shower pressure', 3, 1], ['Nora Fields', 11, 'Spigot repair', 4, 1], ['Calvin Reeves', 14, 'Water heater pilot', 8, 1], ['Mei Zhang', 15, 'Leak under bathroom sink', 9, 1],
+  ['Oscar Lindqvist', 16, 'Two hose bibs', 11, 1], ['Faith Okoye', 17, 'Toilet replacement', 13, 1], ['Dennis Hall', 18, 'Kitchen sink', 15, 1]];
+// Fill my week, one run to past customers: [name, n, job, booked slot or '']
+const FILL = [['Ben Okafor', 6, 'Toilet tune-up', 'Thursday 8:00 AM'], ['Isaiah Tran', 12, 'Drain camera check', 'Friday 1:00 PM'], ['Walt Greer', 4, 'Water heater flush', ''],
+  ['Mei Zhang', 15, 'Fixture check', ''], ['Faith Okoye', 17, 'Shut-off valve check', ''], ['Gerald Stone', 10, 'Shower valve check', '']];
+// Hand-offs with sample neighbors: [we sent it, the other business, n, daysAgo, need]
+const HANDOFFS = [[1, 'sample-electric', 41, 9, 'Panel upgrade for a new water heater'], [0, 'sample-hvac', 42, 4, 'Water heater replacement'], [0, 'sample-roofing', 43, 17, 'Leak under the kitchen sink']];
+// Posts for Google the owner approved: [title, text, daysAgo]
+const POSTS = [['From your photo', 'A new 50-gallon water heater, in and running by lunch. If yours is past ten years old, call us for a free look before it starts to leak.', 3],
+  ['Weekly tip', 'Cold nights are coming. Cover outdoor spigots and find your main water shut-off now. If a pipe bursts, shut the main and call us any hour.', 10],
+  ['From your photo', 'Kitchen sink backing up? We cleared this one in under an hour and showed the owner how to keep it running clear.', 18]];
+// Estimates followed up: [name, n, amount, daysAgo]
+const FOLLOWUPS = [['Lena Hoffman', 13, '6,400', 1], ['Vera Collins', 19, '5,200', 3], ['Rudy Alvarez', 8, '240', 4], ['Oscar Lindqvist', 16, '480', 12]];
+
+// Last month on record, worked out the same way the report works out a real one, from a smaller sample month.
+async function lastMonthA(cid, m1, now) {
+  try {
+    const { analyze } = await import('./insights.js');
+    const { figure } = await import('./money.js');
+    const y = m1.getUTCFullYear(), mo = m1.getUTCMonth(), at = (day, h) => new Date(Date.UTC(y, mo, day, h, (day * 11) % 60)).toISOString();
+    const calls = CALLS.slice(0, 16).map((r, i) => ({ id: 'SEP' + i, at: at(2 + r[0], r[1]), seconds: 70 + (i % 5) * 9, outcome: 'done', transferred: 0, lang: 'en-US', urgency: r[7] ? 'urgent' : '', caller_name: r[2], callback: '', reason: r[4] }));
+    const raw = {
+      cid, calls, lost: [{ reason: 'price' }, { reason: 'timing' }], callbacks: [1, 2, 3, 4].map(() => ({ status: 'done' })), bookings: [{ call_id: 'SEP2' }, { call_id: 'SEP5' }, { call_id: 'SEP9' }],
+      leads: 5, jobs: { n: 7, asked: 6 }, followups: [{ kind: 'quote', status: 'done', amount: '1,850' }, { kind: 'quote', status: 'done', amount: '960' }],
+      checkins: [1, 2, 3, 4, 5].map(() => ({ status: 'yes' })), fill: [], handoffs: [{ from_id: 'sample-hvac', to_id: cid }], texts: [{ kind: 'textback', n: 2 }],
+      reviews: [5, 5, 4, 5, 5, 4, 5, 3, 5].map((stars, i) => ({ stars, status: 'approved', created: at(3 + i * 3, 15), decided_at: at(3 + i * 3, 20) })),
+      won: [{ stage: 'paid', amount: 385 }, { stage: 'paid', amount: 210 }, { stage: 'done', amount: 1450 }, { stage: 'paid', amount: 245 }, { stage: 'done', amount: 190 }],
+      gbp: { calls: 31, clicks: 49, directions: 12 }, rivals: RIVALS.map(r => ({ own: r[2], name: r[1], rating: r[5], reviews: r[6] }))
+    };
+    const first = analyze(raw, { tz: 'America/New_York' });
+    const money = figure({ after: first.calls.after, leads: first.calls.after, booked: 1 }, 380, 40);
+    return analyze(raw, { tz: 'America/New_York', money });
+  } catch (e) { return null; }
+}
+
 export async function seedDemo(env, mods, now) {
   now = now || Date.now();
   const { ensureBiz, ensureInvoices, ensureRivals, ensureReviews, isoWeek } = mods;
@@ -92,16 +134,25 @@ export async function seedDemo(env, mods, now) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (client_id TEXT PRIMARY KEY, avg_job INTEGER DEFAULT 0, win_rate INTEGER DEFAULT 30, updated TEXT)').run();
   const iso = ms => new Date(ms).toISOString();
   const ago = (d, h) => { const t = new Date(now - d * D); t.setUTCHours(h == null ? 15 : h, (d * 7) % 60, 0, 0); return t.getTime() > now ? now - H : t.getTime(); };
-  // wipe the old sample, then lay it down again
-  for (const [t, col] of [['app_calls', 'client_id'], ['app_items', 'client_id'], ['app_leads', 'client_id'], ['biz_jobs', 'client_id'], ['biz_quotes', 'client_id'], ['app_invoices', 'client_id'],
-    ['biz_msgs', 'client_id'], ['biz_insights', 'client_id'], ['app_months', 'client_id'], ['rival_snap', 'client_id'], ['rival_list', 'client_id'], ['rival_profile', 'client_id'], ['voice_lines', 'client_id'], ['app_settings', 'client_id']]) {
-    try { await env.DB.prepare('DELETE FROM ' + t + ' WHERE ' + col + ' = ?1').bind(cid).run(); } catch (e) { /* table not made yet */ }
+  // The tables the monthly page reads, made if this database has never used them.
+  const setups = await Promise.all([import('./callbacks.js'), import('./checkin.js'), import('./availability.js'), import('./lost.js'), import('./sms.js'), import('./fillweek.js'), import('./handoff.js'), import('./gbp.js')]);
+  for (const f of [setups[0].ensureCallbacks, setups[1].ensureCheckins, setups[2].ensureBookings, setups[3].ensureLost, setups[4].ensureSms, setups[5].ensureFill, setups[6].ensureHandoff, setups[7].ensureGbp]) {
+    try { await f(env); } catch (e) { /* the insert below says so if a table is really missing */ }
+  }
+  // Wipe the old sample, then lay it down again. The phone line itself (the Hear Max sample, Mike's Plumbing) and the
+  // staged Hear Max calls (marked test) are left alone, and so are follow-ups someone added by hand.
+  const WIPE = ['DELETE FROM app_calls WHERE client_id = ?1 AND test = 0'].concat(['app_items', 'app_leads', 'biz_jobs', 'biz_quotes', 'app_invoices', 'biz_msgs', 'biz_insights', 'app_months',
+    'rival_snap', 'rival_list', 'rival_profile', 'app_settings', 'call_lost', 'callbacks', 'checkins', 'line_bookings', 'fillweek_offers', 'fillweek_runs', 'sms_log', 'gbp_metrics', 'app_jobs']
+    .map(t => 'DELETE FROM ' + t + ' WHERE client_id = ?1'), ['DELETE FROM handoffs WHERE from_id = ?1 OR to_id = ?1', "DELETE FROM app_followups WHERE client_id = ?1 AND by = 'Sample owner'"]);
+  for (const sql of WIPE) {
+    try { await env.DB.prepare(sql).bind(cid).run(); } catch (e) { /* table not made yet */ }
   }
   const st = [];
   // Tier and features so every part of the app shows. The sign-in code is not touched.
   st.push(env.DB.prepare("UPDATE app_clients SET tier = 'Pro', feats = 'calls,followups,textback', business = CASE WHEN business = '' THEN 'Demo Plumbing' ELSE business END, updated = ?1 WHERE client_id = ?2").bind(iso(now), cid));
-  const line = '+14045550100';
-  st.push(env.DB.prepare("INSERT OR REPLACE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, 0, 'plumbing', 'Eatonton', ?5, '', 'never', 0, ?4, '{}')").bind(line, cid, SAMPLE_LINE_NAME, iso(now), JSON.stringify(SAMPLE_LINE_FACTS)));
+  const have = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null);
+  const line = (have && have.number) || '+14785550100';
+  if (!have) st.push(env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, 0, 'plumbing', 'Eatonton', ?5, '', 'never', 0, ?4, '{}')").bind(line, cid, SAMPLE_LINE_NAME, iso(now), JSON.stringify(SAMPLE_LINE_FACTS)));
   st.push(env.DB.prepare('INSERT OR REPLACE INTO app_settings (client_id, avg_job, win_rate, updated) VALUES (?1, 380, 40, ?2)').bind(cid, iso(now)));
   // 20 calls
   CALLS.forEach((r, i) => {
@@ -120,9 +171,14 @@ export async function seedDemo(env, mods, now) {
     st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, created, updated, notified, photo) VALUES (?1,?2,'reply',?3,?4,?5,?6,?7,?8,?9,?10,1,1,?11,?11,1,'')")
       .bind('ITDEMO' + String(i + 1).padStart(26, '0'), cid, r[1], r[3], r[2], r[4], waiting ? 'pending' : 'approved', waiting ? null : r[4], waiting ? null : iso(ago(r[0], 18)), waiting ? null : 'Sample owner', at));
   });
-  // 6 jobs across stages (the 5 bookings above are customers too; these are the jobs on the board)
+  // 3 posts for Google, approved (no Google account is connected for the demo, so none is ever published)
+  POSTS.forEach((t, i) => st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, created, updated, notified, photo) VALUES (?1,?2,'post',?3,'Sample post',0,?4,'approved',?4,?5,'Sample owner',1,1,?6,?5,1,'')")
+    .bind('ITDEMOPOST' + String(i + 1).padStart(22, '0'), cid, t[0], t[1], iso(ago(t[2], 15)), iso(ago(t[2] + 1, 11)))));
+  // 11 jobs across stages (the 5 bookings above are customers too; these are the jobs on the board)
   const JOBS = [['Walt Greer', 21, 'Replace 40-gallon water heater', 'new', 0, 1], ['Lena Hoffman', 13, 'Re-pipe two bathrooms', 'quoted', 640000, 3], ['Vera Collins', 19, 'Tankless heater', 'quoted', 520000, 6],
-    ['Priya Raman', 3, 'Clogged tub drain', 'booked', 18500, 1], ['Dennis Hall', 18, 'Kitchen sink', 'done', 21000, 8], ['Tamika Dorsey', 5, 'Burst pipe repair', 'paid', 38500, 3]];
+    ['Priya Raman', 3, 'Clogged tub drain', 'booked', 18500, 1], ['Dennis Hall', 18, 'Kitchen sink', 'done', 21000, 8], ['Tamika Dorsey', 5, 'Burst pipe repair', 'paid', 38500, 3],
+    ['Faith Okoye', 17, 'Toilet replacement', 'booked', 68000, 2], ['Calvin Reeves', 14, 'Water heater pilot', 'paid', 24500, 9], ['Hannah Pruitt', 9, 'Dishwasher hookup', 'done', 16500, 5],
+    ['Nora Fields', 11, 'Spigot repair', 'paid', 19500, 6], ['Colleen Marsh', 7, 'Sump pump', 'done', 14500, 4]];
   JOBS.forEach((j, i) => st.push(env.DB.prepare("INSERT INTO biz_jobs (client_id, name, phone, email, title, stage, amount, source, source_id, quote_id, invoice_id, created, updated, by) VALUES (?1,?2,?3,'',?4,?5,?6,'demo',?7,0,0,?8,?8,'Sample owner')").bind(cid, j[0], ph(j[1]), j[2], j[3], j[4], 'demo' + i, iso(ago(j[5], 9)))));
   // 2 estimates
   st.push(env.DB.prepare("INSERT INTO biz_quotes (client_id, token, number, name, phone, email, items, tax_rate, notes, subtotal, tax, total, status, job_id, invoice_id, created, accepted_at, by) VALUES (?1,?2,'E-1001',?3,?4,'',?5,0,'Sample estimate. Not a real customer.',?6,0,?6,'open',0,0,?7,'','Sample owner')")
@@ -145,8 +201,11 @@ export async function seedDemo(env, mods, now) {
     complaints: [{ theme: 'Slow quote callbacks', count: 2 }, { theme: 'Scheduling took tries', count: 1 }],
     summary: 'Customers praise how quickly the team responds and the upfront pricing. The one pattern to watch is how long quotes take to come back.' }), iso(now)));
   const m1 = new Date(now); m1.setUTCDate(1); m1.setUTCMonth(m1.getUTCMonth() - 1); const m2 = new Date(m1); m2.setUTCMonth(m2.getUTCMonth() - 1);
-  [[m1, 'rating', 4.6, 9], [m2, 'rating', 4.5, 7]].forEach((x, i) => {
-    st.push(env.DB.prepare('INSERT INTO app_months (client_id, month, data, hash, updated) VALUES (?1,?2,?3,?4,?5)').bind(cid, ym(x[0].getTime()), JSON.stringify({ label: x[0].toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) + ' (sample)', stats: { rating: x[2], count: x[3], replies: x[3], posts: 4 }, prev: null, note: 'Sample month. Every review got a reply you approved.' }), 'demo' + i, iso(now)));
+  const lastA = await lastMonthA(cid, m1, now);
+  [[m1, 'rating', 4.6, 9, lastA], [m2, 'rating', 4.5, 7, null]].forEach((x, i) => {
+    const d = { label: x[0].toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) + ' (sample)', stats: { rating: x[2], count: x[3], replies: x[3], posts: 4 }, prev: null, note: 'Sample month. Every review got a reply you approved.' };
+    if (x[4]) d.a = x[4];
+    st.push(env.DB.prepare('INSERT INTO app_months (client_id, month, data, hash, updated) VALUES (?1,?2,?3,?4,?5)').bind(cid, ym(x[0].getTime()), JSON.stringify(d), 'demo' + i, iso(now)));
   });
   // competitor watch: this week and last, no Google lookups
   const wk = isoWeek(now), wk0 = isoWeek(now - 7 * D);
@@ -156,6 +215,42 @@ export async function seedDemo(env, mods, now) {
     st.push(env.DB.prepare('INSERT OR REPLACE INTO rival_snap (client_id, week, place_id, name, own, rating, reviews, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, wk, r[0], r[1], r[2], r[3], r[4], iso(now)));
     st.push(env.DB.prepare('INSERT OR REPLACE INTO rival_snap (client_id, week, place_id, name, own, rating, reviews, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, wk0, r[0], r[1], r[2], r[5], r[6], iso(now - 7 * D)));
   });
+  // What the monthly page reads beyond calls and reviews: why callers didn't book, call-backs kept, visits booked on
+  // the call, three-day check-ins, jobs logged, Fill my week, hand-offs, text-backs, follow-ups and Google's numbers.
+  // Every row is finished (no check-in, call-back or offer is left waiting), so no job ever calls or texts these numbers.
+  const callId = i => 'CADEMO' + String(i + 1).padStart(28, '0');
+  const callAt = i => ago(CALLS[i][0], CALLS[i][1]);
+  LOST.forEach(r => st.push(env.DB.prepare("INSERT INTO call_lost (client_id, call_sid, at, reason, note) VALUES (?1, '', ?2, ?3, ?4)").bind(cid, iso(ago(r[0], 17)), r[1], r[2])));
+  CALLBACKS.forEach(i => {
+    const [, , name, n, reason, , , urgent] = CALLS[i], at = callAt(i);
+    st.push(env.DB.prepare("INSERT INTO callbacks (client_id, call_sid, phone, name, reason, due_at, status, created, nudged_at, attempts, last_result, urgent, note) VALUES (?1,?2,?3,?4,?5,?6,'done',?7,'',1,'reached',?8,'')")
+      .bind(cid, callId(i), ph(n), name, reason, iso(at + (urgent ? 0.5 : 3) * H), iso(at), urgent ? 1 : 0));
+  });
+  VISITS.forEach(i => {
+    const [, , name, n, reason] = CALLS[i], at = callAt(i), v = new Date(at + D); v.setUTCHours(13, 0, 0, 0);
+    const say = v.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+    st.push(env.DB.prepare("INSERT INTO line_bookings (client_id, start, end, name, phone, reason, status, call_id, say, created, updated) VALUES (?1,?2,?3,?4,?5,?6,'booked',?7,?8,?9,?9)")
+      .bind(cid, v.getTime(), v.getTime() + 2 * H, name, ph(n), reason, callId(i), say, iso(at)));
+  });
+  CHECKINS.forEach(([name, n, job, d, ok, note]) => {
+    const done = ago(d, 18), first = name.split(' ')[0];
+    st.push(env.DB.prepare("INSERT INTO checkins (client_id, phone, first, job, due_at, status, attempts, result, note, created, done_at) VALUES (?1,?2,?3,?4,?5,?6,1,?7,?8,?9,?5)")
+      .bind(cid, ph(n), first, job, iso(done), ok ? 'yes' : 'no', ok ? 'held up' : 'something is not right', note || '', iso(done - 3 * D)));
+    st.push(env.DB.prepare("INSERT INTO app_jobs (client_id, at, first, phone, job, by, consent, hq_synced) VALUES (?1,?2,?3,?4,?5,'Sample owner',?6,1)").bind(cid, iso(done - 3 * D), first, ph(n), job, name === 'Gerald Stone' ? 0 : 1));
+  });
+  st.push(env.DB.prepare("INSERT INTO app_jobs (client_id, at, first, phone, job, by, consent, hq_synced) VALUES (?1,?2,'Tamika',?3,'Burst pipe repair','Sample owner',1,1)").bind(cid, iso(ago(2, 20)), ph(5)));
+  const runDay = iso(ago(10, 12)).slice(0, 10);
+  st.push(env.DB.prepare("INSERT INTO fillweek_runs (client_id, day, created, by, offers, booked) VALUES (?1,?2,?3,'Sample owner',?4,?5)").bind(cid, runDay, iso(ago(10, 12)), FILL.length, FILL.filter(f => f[3]).length));
+  FILL.forEach(([name, n, job, booked]) => st.push(env.DB.prepare("INSERT INTO fillweek_offers (run_id, client_id, phone10, name, job, day, status, at, result) VALUES ((SELECT MAX(id) FROM fillweek_runs WHERE client_id = ?1),?1,?2,?3,?4,?5,?6,?7,?8)")
+    .bind(cid, ph(n).slice(2), name, job, runDay, booked ? 'booked' : 'expired', iso(ago(10, 12)), booked || '')));
+  HANDOFFS.forEach(([out, other, n, d, need]) => st.push(env.DB.prepare("INSERT INTO handoffs (from_id, to_id, caller, call_sid, at, need, result) VALUES (?1,?2,?3,'',?4,?5,'answered')")
+    .bind(out ? cid : other, out ? other : cid, ph(n), iso(ago(d, 15)), need)));
+  [[2, 22], [9, 2], [20, 23]].forEach(([d, n]) => st.push(env.DB.prepare("INSERT INTO sms_log (client_id, to10, at, kind, sid, status, why, len) VALUES (?1,?2,?3,'textback','','sent','',142)").bind(cid, ph(n).slice(2), iso(ago(d, 21)))));
+  FOLLOWUPS.forEach(([name, n, amount, d]) => st.push(env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, done_at, hq_synced) VALUES (?1,'quote',?2,?3,?4,?5,'Sample follow-up on the estimate',1,'done',?6,'Sample owner',?7,1)")
+    .bind(cid, name, ph(n), amount, iso(ago(d, 14)).slice(0, 10), iso(ago(d + 3, 14)), iso(ago(d, 14)))));
+  st.push(env.DB.prepare("INSERT OR REPLACE INTO gbp_metrics (client_id, month, calls, clicks, directions, updated) VALUES (?1,?2,38,57,16,?3)").bind(cid, ym(now), iso(now)));
+  st.push(env.DB.prepare("INSERT OR REPLACE INTO gbp_metrics (client_id, month, calls, clicks, directions, updated) VALUES (?1,?2,31,49,12,?3)").bind(cid, ym(m1.getTime()), iso(now)));
   await env.DB.batch(st);
-  return { ok: true, calls: CALLS.length, requests: REQUESTS.length, bookings: BOOKINGS.length, jobs: JOBS.length, invoices: 3, estimates: 2, reviews: REVIEWS.length };
+  return { ok: true, calls: CALLS.length, requests: REQUESTS.length, bookings: BOOKINGS.length, jobs: JOBS.length, invoices: 3, estimates: 2, reviews: REVIEWS.length, posts: POSTS.length,
+    checkins: CHECKINS.length, callbacks: CALLBACKS.length, visits: VISITS.length, lost: LOST.length, offers: FILL.length, handoffs: HANDOFFS.length, followups: FOLLOWUPS.length, line };
 }
