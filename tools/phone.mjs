@@ -27,9 +27,11 @@ function card(c, i, n) {
     '<div class="aos-top"><h3>' + esc(c.title) + '</h3><span class="aos-tag ' + tagCls + '">' + esc(c.tag) + '</span></div>' +
     '<div class="aos-scn" aria-live="polite">' + c.intro.map(line).join('') +
       c.choices.map((ch, j) => '<div class="aos-path" data-p="' + j + '"' + (j ? ' hidden' : '') + '>' + ch.then.map(line).join('') + '</div>').join('') +
+      (c.carrier ? c.carrier.choices.map((ch, j) => '<div class="aos-path aos-alt" data-p="' + j + '" hidden>' + ch.then.map(line).join('') + '</div>').join('') : '') +
     '</div>' +
     '<div class="aos-ch" role="group" aria-label="What happens next">' + c.choices.map((ch, j) => '<button type="button" data-p="' + j + '" aria-pressed="false">' + esc(ch.label) + '</button>').join('') + '</div>' +
     '<p class="aos-why">' + esc(c.why) + (c.call ? ' <a href="tel:+17064602226">Call the real Max</a>' : '') + '</p>' +
+    (c.carrier ? '<p class="aos-why aos-alt" hidden>' + esc(c.carrier.why) + '</p>' : '') +
     '</article>';
 }
 const CHIPS = [
@@ -42,7 +44,8 @@ function front(key, p) {
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
   const sub = p.sub || 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.';
   return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
-    '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p></div>\n' +
+    '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
+      (p.modes ? '<div class="aos-modes" role="group" aria-label="Kind of agency">' + p.modes.map((m, i) => '<button type="button" data-mode="' + i + '" aria-pressed="' + (i ? 'false' : 'true') + '">' + esc(m) + '</button>').join('') + '</div>' : '') + '</div>\n' +
     '<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, ' + n + ' cards">' + p.cards.map((c, i) => card(c, i, n)).join('') + '</div>\n' +
     '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
     '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
@@ -117,6 +120,13 @@ const CSS = `
 .aos .aos-also details[open] summary::after{content:"–"}
 .aos .aos-also details p{padding:0 0 14px;margin:0;color:#A3ACBF;font-size:15px}
 .aos-sample{margin-top:10px;font-size:15px;color:#8892A6}
+/* independent or with a carrier */
+.aos-modes{display:inline-flex;margin-top:14px;padding:3px;border-radius:999px;background:#0B0F16;border:1px solid #262E40}
+.aos-modes button{min-height:44px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:#C9D0DC;font:600 15px var(--body);cursor:pointer}
+.aos-modes button[aria-pressed="true"]{background:#FF6A5E;color:#1A0605}
+.aos-modes button:focus-visible{outline:3px solid #ECEEF3;outline-offset:2px}
+.aos-carrier .aos-why:not(.aos-alt),.aos:not(.aos-carrier) .aos-alt{display:none!important}
+.aos-carrier .aos-why.aos-alt{display:block!important}
 /* the instant grade */
 .aos-deck{display:grid;gap:0}
 .aog{margin-top:30px;padding:20px 16px;border-radius:18px;background:#171C27;border:1px solid rgba(255,106,94,.45);box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px -8px rgba(255,90,77,.45)}
@@ -265,23 +275,39 @@ const JS = `(function () {
 
   // The playable cards: tap a choice and the scene plays out.
   d.querySelectorAll('.aos-card').forEach(function (c) {
-    var scn = c.querySelector('.aos-scn'), paths = [].slice.call(c.querySelectorAll('.aos-path')), btns = [].slice.call(c.querySelectorAll('.aos-ch button')), timers = [];
+    var scn = c.querySelector('.aos-scn'), allPaths = [].slice.call(c.querySelectorAll('.aos-path')), btns = [].slice.call(c.querySelectorAll('.aos-ch button')), timers = [];
+    var sec = c.closest('.aos');
+    var paths = function () { var alt = sec.classList.contains('aos-carrier') && allPaths.some(function (p) { return p.classList.contains('aos-alt'); }); return allPaths.filter(function (p) { return p.classList.contains('aos-alt') === alt; }); };
     var down = function () { scn.scrollTo({ top: scn.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }); };
     c.classList.add('aos-live');
     requestAnimationFrame(function () { scn.scrollTop = scn.scrollHeight; });
-    paths.forEach(function (p) { p.hidden = false; });
+    allPaths.forEach(function (p) { p.hidden = false; });
     btns.forEach(function (b) { b.setAttribute('data-label', b.textContent); });
     btns.forEach(function (b, i) {
       b.addEventListener('click', function () {
         timers.forEach(clearTimeout); timers = [];
-        paths.forEach(function (p, j) { p.classList.toggle('on', j === i); [].forEach.call(p.children, function (x) { x.classList.add('aos-wait'); }); });
+        var ps = paths();
+        allPaths.forEach(function (p) { p.classList.remove('on'); });
+        ps.forEach(function (p, j) { p.classList.toggle('on', j === i); [].forEach.call(p.children, function (x) { x.classList.add('aos-wait'); }); });
         btns.forEach(function (x, j) { x.setAttribute('aria-pressed', String(j === i)); x.textContent = x.getAttribute('data-label'); });
-        [].forEach.call(paths[i].children, function (x, n) {
+        [].forEach.call(ps[i].children, function (x, n) {
           if (reduce || n === 0) { x.classList.remove('aos-wait'); down(); }
           else timers.push(setTimeout(function () { x.classList.remove('aos-wait'); down(); }, n * 700));
         });
-        if (btns.length === 1) timers.push(setTimeout(function () { b.textContent = 'Play it again'; }, reduce ? 0 : paths[i].children.length * 700));
+        if (btns.length === 1) timers.push(setTimeout(function () { b.textContent = 'Play it again'; }, reduce ? 0 : ps[i].children.length * 700));
       });
+    });
+  });
+
+  // Independent or with a carrier: the endings change, nothing else does.
+  d.querySelectorAll('.aos-modes').forEach(function (g) {
+    var sec = g.closest('.aos');
+    g.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-mode]'); if (!b) return;
+      var carrier = b.getAttribute('data-mode') === '1';
+      sec.classList.toggle('aos-carrier', carrier);
+      g.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      sec.querySelectorAll('.aos-card').forEach(function (c) { c.querySelectorAll('.aos-path').forEach(function (p) { p.classList.remove('on'); }); c.querySelectorAll('.aos-ch button').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); x.textContent = x.getAttribute('data-label'); }); });
     });
   });
 

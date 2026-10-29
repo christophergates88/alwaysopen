@@ -216,7 +216,7 @@ export const PAGES = {
     ]
   },
   insurance: {
-    plural: 'insurance agencies', short: 'Max takes messages after hours and never talks policies, rates or claims. Compliance Guard checks every word we write for you.', chips: false, type: 'Insurance agency',
+    modes: ['Independent', 'With a carrier'], plural: 'insurance agencies', short: 'Max takes messages after hours and never talks policies, rates or claims. Compliance Guard checks every word we write for you.', chips: false, type: 'Insurance agency',
     cards: [
       { key: 'max', title: 'Max takes the message', tag: TAG.every, call: true,
         why: 'Max takes a name, number and a good time to call back, and never talks policies, rates or claims.',
@@ -238,10 +238,17 @@ export const PAGES = {
         choices: [
           { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sample Agency on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · posted 3:15 PM']] }
-        ] },
+        ],
+        carrier: { why: 'When a weather warning hits your county, a storm-day post is drafted that minute. If your company approves posts first, it goes to them before it goes live.',
+          choices: [
+            { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sent to your company for approval', 'Storm tonight in Putnam County', 'Your compliance contact gets it with your OK already on it.', 'ok'], ['sys', 'Approved by your company · posted 4:40 PM']] },
+            { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · sent to your company for approval']] }
+          ] } },
       { key: 'ai', title: 'What assistants say about you', tag: TAG.growth, why: WHY.ai,
         intro: [['sys', 'A customer asks an answer assistant'], ['in', 'What’s the number for Sample Agency in Eatonton?'], ['ai', '478-555-0100, according to Yelp.']],
-        choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That’s the old number. We fixed it on Yelp.', 'hot'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Sample Agency, 478-555-0142.']] }] }
+        choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That’s the old number. We fixed it on Yelp.', 'hot'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Sample Agency, 478-555-0142.']] }],
+        carrier: { why: 'Customers ask answer assistants who to call. Once a month we ask them about you. What we can fix, we fix. What your company controls, we send you to pass along.',
+          choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That listing is managed by your company. We sent you the fix to pass along.', 'hot'], ['sys', 'You forwarded it · fixed the next week'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Sample Agency, 478-555-0142.']] }] } }
     ]
   }
 };

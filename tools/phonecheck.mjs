@@ -100,13 +100,18 @@ for (const w of WIDTHS) {
       // Every card plays: tapping a choice shows its first line at once.
       const played = await page.evaluate(async () => {
         const bad = [];
-        for (const c of document.querySelectorAll('.aos-card')) {
+        const modes = document.querySelectorAll('.aos-modes button');
+        for (const m of (modes.length ? modes : [null])) {
+          if (m) m.click();
+          const alt = m && m.dataset.mode === '1';
+          for (const c of document.querySelectorAll('.aos-card')) {
           const btns = c.querySelectorAll('.aos-ch button');
           for (const b of btns) {
             b.click();
-            const p = c.querySelector('.aos-path[data-p="' + b.dataset.p + '"]');
+            const p = c.querySelector('.aos-path' + (alt && c.querySelector('.aos-alt') ? '.aos-alt' : ':not(.aos-alt)') + '[data-p="' + b.dataset.p + '"]');
             const first = p && p.firstElementChild;
-            if (!p || !p.classList.contains('on') || !first || getComputedStyle(first).display === 'none') bad.push(c.id + ' / ' + b.textContent);
+            if (!p || !p.classList.contains('on') || !first || getComputedStyle(first).display === 'none') bad.push(c.id + (alt ? ' (carrier)' : '') + ' / ' + b.textContent);
+          }
           }
         }
         return bad;
