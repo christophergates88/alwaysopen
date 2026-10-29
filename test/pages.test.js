@@ -1,4 +1,4 @@
-// Page checks at phone width (390px): no sideways scroll, a headline, samples labeled, no banned words outside the home hero.
+// Page checks at phone width (390px): no sideways scroll, a headline, the example report captioned as one, no banned words outside the home hero.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -16,7 +16,8 @@ test('industry pages: words and samples', () => {
     if (p !== 'index') assert.ok(!/\bAI\b/.test(text), p + ' says AI');
     assert.ok(!/\bChris\b/.test(text), p + ' says Chris');
     assert.ok(!/\blocal\b/.test(text.replace(/https?:\/\/\S+/g, '')), p + ' says local');
-    if (p !== 'index') assert.ok(/Sample/.test(body), p + ' has no Sample label');
+    // The pictures use made-up businesses with believable names; a caption still calls them examples (Oct 29, 2026: no more "Sample" tags).
+    assert.ok(/An example report\./.test(text), p + ' does not call its report an example');
     assert.ok(!/[^!]![^=]/.test(text.replace(/!important/g, '')), p + ' has an exclamation mark');
   }
 });

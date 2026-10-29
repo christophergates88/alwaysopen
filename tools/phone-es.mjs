@@ -73,7 +73,7 @@ export const ES_HOME = [
   ...scene(6, 'Lo que dicen de usted los asistentes', 'Ejemplo: un asistente le da a un cliente un número viejo sacado de Yelp, y la revisión mensual lo detecta y lo corrige.',
     bub('in', '¿Cuál es el número de Sinclair Plumbing en Eatonton?') + bub('out', '478-555-0100, según Yelp.') + card('La revisión de este mes', 'Teléfono equivocado en Yelp', 'Ese es el número viejo. Lo corregimos en Yelp, y ahora el asistente lo nombra a usted primero entre los plomeros de Eatonton.'),
     'Los clientes les preguntan a los asistentes a quién llamar. Una vez al mes les preguntamos por usted y corregimos lo que digan mal, desde donde se origine.'),
-  { s: '#only p.sample', h: 'Ejemplo: negocio, clientes y llamadas inventados.' },
+  { s: '#only p.sample', h: 'Ejemplos. Los suyos llevan el nombre de su negocio.' },
   { s: '#only .alsoonly', h: '<b>También solo aquí</b><p><a href="#regulated">Compliance Guard</a> revisa cada palabra antes de que salga a su nombre, así que agencias de seguros y consultorios también pueden usarnos. <a href="/map">El mapa de Always Open</a> muestra cada negocio de Always Open, el más cercano primero. <a href="#rules">Full Max</a> deja que lo rutinario salga sin que usted toque nada, cuando usted lo diga. Todos los planes contestan en español, sin costo extra.</p>' },
   { s: '#pricing .head .eyebrow', h: 'Precios' },
   { s: '#pricing .head h2', h: 'Pruébelo un mes. Si no vale la pena, no lo paga.' },
@@ -88,7 +88,7 @@ export const ES_HOME = [
   { s: '#map-feature .sub', h: 'Cada negocio de Always Open aparece en un mapa público, del más cercano al más lejano. Quien busca un plomero cerca solo ve negocios de Always Open, así que nunca queda enterrado bajo anuncios. Nadie paga por aparecer ni por subir.' },
   { s: '#map-feature .maplist', h: '<li><b>En el mapa desde el primer día</b><span>, con su horario, su calificación y un botón para llamar</span></li><li><b>Pases de clientes</b><span>: quien necesita otro oficio va al miembro más cercano, y ellos le mandan trabajo a usted</span></li><li><b>Usted decide</b><span>: sálgase cuando quiera con un toque en la app</span></li>' },
   { s: '#map-feature .mapgo', h: '<span>Vea quién está abierto cerca</span><b>Abrir el mapa</b>' },
-  { s: '#map-feature .mapcap', h: 'Ejemplo: negocios inventados.' },
+  { s: '#map-feature .mapcap', h: 'Una búsqueda de ejemplo.' },
   { s: '#contact .callus', h: '¿Prefiere hablar? Llame al <a href="tel:+17064602226">(706) 460-2226</a>. Max, nuestra línea telefónica, contesta a cualquier hora y toma sus datos, y Katie le devuelve la llamada en un día hábil.' },
   { s: '#contact .founding', h: '<b>Pruébelo un mes. Si no vale la pena, no lo paga.</b><p style="margin-top:4px">Sin contrato y sin cargo de instalación. Cancele desde la app.</p>' },
   { s: 'label[for="f-name"]', t: 'Su nombre' }, { s: 'label[for="f-phone"]', t: 'Teléfono' }, { s: 'label[for="f-email"]', t: 'Correo electrónico' },
@@ -167,8 +167,8 @@ export function esFront(key) {
   const t = TRADE[key];
   const out = [
     { s: '#aos-h', h: key === 'index' || !t ? 'Lo que nadie más hace. Toque y pruébelo.' : 'Lo que nadie más hace para ' + t.plural + '. Toque y pruébelo.' },
-    { s: '#go .aos-head > p', h: 'Cada tarjeta muestra una llamada, un mensaje o una publicación de un negocio inventado. Toque una opción y vea lo que pasa.' },
-    { s: '#go .aos-sample', h: 'Ejemplo: negocios, clientes y llamadas inventados.' },
+    { s: '#go .aos-head > p', h: 'Cada tarjeta muestra una llamada, un mensaje o una publicación, de principio a fin. Toque una opción y vea lo que pasa.' },
+    { s: '#go .aos-sample', h: 'Ejemplos. En su línea, Max contesta con el nombre de su negocio.' },
     { s: '#go-grade h3', h: '¿Cómo se ve su negocio en internet?' },
     { s: '#go-grade > p', h: 'Escriba el nombre de su negocio y su ciudad. Su calificación aparece aquí mismo en unos segundos.' },
     { s: 'label[for="g-q"]', t: 'Nombre del negocio' }, { s: '#g-q', p: 'Como aparece en Google' }, { s: 'label[for="g-town"]', t: 'Ciudad' },

@@ -54,7 +54,7 @@ function set(key, p0, on) {
 }
 function front(key, p) {
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
-  const sub = p.sub || 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.';
+  const sub = p.sub || 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.';
   const home = key === 'index';
   return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
     '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
@@ -69,7 +69,7 @@ function front(key, p) {
     '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
       (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
     (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
-    '<p class="aos-sample">Sample: made-up businesses, customers and callers.</p>\n' +
+    '<p class="aos-sample">Examples. On your line, Max answers with your business name.</p>\n' +
     '</section>\n<!--/ao:front-->';
 }
 

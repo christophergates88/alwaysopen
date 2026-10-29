@@ -1,4 +1,4 @@
-// What each page's playable "Only here" cards say. Every business, caller and number here is made up and labeled Sample.
+// What each page's playable "Only here" cards say. Every business, caller and number here is made up; the caption under the cards calls them examples.
 // A card: { key, title, tag, why, intro: [lines], choices: [{ label, then: [lines] }], call?: true }
 // A line: ['in', text] the caller or customer · ['out', text] Max or the business · ['sys', text] a status line
 //         ['ai', text] an answer assistant · ['note', label, title, text, 'hot' | 'ok'] what lands on the owner's phone
@@ -93,7 +93,7 @@ const PLUMB = {
 export const PAGES = {
   index: {
     heading: 'What nobody else does. Tap to try it.',
-    sub: 'Each card plays out a call, a text or a post for a made-up business. Tap a choice and watch what happens.',
+    sub: 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.',
     short: 'Calls, reviews, follow-ups and your Google listing, handled. On the 2nd of every month, one page shows what it did.',
     chips: true,
     cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sinclair Plumbing',
@@ -101,13 +101,13 @@ export const PAGES = {
   },
   plumbing: {
     plural: 'plumbers', short: 'Calls answered, reviews replied to, quotes followed up and slow days filled, while you’re under a sink.', chips: true, type: 'Contractor or trade',
-    cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sample Plumbing',
-      ai: { q: 'What’s the number for Sample Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Sample Plumbing, 478-555-0142. They answer around the clock.' } }))
+    cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Quillen Plumbing',
+      ai: { q: 'What’s the number for Quillen Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Quillen Plumbing, 478-555-0142. They answer around the clock.' } }))
   },
   hvac: {
     plural: 'heating and air companies', short: 'Calls answered, reviews replied to, quotes followed up and slow days filled, while you’re up in an attic.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
-      biz: 'Sample Heating and Air', owner: 'Sam', callTime: 'Sat 6:10 PM', urgent: true,
+      biz: 'Tolliver Heating and Air', owner: 'Sam', callTime: 'Sat 6:10 PM', urgent: true,
       problem: 'Our AC quit, and it’s 91 degrees in the house.',
       priceQ: 'What does it cost to come out?', priceA: 'The service call is $99, and it goes toward the repair. Sam can be there at 7:30 tomorrow morning. Want that time?', yes: 'Yes, please.',
       job: ['Lisa Grant · AC out', 'Tomorrow 7:30 AM · 91 degrees inside'], person: ['Lisa Grant · AC out', '91 degrees inside. Wants a person tonight.'],
@@ -116,13 +116,13 @@ export const PAGES = {
       busy: 'Sam’s on a call in Greensboro.', cbWhy: 'Breaker tripping',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your system is due for its fall tune-up' },
       storm: { post: 'If the power blinks and your AC or heat won’t come back on, call us. We’re answering the phone all night.', extra: 'Ask us about surge protection, too.' },
-      ai: { q: 'Who can fix my AC tonight in Eatonton?', wrong: 'Sample Heating and Air is listed at 478-555-0100.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who can fix my AC tonight in Eatonton?', right: 'Sample Heating and Air, 478-555-0142. They answer around the clock.' }
+      ai: { q: 'Who can fix my AC tonight in Eatonton?', wrong: 'Tolliver Heating and Air is listed at 478-555-0100.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who can fix my AC tonight in Eatonton?', right: 'Tolliver Heating and Air, 478-555-0142. They answer around the clock.' }
     })
   },
   builders: {
     plural: 'builders', short: 'Calls answered, reviews replied to, estimates followed up and site visits booked, while you’re on a job.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
-      biz: 'Sample Builders', owner: 'Sam', callTime: 'Tue 7:40 PM',
+      biz: 'Brannock Builders', owner: 'Sam', callTime: 'Tue 7:40 PM',
       problem: 'We want to add a screened porch before spring.',
       priceLabel: 'Ask for a ballpark', priceQ: 'Roughly what does a porch run?', priceA: 'Most screened porches Sam builds run $18,000 to $30,000. He can come measure Thursday at 4. Want that time?', yes: 'Thursday at 4 is good.',
       job: ['The Parkers · screened porch', 'Site visit Thursday 4:00 PM'], person: ['The Parkers · screened porch', 'Want to talk it through. Call back tomorrow.'],
@@ -131,13 +131,13 @@ export const PAGES = {
       busy: 'Sam’s on a job in Greensboro.', cbWhy: 'Porch estimate',
       fill: { day: 'Thursday', slot: 'Thursday morning', reason: 'your deck is due for its yearly seal' },
       storm: { post: 'If a limb comes down on your roof or deck tonight, call us. We’re answering all night and can tarp first thing.', extra: 'Stay off ladders until it passes.' },
-      ai: { q: 'Who builds screened porches near Eatonton?', wrong: 'Sample Builders may be closed. One listing says “permanently closed.”', fixT: 'An old listing says closed', fixP: 'A duplicate listing said closed. We had it removed.', q2: 'Who builds screened porches near Eatonton?', right: 'Sample Builders, 478-555-0142. They build porches and decks around Lake Oconee.' }
+      ai: { q: 'Who builds screened porches near Eatonton?', wrong: 'Brannock Builders may be closed. One listing says “permanently closed.”', fixT: 'An old listing says closed', fixP: 'A duplicate listing said closed. We had it removed.', q2: 'Who builds screened porches near Eatonton?', right: 'Brannock Builders, 478-555-0142. They build porches and decks around Lake Oconee.' }
     })
   },
   'auto-repair': {
     plural: 'auto repair shops', short: 'Calls answered, reviews replied to, estimates followed up and open bays filled, while you’re under a car.', chips: true, type: 'Contractor or trade',
     cards: tradeCards({
-      biz: 'Sample Auto', owner: 'Sam', callTime: 'Wed 3:05 PM', urgent: true, cbWhen: 'within the hour',
+      biz: 'Pickard Auto', owner: 'Sam', callTime: 'Wed 3:05 PM', urgent: true, cbWhen: 'within the hour',
       problem: 'My car won’t start, and I’m in the school pickup line.',
       priceQ: 'What does it cost to look at it?', priceA: 'A diagnostic is $95, and it goes toward the repair. Sam has a bay open at 4:30 today. Want it?', yes: 'Yes. I’ll get a jump and come in.',
       job: ['Keisha Moore · won’t start', 'Today 4:30 PM · diagnostic'], person: ['Keisha Moore · won’t start', 'Stuck in the school pickup line. Wants a person.'],
@@ -146,13 +146,13 @@ export const PAGES = {
       busy: 'Sam’s got a car on the lift.', cbWhy: 'Cracked windshield',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your car is due for an oil change' },
       storm: { post: 'Storms tonight. If a limb hits your car or you get stuck, call us. We’re answering the phone all night.', extra: 'We can line up a tow first thing.' },
-      ai: { q: 'Is Sample Auto open Saturdays?', wrong: 'No. Sample Auto is closed on weekends, according to Facebook.', fixT: 'Wrong hours on Facebook', fixP: 'They’re open Saturday 8 to noon. We fixed it on Facebook.', q2: 'Who can look at my car Saturday in Eatonton?', right: 'Sample Auto is open Saturday 8 to noon. 478-555-0142.' }
+      ai: { q: 'Is Pickard Auto open Saturdays?', wrong: 'No. Pickard Auto is closed on weekends, according to Facebook.', fixT: 'Wrong hours on Facebook', fixP: 'They’re open Saturday 8 to noon. We fixed it on Facebook.', q2: 'Who can look at my car Saturday in Eatonton?', right: 'Pickard Auto is open Saturday 8 to noon. 478-555-0142.' }
     })
   },
   marine: {
     plural: 'dock builders and marinas', short: 'Calls answered, reviews replied to, quotes followed up and slow weeks filled, while you’re out on the water.', chips: true, type: 'Dock, marine or outdoor',
     cards: tradeCards({
-      biz: 'Sample Marine', owner: 'Sam', callTime: 'Sat 5:48 PM', urgent: true,
+      biz: 'Kessler Marine', owner: 'Sam', callTime: 'Sat 5:48 PM', urgent: true,
       problem: 'Our boat lift jammed with the boat on it.',
       priceQ: 'Can someone come this weekend?', priceA: 'Sam’s crew can be there at 8 tomorrow. The service call is $125. Want that time?', yes: 'Yes, 8 is great.',
       job: ['The Kellers · lift jammed', 'Tomorrow 8:00 AM · boat on the lift'], person: ['The Kellers · lift jammed', 'Boat stuck on the lift. Wants a person.'],
@@ -161,13 +161,13 @@ export const PAGES = {
       busy: 'Sam’s out on the water.', cbWhy: 'Seawall washing out',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your lift is due for its spring service' },
       storm: { title: 'Storm tonight on the lake', post: 'If your dock or lift takes a hit tonight, call us. We’re answering all night and out first thing.', extra: 'Tie down cushions and covers now.' },
-      ai: { q: 'What’s the number for Sample Marine?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who fixes boat lifts on Lake Oconee?', right: 'Sample Marine, 478-555-0142. They answer around the clock.' }
+      ai: { q: 'What’s the number for Kessler Marine?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who fixes boat lifts on Lake Oconee?', right: 'Kessler Marine, 478-555-0142. They answer around the clock.' }
     })
   },
   salons: {
     plural: 'salons and studios', short: 'Calls answered, reviews replied to and open chairs filled from your own clients, while you’re mid-cut.', chips: true, type: 'Salon, spa or fitness',
     cards: tradeCards({
-      biz: 'Sample Salon', owner: 'Jess', he: 'she', his: 'her', callTime: 'Tue 8:15 PM',
+      biz: 'Larkspur Salon', owner: 'Jess', he: 'she', his: 'her', callTime: 'Tue 8:15 PM',
       problem: 'Do you have anything Saturday for a cut and color?',
       priceQ: 'What does a cut and color cost?', priceA: 'A cut and color starts at $120. Jess has Saturday at 10. Want it?', yes: 'Yes, book it.',
       job: ['Maria Lopez · cut and color', 'Saturday 10:00 AM · new client'], person: ['Maria Lopez · cut and color', 'New client. Wants to talk before booking.'],
@@ -176,13 +176,13 @@ export const PAGES = {
       busy: 'Jess is mid-color.', cbWhy: 'Lash extensions',
       fill: { day: 'Thursday', slot: 'Thursday at 2 PM', reason: 'it’s been six weeks since your color' },
       storm: { title: 'Storms this afternoon', post: 'If you need to move your visit because of the weather, call us. We’re answering all day and will fit you in.', extra: 'No fee for weather changes.' },
-      ai: { q: 'Is Sample Salon open Sundays?', wrong: 'Yes. Sample Salon is open Sundays 10 to 4, according to Yelp.', fixT: 'Wrong hours on Yelp', fixP: 'They’re closed Sundays. We fixed it on Yelp.', q2: 'Where can I get color Saturday near Eatonton?', right: 'Sample Salon is open Saturday 9 to 5. 478-555-0142.' }
+      ai: { q: 'Is Larkspur Salon open Sundays?', wrong: 'Yes. Larkspur Salon is open Sundays 10 to 4, according to Yelp.', fixT: 'Wrong hours on Yelp', fixP: 'They’re closed Sundays. We fixed it on Yelp.', q2: 'Where can I get color Saturday near Eatonton?', right: 'Larkspur Salon is open Saturday 9 to 5. 478-555-0142.' }
     })
   },
   restaurants: {
     plural: 'restaurants and shops', short: 'Calls answered, reviews replied to, catering quotes followed up and slow nights filled, all through the rush.', chips: true, type: 'Restaurant or shop',
     cards: tradeCards({
-      biz: 'Sample Kitchen', owner: 'Sam', callTime: 'Fri 7:05 PM',
+      biz: 'Brickyard Kitchen', owner: 'Sam', callTime: 'Fri 7:05 PM',
       problem: 'Do you cater? We need lunch for forty on Tuesday.',
       priceLabel: 'Ask for a ballpark', priceQ: 'Roughly what does that cost?', priceA: 'Catering for forty runs $14 to $18 a person. Sam can call you tomorrow at 10 to set the menu. Want that time?', yes: '10 is perfect.',
       job: ['Office lunch for 40', 'Call back tomorrow 10:00 AM · Tuesday order'], person: ['Office lunch for 40', 'Wants to talk menu. Call back tomorrow.'],
@@ -190,7 +190,7 @@ export const PAGES = {
       check: { q: 'did the catering order go the way you wanted?', bad: 'the order came out short.' }, checkWhy: 'A few days after a catering order, Max calls: how did it go? A yes becomes the review ask. A no reaches you first, before it becomes a review.',
       busy: 'Sam’s on the line for lunch.', cbWhy: 'Wedding cake',
       storm: { title: 'Closing at 8 tonight', post: 'Storms are on the way, so we’re closing at 8. Delivery runs until 7:30. Stay dry.', extra: 'Regular hours tomorrow.' },
-      ai: { q: 'Is Sample Kitchen open Mondays?', wrong: 'No. Sample Kitchen is closed Mondays, according to Tripadvisor.', fixT: 'Wrong hours on Tripadvisor', fixP: 'They’re open Mondays now. We fixed it on Tripadvisor.', q2: 'Where can I get lunch Monday in Eatonton?', right: 'Sample Kitchen is open Monday 11 to 9. 478-555-0142.' }
+      ai: { q: 'Is Brickyard Kitchen open Mondays?', wrong: 'No. Brickyard Kitchen is closed Mondays, according to Tripadvisor.', fixT: 'Wrong hours on Tripadvisor', fixP: 'They’re open Mondays now. We fixed it on Tripadvisor.', q2: 'Where can I get lunch Monday in Eatonton?', right: 'Brickyard Kitchen is open Monday 11 to 9. 478-555-0142.' }
     })
   },
   dental: {
@@ -198,7 +198,7 @@ export const PAGES = {
     cards: [
       { key: 'max', title: 'Max answers', tag: TAG.every, call: true,
         why: 'Max takes the name, number and what they need, nothing more, and never talks fees, treatment or insurance.',
-        intro: [['sys', 'Sun 9:40 PM · call to Sample Family Dental'], ['out', 'Thanks for calling Sample Family Dental. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I cracked a tooth at dinner. Can I get in tomorrow?']],
+        intro: [['sys', 'Sun 9:40 PM · call to Elm Street Family Dental'], ['out', 'Thanks for calling Elm Street Family Dental. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I cracked a tooth at dinner. Can I get in tomorrow?']],
         choices: [
           { label: 'Ask for the first opening', then: [['in', 'Can I get the first opening?'], ['out', 'I’ll mark this urgent. The front desk will call you at 8, when the office opens. What’s the best number?'], ['in', '478-555-0142.'], ['note', 'On the front desk’s phone · urgent', 'Cracked tooth · first opening', 'Called 9:40 PM · 478-555-0142', 'hot']] },
           { label: 'Ask for a person', then: [['in', 'Can I talk to someone now?'], ['out', 'The office is closed, so I’m trying the doctor’s on-call cell now, the way the practice asked.'], ['sys', 'Ringing the on-call cell · 9:41 PM'], ['note', 'On the on-call phone · urgent', 'Cracked tooth', 'Called 9:40 PM · 478-555-0142', 'hot']] }
@@ -210,7 +210,7 @@ export const PAGES = {
       { key: 'storm', title: 'Storm Desk', tag: TAG.growth, why: WHY.storm,
         intro: [['sys', 'Severe thunderstorm warning · Putnam County · 3:12 PM'], ['note', 'Post · waiting for your OK', 'Storms tonight', 'If we open late tomorrow because of the weather, we’ll post it here first.']],
         choices: [
-          { label: 'Approve', then: [['sys', 'You tapped Approve · 3:13 PM'], ['note', 'Sample Family Dental on Google · just now', 'Storms tonight', 'Live where patients look first.', 'ok']] },
+          { label: 'Approve', then: [['sys', 'You tapped Approve · 3:13 PM'], ['note', 'Elm Street Family Dental on Google · just now', 'Storms tonight', 'Live where patients look first.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storms tonight', 'If we open late tomorrow because of the weather, we’ll post it here first. Call us to move a visit.'], ['sys', 'Posted to your Google profile · 3:15 PM']] }
         ] }
     ]
@@ -220,7 +220,7 @@ export const PAGES = {
     cards: [
       { key: 'max', title: 'Max takes the message', tag: TAG.every, call: true,
         why: 'Max takes a name, number and a good time to call back, and never talks policies, rates or claims.',
-        intro: [['sys', 'Tue 7:12 PM · call to Sample Agency'], ['out', 'Thanks for calling Sample Agency. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I’m adding my 16-year-old as a driver. Can someone call me?']],
+        intro: [['sys', 'Tue 7:12 PM · call to Haskell Insurance'], ['out', 'Thanks for calling Haskell Insurance. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I’m adding my 16-year-old as a driver. Can someone call me?']],
         choices: [
           { label: 'Ask about the cost', then: [['in', 'How much will that add to my rate?'], ['out', 'I can’t talk about rates or coverage, but I’ll have Priya call you. Is tomorrow after 10 good?'], ['in', 'After 10 works.'], ['note', 'On Priya’s phone', 'Dana Whitfield · new driver', 'Call back tomorrow after 10 · 478-555-0142', 'ok']] },
           { label: 'Ask for a person', then: [['in', 'Can I talk to someone tonight?'], ['out', 'The office is closed, so I’ll take a message. Priya will call you first thing tomorrow.'], ['note', 'On Priya’s phone', 'Dana Whitfield · new driver', 'Call back first thing · 478-555-0142', 'ok']] }
@@ -236,7 +236,7 @@ export const PAGES = {
       { key: 'storm', title: 'Storm Desk', tag: TAG.growth, why: WHY.storm,
         intro: [['sys', 'Severe thunderstorm warning · Putnam County · 3:12 PM'], ['note', 'Post · waiting for your OK', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Call us in the morning with questions.']],
         choices: [
-          { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sample Agency on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
+          { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Haskell Insurance on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · posted 3:15 PM']] }
         ],
         carrier: { why: 'When a weather warning hits your county, a storm-day post is drafted that minute. If your company approves posts first, it goes to them before it goes live.',
@@ -245,10 +245,10 @@ export const PAGES = {
             { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · sent to your company for approval']] }
           ] } },
       { key: 'ai', title: 'What assistants say about you', tag: TAG.growth, why: WHY.ai,
-        intro: [['sys', 'A customer asks an answer assistant'], ['in', 'What’s the number for Sample Agency in Eatonton?'], ['ai', '478-555-0100, according to Yelp.']],
-        choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That’s the old number. We fixed it on Yelp.', 'hot'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Sample Agency, 478-555-0142.']] }],
+        intro: [['sys', 'A customer asks an answer assistant'], ['in', 'What’s the number for Haskell Insurance in Eatonton?'], ['ai', '478-555-0100, according to Yelp.']],
+        choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That’s the old number. We fixed it on Yelp.', 'hot'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Haskell Insurance, 478-555-0142.']] }],
         carrier: { why: 'Customers ask answer assistants who to call. Once a month we ask them about you. What we can fix, we fix. What your company controls, we send you to pass along.',
-          choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That listing is managed by your company. We sent you the fix to pass along.', 'hot'], ['sys', 'You forwarded it · fixed the next week'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Sample Agency, 478-555-0142.']] }] } }
+          choices: [{ label: 'Run this month’s check', then: [['note', 'This month’s check', 'Wrong phone on Yelp', 'That listing is managed by your company. We sent you the fix to pass along.', 'hot'], ['sys', 'You forwarded it · fixed the next week'], ['in', 'Who’s an insurance agent in Eatonton?'], ['ai', 'Haskell Insurance, 478-555-0142.']] }] } }
     ]
   }
 };
