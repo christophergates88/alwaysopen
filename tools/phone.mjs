@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGES, FOLDS } from './phone-data.mjs';
-import { ES_HOME, esTrade, esFront, ES_LINE, NAV_ES } from './phone-es.mjs';
+import { ES_HOME, ES_DOES, esTrade, esFront, ES_LINE, NAV_ES } from './phone-es.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
@@ -63,7 +63,7 @@ function front(key, p) {
       '<button class="aog-go" type="submit">Check my grade</button>' +
       '<div class="aog-out" aria-live="polite"></div>' +
     '</form></div>\n' +
-    (p.chips ? '<div class="aos-also"><p>Also only here</p>' + CHIPS.map(c => '<details><summary>' + esc(c[0]) + '</summary><p>' + esc(c[1]) + '</p></details>').join('') + '</div>' : '<div></div>') + '</div>\n' +
+    '<div></div>' + '</div>\n' +
     '</section>\n<!--/ao:front-->';
 }
 
@@ -457,7 +457,7 @@ function esSwitch() {
   if (want === 'es') apply('es');
 }
 function esEntries(key, s) {
-  const out = (key === 'index' ? ES_HOME.slice() : esTrade(key)).concat(esFront(key).filter(e => (PAGES[key].chips || !/aos-also/.test(e.s)) && (PAGES[key].modes || !/aos-modes/.test(e.s))));
+  const out = (key === 'index' ? ES_HOME.slice() : esTrade(key)).concat(ES_DOES).concat(esFront(key).filter(e => !/aos-also/.test(e.s) && (PAGES[key].modes || !/aos-modes/.test(e.s))));
   const h = s.indexOf('<header'), n0 = s.indexOf('<nav aria-label="Main">', h), n1 = s.indexOf('</nav>', n0);
   const links = n0 > 0 ? (s.slice(n0, n1).match(/<a\b[^>]*>[^<]*<\/a>/g) || []) : [];
   links.forEach((a, i) => { const t = a.replace(/<[^>]+>/g, '').trim(); if (NAV_ES[t]) out.push({ s: 'header.hero nav a:nth-child(' + (i + 1) + ')', h: NAV_ES[t] }); });

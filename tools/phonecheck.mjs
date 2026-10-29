@@ -1,7 +1,7 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 9,000 px with its sections folded (industry pages 7,000), the grade check is not on the first two screens,
+// taller than 9,800 px with its sections folded (the What we do section added 800 px on purpose) (industry pages 7,000), the grade check is not on the first two screens,
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 9000], ['/plumbing', 7000], ['/hvac', 7000], ['/builders', 7000], ['/auto-repair', 7000], ['/marine', 7000], ['/salons', 7000], ['/restaurants', 7000], ['/dental', 7000], ['/insurance', 7000]];
+const PAGES = [['/', 9800], ['/plumbing', 7000], ['/hvac', 7000], ['/builders', 7000], ['/auto-repair', 7000], ['/marine', 7000], ['/salons', 7000], ['/restaurants', 7000], ['/dental', 7000], ['/insurance', 7000]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();
