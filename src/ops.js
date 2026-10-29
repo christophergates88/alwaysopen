@@ -3,8 +3,23 @@
 import { EmailMessage } from 'cloudflare:email';
 const GAP_MS = 15 * 60000;
 const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').trim();
+// Keys, tokens, phone numbers and emails never travel in an alert, whatever a library put in its error message.
+export const scrub = s => one(s)
+  .replace(/\b(sk|rk|pk|whsec|xoxb|xoxp|ghp|AKIA)[_-][A-Za-z0-9_-]{8,}/g, '[key]')
+  .replace(/\bsk-ant-[A-Za-z0-9_-]{8,}/g, '[key]')
+  .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [token]')
+  .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]')
+  .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]')
+  .replace(/\+?1?[ (.-]*\d{3}[ ).-]*\d{3}[ .-]*\d{4}\b/g, '[phone]');
 const asc = s => one(s).replace(/[^\x20-\x7E]/g, '');
 
+const alertsReady = new WeakSet();
+async function ensureAlerts(env) {
+  if (alertsReady.has(env.DB)) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER, prev INTEGER DEFAULT 0)').run();
+  try { await env.DB.prepare('ALTER TABLE ops_alerts ADD COLUMN prev INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
+  alertsReady.add(env.DB);
+}
 function enc(s) { return /^[\x20-\x7E]*$/.test(s) ? s : '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(s))) + '?='; }
 
 // type: short stable name, e.g. 'stripe-webhook', 'cron:billing', 'mail-send', 'max-call', 'deploy', 'health:d1'.
@@ -13,16 +28,13 @@ export async function opsAlert(env, type, who, detail) {
   try {
     const key = one(type).slice(0, 60) || 'error';
     const now = Date.now();
-    await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER)').run();
-    const row = await env.DB.prepare('SELECT at, n FROM ops_alerts WHERE type = ?1').bind(key).first();
-    if (row && now - row.at < GAP_MS) {
-      await env.DB.prepare('UPDATE ops_alerts SET n = n + 1 WHERE type = ?1').bind(key).run();
-      return 'limited';
-    }
-    const more = row && row.n ? ' (' + row.n + ' more since the last alert)' : '';
-    await env.DB.prepare('INSERT INTO ops_alerts (type, at, n) VALUES (?1, ?2, 0) ON CONFLICT(type) DO UPDATE SET at = ?2, n = 0').bind(key, now).run();
+    await ensureAlerts(env);
+    // One statement decides whether this one goes out, so a burst of crashes in the same second is still one push.
+    const row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev) VALUES (?1, ?2, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ?3 THEN prev ELSE n END, n = CASE WHEN ?2 - at < ?3 THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ?3 THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS).first();
+    if (!row || +row.n !== 0) return 'limited';   // held back: n counts the ones since the last push
+    const more = row.prev ? ' (' + row.prev + ' more since the last alert)' : '';
     const title = 'Always Open problem: ' + key;
-    const body = 'What broke: ' + one(detail).slice(0, 600) + more + (who ? '\nClient: ' + one(who).slice(0, 40) : '') + '\nTime: ' + new Date(now).toISOString();
+    const body = 'What broke: ' + scrub(detail).slice(0, 600) + more + (who ? '\nClient: ' + one(who).slice(0, 40) : '') + '\nTime: ' + new Date(now).toISOString();
     const jobs = [];
     if (env.NTFY_URL) jobs.push(fetch(env.NTFY_URL, { method: 'POST', headers: { Title: asc(title), Priority: 'high', Tags: 'warning' }, body }).catch(() => {}));
     if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
@@ -38,9 +50,33 @@ export async function opsAlert(env, type, who, detail) {
   } catch (e) { return 'off'; }
 }
 
-// Runs a background job; if it throws, one alert.
+// Runs a background job; if it throws, one alert. Every run is written down (cron_runs), so /health can tell when the
+// cron itself has stopped, and the ops board can show when each job last ran and how long it took.
+const runsReady = new WeakSet();
+export async function ensureRuns(env) {
+  if (runsReady.has(env.DB)) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS cron_runs (name TEXT PRIMARY KEY, at TEXT, ms INTEGER, ok INTEGER, note TEXT)').run();
+  runsReady.add(env.DB);
+}
+export async function noteRun(env, name, ok, ms, note) {
+  try { await ensureRuns(env); await env.DB.prepare('INSERT OR REPLACE INTO cron_runs (name, at, ms, ok, note) VALUES (?1, ?2, ?3, ?4, ?5)').bind(name, new Date().toISOString(), Math.round(ms || 0), ok ? 1 : 0, one(note).slice(0, 200)).run(); } catch (e) { /* the run still counts */ }
+}
 export function watched(env, name, p) {
-  return Promise.resolve(p).catch(e => opsAlert(env, 'cron:' + name, '', (e && e.message) || e));
+  const t0 = Date.now();
+  return Promise.resolve(p)
+    .then(r => noteRun(env, name, true, Date.now() - t0, '').then(() => r))
+    .catch(e => noteRun(env, name, false, Date.now() - t0, (e && e.message) || e).then(() => opsAlert(env, 'cron:' + name, '', (e && e.message) || e)));
+}
+// The last run of every job, newest first.
+export async function cronRuns(env) {
+  await ensureRuns(env);
+  return ((await env.DB.prepare('SELECT name, at, ms, ok, note FROM cron_runs ORDER BY at DESC').all()).results) || [];
+}
+// How long since the 10-minute cron last finished its tick. Null when it has never run.
+export const CRON_LATE_MS = 25 * 60000;
+export async function cronAge(env, now) {
+  const r = await env.DB.prepare("SELECT at FROM cron_runs WHERE name = 'tick'").first().catch(() => null);
+  return r && r.at ? (now || Date.now()) - Date.parse(r.at) : null;
 }
 
 // What the 10-minute check looks at. Returns [{name, ok, why}]. Secrets are checked for presence only, never printed.
@@ -68,11 +104,60 @@ export async function healthChecks(env) {
 export async function healthCron(env) {
   const res = await healthChecks(env);
   for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why);
+  await noteRun(env, 'tick', true, 0, res.filter(c => !c.ok).map(c => c.name).join(', '));
   return res;
 }
 
-// Owner-only detail for GET /health with the key; the plain answer stays "ok".
-export async function healthDetail(env) {
+// GET /health: "ok" (200) for the outside monitor, or "not ok: ..." (503) when a check fails or the 10-minute cron has
+// not finished in 25 minutes. With the key, the detail: every check and the last run of every job.
+export async function healthStatus(env, now) {
   const res = await healthChecks(env);
-  return { ok: res.every(c => c.ok), checks: res.map(c => ({ name: c.name, ok: c.ok })) };
+  const age = await cronAge(env, now);
+  // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
+  const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };
+  const all = res.concat([cron]);
+  return { ok: all.every(c => c.ok), checks: all, cronAge: age };
+}
+export async function healthDetail(env) {
+  const h = await healthStatus(env);
+  let runs = []; try { runs = await cronRuns(env); } catch (e) { runs = []; }
+  return { ok: h.ok, checks: h.checks.map(c => ({ name: c.name, ok: c.ok })), cronAgeMinutes: h.cronAge == null ? null : Math.round(h.cronAge / 60000), runs };
+}
+
+// ---------- a catch for everything else ----------
+// Any throw that nothing above caught: one row in `errors` (route with ids stripped, the message, when), one alert per
+// route per 15 minutes, and a page that tells the visitor what to do. Never a stack, a key or a customer detail.
+const errReady = new WeakSet();
+export async function ensureErrors(env) {
+  if (errReady.has(env.DB)) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS errors (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, route TEXT, message TEXT, method TEXT)').run();
+  errReady.add(env.DB);
+}
+// /app/LZbZ…/calls -> /app/*/calls, /q/abc123 -> /q/*, /i/9 -> /i/*
+export function routeOf(path) {
+  return String(path || '/').split('/').map((seg, i) => i && seg && (/^[A-Za-z0-9_-]{16,}$/.test(seg) || /^\d+$/.test(seg) || /^[a-f0-9]{24,}$/i.test(seg)) ? '*' : seg).join('/').slice(0, 80) || '/';
+}
+export async function recordError(env, route, method, e) {
+  const message = scrub((e && e.message) || e).slice(0, 300);
+  try { await ensureErrors(env); await env.DB.prepare('INSERT INTO errors (at, route, message, method) VALUES (?1, ?2, ?3, ?4)').bind(new Date().toISOString(), route, message, String(method || '').slice(0, 8)).run(); } catch (x) { /* still alert */ }
+  try { await env.DB.prepare('DELETE FROM errors WHERE id < (SELECT MAX(id) FROM errors) - 500').run(); } catch (x) { /* fine */ }
+  return opsAlert(env, 'crash:' + route, '', message + ' (' + method + ' ' + route + ')');
+}
+export async function recentErrors(env, n) {
+  await ensureErrors(env);
+  return ((await env.DB.prepare('SELECT at, route, message, method FROM errors ORDER BY id DESC LIMIT ?1').bind(n || 50).all()).results) || [];
+}
+const SORRY = 'Something went wrong on our side. Try again in a minute, or call (706) 460-2226.';
+// What the visitor gets while the alert goes out. Twilio gets TwiML so the caller hears a sentence, not a tone.
+export function crashResponse(path, accept) {
+  if (path.startsWith('/voice/')) return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Matthew">Thanks for calling. We can\u2019t take your call right now. Please call back in a few minutes.</Say><Hangup/></Response>', { status: 200, headers: { 'content-type': 'text/xml' } });
+  if (path.startsWith('/api/') || path.startsWith('/audit/') || path.startsWith('/stripe/') || path.startsWith('/meta/') || /application\/json/.test(accept || '')) return new Response(JSON.stringify({ ok: false, error: SORRY }), { status: 500, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Always Open</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#12151D;color:#EEF0F4;font:17px/1.5 system-ui,sans-serif;padding:24px}main{max-width:28em}h1{font-size:1.6rem;margin:0 0 10px}a{color:#FF6A5E}</style></head><body><main><h1>Something went wrong on our side.</h1><p>Try again in a minute. If it keeps happening, call <a href="tel:+17064602226">(706) 460-2226</a> and Max will take your details.</p></main></body></html>', { status: 500, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+}
+export function crashed(req, env, ctx, e) {
+  let path = '/'; try { path = new URL(req.url).pathname; } catch (x) { path = '/'; }
+  const route = routeOf(path);
+  const p = recordError(env, route, req.method, e).catch(() => {});
+  if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+  return crashResponse(path, req.headers && req.headers.get('accept'));
 }

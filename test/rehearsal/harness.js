@@ -20,7 +20,7 @@ globalThis.setTimeout = (fn, ms, ...a) => { const t = realSetTimeout(fn, ms, ...
 export function makeDB(schemaFile) {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(schemaFile || join(ROOT, 'test', 'fixtures', 'schema.sql'), 'utf8'));
-  const isRead = sql => /^\s*(select|with|pragma|explain)/i.test(sql);
+  const isRead = sql => /^\s*(select|with|pragma|explain)/i.test(sql) || /\bRETURNING\b/i.test(sql);   // D1 answers rows for RETURNING too
   const clean = args => args.map(v => {
     if (v === undefined) throw new Error('D1_TYPE_ERROR: Type \'undefined\' not supported for value \'undefined\'');
     if (typeof v === 'boolean') return v ? 1 : 0;

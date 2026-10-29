@@ -6,7 +6,7 @@ import { ensureReviews } from './reviews.js';
 import { seedDemo } from './demo.js';
 import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
-import { opsAlert, watched, healthCron, healthDetail } from './ops.js';
+import { opsAlert, watched, healthCron, healthDetail, healthStatus, crashed } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { handleApp, aasa, photoGet, audioGet, appCron, handleQuote, handleLocations, opsPing } from './app.js';
 import { handleVoice, voiceCron, CallRoom } from './voice.js';
@@ -44,14 +44,16 @@ const LIMITS = { name: 80, email: 120, phone: 40, business: 120, town: 80, type:
 const EMAIL_RE = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 let migrated = false;
 
-export default {
-  async fetch(req, env, ctx) {
+// Every request. Anything that throws in here lands in `crashed` (ops.js): one alert, one row, a readable page.
+async function serve(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname;
     if (path === '/health') {
       const k = req.headers.get('x-key') || '';
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);
-      return new Response('ok', { headers: { 'cache-control': 'no-store' } });
+      // The outside monitor reads this: 200 "ok", or 503 naming the failed checks (no details that could help an attacker).
+      let h; try { h = await healthStatus(env); } catch (e) { h = { ok: false, checks: [{ name: 'health', ok: false }] }; }
+      return new Response(h.ok ? 'ok' : 'not ok: ' + h.checks.filter(c => !c.ok).map(c => c.name).join(', '), { status: h.ok ? 200 : 503, headers: { 'cache-control': 'no-store' } });
     }
     if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack') return handleOpsBoard(req, env, url);
     if (path === '/api/map') return handleMapApi(req, env, url, ctx);
@@ -61,7 +63,8 @@ export default {
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return json({ ok: false, error: 'Twilio keys missing' }, 400);
       const auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), base = 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID;
-      const nums = ((await env.DB.prepare('SELECT number, business FROM voice_lines').all()).results) || [];
+      const nums = ((await env.DB.prepare('SELECT number, business, transfer_to FROM voice_lines').all()).results) || [];
+      const { fallbackUrl } = await import('./provision.js');
       const out = [];
       for (const n of nums) {
         const row = { number: n.number, business: n.business || '' };
@@ -70,8 +73,8 @@ export default {
           const pn = l.incoming_phone_numbers && l.incoming_phone_numbers[0];
           if (!pn) { row.result = 'not in this Twilio account'; out.push(row); continue; }
           const u = await fetch(base + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ SmsUrl: 'https://alwaysopenoffice.com/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST' }).toString() });
-          row.webhook = u.ok ? 'set' : 'failed ' + u.status;
+            body: new URLSearchParams({ SmsUrl: 'https://alwaysopenoffice.com/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST', VoiceUrl: 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY, VoiceMethod: 'POST', VoiceFallbackUrl: fallbackUrl(n.business, n.transfer_to), VoiceFallbackMethod: 'GET' }).toString() });
+          row.webhook = u.ok ? 'set (with the fallback message)' : 'failed ' + u.status;
           const own = await env.DB.prepare('SELECT client_id FROM voice_lines WHERE number = ?1').bind(n.number).first();
           const brand = own && own.client_id === 'always-open' ? { messaging_sid: env.TWILIO_MESSAGING_SID } : await env.DB.prepare("SELECT messaging_sid FROM sms_brands WHERE client_id = ?1 AND status = 'approved'").bind(own && own.client_id).first().catch(() => null);
           if (!brand || !brand.messaging_sid) row.senderPool = 'waiting for this business to have its own texting registration';
@@ -164,7 +167,8 @@ export default {
     if (path === '/ops/deploy-failed') {
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
-      const r = await opsAlert(env, 'deploy', '', 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
+      let why = ''; try { why = String((await req.json()).why || '').slice(0, 300); } catch (e) { why = ''; }
+      const r = await opsAlert(env, 'deploy', '', why ? 'A deploy was rolled back because the live check failed: ' + why + '. The site is on the previous version. Open the Actions tab of christophergates88/alwaysopen to see why.' : 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
       return json({ ok: true, alert: r }, 200);
     }
     if (path === '/lead') {
@@ -206,6 +210,11 @@ export default {
     let page = res;
     try { page = rewritePage(res, await launchState(env)); } catch (e) { page = res; }
     return withSiteHeaders(page, url);
+}
+
+export default {
+  async fetch(req, env, ctx) {
+    try { return await serve(req, env, ctx); } catch (e) { return crashed(req, env, ctx, e); }
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {

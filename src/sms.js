@@ -9,7 +9,7 @@ const STOP_RE = /^\s*(stop|stopall|unsubscribe|cancel|end|quit|no more|don'?t te
 const START_RE = /^\s*(start|unstop|yes|resume)\b/i;
 const HELP_RE = /^\s*(help|info)\b/i;
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
-const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking']);   // answers to someone who just called or texted
+const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway']);   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
 
 export function textingReady(env) { return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN); }
 

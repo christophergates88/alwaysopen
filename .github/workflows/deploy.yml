@@ -8,7 +8,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with: { node-version: 22 }
+      - name: Run the tests
+        run: node --test test/*.test.js
       - name: Check the site on phones
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.56.0
@@ -18,6 +20,31 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx -y wrangler@4 deploy || npx -y wrangler@4 deploy --config wrangler.noemail.toml
+      - name: Check the live site, and roll back if it is not healthy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+        run: |
+          sleep 20
+          bad=""
+          for i in 1 2 3; do
+            bad=""
+            h=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" https://alwaysopenoffice.com/health || echo 000)
+            [ "$h" = "200" ] || bad="health answered $h"
+            for p in "/|Your business" "/insurance|Compliance Guard" "/app/LZbZROIqlA85xuGEgarAuKRRO3IuO1En|Demo Plumbing"; do
+              url="${p%%|*}"; want="${p#*|}"
+              body=$(curl -sS -m 20 "https://alwaysopenoffice.com$url" || true)
+              echo "$body" | grep -q "$want" || bad="$bad; $url missing '$want'"
+            done
+            [ -z "$bad" ] && break
+            sleep 15
+          done
+          if [ -n "$bad" ]; then
+            echo "Live check failed: $bad"
+            npx -y wrangler@4 rollback --message "Rolled back by the deploy check: $bad" --yes || true
+            if [ -n "$OPS_KEY" ]; then curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"why\":\"$(echo "$bad" | tr -d '"' | cut -c1-300)\"}" https://alwaysopenoffice.com/ops/deploy-failed || true; fi
+            exit 1
+          fi
       - name: Tell Christopher if the deploy failed
         if: failure()
         env:

@@ -258,6 +258,14 @@ export class CallRoom extends DurableObject {
   out(o) { const ws = this.ctx.getWebSockets()[0]; if (ws) { try { ws.send(JSON.stringify(o)); } catch (e) { /* the caller hung up */ } } }
 
   async webSocketMessage(ws, raw) {
+    try { return await this.onMessage(ws, raw); } catch (e) { await this.crash('message', e); }
+  }
+  async crash(where, e) {
+    try { const { recordError } = await import('./ops.js'); await recordError(this.env, '/voice/room/' + where, 'WS', e); } catch (x) { /* nothing more to do */ }
+    // The caller hears a sentence instead of silence, and the call is written up as failed so the owner is told.
+    try { const s = await this.load(); if (s && !s.done) await this.sayAndEnd(s, s.lang === 'es-US' ? 'Disculpe, tuvimos un problema. Por favor vuelva a llamar en unos minutos.' : 'Sorry, something went wrong on our end. Please call back in a few minutes.'); } catch (x) { /* the alarm cleans up */ }
+  }
+  async onMessage(ws, raw) {
     let m;
     try { m = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw)); } catch (e) { return; }
     if (!m || typeof m !== 'object') return;
@@ -731,6 +739,9 @@ export class CallRoom extends DurableObject {
   }
 
   async alarm() {
+    try { return await this.onAlarm(); } catch (e) { await this.crash('alarm', e); }
+  }
+  async onAlarm() {
     const s = await this.load();
     if (!s || s.done) return;
     const now = Date.now();

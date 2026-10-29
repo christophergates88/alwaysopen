@@ -35,6 +35,16 @@ export function industryOf(business, type) {
 }
 
 // Where to look for a number, nearest first.
+// What a caller hears if our webhook ever fails: a sentence, not Twilio's error tone. It is TwiML served by Twilio's
+// own echo service (twimlets.com), so it works when we are down. With a transfer number, the call rings there first.
+export function fallbackTwiml(business, transferTo) {
+  const biz = String(business || '').replace(/[<>&"]/g, '').slice(0, 60);
+  const to = /^\+1\d{10}$/.test(transferTo || '') ? transferTo : '';
+  const sorry = 'Thanks for calling' + (biz ? ' ' + biz : '') + '. We can’t take your call right now. Please call back in a few minutes.';
+  return '<Response>' + (to ? '<Dial timeout="20">' + to + '</Dial>' : '') + '<Say voice="Polly.Matthew">' + sorry + '</Say><Hangup/></Response>';
+}
+export function fallbackUrl(business, transferTo) { return 'https://twimlets.com/echo?Twiml=' + encodeURIComponent(fallbackTwiml(business, transferTo)); }
+
 export function searches(phone, town) {
   const d = ph10(phone), st = stateOf(town), out = [];
   if (d) out.push('AreaCode=' + d.slice(0, 3));
@@ -90,6 +100,7 @@ export async function provisionLine(env, cid) {
       const r = await tw(env, 'POST', '/IncomingPhoneNumbers.json', {
         PhoneNumber: num, FriendlyName: ('Always Open: ' + business).slice(0, 64),
         VoiceUrl: SITE + '/voice/in/' + env.VOICE_KEY, VoiceMethod: 'POST', StatusCallback: SITE + '/voice/status/' + env.VOICE_KEY, StatusCallbackMethod: 'POST',
+        VoiceFallbackUrl: fallbackUrl(business, (c && c.phone) || ''), VoiceFallbackMethod: 'GET',
         SmsUrl: SITE + '/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST'
       });
       if (r.ok && r.j.sid) { bought = { number: r.j.phone_number || num, sid: r.j.sid }; break; }

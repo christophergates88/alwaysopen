@@ -89,6 +89,15 @@ export async function boardItems(env) {
     ['Competitor lookups (Google Places)', env.PLACES_KEY ? 'key is set' : 'key not set']
   ];
   for (const [n, st] of sys) items.push({ key: 'sys:' + n + ':' + st, group: 'Status of what you are waiting on', title: n, detail: st });
+  // The Worker's own jobs: when each last ran and how long it took. Late or failed ones show first.
+  try {
+    const { cronRuns, CRON_LATE_MS } = await import('./ops.js');
+    const runs = await cronRuns(env), now = Date.now();
+    const ageText = at => { const m = Math.round((now - Date.parse(at)) / 60000); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+    const worst = runs.filter(r => !r.ok || (r.name === 'tick' && now - Date.parse(r.at) > CRON_LATE_MS));
+    const line = runs.length ? runs.length + ' jobs. ' + (worst.length ? 'Needs a look: ' + worst.map(r => r.name + (r.ok ? ' (late)' : ' (failed: ' + (r.note || 'error') + ')')).join(', ') : 'All ran. ') + 'Last tick ' + (runs.find(r => r.name === 'tick') ? ageText(runs.find(r => r.name === 'tick').at) : 'never') + '. ' + runs.map(r => r.name + ' ' + ageText(r.at) + ' ' + r.ms + 'ms').join(' · ') : 'no runs recorded yet';
+    items.push({ key: 'sys:cron:' + (worst.length ? 'bad' : 'ok'), group: 'Status of what you are waiting on', title: 'Worker jobs', detail: line });
+  } catch (e) { /* the board stands without it */ }
   const done = new Set((await all(env, 'SELECT k FROM ops_done LIMIT 2000')).map(r => r.k));
   return items.filter(x => !done.has(x.key));
 }
