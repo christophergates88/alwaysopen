@@ -79,7 +79,14 @@ export async function boardItems(env) {
   if (!gst.on && (gst.state === 'needs_connect' || !gst.state) && !(await (await import('./gbp.js')).connected(env).catch(() => false))) {
     items.push({ key: 'gbp-connect', group: 'One tap so the worker can watch Google', title: 'Connect Always Open’s Google account', detail: 'Open https://alwaysopenoffice.com/google/gbp-hq?t=' + (await boardToken(env)) + ' and sign in as hello@alwaysopenoffice.com (the account clients invite as Manager). The worker then checks every hour and turns everything on by itself the day Google approves' });
   }
+  let socialLine = 'not read';
+  try {
+    const S = await import('./social.js');
+    if (metaReady(env) && !(await S.connected(env))) items.push({ key: 'fb-connect', group: 'One tap so Always Open posts on its own', title: 'Connect Always Open’s Facebook Page', detail: 'Open https://alwaysopenoffice.com/meta/connect?hq=' + (await boardToken(env)) + ', sign in to Facebook as yourself, and pick the Always Open Page (and its Instagram). Three posts a week go up on their own after that.' });
+    socialLine = await S.socialLine(env);
+  } catch (e) { /* the board stands without it */ }
   const sys = [
+    ['Always Open’s own Facebook and Instagram', socialLine],
     ['Always Open check (reviews and leads)', await (await import('./funding.js')).checkRunLine(env)],
     ['Twilio balance', await fundingStateLine(env)],
     ['Map preview (private link)', 'https://alwaysopenoffice.com/map?preview=' + (await previewKey(env))],

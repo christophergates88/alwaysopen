@@ -8,6 +8,7 @@ const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const META_REDIRECT = SITE + '/meta/callback';
 const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,instagram_basic,instagram_content_publish,business_management';
+const HQ = 'always-open';   // Always Open's own Page (social.js)
 export { TEXTING_ON } from './sms.js';
 import { TEXTING_ON, sendText } from './sms.js';
 
@@ -213,6 +214,14 @@ export async function handleMeta(req, env, url) {
   if (!metaReady(env)) return msg('Coming soon', 'Facebook and Instagram posting is coming soon.', 404);
   await ensureMeta(env);
   const p = url.pathname;
+  // Always Open's own Page connects from the ops board link (?hq=<board token>) and works before Meta's review, because
+  // Christopher is an admin of the app. Owners' Pages wait for the review.
+  const hq = url.searchParams.get('hq') || '';
+  if (p === '/meta/connect' && hq) {
+    if (!(await (await import('./opsboard.js')).boardOk(env, hq))) return msg('Link not valid', 'Open the link from the ops board or the push on your phone.', 403);
+    const ts = String(Date.now()), state = HQ + '.' + ts + '.' + await hmac(env, HQ + '.' + ts);
+    return Response.redirect('https://www.facebook.com/v21.0/dialog/oauth?' + new URLSearchParams({ client_id: env.META_APP_ID, redirect_uri: META_REDIRECT, state, scope: META_SCOPES, response_type: 'code' }), 302);
+  }
   if (p === '/meta/connect' && !(await metaLive(env))) return msg('Coming soon', 'Facebook and Instagram posting is coming soon. We’ll let you know in the app the day it’s ready.', 404);
   if (p === '/meta/connect') {
     const code = url.searchParams.get('code') || '';
@@ -235,6 +244,7 @@ export async function handleMeta(req, env, url) {
       .bind(st[0], pg.id, pg.name || '', pg.access_token, (pg.instagram_business_account || {}).id || '', new Date().toISOString()).run();
     // Page messages come to the shared inbox in the app (replies only when someone taps Send).
     await fetch(GRAPH + '/' + pg.id + '/subscribed_apps', { method: 'POST', body: new URLSearchParams({ subscribed_fields: 'messages', access_token: pg.access_token }) }).catch(() => {});
+    if (st[0] === HQ) return msg('Facebook connected', 'Always Open’s posts will go to ' + esc(pg.name || 'the Page') + ((pg.instagram_business_account) ? ' and its Instagram' : ' (no Instagram business account is linked to that Page yet)') + ' on Monday, Wednesday and Friday mornings. Nothing else to do.');
     return msg('Facebook connected', 'Approved posts will now go to ' + esc(pg.name || 'your Page') + ((pg.instagram_business_account) ? ' and your Instagram' : '') + '. Nothing posts until you approve it in the app.');
   }
   if (p === '/meta/disconnect' && req.method === 'POST') {
@@ -246,20 +256,21 @@ export async function handleMeta(req, env, url) {
   }
   return new Response('Not found', { status: 404 });
 }
-// Only called after the owner approves a post that has a photo.
+// Only called after the owner approves a post that has a photo (or by social.js for Always Open's own Page).
 export async function metaPublish(env, cid, text, photoUrl) {
-  if (!photoUrl || !(await metaLive(env))) return 'off';
+  if (!photoUrl || !(cid === HQ ? metaReady(env) : await metaLive(env))) return 'off';
   await ensureMeta(env);
   const m = await env.DB.prepare('SELECT * FROM meta_pages WHERE client_id = ?1').bind(cid).first();
   if (!m) return 'off';
   const out = [];
   const post = async (path, params) => { const r = await fetch(GRAPH + path, { method: 'POST', body: new URLSearchParams(Object.assign({ access_token: m.page_token }, params)) }); return r.json().catch(() => ({})); };
+  const why = j => ' (' + String((j && j.error && j.error.message) || 'no id back').slice(0, 120) + ')';
   const fb = await post('/' + m.page_id + '/photos', { url: photoUrl, caption: text });
-  out.push('fb:' + (fb.id ? 'ok' : 'fail'));
+  out.push('fb:' + (fb.id ? 'ok' : 'fail' + why(fb)));
   if (m.ig_id) {
     const cr = await post('/' + m.ig_id + '/media', { image_url: photoUrl, caption: text });
     const pub = cr.id ? await post('/' + m.ig_id + '/media_publish', { creation_id: cr.id }) : {};
-    out.push('ig:' + (pub.id ? 'ok' : 'fail'));
+    out.push('ig:' + (pub.id ? 'ok' : 'fail' + why(cr.id ? pub : cr)));
   }
   return out.join(',');
 }

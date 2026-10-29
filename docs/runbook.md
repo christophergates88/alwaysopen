@@ -58,9 +58,24 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `stripe-webhook`, `stripe-checkout` | Stripe calls failing | Stripe dashboard, Webhooks, recent deliveries |
 | `minutes-invoice` | An overage could not be billed | The business has no Stripe customer; bill by hand |
 | `mail-send` | An email could not be sent | Email Routing in Cloudflare for `alwaysopenoffice.com` |
+| `social` | Today’s Always Open Facebook post did not go up | The ops board line for Facebook; reconnect the Page from the board link if the token died; `POST /ops/social-post` with the key puts it up now |
+| `photo-post` | A client’s photo could not be turned into a post after 3 tries | Open the photo link in the alert and write the post by hand in HQ |
 
 Problems arrive once per kind every 15 minutes with a count of the ones held back. A 7 AM push says "all good"
 every morning; if it does not arrive, that is itself the alarm, and the outside monitor backs it up.
+
+## Facebook and Instagram
+
+Two separate things share one Meta app:
+
+- **Always Open’s own Page and Instagram** post on their own: Monday, Wednesday and Friday in the 10 AM hour, a branded
+  card from `public/social` and a caption Claude writes from the week’s real numbers (`src/social.js`). Connected once
+  from the ops board link (`/meta/connect?hq=...`); this works before Meta’s review because you are an admin of the app.
+  Messages to the Page come to your phone. The cards are remade with `node tools/social/make.mjs`.
+- **Clients’ Pages** wait for Meta’s app review (`launch.js` checks hourly and flips the switch; the website drops its
+  “Coming soon” labels by itself). Once on, owners connect their Page in the app and every approved photo post goes
+  to Google, Facebook and Instagram. A photo an owner sends becomes a drafted post within ten minutes (`src/posts.js`);
+  with Full Max’s “Posts from your photos” switch on, it goes without the tap.
 
 ## How to roll back a deploy
 

@@ -12,8 +12,8 @@ const approveRevive = async (...a) => (await import('./past.js')).approveRevive(
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 const textingOn = async () => (await import('./sms.js')).TEXTING_ON;
 
-export const CATS = ['reminders', 'reviewreq', 'past'];   // invoice reminders, review requests, past-customer messages
-export const CAT_LABELS = { reminders: 'Invoice reminders', reviewreq: 'Review requests', past: 'Past-customer messages' };
+export const CATS = ['reminders', 'reviewreq', 'past', 'posts'];   // invoice reminders, review requests, past-customer messages, posts from photos
+export const CAT_LABELS = { reminders: 'Invoice reminders', reviewreq: 'Review requests', past: 'Past-customer messages', posts: 'Posts from your photos' };
 const DEFAULT_DAILY = 20, DEFAULT_GAP_DAYS = 7;
 // Never automatic, whatever the switches say.
 const SENSITIVE_RE = /\b(refund|chargeback|dispute|lawyer|attorney|sue|lawsuit|court|complaint|unhappy|angry|furious|terrible|worst|scam|fraud|damage|injur|hurt|unsafe|police|threat)\w*/i;
@@ -95,13 +95,13 @@ export async function fullMaxCron(env) {
     const gap = new Date(Date.now() - (+f.gap_days || DEFAULT_GAP_DAYS) * 864e5).toISOString();
     const recent = new Set((((await env.DB.prepare("SELECT ref FROM fullmax_log WHERE client_id = ?1 AND at > ?2 AND result = 'sent'").bind(f.client_id, gap).all()).results) || []).map(r => String(r.ref || '').split('|')[1] || ''));
     const log = async (cat, ref, result) => env.DB.prepare('INSERT INTO fullmax_log (client_id, at, cat, ref, who, result) VALUES (?1,?2,?3,?4,?5,?6)').bind(f.client_id, new Date().toISOString(), cat, ref, 'Max', result).run();
-    // Items: invoice reminders and review requests.
-    const kinds = []; if (cats.reminders) kinds.push('invoice'); if (cats.reviewreq) kinds.push('reviewreq');
+    // Items: invoice reminders, review requests and posts from photos (a post has no customer, so the gap rule skips it).
+    const kinds = []; if (cats.reminders) kinds.push('invoice'); if (cats.reviewreq) kinds.push('reviewreq'); if (cats.posts) kinds.push('post');
     if (kinds.length && left > 0) {
       const items = ((await env.DB.prepare("SELECT * FROM app_items WHERE client_id = ?1 AND status = 'pending' AND kind IN (" + kinds.map(() => '?').join(',') + ") ORDER BY created LIMIT 30").bind(f.client_id, ...kinds).all()).results) || [];
       for (const it of items) {
         if (left <= 0) break;
-        const cat = it.kind === 'invoice' ? 'reminders' : 'reviewreq', ck = await customerKey(it);
+        const cat = it.kind === 'invoice' ? 'reminders' : (it.kind === 'post' ? 'posts' : 'reviewreq'), ck = it.kind === 'post' ? '' : await customerKey(it);
         if (sensitive(it)) { held++; continue; }
         if (ck && recent.has(ck)) { held++; continue; }
         const hits = await guard(String(it.text || ''), c, it.kind);

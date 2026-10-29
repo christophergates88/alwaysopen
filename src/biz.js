@@ -517,6 +517,8 @@ export async function metaWebhook(req, env, ctx, url) {
       const psid = String(m.sender.id), text = cl(m.message.text || (m.message.attachments ? '[photo or file]' : ''), 2000);
       let name = '';
       try { const u = await (await fetch(GRAPH + '/' + psid + '?fields=name&access_token=' + encodeURIComponent(pg.page_token))).json(); name = cl(u.name, 80); } catch (e) {}
+      // A message to Always Open's own Page goes to Christopher's phone; answer it in Facebook.
+      if (pg.client_id === 'always-open') { ctx.waitUntil((async () => (await import('./app.js')).opsPing(env, 'Facebook message to Always Open' + (name ? ' from ' + name : ''), text.slice(0, 300), 'high', 'speech_balloon', 'https://www.facebook.com/messages/'))().catch(() => {})); continue; }
       const ins = await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, status, ext_id) VALUES (?1,'facebook',?2,?3,?4,'in',?5,'new',?6)")
         .bind(pg.client_id, psid, name, text, new Date(+m.timestamp || Date.now()).toISOString(), String(m.message.mid || token(16))).run();
       if (ins.meta && ins.meta.changes) ctx.waitUntil(pushClient(env, pg.client_id, { aps: { alert: { title: 'Facebook message' + (name ? ' from ' + name : ''), body: text.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'home' }).catch(() => {}));

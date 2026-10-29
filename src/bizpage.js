@@ -77,7 +77,7 @@ function setBlock(){
     if(!F.on)h+='<p class="note" style="margin:0">Off. Everything is a draft until you approve it. Turn it on and the categories you pick send on their own, only when Compliance Guard passes them.</p><div class="acts" style="margin-top:8px"><button class="btn line sm" type="button" data-a="fm-agree">Turn Full Max on</button></div>';
     else{
       h+='<p class="note" style="margin:0">'+(F.paused?'<b>Paused.</b> Nothing sends on its own until you resume.':'On. Sent on its own in the last day: '+F.sentToday+'. Daily cap '+F.dailyCap+', one message per customer per '+F.gapDays+' days.')+'</p>';
-      ['reminders','reviewreq','past'].forEach(function(k){h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:6px"><input type="checkbox" data-fm="'+k+'"'+(F.cats[k]?' checked':'')+(F.paused?' disabled':'')+'> <span>'+esc(F.labels[k])+'</span></label>';});
+      Object.keys(F.labels||{}).forEach(function(k){h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:6px"><input type="checkbox" data-fm="'+k+'"'+(F.cats[k]?' checked':'')+(F.paused?' disabled':'')+'> <span>'+esc(F.labels[k])+'</span></label>';});
       h+='<p class="note" style="margin:6px 0 0">Always waits for you: review replies, anything about money disputes, a first message to an upset customer, anything Compliance Guard flags.</p>';
       h+='<div class="acts" style="margin-top:8px;gap:8px;flex-wrap:wrap">'+(F.paused?'<button class="btn sm" type="button" data-a="fm-resume">Resume</button>':'<button class="btn red sm" type="button" data-a="fm-pause">Pause everything</button>')+'<button class="btn ghost sm" type="button" data-a="fm-off">Turn Full Max off</button></div>';
     }
