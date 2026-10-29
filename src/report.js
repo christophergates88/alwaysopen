@@ -3,6 +3,7 @@
 // Google's own numbers (calls, direction requests, website clicks) are filled in when the app reads it (gbp.mergeMonths).
 // A complete record HQ already wrote for that month is kept as it is; a partial one written mid-month is replaced.
 // The owner gets one push when it's ready.
+import { reportLine } from './money.js';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const PER_PASS = 10;
 
@@ -63,7 +64,10 @@ export function buildMonth(c, m, rows, prevStats, now) {
   const ps = posts.map(p => ({ d: day(p.decided_at || p.created), head: 'Google post' + (p.title ? ' · ' + clip(p.title, 60) : ''), t: clip(p.decided_text || p.text, 600), by: p.decided_by ? 'Approved by ' + p.decided_by : '' }));
   const calls = +rows.calls || 0;
   const bits = [];
-  if (calls) bits.push('Max answered ' + calls + (calls === 1 ? ' call.' : ' calls.'));
+  // What Max caught after hours leads the note, in the same words as the app's card (money.js).
+  const mline = rows.money && rows.money.afterHoursCalls ? reportLine(rows.money) : '';
+  if (mline) { bits.push(mline); stats.caught = rows.money.mid || 0; stats.afterHours = rows.money.afterHoursCalls; }
+  if (calls) bits.push((mline ? 'In all, Max answered ' : 'Max answered ') + calls + (calls === 1 ? ' call.' : ' calls.'));
   if (reviews.length) bits.push(reviews.length + (reviews.length === 1 ? ' new review' : ' new reviews') + (replied.length === reviews.length ? ', every one with a reply.' : ', ' + replied.length + ' with a reply so far.'));
   if (posts.length) bits.push(posts.length + (posts.length === 1 ? ' post went up.' : ' posts went up.'));
   return {
@@ -80,7 +84,9 @@ async function oneClient(env, c, m, now) {
   const calls = (await all("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND at >= ?2 AND at < ?3 AND test = 0 AND outcome NOT IN ('live', 'spam')", c.client_id, m.start, m.end))[0];
   const prevRow = await env.DB.prepare('SELECT data FROM app_months WHERE client_id = ?1 AND month = ?2').bind(c.client_id, m.prevKey).first().catch(() => null);
   let prev = null; try { const p = JSON.parse((prevRow && prevRow.data) || 'null'); prev = p && p.stats ? Object.assign({}, p.stats, { label: p.label || '' }) : null; } catch (e) {}
-  const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n }, prev, now);
+  let money = null;
+  try { money = await (await import('./money.js')).caughtFor(env, c.client_id, Date.parse(m.start) + 15 * 864e5); } catch (e) { money = null; }
+  const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n, money }, prev, now);
   const json = JSON.stringify(data);
   await env.DB.prepare('INSERT OR REPLACE INTO app_months (client_id, month, data, hash, updated) VALUES (?1, ?2, ?3, ?4, ?5)').bind(c.client_id, m.key, json, 'auto:' + json.length, new Date(now).toISOString()).run();
   return data;
@@ -103,7 +109,7 @@ export async function monthReportCron(env, at) {
     made++;
     await done(c.client_id, hasNews(data) ? 'made' : 'made, quiet month');
     if (!hasNews(data)) continue;
-    try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
+    try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: (data.stats && data.stats.afterHours ? data.note.split('. ')[0].replace(/\.$/, '') + '. ' : '') + 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
   }
   return { made, month: m.key };
 }

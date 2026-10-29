@@ -69,6 +69,16 @@ export async function boardItems(env) {
     for (const r of lost) { (by[r.client_id] = by[r.client_id] || { biz: r.biz, parts: [], total: 0 }).parts.push(+r.n + ' ' + (LOST_LABELS[r.reason] || r.reason)); by[r.client_id].total += +r.n; }
     for (const k in by) items.push({ key: 'lost:' + k + ':' + by[k].total, group: 'Why callers walked (last 30 days)', title: by[k].biz, detail: by[k].parts.join(', ') });
   } catch (e) {}
+  // What Max caught after hours this month, per client: who is winning before the renewal call (money.js, same figures as the app).
+  try {
+    const M = await import('./money.js');
+    const lines = await all(env, "SELECT DISTINCT l.client_id, COALESCE(c.business, l.client_id) AS biz FROM voice_lines l JOIN app_clients c ON c.client_id = l.client_id WHERE c.active = 1 AND l.client_id NOT IN ('demo-plumbing', 'always-open') LIMIT 60");
+    for (const l of lines) {
+      const m = await M.caughtFor(env, l.client_id, Date.now());
+      if (!m.afterHoursCalls) continue;
+      items.push({ key: 'caught:' + l.client_id + ':' + m.month, group: 'What Max caught after hours this month', title: l.biz, detail: m.explained });
+    }
+  } catch (e) { /* the board stands without it */ }
   try {
     const regs = await all(env, "SELECT r.client_id, COALESCE(c.business, r.client_id) AS biz, r.status, r.step, r.error, r.updated FROM a2p_reg r LEFT JOIN app_clients c ON c.client_id = r.client_id WHERE r.status != 'approved' ORDER BY r.updated DESC LIMIT 40");
     const say = { submitted: 'sent, starting', in_review: 'with Twilio and the carriers', needs_fix: 'needs a fix from the owner', needs_help: 'no EIN: register as a sole proprietor by hand in Twilio', failed: 'stuck, look in Twilio' };

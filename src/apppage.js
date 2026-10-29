@@ -148,6 +148,9 @@ a.btn{color:inherit}
 .cblist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}.cbrow{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.cbrow .fine{display:block}.cbrow .acts{display:flex;flex-wrap:wrap;gap:8px}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
+.money{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:8px}.money.on{border-color:rgba(255,106,94,.55);box-shadow:var(--glow)}
+.money .mh{font:600 13px var(--mono);color:var(--slate);margin:0}.money .mv{font:850 2.4rem/1 var(--display);font-stretch:92%;color:var(--sign);margin:2px 0 0}.money .mv small{font:600 15px var(--body);color:var(--slate);margin-left:6px}
+.money .mr{color:var(--slate);font-size:14px;margin:0}.money details summary{cursor:pointer;color:var(--slate);font-size:14px;min-height:44px;display:flex;align-items:center}.money details p{margin:0 0 6px;font-size:14px}
 .feature p{margin:0;color:var(--slate);font-size:15px}
 .recs{display:grid;gap:10px}
 .rec{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;text-decoration:none;color:inherit}
@@ -378,7 +381,7 @@ function vHome(){
     h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  h+=install()+flCard()+bizTop()+liveCard()+heroCard();
+  h+=install()+flCard()+bizTop()+liveCard()+heroCard()+moneyCard();
   var att=[];
   if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
   if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
@@ -469,6 +472,24 @@ function liveCard(){
   return L.map(function(c){var secs=Math.max(0,Math.round((Date.now()-Date.parse(c.at))/1000)),mm=Math.floor(secs/60),ss=secs%60;
     return '<div class="live" aria-live="polite"><div class="lh"><span class="dot"></span>'+esc(S.line?S.line.name:'Max')+' is on a call'+(c.name?' with '+esc(c.name):'')+'</div><div class="ln">'+esc(c.numberText||'Unknown number')+' \\u00b7 '+mm+':'+(ss<10?'0':'')+ss+(c.turns?' \\u00b7 '+c.turns+(c.turns===1?' turn':' turns'):'')+'</div>'+
       (c.heard||c.said?'<div class="lq">'+(c.heard?'<span class="u">'+esc(c.heard)+'</span>':'')+(c.said?'<span class="a">'+esc(c.said)+'</span>':'')+'</div>':'<div class="ln">Connecting\\u2026</div>')+'</div>';}).join('');
+}
+// What Max caught this month: after-hours calls that became leads, at the owner's own numbers, with the arithmetic shown.
+function moneyCard(){
+  var M=S.money;if(!M||!M.thisMonth)return '';
+  var m=M.thisMonth,p=M.lastMonth||{},own=isOwner();
+  var d=function(n){return '$'+Math.round(+n||0).toLocaleString('en-US');};
+  var big=m.avgJob&&m.mid?'<p class="mv">about '+d(m.mid)+'<small>caught after hours</small></p><p class="mr">Between '+d(m.low)+' and '+d(m.high)+' at your numbers.</p>':'<p class="mv">'+(+m.leads||0)+'<small>'+((+m.leads||0)===1?'lead':'leads')+' from after-hours calls</small></p>';
+  var last=p.afterHoursCalls?'<p class="fine">'+esc(p.label||'Last month')+': '+(p.avgJob&&p.mid?'about '+d(p.mid)+' from '+p.leads+(p.leads===1?' lead':' leads'):p.leads+(p.leads===1?' lead':' leads')+' from '+p.afterHoursCalls+' after-hours '+(p.afterHoursCalls===1?'call':'calls'))+'.</p>':'';
+  return '<div class="money'+(m.avgJob&&m.mid?' on':'')+'"><p class="mh">What '+esc(S.line?S.line.name:'Max')+' caught in '+esc(String(m.label||'').split(' ')[0]||'this month')+'</p>'+big+
+    '<details><summary>How this is figured</summary><p>'+esc(m.explained||'')+'</p><p class="fine">After hours means evenings, nights and weekends in your own time. It is an estimate from your numbers, not a promise.</p></details>'+last+
+    (own?'<div class="acts"><button class="btn '+(m.avgJob?'ghost':'line')+' sm" type="button" data-a="money-set">'+(m.avgJob?'Change my numbers':'Set my average job')+'</button></div>':'')+'</div>';
+}
+function moneySheet(){
+  var m=(S.money||{}).thisMonth||{};
+  sheet('<h2>Your numbers</h2><p class="fine">Only you see these. We use them to show what your calls are worth.</p><label>Average job, in dollars<input type="text" inputmode="numeric" id="mj" value="'+(m.avgJob?esc(m.avgJob):'')+'" placeholder="380"></label>'+
+    '<label>Out of every 10 leads, how many become a job?<select id="mw">'+[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<option value="'+(n*10)+'"'+(Math.round((m.winRate||30)/10)===n?' selected':'')+'>'+n+' of 10</option>';}).join('')+'</select></label>'+
+    '<div class="acts"><button class="btn ok" type="button" id="go">Save</button><button class="btn line" type="button" data-close="1">Cancel</button></div>');
+  $('#go').onclick=function(){var avg=parseInt(String($('#mj').value).replace(/[^0-9]/g,''),10)||0;if(!avg){toast('Type your average job in dollars.');return;}this.disabled=true;post('results',{avgJob:avg,winRate:+$('#mw').value}).then(function(res){if(res.j.ok){close();toast('Saved.');load(true);}else{toast(res.j.error||'Could not save.');}}).catch(function(){toast('No connection.');});};
 }
 function heroCard(){
   var L=S.line,f=S.features||{};
@@ -939,6 +960,7 @@ document.addEventListener('click',function(e){
   else if(a==='line-toggle')lineToggle();
   else if(a==='line-on')lineSave({onAir:true});
   else if(a==='sign')signTap();
+  else if(a==='money-set')moneySheet();
   else if(a==='filt'){FILT=t.dataset.k;render();}
   else if(a==='tile')tileSheet(t.dataset.k,t.dataset.m);
   else if(a==='jump'){e.preventDefault();var el2=document.getElementById(t.dataset.to);if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});}
