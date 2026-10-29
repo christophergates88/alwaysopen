@@ -1,7 +1,7 @@
 name: Restore drill
-# Proves a restore works without touching the live database: export the live D1 database, load it into a throwaway
-# database, compare row counts table by table, then delete the throwaway. Run it from the Actions tab (Run workflow)
-# or with `gh workflow run restore-drill.yml`. The dump stays on the runner and is never uploaded anywhere.
+# Proves the weekly copy can be restored, without touching the live database: download today's copy from the Worker,
+# load it into a fresh SQLite file with tools/restore.mjs, and compare row counts with the live database table by
+# table. Run it from the Actions tab (Run workflow) or with the REST API; see docs/restore.md. Nothing is uploaded.
 on:
   workflow_dispatch:
 jobs:
@@ -11,42 +11,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Export the live database
+      - name: Download today's copy and the live counts
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
         run: |
-          if ! npx -y wrangler@4 d1 export alwaysopen --remote --output=dump.sql > export.log 2>&1; then
-            echo "::error title=Export failed::$(grep -iE 'error|code|permission|denied|not found|unauthorized' export.log | grep -v '^│' | head -6 | cut -c1-200 | tr '\n' ' ')"
-            exit 1
-          fi
-          ls -la dump.sql
-          echo "Tables in the dump: $(grep -c 'CREATE TABLE' dump.sql)"
-      - name: Load it into a throwaway database
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          curl -sS -f -m 120 -H "x-key: $OPS_KEY" -o copy.jsonl.gz "https://alwaysopenoffice.com/ops/backup?download=1"
+          curl -sS -f -m 60 -H "x-key: $OPS_KEY" -o live.json "https://alwaysopenoffice.com/ops/backup?counts=1"
+          ls -la copy.jsonl.gz
+      - name: Restore it into a fresh database and compare
         run: |
-          npx -y wrangler@4 d1 create alwaysopen-drill > create.log 2>&1 || cat create.log
-          if ! npx -y wrangler@4 d1 execute alwaysopen-drill --remote --file=dump.sql --yes > load.log 2>&1; then
-            echo "::error title=Load failed::$(tail -c 600 load.log | tr '\n' ' ')"
-            exit 1
-          fi
-      - name: Compare row counts
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          bad=0
-          echo "| table | live | restored |" >> "$GITHUB_STEP_SUMMARY"; echo "| --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
-          for t in app_clients voice_lines app_calls leads app_items biz_jobs line_bookings billing; do
-            a=$(npx -y wrangler@4 d1 execute alwaysopen --remote --json --command "SELECT COUNT(*) AS n FROM $t" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s)[0].results[0].n)}catch(e){console.log('?')}})")
-            b=$(npx -y wrangler@4 d1 execute alwaysopen-drill --remote --json --command "SELECT COUNT(*) AS n FROM $t" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s)[0].results[0].n)}catch(e){console.log('?')}})")
-            echo "| $t | $a | $b |" >> "$GITHUB_STEP_SUMMARY"
-            echo "$t live=$a restored=$b"
-            [ "$a" = "$b" ] || bad=1
-          done
-          echo "Drill run on $(date -u +%Y-%m-%d) UTC" >> "$GITHUB_STEP_SUMMARY"
-          exit $bad
-      - name: Delete the throwaway database
-        if: always()
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx -y wrangler@4 d1 delete alwaysopen-drill --skip-confirmation || true
+          node tools/restore.mjs copy.jsonl.gz restored.sqlite | tee restore.out
+          node -e '
+            const fs = require("fs");
+            const live = JSON.parse(fs.readFileSync("live.json")).counts;
+            const got = JSON.parse(fs.readFileSync("restore.out", "utf8").trim().split("\n").pop());
+            let bad = 0, rows = ["| table | live | restored |", "| --- | --- | --- |"];
+            for (const t of Object.keys(live).sort()) { const a = live[t], b = got[t] || 0; rows.push("| " + t + " | " + a + " | " + b + (a === b ? "" : " (MISMATCH)") + " |"); if (a !== b) bad++; }
+            rows.push("", "Drill run " + new Date().toISOString().slice(0, 10) + ": " + (bad ? bad + " tables differ" : "every table matches"));
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, rows.join("\n") + "\n");
+            console.log(rows.join("\n"));
+            process.exit(bad ? 1 : 0);
+          '

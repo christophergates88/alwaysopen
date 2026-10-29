@@ -176,6 +176,9 @@ async function serve(req, env, ctx) {
       const k = req.headers.get('x-key') || '';
       if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       if (req.method === 'POST') return json(Object.assign({ ok: true }, await runBackup(env)), 200);
+      const { dump, gzip, TABLES } = await import('./backup.js');
+      if (url.searchParams.get('download') === '1') { const d = await dump(env); return new Response(await gzip(d.text), { headers: { 'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="alwaysopen-' + new Date().toISOString().slice(0, 10) + '.jsonl.gz"', 'cache-control': 'no-store' } }); }
+      if (url.searchParams.get('counts') === '1') { const counts = {}; for (const t of TABLES) { try { counts[t] = +((await env.DB.prepare('SELECT COUNT(*) AS n FROM ' + t).first()) || {}).n || 0; } catch (e) { /* no such table */ } } return json({ ok: true, counts }, 200); }
       return json({ ok: true, last: await lastBackup(env) }, 200);
     }
     if (path === '/ops/mail-test') {

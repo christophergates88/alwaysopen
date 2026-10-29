@@ -29,28 +29,24 @@ every data table (never tokens or keys). To load it into a fresh database:
 
 1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen` and deploy the Worker once; the Worker
    creates its tables on first use. Or run `test/fixtures/schema.sql` against it.
-2. Turn the lines into inserts (Node, from the Mac):
+2. Turn the copy into a SQLite file and the inserts (Node 22, from the Mac, in `GatesHQ/alwaysopen`):
 
 ```
-node -e '
-const fs = require("fs"), zlib = require("zlib");
-const lines = zlib.gunzipSync(fs.readFileSync(process.argv[1])).toString().trim().split("\n");
-const out = [];
-for (const l of lines) { const { table, row } = JSON.parse(l); const cols = Object.keys(row);
-  out.push("INSERT OR REPLACE INTO " + table + " (" + cols.join(",") + ") VALUES (" + cols.map(c => row[c] == null ? "NULL" : typeof row[c] === "number" ? row[c] : "\x27" + String(row[c]).replace(/\x27/g, "\x27\x27") + "\x27").join(",") + ");"); }
-fs.writeFileSync("restore.sql", out.join("\n"));
-console.log(out.length + " rows");
-' alwaysopen-2026-11-01.jsonl.gz
+node tools/restore.mjs alwaysopen-2026-11-01.jsonl.gz restored.sqlite --sql
 npx wrangler@4 d1 execute alwaysopen --remote --file=restore.sql --yes
 ```
+
+   The first line prints the row count per table and leaves `restored.sqlite` you can open with any SQLite viewer.
 
 3. Owners reconnect Google (tokens are never in the copy) and the iPhone app re-registers for pushes on its next
    open. Max's lines, calls, leads, jobs, bookings and billing are all back.
 
 ## The drill
 
-The "Restore drill" workflow in GitHub Actions exports the live database, loads it into a throwaway database, compares
-row counts table by table, and deletes the throwaway. Run it from the Actions tab (Run workflow) or:
+The "Restore drill" workflow in GitHub Actions downloads today's copy from the Worker, restores it into a fresh
+database with `tools/restore.mjs`, and compares row counts with the live database table by table. It never touches
+the live database. (Exporting straight from D1 with `wrangler d1 export` needs the GitHub token to have the D1 Edit
+permission in Cloudflare; the drill does not depend on it.) Run it from the Actions tab (Run workflow) or:
 
 ```
 gh api -X POST repos/christophergates88/alwaysopen/actions/workflows/restore-drill.yml/dispatches -f ref=main
