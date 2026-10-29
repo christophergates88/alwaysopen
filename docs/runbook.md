@@ -45,13 +45,16 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `health:max-line` | A Max key is missing | `wrangler secret list`, set the missing one |
 | `health:apple-push` | Owners are not getting pushes | Apple key in App Store Connect; `APNS_KEY`, `APNS_KEY_ID` |
 | `health:ntfy` | Your phone pushes are not arriving, or ntfy turned down the account token | ntfy.sh status, the ntfy app on your phone; for the token, make a new one at ntfy.sh (Account, Access tokens) and run `Set ntfy token.command` |
-| `health:twilio-numbers` | A live number no longer points at us (the only alert loud at night) | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
+| `health:twilio-numbers` | A live number points elsewhere and Twilio would not let the hourly check point it back (it fixes the usual case itself; the only alert loud at night) | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
 | `health:google-connections` | A Google connection was refused | The owner has a reconnect card; if several at once, the Google Cloud consent screen is in Testing |
 | `health:backup` | No backup in 8 days | `POST /ops/backup` with the key; check the email or the R2 bucket |
 | `crash:<route>` | Something threw; the visitor saw a plain page | The Errors tab on the ops board; the route tells you which page |
 | `cron:<job>` | A background job threw | The ops board's Worker jobs line shows the note |
 | `max-call` | A Max call errored; the caller got the voicemail backup | Twilio console, Monitor, Calls, then the call in the owner's app |
 | `voicemail`, `cron:voicemail` | A voicemail could not be delivered, or the sweep could not read Twilio | The ops board's Worker jobs line; the sweep tries each call three times |
+| `cron:missed-texts` | The sweep for texts that missed the site could not read Twilio | Twilio status; it tries again in 10 minutes |
+| `drill` | The 4 AM test call to Max failed twice | The call on the ops board (calls from the test number on Always Open's line); Claude's status; the voice log |
+| `max-backup` | Claude failed two checks in a row, so every call is on the backup model | console.anthropic.com (credits, status); it switches back by itself when Claude answers |
 | `line-cap:<client>` | 120 minutes in a day on one line | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
 | `quiet-line:<client>` | A busy line had no calls for a week | Twilio number webhook, then ask the owner about forwarding |
 | `quiet-profile:<client>` | A profile's reviews stopped | The owner's reconnect card, then the profile's managers in Google |
@@ -79,7 +82,24 @@ minutes `src/voicemail.js` asks Twilio for calls to our numbers that never got a
 like a normal Max call, with the words of the voicemail; a caller who left nothing gets the missed-call text only if
 the call was in the last 30 minutes. The recording is deleted from Twilio once its words are saved. You get one push
 ("N calls missed Max") whenever the sweep delivers something, which means the site or Max was down for a while.
-The hourly check puts the voicemail fallback on any number that still has an old one.
+The hourly check puts the voicemail fallback on any number that still has an old one, and points any number of ours
+whose calls or texts point somewhere else back at Max (you get a quiet push saying so). To use a number for anything
+else, take its line off the air first.
+
+Texts are covered the same way: every 10 minutes `smsSweep` (src/sms.js) asks Twilio for texts to our numbers that
+never reached the site and handles them as if they had just arrived (inbox, owner push, STOP). Automatic answers to
+HELP or START are not sent that late.
+
+## The 4 AM test call and the backup switch
+
+Every night at 4 AM Eastern, `src/drill.js` calls Always Open's own line from a test number of ours (listed as a tester,
+so the call is a test: no lead, no push) and judges Max's write-up: he answered, heard the caller, replied, and wrote
+down what they wanted. A failure is tried again 15 minutes later; a second one is the `drill` alert, and the 7 AM push
+says how the test went either way. The test number is bought once (about $1.15 a month), only after Christopher said
+yes: `drill_meta` row `buy` = `approved`.
+
+If Claude fails two of its checks in a row, every call goes to the backup model for two hours (`drill_meta`
+`backup-until`), and Claude is checked every 10 minutes until it answers again, which switches it back.
 
 ## Hear Max, the money card and grade letters
 

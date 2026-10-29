@@ -26,6 +26,8 @@ export async function ensureSms(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sms_log (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, to10 TEXT NOT NULL, at TEXT, kind TEXT DEFAULT '', sid TEXT DEFAULT '', status TEXT DEFAULT '', why TEXT DEFAULT '', len INTEGER DEFAULT 0)"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS sms_optout (client_id TEXT NOT NULL, phone10 TEXT NOT NULL, at TEXT, PRIMARY KEY (client_id, phone10))'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS sms_log_client ON sms_log (client_id, at)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS sms_seen (sid TEXT PRIMARY KEY, at TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS sms_meta (k TEXT PRIMARY KEY, v TEXT)'),
   ]);
   ready = true;
 }
@@ -100,6 +102,12 @@ export async function handleSms(req, env, form, sigOk) {
   const line = await env.DB.prepare('SELECT client_id, business FROM voice_lines WHERE number = ?1').bind(to).first().catch(() => null);
   if (!line || !from10) return xml();
   await ensureSms(env);
+  // Each text once: Twilio retrying, or the sweep below picking up one we already have, changes nothing.
+  const msgSid = String(form.get('MessageSid') || '');
+  if (/^SM[0-9a-f]{32}$/.test(msgSid)) {
+    const fresh = await env.DB.prepare('INSERT OR IGNORE INTO sms_seen (sid, at) VALUES (?1, ?2)').bind(msgSid, new Date().toISOString()).run().catch(() => null);
+    if (fresh && fresh.meta && fresh.meta.changes === 0) return xml();
+  }
   const cid = line.client_id, now = new Date().toISOString();
   if (STOP_RE.test(body)) {
     await env.DB.prepare('INSERT OR REPLACE INTO sms_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, from10, now).run();
@@ -142,4 +150,49 @@ export async function smsCounts(env, cid, since) {
   await ensureSms(env);
   const r = await env.DB.prepare("SELECT SUM(CASE WHEN status IN ('queued','sent','delivered','accepted','sending') THEN 1 ELSE 0 END) AS sent, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed FROM sms_log WHERE client_id = ?1 AND at > ?2").bind(cid, since || '').first().catch(() => null);
   return { sent: +(r && r.sent) || 0, failed: +(r && r.failed) || 0 };
+}
+
+// Texts that never reached us. When the site is down, Twilio still receives a customer's text (a reply to the owner, a
+// YES to a Fill my week offer, a STOP) but cannot hand it to us, and nothing retries it. Every 10 minutes this asks
+// Twilio for the texts to our numbers and runs any we never saw through handleSms, exactly as if it had just arrived
+// (the inbox, the owner's push, the opt-out list). Automatic answers (HELP, START) are not sent this late.
+// Starts from the first run after this was added, so texts handled before sms_seen existed are never handled twice.
+const SWEEP_SETTLE_MS = 2 * 60e3, SWEEP_LOOKBACK_MS = 26 * 3600e3;
+export async function smsSweep(env, now, h) {
+  now = now || Date.now(); h = h || {};
+  if (!textingReady(env)) return { off: true };
+  await ensureSms(env);
+  const meta = async k => { const r = await env.DB.prepare('SELECT v FROM sms_meta WHERE k = ?1').bind(k).first().catch(() => null); return r ? Date.parse(r.v) || 0 : 0; };
+  const put = (k, t) => env.DB.prepare('INSERT OR REPLACE INTO sms_meta (k, v) VALUES (?1, ?2)').bind(k, new Date(t).toISOString()).run();
+  const start = await meta('start');
+  if (!start) { await put('start', now); await put('swept', now); return { started: true }; }
+  const lines = new Set((((await env.DB.prepare('SELECT number FROM voice_lines').all()).results) || []).map(r => r.number));
+  if (!lines.size) return { lines: 0 };
+  const swept = await meta('swept');
+  const from = Math.max(start, now - SWEEP_LOOKBACK_MS, (swept || now) - 30 * 60e3);
+  const f = h.fetch || fetch, auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
+  const msgs = [];
+  let url = TWILIO + env.TWILIO_ACCOUNT_SID + '/Messages.json?PageSize=200&DateSent%3E=' + new Date(from).toISOString().slice(0, 10);
+  for (let page = 0; page < 5 && url; page++) {
+    const r = await f(url, { headers: { authorization: auth } });
+    if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of texts');
+    const j = await r.json();
+    for (const m of j.messages || []) msgs.push(m);
+    url = j.next_page_uri ? 'https://api.twilio.com' + j.next_page_uri : '';
+  }
+  const cand = msgs.filter(m => m.direction === 'inbound' && lines.has(m.to) && /^SM[0-9a-f]{32}$/.test(m.sid || '') &&
+    (Date.parse(m.date_sent || m.date_created) || 0) >= from && now - (Date.parse(m.date_sent || m.date_created) || now) >= SWEEP_SETTLE_MS);
+  const seen = new Set();
+  for (let i = 0; i < cand.length; i += 50) {
+    const ids = cand.slice(i, i + 50).map(m => m.sid);
+    for (const r of ((await env.DB.prepare('SELECT sid FROM sms_seen WHERE sid IN (' + ids.map((_, k) => '?' + (k + 1)).join(',') + ')').bind(...ids).all()).results || [])) seen.add(r.sid);
+  }
+  const missed = cand.filter(m => !seen.has(m.sid)).sort((a, b) => Date.parse(a.date_sent) - Date.parse(b.date_sent)).slice(0, 20);
+  for (const m of missed) await handleSms(null, env, new URLSearchParams({ MessageSid: m.sid, From: m.from || '', To: m.to || '', Body: m.body || '' }), true);
+  await put('swept', now);
+  if (missed.length && h.ping !== false) {
+    const ping = h.ping || (async (t, b) => (await import('./app.js')).opsPing(env, t, b, 'default', 'speech_balloon'));
+    await ping('Always Open: ' + missed.length + (missed.length === 1 ? ' text' : ' texts') + ' picked up late', (missed.length === 1 ? 'A customer text' : 'Customer texts') + ' arrived while the site could not take ' + (missed.length === 1 ? 'it' : 'them') + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' now in the owners’ inboxes.');
+  }
+  return { checked: cand.length, delivered: missed.length };
 }

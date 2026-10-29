@@ -142,22 +142,34 @@ export async function slowChecks(env, h) {
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
     try {
       const lines = ((await env.DB.prepare('SELECT number, business, transfer_to FROM voice_lines WHERE on_air = 1').all()).results) || [];
-      const wrong = [];
+      const wrong = [], fixed = [];
       for (const l of lines) {
         if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
         const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
         const j = await r.json().catch(() => ({}));
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
         if (!pn) { wrong.push((l.business || l.number) + ' (not in the Twilio account)'); continue; }
-        if (String(pn.voice_url || '') !== 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY) { wrong.push((l.business || l.number) + ' (webhook points elsewhere)'); continue; }
-        if (!(await import('./voicemail.js')).hasVoicemail(pn.voice_fallback_url)) {
-          // Our number without the voicemail backup yet (or with the old "call back later" one): set it now rather than
-          // nag. Setting a fallback changes nothing about live calls.
-          const { fallbackUrl } = await import('./provision.js');
-          const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ VoiceFallbackUrl: fallbackUrl(l.business, env.VOICE_KEY), VoiceFallbackMethod: 'GET' }).toString() });
-          if (!u.ok) wrong.push((l.business || l.number) + ' (no voicemail backup, and Twilio would not take one: ' + u.status + ')');
-          else { try { const vm = await import('./voicemail.js'); await vm.ensureVoicemail(env); await env.DB.prepare('INSERT OR REPLACE INTO vm_meta (k, v) VALUES (?1, ?2)').bind('fallback:' + l.number, new Date().toISOString()).run(); } catch (e) { /* only a note */ } }
-        }
+        // Our own number pointing anywhere but Max, or without the voicemail backup: put it right, then and there.
+        // These are numbers we bought for Max; nothing else should ever answer them. (It used to only alert, which at
+        // night meant waking Christopher to do what the site can do itself.)
+        const site = 'https://alwaysopenoffice.com/voice/';
+        const want = { VoiceUrl: site + 'in/' + env.VOICE_KEY, SmsUrl: site + 'sms/' + env.VOICE_KEY };
+        const off = [];
+        if (String(pn.voice_url || '') !== want.VoiceUrl) off.push('calls');
+        if (String(pn.sms_url || '') !== want.SmsUrl) off.push('texts');
+        const vm = await import('./voicemail.js');
+        const noBackup = !vm.hasVoicemail(pn.voice_fallback_url);
+        if (!off.length && !noBackup) continue;
+        const { fallbackUrl } = await import('./provision.js');
+        const set = Object.assign({ VoiceMethod: 'POST', SmsMethod: 'POST', VoiceFallbackUrl: fallbackUrl(l.business, env.VOICE_KEY), VoiceFallbackMethod: 'GET' }, want);
+        const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(set).toString() });
+        if (!u.ok) { wrong.push((l.business || l.number) + (off.length ? ' (' + off.join(' and ') + ' point elsewhere, and Twilio would not let us point them back: ' + u.status + ')' : ' (no voicemail backup, and Twilio would not take one: ' + u.status + ')')); continue; }
+        try { await vm.ensureVoicemail(env); await env.DB.prepare('INSERT OR REPLACE INTO vm_meta (k, v) VALUES (?1, ?2)').bind('fallback:' + l.number, new Date().toISOString()).run(); } catch (e) { /* only a note */ }
+        if (off.length) fixed.push((l.business || l.number) + ' (' + off.join(' and ') + ')');
+      }
+      if (fixed.length) {
+        const ping = h.ping || (async (t, b) => (await import('./app.js')).opsPing(env, t, b, 'default', 'wrench'));
+        await ping('Always Open: pointed ' + (fixed.length === 1 ? 'a number' : fixed.length + ' numbers') + ' back at Max', 'Found pointing somewhere else and fixed: ' + fixed.join(', ') + '. Nothing for you to do. If you changed it on purpose in the Twilio console, take that line off the air first, or the hourly check will put it back.');
       }
       out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : '' });
     } catch (e) { out.push({ name: 'twilio-numbers', ok: false, why: 'could not read the numbers from Twilio' }); }

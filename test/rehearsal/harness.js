@@ -155,6 +155,7 @@ export function installFetch(world, env) {
       if (vm && method === 'GET') return world.fail.recording ? json({ message: 'not ready' }, 500) : new Response(new Uint8Array([73, 68, 51, 4]));
       vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.json$/);
       if (vm && method === 'DELETE') { (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
+      if (/\/Messages\.json$/.test(path) && method === 'GET') return json({ messages: world.twMsgs || [], next_page_uri: null });
       if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(); world.texts.push(Object.fromEntries(f)); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);
     }

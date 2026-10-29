@@ -25,12 +25,12 @@ export async function morningCounts(env, now) {
   };
 }
 // night: [{type, n}] problems that arrived silently overnight (ops.js), so a quiet night never hides one.
-export function morningText(health, c, night) {
+export function morningText(health, c, night, drill) {
   const bad = (health.checks || []).filter(x => !x.ok).map(x => x.name);
   const first = bad.length ? 'Needs a look: ' + bad.join(', ') + '.' : 'All checks green.';
   const n = (k, one, many) => k + ' ' + (k === 1 ? one : many);
   return { title: 'Always Open: ' + (bad.length ? bad.length + (bad.length === 1 ? ' check is red' : ' checks are red') : 'all good'),
-    body: first + ' Yesterday: ' + n(c.calls, 'call', 'calls') + ', ' + n(c.leads, 'lead', 'leads') + ', ' + n(c.booked, 'job booked', 'jobs booked') + (c.errors ? ', ' + n(c.errors, 'error', 'errors') : '') + '. ' + n(c.drafts, 'draft', 'drafts') + ' waiting.' + overnight(night) };
+    body: first + ' Yesterday: ' + n(c.calls, 'call', 'calls') + ', ' + n(c.leads, 'lead', 'leads') + ', ' + n(c.booked, 'job booked', 'jobs booked') + (c.errors ? ', ' + n(c.errors, 'error', 'errors') : '') + '. ' + n(c.drafts, 'draft', 'drafts') + ' waiting.' + overnight(night) + (drill ? ' ' + drill : '') };
 }
 function overnight(night) {
   const list = (night || []).filter(x => x && x.type);
@@ -55,7 +55,9 @@ export async function morningCron(env, now, h) {
   const r = await env.DB.prepare('INSERT OR IGNORE INTO morning_sent (day, at) VALUES (?1, ?2)').bind(e.day, new Date(now).toISOString()).run();
   if (!(r.meta && r.meta.changes)) return { skipped: 'sent today' };
   const health = await h.health();
-  const text = morningText(health, await morningCounts(env, now), await nightList(env));
+  let drill = '';
+  try { drill = await (await import('./drill.js')).drillLine(env, now); } catch (e) { drill = ''; }
+  const text = morningText(health, await morningCounts(env, now), await nightList(env), drill);
   await h.ping(text.title, text.body, health.ok ? 'default' : 'high', health.ok ? 'sunrise' : 'warning');
   return { sent: true, ok: health.ok };
 }

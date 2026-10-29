@@ -1160,7 +1160,7 @@ async function summarize(env, line, msgs, caller) {
 // One AI call. Streams text to onText when given, and always returns the whole text and token counts.
 // A signal lets the call drop an answer it no longer wants (the caller said more); that is never treated as Claude failing.
 export async function brain(env, system, messages, onText, maxTokens, extra, signal) {
-  if (env.ANTHROPIC_API_KEY) {
+  if (env.ANTHROPIC_API_KEY && !(env.AI && await backupForced(env))) {
     // If Claude is down or the key stops working, the free Cloudflare model answers instead, as long as nothing was said yet.
     let said = false;
     const cb = onText ? t => { said = true; onText(t); } : null;
@@ -1650,17 +1650,41 @@ function oneLine(s) { return String(s || '').replace(/[\r\n\t]+/g, ' ').replace(
 async function vlog(env, kind, detail, max) {
   try { await env.DB.prepare('INSERT INTO voice_log (at, kind, detail) VALUES (?1, ?2, ?3)').bind(new Date().toISOString(), kind, String(detail || '').slice(0, max || 600)).run(); } catch (e) { /* the log is optional */ }
 }
+// Max's backup switch. Two Claude checks failing in a row (claudeCheck) put every call on the backup model for two
+// hours, so callers don't sit through Claude timing out turn after turn; the next check that passes switches it off.
+// While Claude is failing it is checked every 10 minutes instead of every hour. Read at most once a minute per room.
+const BACKUP_MS = 2 * 3600e3;
+let forcedRead = 0, forcedUntil = 0;
+async function backupForced(env) {
+  if (Date.now() - forcedRead < 60e3) return Date.now() < forcedUntil;
+  forcedRead = Date.now();
+  try { const r = await env.DB.prepare("SELECT v FROM drill_meta WHERE k = 'backup-until'").first(); forcedUntil = r ? Date.parse(r.v) || 0 : 0; } catch (e) { forcedUntil = 0; }
+  return Date.now() < forcedUntil;
+}
+export async function setBackup(env, on, now) {
+  const { ensureDrill } = await import('./drill.js');
+  await ensureDrill(env);
+  if (on) await env.DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('backup-until', ?1)").bind(new Date((now || Date.now()) + BACKUP_MS).toISOString()).run();
+  else await env.DB.prepare("DELETE FROM drill_meta WHERE k = 'backup-until'").run();
+  forcedRead = 0;
+}
 async function claudeCheck(env) {
+  let lastFailed = false;
   try {
-    const last = await env.DB.prepare("SELECT at FROM voice_log WHERE kind = 'claude-check' ORDER BY at DESC LIMIT 1").first();
-    if (last && Date.now() - Date.parse(last.at) < 3600000) return;
+    const last = await env.DB.prepare("SELECT at, detail FROM voice_log WHERE kind = 'claude-check' ORDER BY at DESC LIMIT 1").first();
+    lastFailed = !!(last && /"ok":false/.test(last.detail || ''));
+    if (last && Date.now() - Date.parse(last.at) < (lastFailed ? 9.5 * 60000 : 3600000)) return;
   } catch (e) { return; }
   if (!env.ANTHROPIC_API_KEY) { await vlog(env, 'claude-check', JSON.stringify({ ok: false, key: false })); return; }
   const t0 = Date.now(); let text = '';
   try {
     const r = await claude(env, 'You are a test. Reply with one short word.', [{ role: 'user', content: 'Say hello.' }], t => { text += t; }, 20);
     await vlog(env, 'claude-check', JSON.stringify({ ok: true, key: true, ms: Date.now() - t0, text: text.slice(0, 30), model: r.model }));
-  } catch (e) { await vlog(env, 'claude-check', JSON.stringify({ ok: false, key: true, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 400) })); }
+    if (await backupForced(env)) { await setBackup(env, false); await opsPing(env, 'Always Open: Max is back on Claude', 'Claude answered the check again, so calls are back on the main model.', 'default', 'white_check_mark'); }
+  } catch (e) {
+    await vlog(env, 'claude-check', JSON.stringify({ ok: false, key: true, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 400) }));
+    if (lastFailed && env.AI && !(await backupForced(env))) { await setBackup(env, true); await opsAlert(env, 'max-backup', '', 'Claude failed two checks in a row (' + String((e && e.message) || e).slice(0, 160) + '), so Max is answering every call with the backup model for now. He switches back on his own when Claude answers again.'); }
+  }
 }
 
 // A rehearsal: scripted caller lines go through the same instructions, quick reactions and clean-up as a real call, and
