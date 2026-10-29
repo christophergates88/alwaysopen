@@ -328,9 +328,9 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 .rp-top div{display:grid;line-height:1.2;min-width:0}
 .rp-top b{font:800 1.05rem var(--display);font-stretch:94%;color:#fff}
 .rp-top span{font-size:13px;color:#A3ACBF}
-.rp-top time{margin-left:auto;font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#FF8C82;white-space:nowrap;text-shadow:0 0 10px rgba(255,106,94,.6)}
+.rp-top time{margin-left:auto;font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#A3ACBF;white-space:nowrap}
 .rp-hero{display:grid;gap:2px;padding:18px 0 14px;border-bottom:1px solid rgba(255,255,255,.09)}
-.rp-lab{font:500 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#FF8C82}
+.rp-lab{font:500 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#A3ACBF}
 .rp-hero b{font:850 clamp(3rem,9vw,3.9rem)/1 var(--display);font-stretch:88%;letter-spacing:-.01em;color:#FF6A5E;text-shadow:0 0 12px rgba(255,106,94,.8),0 0 36px rgba(255,90,77,.5)}
 .rp-hero small{font:400 13px/1.35 var(--body);color:#A3ACBF}
 .rp-hero.calm b{color:#fff;text-shadow:0 0 16px rgba(255,255,255,.25)}
@@ -345,7 +345,10 @@ footer a:focus-visible{outline:3px solid var(--night-sign);outline-offset:2px}
 .rp-grid small{font-size:11px;color:#8C95A8;line-height:1.25}
 .rp-check{margin:10px 0 0;padding:8px 12px;border-radius:12px;background:rgba(92,201,164,.07);border:1px solid rgba(92,201,164,.45);box-shadow:0 0 16px rgba(92,201,164,.14);color:#C5EBDD;font-size:13px;line-height:1.4}
 .rp-check b{font-weight:700;color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}
-@media (max-width:420px){.rp-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:540px){.rp-grid{grid-template-columns:1fr 1fr}}
+/* In the dark hero, red is light: the OPEN sign, the dare and the report glow. Solid buttons there are paper-white so they don't compete. */
+.hero .btn.primary{background:#ECEEF3;color:#12151C;border-color:#ECEEF3}.hero .btn.primary:hover{background:#fff;border-color:#fff}
+.hero .top .btn.primary{background:transparent;color:#ECEEF3;border-color:rgba(236,238,243,.4)}.hero .top .btn.primary:hover{border-color:#ECEEF3;background:rgba(255,255,255,.06)}
 .rp-ping{position:absolute;top:0;right:max(0px,calc(50% - 250px));z-index:2;display:flex;gap:8px;align-items:center;background:rgba(23,28,39,.94);color:#ECEEF3;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 12px;font-size:13px;box-shadow:0 18px 34px -18px rgba(0,0,0,.8),0 0 18px rgba(255,90,77,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .rp-ping svg{width:20px;height:20px;flex:none}
 .rp-ping b{font-weight:700}
