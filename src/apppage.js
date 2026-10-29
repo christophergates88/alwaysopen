@@ -62,6 +62,7 @@ main{max-width:680px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-rig
 h1{font:850 1.75rem/1.05 var(--display);font-stretch:92%;margin:4px 0 6px;letter-spacing:-.01em}
 h2{font:800 1.15rem/1.2 var(--display);font-stretch:92%;margin:26px 0 10px}
 .lede{color:var(--slate);margin:0 0 16px}
+.lede .tier{color:var(--sign);font-weight:700;text-shadow:0 0 6px rgba(255,106,94,.9),0 0 14px rgba(255,90,77,.55)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:12px}
 .ch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .chip{font:600 12.5px var(--body);background:var(--panel);border-radius:99px;padding:3px 10px}
@@ -364,7 +365,7 @@ function vHome(){
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
   if(isTech()&&SEG==='settings')SEG='today';
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.</p>'+segBar(items+calls+due);
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.'+(S.client.tier?' You’re on <b class="tier">'+esc(S.client.tier)+'</b>.':'')+'</p>'+segBar(items+calls+due);
   if(SEG==='customers'){
     h+=inboxRow()+jobsBlock()+(isTech()?'':quotesBlock()+payBlock()+invBlock())+pastBlock()+linkBlock()+mapCard();
     return h;
