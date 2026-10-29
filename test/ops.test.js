@@ -81,12 +81,21 @@ test('a crash anywhere: one row, one alert per route, and a page or TwiML that t
   } finally { globalThis.fetch = realFetch; }
 });
 
-test('the Twilio fallback: a sentence for the caller, and the owner’s cell first when there is one', async () => {
+test('the Twilio fallback: a voicemail served by Twilio itself, never a ring to the owner’s cell', async () => {
   const { fallbackTwiml, fallbackUrl } = await import('../src/provision.js');
-  assert.equal(fallbackTwiml('Sinclair Plumbing', ''), '<Response><Say voice="Polly.Matthew">Thanks for calling Sinclair Plumbing. We can’t take your call right now. Please call back in a few minutes.</Say><Hangup/></Response>');
-  assert.match(fallbackTwiml('A <b>Co</b>', '+14785550142'), /^<Response><Dial timeout="20">\+14785550142<\/Dial><Say/);
-  assert.doesNotMatch(fallbackTwiml('A <b>Co</b>', ''), /<b>/);
-  assert.match(fallbackUrl('X', ''), /^https:\/\/twimlets\.com\/echo\?Twiml=%3CResponse%3E/);
+  const { hasVoicemail } = await import('../src/voicemail.js');
+  const tw = fallbackTwiml('Sinclair Plumbing');
+  assert.match(tw, /^<Response><Say voice="Polly.Matthew">Thanks for calling Sinclair Plumbing\. Please leave your name, your number and what you need after the tone, and we’ll get back to you\.<\/Say><Record maxLength="180"/);
+  assert.match(tw, /action="https:\/\/twimlets\.com\/echo\?Twiml=%3CResponse%3E%3CSay[^"]*goodbye/, 'the goodbye after the beep is Twilio’s too, so it works with us down');
+  assert.match(tw, /<Say voice="Polly\.Matthew">We didn’t get a message\. Please call back any time\. Goodbye\.<\/Say><Hangup\/><\/Response>$/);
+  assert.doesNotMatch(tw, /<Dial/, 'our outage never rings the owner at 3 AM');
+  assert.doesNotMatch(fallbackTwiml('A <b>Co</b>'), /<b>/);
+  const u = fallbackUrl('X', 'vk');
+  assert.match(u, /^https:\/\/twimlets\.com\/echo\?Twiml=%3CResponse%3E/);
+  assert.match(decodeURIComponent(u), /recordingStatusCallback="https:\/\/alwaysopenoffice\.com\/voice\/vm\/vk"/);
+  assert.ok(u.length < 1500, 'well under Twilio’s address limit');
+  assert.equal(hasVoicemail(u), true);
+  assert.equal(hasVoicemail('https://twimlets.com/echo?Twiml=%3CResponse%3E%3CSay%3EPlease%20call%20back%3C%2FSay%3E%3C%2FResponse%3E'), false, 'the old call-back-later fallback gets replaced');
 });
 
 test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; each failure is one alert and shows on /health', async () => {

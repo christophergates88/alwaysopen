@@ -9,6 +9,10 @@
 //   3. An important push (high priority) still waiting after 10 minutes goes out as a text from the Always Open number
 //      instead, once, between 8 AM and 9 PM.
 // Pushes never carry keys or customer card details; they're the same short notes that already went by push and email.
+//
+// Night, 10 PM to 7 AM Eastern: every push arrives silently (ntfy priority "low": no sound, no buzz) unless it is marked
+// loud. Problems still go by email and are listed in the 7 AM push (ops.js, morning.js). Loud at night is kept for the
+// few things where callers can reach nobody at all: a number that no longer points at us, or Twilio out of money.
 
 const TIMEOUT_MS = 8000;
 const LEASE_MS = 5 * 60e3;            // a push handed to the Mac and not confirmed comes back after this
@@ -16,6 +20,11 @@ const TEXT_AFTER_MS = 10 * 60e3;      // important pushes still waiting this lon
 const DROP_AFTER_MS = 24 * 3600e3;    // anything still waiting after a day is dropped (the email went)
 const KEEP_MS = 14 * 24 * 3600e3;
 const HIGH = new Set(['high', 'urgent', 'max', '4', '5']);
+const NIGHT_FROM = 22, NIGHT_TO = 7;
+export function isNight(now) {
+  const h = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/New_York' }).format(new Date(now || Date.now()));
+  return h >= NIGHT_FROM || h < NIGHT_TO;
+}
 
 const ready = new WeakSet();
 export async function ensurePush(env) {
@@ -45,6 +54,7 @@ async function direct(env, p, h) {
 export async function push(env, p, h) {
   if (!env.NTFY_URL) return 'off';
   p = p || {};
+  if (!p.loud && isNight(h && h.now)) p = Object.assign({}, p, { priority: 'low' });
   const why = await direct(env, p, h);
   try { await ensurePush(env); await note(env, 'direct', why ? 'failed: ' + why : 'ok'); } catch (e) { /* the push itself is what matters */ }
   if (!why) return 'sent';

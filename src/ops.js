@@ -1,8 +1,12 @@
 // Alerts to Christopher (not clients) when something breaks. One alert per error type per 15 minutes.
 // Goes out by the phone push (NTFY_URL) and an email to MAIL_TO. Never includes keys, codes or customer details.
 import { EmailMessage } from 'cloudflare:email';
-import { push } from './push.js';
-const GAP_MS = 15 * 60000;
+import { push, isNight } from './push.js';
+// The same problem alerts again at most every 3 hours, with a count of the ones held back (it used to be 15 minutes,
+// which meant a push every 20 minutes all night for anything that stayed broken).
+const GAP_MS = 3 * 3600e3;
+// The only problems worth waking up for: callers can reach neither Max nor the voicemail backup.
+const NIGHT_LOUD = new Set(['health:twilio-numbers']);
 const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').trim();
 // Keys, tokens, phone numbers and emails never travel in an alert, whatever a library put in its error message.
 export const scrub = s => one(s)
@@ -17,6 +21,7 @@ const alertsReady = new WeakSet();
 async function ensureAlerts(env) {
   if (alertsReady.has(env.DB)) return;
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER, prev INTEGER DEFAULT 0)').run();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_night (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, type TEXT, detail TEXT)').run();
   try { await env.DB.prepare('ALTER TABLE ops_alerts ADD COLUMN prev INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
   alertsReady.add(env.DB);
 }
@@ -36,7 +41,10 @@ export async function opsAlert(env, type, who, detail) {
     const title = 'Always Open problem: ' + key;
     const body = 'What broke: ' + scrub(detail).slice(0, 600) + more + (who ? '\nClient: ' + one(who).slice(0, 40) : '') + '\nTime: ' + new Date(now).toISOString();
     const jobs = [];
-    if (env.NTFY_URL) jobs.push(push(env, { title, body, priority: 'high', tags: 'warning' }).catch(() => {}));
+    // At night it arrives silently (push.js) and waits in ops_night for the 7 AM push; the email goes either way.
+    const loud = NIGHT_LOUD.has(key);
+    if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), key, scrub(detail).slice(0, 200)).run().catch(() => {});
+    if (env.NTFY_URL) jobs.push(push(env, { title, body, priority: 'high', tags: 'warning', loud }).catch(() => {}));
     if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
       const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
       const raw = ['From: "Always Open alerts" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + enc(title.slice(0, 120)),
@@ -142,11 +150,13 @@ export async function slowChecks(env, h) {
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
         if (!pn) { wrong.push((l.business || l.number) + ' (not in the Twilio account)'); continue; }
         if (String(pn.voice_url || '') !== 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY) { wrong.push((l.business || l.number) + ' (webhook points elsewhere)'); continue; }
-        if (!/twimlets\.com\/echo/.test(String(pn.voice_fallback_url || ''))) {
-          // Our number, no fallback yet: set it now rather than nag. Setting a fallback changes nothing about live calls.
+        if (!(await import('./voicemail.js')).hasVoicemail(pn.voice_fallback_url)) {
+          // Our number without the voicemail backup yet (or with the old "call back later" one): set it now rather than
+          // nag. Setting a fallback changes nothing about live calls.
           const { fallbackUrl } = await import('./provision.js');
-          const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ VoiceFallbackUrl: fallbackUrl(l.business, l.transfer_to), VoiceFallbackMethod: 'GET' }).toString() });
-          if (!u.ok) wrong.push((l.business || l.number) + ' (no fallback message, and Twilio would not take one: ' + u.status + ')');
+          const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ VoiceFallbackUrl: fallbackUrl(l.business, env.VOICE_KEY), VoiceFallbackMethod: 'GET' }).toString() });
+          if (!u.ok) wrong.push((l.business || l.number) + ' (no voicemail backup, and Twilio would not take one: ' + u.status + ')');
+          else { try { const vm = await import('./voicemail.js'); await vm.ensureVoicemail(env); await env.DB.prepare('INSERT OR REPLACE INTO vm_meta (k, v) VALUES (?1, ?2)').bind('fallback:' + l.number, new Date().toISOString()).run(); } catch (e) { /* only a note */ } }
         }
       }
       out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : '' });
@@ -194,8 +204,12 @@ export async function healthCron(env) {
 
 // GET /health: "ok" (200) for the outside monitor, or "not ok: ..." (503) when a check fails or the 10-minute cron has
 // not finished in 25 minutes. With the key, the detail: every check and the last run of every job.
-export async function healthStatus(env, now, core) {
-  const res = (await healthChecks(env)).concat(core ? [] : await slowResults(env, now));
+// mode: true (the deploy's check) = the fast checks only; 'monitor' (the outside monitor, which can page at night) = the
+// fast checks plus whether every number still reaches us; anything else = everything, for the ops board and 7 AM push.
+// A late backup or one owner's Google connection shows on the board and in the morning, and never pages anyone.
+export async function healthStatus(env, now, mode) {
+  const slow = mode === true ? [] : (await slowResults(env, now)).filter(c => mode !== 'monitor' || c.name === 'twilio-numbers');
+  const res = (await healthChecks(env)).concat(slow);
   const age = await cronAge(env, now);
   // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
   const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };

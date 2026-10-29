@@ -73,8 +73,33 @@ test('sending: once per address a week, a miss pings Christopher, a failure ping
   assert.equal(sent.length, 2); assert.equal(sent[1].subject, 'Your free audit: one quick question');
   assert.match(pings[0], /^Audit needs a hand: Als Fixit/);
   id = await add('bo@example.com', 'Sinclair Plumbing');
-  assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, Object.assign({}, h, { send: async () => 'failed: nope' })), 'failed: nope');
+  const failing = Object.assign({}, h, { send: async () => 'failed: nope' });
+  assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'retry', 'a failed send is tried again, not handed to Christopher');
+  assert.equal(pings.length, 1);
+  assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'retry');
+  assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'failed: nope');
   assert.match(pings[1], /^Audit email did not send/);
+  assert.match(pings[1], /tried 3 times/);
+});
+
+test('audit retries: a failed send, or a request whose audit never started, goes out on the next pass', async () => {
+  const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
+  await L.ensureLeadMail(env);
+  const now = Date.parse('2026-10-29T08:00:00Z');   // 4 AM Eastern: retries run at any hour
+  const add = async (email, business, mins, audit, at2) => (await DB.prepare("INSERT INTO leads (at, name, email, business, town, plan, status, audit, audit_at) VALUES (?1, 'Dana', ?2, ?3, 'Eatonton, GA', 'Growth', 'new', ?4, ?5)")
+    .bind(new Date(now - mins * 60e3).toISOString(), email, business, audit, at2 ? new Date(now - at2 * 60e3).toISOString() : null).run()).meta.last_row_id;
+  const stuck = await add('dana@example.com', 'Sinclair Plumbing', 20, null);     // the worker stopped before the audit ran
+  const failed = await add('sam@example.com', 'Sinclair Plumbing', 30, 'retry', 15);
+  await add('new@example.com', 'Sinclair Plumbing', 2, null);                  // too fresh: the first try may still be running
+  await add('old@example.com', 'Sinclair Plumbing', 2 * 1440, null);           // from before this existed: left alone
+  await add('', 'Phone caller', 30, null);                                     // no email: nothing to retry
+  const sent = [];
+  const h = { run: async () => AUDIT, send: async (to) => { sent.push(to); return 'sent'; }, ping: async () => {} };
+  const r = await L.auditRetryCron(env, now, h);
+  assert.equal(r.tried, 2);
+  assert.deepEqual(sent.sort(), ['dana@example.com', 'sam@example.com']);
+  for (const id of [stuck, failed]) assert.equal((await DB.prepare('SELECT audit FROM leads WHERE id = ?1').bind(id).first()).audit, 'sent');
+  assert.equal((await L.auditRetryCron(env, now + 10 * 60e3, h)).tried, 1, 'only the fresh one, now old enough');
 });
 
 test('follow-ups: day 2 and day 6, weekday business hours, and they stop on signup or the stop link', async () => {

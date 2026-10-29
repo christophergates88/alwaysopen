@@ -72,6 +72,8 @@ export async function handleVoice(req, env, ctx, url) {
   if (env.TWILIO_AUTH_TOKEN && !(await twilioSigOk(env.TWILIO_AUTH_TOKEN, url.href, form, req.headers.get('x-twilio-signature')))) return txt('Forbidden', 403);
   try {
     if (kind === 'sms') return await handleSms(req, env, form, true);
+    // The voicemail backup finished a recording (voicemail.js): the owner gets the words now, not at the next sweep.
+    if (kind === 'vm') { ctx.waitUntil((await import('./voicemail.js')).voicemailHook(env, form).catch(e => opsAlert(env, 'voicemail', '', (e && e.message) || e))); return new Response(null, { status: 204 }); }
     if (kind === 'handdial') { const st = String(form.get('DialCallStatus') || ''); await markHandoff(env, form.get('CallSid') || '', st === 'completed' ? 'connected' : st); return twiml(st === 'completed' ? '<Hangup/>' : say('Sorry, they did not pick up. I will pass your number along. Goodbye.') + '<Hangup/>'); }
     if (kind === 'ci') return await checkinTwiml(env, url, form);
     if (kind === 'cig') return await checkinGather(env, url, form);
@@ -87,8 +89,10 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'whisper') return await whisper(env, url);
     if (kind === 'status') return await callStatus(env, ctx, form);
   } catch (e) {
-    // Never leave a caller in silence: say something useful and hang up.
+    // Never leave a caller in silence. A caller still on the line gets the voicemail backup (voicemail.js), so their
+    // message reaches the owner even though our code failed; anything else gets a plain goodbye.
     ctx.waitUntil(opsAlert(env, 'max-call', '', 'A call to Max errored in /voice/' + kind + ': ' + String((e && e.message) || e).slice(0, 200)));
+    if (kind === 'in' || kind === 'after' || kind === 'dial') { try { const vm = await import('./voicemail.js'); return twiml(vm.voicemailInner('', vm.callbackUrl(env))); } catch (x) { /* the plain goodbye below */ } }
     return twiml(say('Sorry, something went wrong on our end. Please call back in a few minutes. Goodbye.') + '<Hangup/>');
   }
   return txt('Not found', 404);
@@ -197,7 +201,7 @@ async function afterRelay(env, ctx, f) {
   }
   ctx.waitUntil(room.finalize(sid, failed ? 'failed' : 'ended').catch(() => {}));
   if (failed) ctx.waitUntil(opsAlert(env, 'max-call', (call && call.client_id) || '', 'A Max call ended in failure (relay error ' + (f.get('ErrorCode') || f.get('SessionStatus') || '?') + ')'));
-  if (failed) return twiml(say('Sorry, I am having trouble on my end. I will make sure ' + ((line && line.business) || 'the team') + ' gets your number so they can call you back. Goodbye.') + '<Hangup/>');
+  if (failed) { const vm = await import('./voicemail.js'); return twiml(vm.voicemailInner((line && line.business) || '', vm.callbackUrl(env))); }
   return twiml('<Hangup/>');
 }
 
@@ -866,7 +870,7 @@ async function writeUp(env, sid, s, why) {
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
   env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
   // Grade the call (counts and yes/no flags only); a call that went wrong is queued as a rehearsal from the caller's own lines.
-  if (!call.test) {
+  if (!call.test && !(s && s.voicemail)) {
     try {
       const g = gradeOf({ outcome, heard, seconds: relay, lat: s && s.lat, note, booked: !!(s && s.booked && s.booked.ok) });
       await saveGrade(env, call, g);
@@ -875,14 +879,14 @@ async function writeUp(env, sid, s, why) {
     } catch (e) { await vlog(env, 'grade-error', String((e && e.message) || e)); }
   }
   if (outcome === 'spam' || call.test) return true;
-  if (call.client_id !== OWN_ID) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
+  if (call.client_id !== OWN_ID && !(s && s.voicemail)) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
   if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});
   if (note && note.booked === 'no' && note.lost && line && !+line.regulated && call.client_id !== OWN_ID) await recordLost(env, call.client_id, sid, note.lost, note.lostNote).catch(() => {});
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
   const who = (note && note.name) || (callback ? spokenNumber(callback, true) : 'a caller');
   const bookedOk = !!(s && s.booked && s.booked.ok);
   const title = outcome === 'failed' ? 'Missed call from ' + who : (note && note.upset) ? 'Upset caller: ' + who : (bookedOk ? (s.booked.held ? 'To confirm: ' : 'Booked: ') + who + ', ' + s.booked.at : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who));
-  const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so they did not leave a message. Tap to call them back.' : summary + ' Tap to call back.');
+  const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so Max could not take the call. If they leave a voicemail, it comes next. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
   // Booked or penciled in: one text to the caller with the time (only once the business can text under its own name).
   if (bookedOk && TEXTING_ON && line && !+line.regulated && E164.test(callback || '')) {
@@ -893,7 +897,7 @@ async function writeUp(env, sid, s, why) {
     await sendText(env, { clientId: call.client_id, to: callback, kind: 'booking', body }).catch(() => {});
   }
   // Missed-call text-back: they hung up or the line failed, so the business texts them once, right away. Not on regulated lines.
-  if ((outcome === 'hangup' || outcome === 'failed') && TEXTING_ON && line && !+line.regulated && E164.test(call.caller || '')) {
+  if ((outcome === 'hangup' || outcome === 'failed') && TEXTING_ON && line && !+line.regulated && E164.test(call.caller || '') && !(s && s.noTextback)) {
     const os = (() => { try { return JSON.parse(line.owner_set || '{}'); } catch (e) { return {}; } })();
     if (os.textback !== false) {
       const biz = line.business || 'the business';
@@ -904,6 +908,14 @@ async function writeUp(env, sid, s, why) {
   }
   if (outcome === 'failed') await opsPing(env, 'AI line problem: ' + ((line && line.business) || call.client_id), 'Call ' + sid + ' from ' + (call.caller || 'unknown') + ' could not start. The owner was told to call them back.', 'high', 'warning');
   return true;
+}
+
+// A call that reached the voicemail backup instead of Max (voicemail.js), written up like any other call: what they
+// said in the voicemail is the caller's one turn. o.textback: false when the call is too old for a missed-call text.
+export async function voicemailWriteUp(env, sid, said, o) {
+  o = o || {};
+  const s = { msgs: said ? [{ r: 'u', t: String(said).slice(0, 4000) }] : [], lang: 'en-US', voicemail: true, noTextback: o.textback === false };
+  return writeUp(env, sid, s, said ? 'ended' : 'hangup');
 }
 
 // A call to Always Open's own number: Chris gets it like a website lead. The caller gets one text with their free audit,

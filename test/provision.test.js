@@ -57,7 +57,7 @@ test('a paid signup gets a number near them, wired to Max, and only one', async 
   assert.match(buy, /VoiceUrl=https%3A%2F%2Falwaysopenoffice.com%2Fvoice%2Fin%2Fk/);
   assert.match(buy, /SmsUrl=https%3A%2F%2Falwaysopenoffice.com%2Fvoice%2Fsms%2Fk/);
   assert.match(buy, /VoiceFallbackUrl=https%3A%2F%2Ftwimlets.com%2Fecho/, 'a Worker failure plays a sentence from Twilio’s own echo service, not an error tone');
-  assert.match(decodeURIComponent(decodeURIComponent(buy)), /We can’t take your call right now\. Please call back in a few minutes\./);
+  assert.match(decodeURIComponent(decodeURIComponent(buy)), /Please leave your name, your number and what you need after the tone/, 'the fallback takes a voicemail');
   const again = await provisionLine(env, 'c1');
   assert.equal(again.status, 'live');
   assert.equal(t.bought, 1);

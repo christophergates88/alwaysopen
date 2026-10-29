@@ -30,7 +30,7 @@ const startLink = p => SITE + '/start' + (planOf(p) ? '?plan=' + planOf(p) : '')
 const ready = new WeakSet();
 export async function ensureLeadMail(env) {
   if (ready.has(env.DB)) return;
-  for (const col of ['audit', 'audit_at', 'grade', 'top', 'fu1_at', 'fu2_at', 'stop', 'stop_at', 'token', 'views']) {
+  for (const col of ['audit', 'audit_at', 'grade', 'top', 'fu1_at', 'fu2_at', 'stop', 'stop_at', 'token', 'views', 'audit_tries']) {
     try { await env.DB.prepare('ALTER TABLE leads ADD COLUMN ' + col + ' TEXT').run(); } catch (e) { /* already there */ }
   }
   ready.add(env.DB);
@@ -203,11 +203,32 @@ export async function sendAudit(env, lead, id, h) {
   const found = a && a.found;
   const m = found ? auditMail(lead, a, stop, env) : missMail(lead, stop, env);
   const r = await send(env, email, m, h);
-  if (r !== 'sent') { await mark('failed'); if (h.ping) await h.ping('Audit email did not send', one(lead.business) + ': ' + r + '. Send the audit by hand.'); return r; }
+  if (r !== 'sent') {
+    // A send that fails is tried again by auditRetryCron, three times in all, before it becomes a job for Christopher.
+    const t = await env.DB.prepare('SELECT audit_tries FROM leads WHERE id = ?1').bind(id).first().catch(() => null);
+    const tries = (parseInt((t && t.audit_tries) || '0', 10) || 0) + 1;
+    await env.DB.prepare('UPDATE leads SET audit_tries = ?1 WHERE id = ?2').bind(String(tries), id).run().catch(() => {});
+    if (tries < AUDIT_TRIES) { await mark('retry'); return 'retry'; }
+    await mark('failed'); if (h.ping) await h.ping('Audit email did not send', one(lead.business) + ': ' + r + ' (tried ' + tries + ' times). Send the audit by hand.'); return r;
+  }
   const f0 = found && a.findings && a.findings[0];
   await mark(found ? 'sent' : 'missed', found ? a.grade : '', f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '');
   if (!found && h.ping) await h.ping('Audit needs a hand: ' + one(lead.business), (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + one(lead.business) + (lead.town ? ', ' + one(lead.town) : '') + '". ') + 'They got an email saying Katie will send it within one business day.');
   return found ? 'sent' : 'missed';
+}
+
+// Every 10 minutes, any hour: audit emails that failed to send, and requests whose audit never started (the worker
+// stopped before it ran). Each gets up to three tries in all; the third failure goes to Christopher by push.
+const AUDIT_TRIES = 3;
+export async function auditRetryCron(env, now, h) {
+  now = now || Date.now(); h = h || {};
+  await ensureLeadMail(env);
+  const five = new Date(now - 5 * 60e3).toISOString(), day = new Date(now - 864e5).toISOString();
+  const rows = ((await env.DB.prepare("SELECT * FROM leads WHERE status != 'spam' AND email LIKE '%@%' AND at > ?2 AND ((audit = 'retry' AND audit_at < ?1) OR ((audit IS NULL OR audit = '') AND at < ?1)) ORDER BY id LIMIT 5")
+    .bind(five, day).all()).results) || [];
+  const out = [];
+  for (const r of rows) out.push(await sendAudit(env, r, r.id, h));
+  return { tried: rows.length, results: out };
 }
 
 // /lead/stop?i=&k= : one tap, no questions.

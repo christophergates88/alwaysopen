@@ -145,6 +145,16 @@ export function installFetch(world, env) {
       }
       if (/IncomingPhoneNumbers\/PN/.test(path) && method === 'DELETE') return new Response(null, { status: 204 });
       if (/Calls\.json$/.test(path) && method === 'POST') { const f = form(); const sid = 'CA' + world.id('', 32).replace(/[^0-9a-f]/g, '0').slice(0, 32).padEnd(32, '0'); world.dialed.push(Object.assign({ sid }, Object.fromEntries(f))); return json({ sid, status: 'queued' }, 201); }
+      // Calls and recordings, for the voicemail backup (voicemail.js): world.twCalls, world.twRecs[callSid].
+      if (/\/Calls\.json$/.test(path) && method === 'GET') return json({ calls: world.twCalls || [], next_page_uri: null });
+      let vm = path.match(/\/Calls\/(CA[0-9a-f]{32})\/Recordings\.json$/);
+      if (vm && method === 'GET') return json({ recordings: (world.twRecs || {})[vm[1]] || [] });
+      vm = path.match(/\/Calls\/(CA[0-9a-f]{32})\.json$/);
+      if (vm && method === 'GET') { const c = (world.twCalls || []).find(x => x.sid === vm[1]); return c ? json(c) : json({ message: 'not found' }, 404); }
+      vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.mp3$/);
+      if (vm && method === 'GET') return world.fail.recording ? json({ message: 'not ready' }, 500) : new Response(new Uint8Array([73, 68, 51, 4]));
+      vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.json$/);
+      if (vm && method === 'DELETE') { (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
       if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(); world.texts.push(Object.fromEntries(f)); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);
     }

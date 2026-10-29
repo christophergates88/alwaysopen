@@ -30,7 +30,8 @@ export async function fundAlert(env, key, level, title, body) {
   const row = await env.DB.prepare('SELECT at FROM funding_alerts WHERE k = ?1').bind(k).first();
   if (row && now - row.at < (level === 'urgent' ? URGENT_EVERY : WARN_EVERY)) return 'limited';
   await env.DB.prepare('INSERT INTO funding_alerts (k, at) VALUES (?1, ?2) ON CONFLICT(k) DO UPDATE SET at = excluded.at').bind(k, now).run();
-  await pushOps(env, title, body, level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag');
+  // Loud at night only for Twilio running dry: at zero, callers get nothing, not even the voicemail backup.
+  await pushOps(env, title, body, level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag', '', key === 'twilio' && level === 'urgent');
   await mailOps(env, title, body);
   return 'sent';
 }

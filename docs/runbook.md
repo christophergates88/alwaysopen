@@ -45,12 +45,13 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `health:max-line` | A Max key is missing | `wrangler secret list`, set the missing one |
 | `health:apple-push` | Owners are not getting pushes | Apple key in App Store Connect; `APNS_KEY`, `APNS_KEY_ID` |
 | `health:ntfy` | Your phone pushes are not arriving | ntfy.sh status, the ntfy app on your phone |
-| `health:twilio-numbers` | A live number no longer points at us | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
+| `health:twilio-numbers` | A live number no longer points at us (the only alert loud at night) | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
 | `health:google-connections` | A Google connection was refused | The owner has a reconnect card; if several at once, the Google Cloud consent screen is in Testing |
 | `health:backup` | No backup in 8 days | `POST /ops/backup` with the key; check the email or the R2 bucket |
 | `crash:<route>` | Something threw; the visitor saw a plain page | The Errors tab on the ops board; the route tells you which page |
 | `cron:<job>` | A background job threw | The ops board's Worker jobs line shows the note |
-| `max-call` | A Max call errored | Twilio console, Monitor, Calls, then the call in the owner's app |
+| `max-call` | A Max call errored; the caller got the voicemail backup | Twilio console, Monitor, Calls, then the call in the owner's app |
+| `voicemail`, `cron:voicemail` | A voicemail could not be delivered, or the sweep could not read Twilio | The ops board's Worker jobs line; the sweep tries each call three times |
 | `line-cap:<client>` | 120 minutes in a day on one line | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
 | `quiet-line:<client>` | A busy line had no calls for a week | Twilio number webhook, then ask the owner about forwarding |
 | `quiet-profile:<client>` | A profile's reviews stopped | The owner's reconnect card, then the profile's managers in Google |
@@ -62,8 +63,23 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `hear-max` | The Hear Max call left no recording, or saving it failed | Open the Hear Max page from the ops board and call again |
 | `photo-post` | A client’s photo could not be turned into a post after 3 tries | Open the photo link in the alert and write the post by hand in HQ |
 
-Problems arrive once per kind every 15 minutes with a count of the ones held back. A 7 AM push says "all good"
-every morning; if it does not arrive, that is itself the alarm, and the outside monitor backs it up.
+The same problem alerts at most once every 3 hours, with a count of the ones held back. From 10 PM to 7 AM Eastern
+every push arrives silently (no sound, no buzz) and the 7 AM push lists what came overnight; the email goes either way.
+Loud at night only: a number that no longer reaches us (`health:twilio-numbers`) and Twilio about to run out of money.
+A 7 AM push says "all good" every morning; if it does not arrive, that is itself the alarm, and the outside monitor
+backs it up. Plain `/health` (what the outside monitor reads) only goes red for the site, the database, the keys, the
+10-minute jobs and the phone numbers; `/health?all=1` shows everything, as the ops board does.
+
+## When Max can't take a call
+
+Every number's Twilio fallback is a voicemail served by Twilio itself (`twimlets.com`), so a caller can leave a message
+even with Cloudflare completely down; it never rings the owner's cell. Our own code plays the same voicemail if it
+fails mid-answer or Max's connection drops. When Twilio finishes a recording it tells `/voice/vm/<key>`, and every 10
+minutes `src/voicemail.js` asks Twilio for calls to our numbers that never got a write-up. Each one reaches the owner
+like a normal Max call, with the words of the voicemail; a caller who left nothing gets the missed-call text only if
+the call was in the last 30 minutes. The recording is deleted from Twilio once its words are saved. You get one push
+("N calls missed Max") whenever the sweep delivers something, which means the site or Max was down for a while.
+The hourly check puts the voicemail fallback on any number that still has an old one.
 
 ## Hear Max, the money card and grade letters
 

@@ -1128,7 +1128,8 @@ export async function mailOwner(env, subject, text) {
     return 'failed: ' + why;
   }
 }
-export async function opsPing(env, title, body, priority, tags, click) { return ntfy(env, title, body, priority, tags, click); }
+// loud: true only for the few things worth waking up for (push.js lets everything else arrive silently at night).
+export async function opsPing(env, title, body, priority, tags, click, loud) { return ntfy(env, title, body, priority, tags, click, loud); }
 
 // ---------- pings to Christopher ----------
 async function decisionPing(env, c, it, what, by) {
@@ -1141,10 +1142,10 @@ async function throttledPing(env, c, title, body) {
     .bind(now, c.client_id, new Date(Date.now() - PUSH_GAP_MS).toISOString()).run();
   if (changed(r)) await ntfy(env, title, body, 'default', 'white_check_mark');
 }
-async function ntfy(env, title, body, priority, tags, click) {
+async function ntfy(env, title, body, priority, tags, click, loud) {
   // Straight to the phone, or queued for the Mac relay when ntfy refuses this server (see push.js).
   const { push } = await import('./push.js');
-  return push(env, { title, body, priority: priority || 'default', tags: tags || 'bell', click });
+  return push(env, { title, body, priority: priority || 'default', tags: tags || 'bell', click, loud: !!loud });
 }
 // Mail to a client's customer (invoice reminders the owner approved). Returns 'sent', 'off' or 'failed'.
 export async function mailTo(env, to, subject, text, biz, opts) {
