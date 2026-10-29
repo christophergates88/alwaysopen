@@ -15,9 +15,11 @@ jobs:
         env:
           OPS_KEY: ${{ secrets.LEADS_KEY }}
         run: |
-          curl -sS -f -m 120 -H "x-key: $OPS_KEY" -o copy.jsonl.gz "https://alwaysopenoffice.com/ops/backup?download=1"
-          curl -sS -f -m 60 -H "x-key: $OPS_KEY" -o live.json "https://alwaysopenoffice.com/ops/backup?counts=1"
-          ls -la copy.jsonl.gz
+          for q in "download=1|copy.jsonl.gz" "counts=1|live.json"; do
+            code=$(curl -sS -m 170 -H "x-key: $OPS_KEY" -o "${q#*|}" -w "%{http_code}" "https://alwaysopenoffice.com/ops/backup?${q%%|*}" || echo 000)
+            if [ "$code" != "200" ]; then echo "::error title=Backup ${q%%|*} answered $code::$(head -c 300 "${q#*|}" | tr '\n' ' ')"; exit 1; fi
+          done
+          ls -la copy.jsonl.gz live.json
       - name: Restore it into a fresh database and compare
         run: |
           node tools/restore.mjs copy.jsonl.gz restored.sqlite | tee restore.out
