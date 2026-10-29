@@ -980,7 +980,7 @@ async function markNotified(env, table, ids) {
 }
 
 let jwtCache = null;
-async function apnsJwt(env) {
+export async function apnsJwt(env) {
   if (jwtCache && Date.now() - jwtCache.at < 40 * 60000) return jwtCache.jwt;
   const pem = String(env.APNS_KEY).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
   const der = Uint8Array.from(atob(pem), ch => ch.charCodeAt(0));

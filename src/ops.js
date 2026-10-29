@@ -101,6 +101,87 @@ export async function healthChecks(env) {
   return out;
 }
 
+// ---------- the slow checks: once an hour, kept in a table, read by /health ----------
+// Things that fail quietly: the Apple push key, ntfy, every live number still pointing at our webhook, and Google
+// connections. Each is checked the way the real code uses it, and the result is kept so /health stays fast.
+const SLOW_EVERY_MS = 60 * 60000, SLOW_STALE_MS = 3 * 60 * 60000;
+const slowReady = new WeakSet();
+async function ensureSlow(env) {
+  if (slowReady.has(env.DB)) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS health_slow (name TEXT PRIMARY KEY, at TEXT, ok INTEGER, why TEXT)').run();
+  slowReady.add(env.DB);
+}
+export async function slowChecks(env, h) {
+  h = h || {};
+  const out = [];
+  const f = h.fetch || fetch;
+  // Apple push: a push to a made-up device with our key. Apple answers 400 BadDeviceToken when the key is fine, 403 when it is not.
+  if (!(env.APNS_KEY && env.APNS_KEY_ID)) out.push({ name: 'apple-push', ok: false, why: 'Apple push key or key ID missing: owners get no pushes' });
+  else {
+    try {
+      const jwt = await (h.apnsJwt || (async () => (await import('./app.js')).apnsJwt(env)))();
+      const r = await f('https://api.push.apple.com/3/device/' + '0'.repeat(64), { method: 'POST', headers: { authorization: 'bearer ' + jwt, 'apns-topic': 'com.christophergates.alwaysopen', 'apns-push-type': 'alert', 'content-type': 'application/json' }, body: '{"aps":{"alert":"check"}}' });
+      const t = await r.text().catch(() => '');
+      const fine = r.status === 400 && /BadDeviceToken|DeviceTokenNotForTopic/.test(t);
+      out.push({ name: 'apple-push', ok: fine, why: fine ? '' : 'Apple answered ' + r.status + ' ' + one(t).slice(0, 60) + ': owners may not be getting pushes' });
+    } catch (e) { out.push({ name: 'apple-push', ok: false, why: 'Apple push could not be reached: ' + one(e && e.message).slice(0, 80) }); }
+  }
+  // ntfy: the topic answers.
+  if (!env.NTFY_URL) out.push({ name: 'ntfy', ok: false, why: 'no push topic set: nothing reaches your phone' });
+  else {
+    try { const r = await f(env.NTFY_URL, { method: 'HEAD' }); out.push({ name: 'ntfy', ok: r.ok || r.status === 405, why: r.ok || r.status === 405 ? '' : 'ntfy answered ' + r.status + ': pushes to your phone may not be arriving' }); }
+    catch (e) { out.push({ name: 'ntfy', ok: false, why: 'ntfy could not be reached: pushes to your phone are not arriving' }); }
+  }
+  // Twilio: every live number still points at our webhook and has the fallback.
+  if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
+    try {
+      const lines = ((await env.DB.prepare('SELECT number, business FROM voice_lines WHERE on_air = 1').all()).results) || [];
+      const wrong = [];
+      for (const l of lines) {
+        if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
+        const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
+        const j = await r.json().catch(() => ({}));
+        const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
+        if (!pn) { wrong.push((l.business || l.number) + ' (not in the Twilio account)'); continue; }
+        if (String(pn.voice_url || '') !== 'https://alwaysopenoffice.com/voice/in/' + env.VOICE_KEY) wrong.push((l.business || l.number) + ' (webhook points elsewhere)');
+        else if (!/twimlets\.com\/echo/.test(String(pn.voice_fallback_url || ''))) wrong.push((l.business || l.number) + ' (no fallback message; run the Twilio setup)');
+      }
+      out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : '' });
+    } catch (e) { out.push({ name: 'twilio-numbers', ok: false, why: 'could not read the numbers from Twilio' }); }
+  }
+  // Backups: one in the last 8 days (backup.js), once the first one has run.
+  try {
+    const b = await (await import('./backup.js')).lastBackup(env);
+    if (b) out.push({ name: 'backup', ok: Date.now() - Date.parse(b.at) < 8 * 864e5 && !/nowhere/.test(b.where_ || ''), why: /nowhere/.test(b.where_ || '') ? 'the last backup had nowhere to go: no R2 bucket and no email' : 'the last backup was ' + Math.round((Date.now() - Date.parse(b.at)) / 864e5) + ' days ago' });
+  } catch (e) { /* not yet */ }
+  // Google: no connection that Google refused is waiting on an owner (connections.js), and none has gone unchecked for two days.
+  try {
+    const rows = ((await env.DB.prepare("SELECT h.client_id, h.kind, h.broken_at, h.checked_at, c.business FROM connection_health h LEFT JOIN app_clients c ON c.client_id = h.client_id").all()).results) || [];
+    const broken = rows.filter(r => r.broken_at).map(r => (r.business || r.client_id) + ' ' + r.kind);
+    out.push({ name: 'google-connections', ok: !broken.length, why: broken.length ? 'waiting on a reconnect: ' + broken.join(', ') : '' });
+  } catch (e) { out.push({ name: 'google-connections', ok: true, why: '' }); }
+  return out;
+}
+export async function slowCron(env, now, h) {
+  now = now || Date.now();
+  await ensureSlow(env);
+  const last = await env.DB.prepare("SELECT at FROM health_slow WHERE name = 'ran'").first().catch(() => null);
+  if (last && now - Date.parse(last.at) < SLOW_EVERY_MS) return { skipped: true };
+  const res = await slowChecks(env, h);
+  const at = new Date(now).toISOString();
+  for (const c of res) await env.DB.prepare('INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES (?1, ?2, ?3, ?4)').bind(c.name, at, c.ok ? 1 : 0, c.why || '').run();
+  await env.DB.prepare("INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES ('ran', ?1, 1, '')").bind(at).run();
+  for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why);
+  return { checked: res.length, bad: res.filter(c => !c.ok).map(c => c.name) };
+}
+async function slowResults(env, now) {
+  try {
+    await ensureSlow(env);
+    const rows = ((await env.DB.prepare("SELECT name, at, ok, why FROM health_slow WHERE name != 'ran'").all()).results) || [];
+    return rows.filter(r => (now || Date.now()) - Date.parse(r.at) < SLOW_STALE_MS).map(r => ({ name: r.name, ok: !!r.ok, why: r.why || '' }));
+  } catch (e) { return []; }
+}
+
 export async function healthCron(env) {
   const res = await healthChecks(env);
   for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why);
@@ -111,7 +192,7 @@ export async function healthCron(env) {
 // GET /health: "ok" (200) for the outside monitor, or "not ok: ..." (503) when a check fails or the 10-minute cron has
 // not finished in 25 minutes. With the key, the detail: every check and the last run of every job.
 export async function healthStatus(env, now) {
-  const res = await healthChecks(env);
+  const res = (await healthChecks(env)).concat(await slowResults(env, now));
   const age = await cronAge(env, now);
   // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
   const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };

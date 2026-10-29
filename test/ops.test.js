@@ -88,3 +88,37 @@ test('the Twilio fallback: a sentence for the caller, and the owner’s cell fir
   assert.doesNotMatch(fallbackTwiml('A <b>Co</b>', ''), /<b>/);
   assert.match(fallbackUrl('X', ''), /^https:\/\/twimlets\.com\/echo\?Twiml=%3CResponse%3E/);
 });
+
+test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; each failure is one alert and shows on /health', async () => {
+  const { slowCron, healthStatus } = await import('../src/ops.js');
+  const env = envFor(makeDB(), { NTFY_URL: 'https://ntfy.example.test/topic', APNS_KEY: 'k', APNS_KEY_ID: 'id', VOICE_KEY: 'vk', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' });
+  await env.DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air) VALUES ('+14785551234', 'c1', 'Sinclair Plumbing', 1)").run();
+  await env.DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air) VALUES ('+14785550123', 'demo-plumbing', 'Demo Plumbing Co.', 1)").run();   // 555-01xx numbers are made up
+  const pings = [];
+  const world = { apple: [400, '{"reason":"BadDeviceToken"}'], ntfy: 200, voice_url: 'https://alwaysopenoffice.com/voice/in/vk', fallback: 'https://twimlets.com/echo?Twiml=x' };
+  const f = async (url, init) => {
+    url = String(url);
+    if (url.includes('push.apple.com')) return new Response(world.apple[1], { status: world.apple[0] });
+    if (url.includes('ntfy.example.test')) { if (init && init.method === 'POST') pings.push(init.headers.Title); return new Response('', { status: world.ntfy }); }
+    if (url.includes('IncomingPhoneNumbers')) return new Response(JSON.stringify({ incoming_phone_numbers: [{ sid: 'PN1', voice_url: world.voice_url, voice_fallback_url: world.fallback }] }));
+    return new Response('{}', { status: 404 });
+  };
+  const realFetch = globalThis.fetch; globalThis.fetch = f;
+  try {
+    const now = Date.parse('2026-10-29T12:00:00Z');
+    let r = await slowCron(env, now, { fetch: f, apnsJwt: async () => 'jwt' });
+    assert.deepEqual(r, { checked: 4, bad: [] });
+    assert.equal(pings.length, 0);
+    assert.deepEqual(await slowCron(env, now + 30 * 60000, { fetch: f, apnsJwt: async () => 'jwt' }), { skipped: true }, 'once an hour');
+    world.apple = [403, '{"reason":"InvalidProviderToken"}']; world.voice_url = 'https://old.example.com/x';
+    r = await slowCron(env, now + 61 * 60000, { fetch: f, apnsJwt: async () => 'jwt' });
+    assert.deepEqual(r.bad, ['apple-push', 'twilio-numbers']);
+    assert.deepEqual(pings, ['Always Open problem: health:apple-push', 'Always Open problem: health:twilio-numbers']);
+    const h = await healthStatus(env, now + 62 * 60000);
+    assert.equal(h.checks.find(c => c.name === 'apple-push').ok, false);
+    assert.match(h.checks.find(c => c.name === 'twilio-numbers').why, /Sinclair Plumbing \(webhook points elsewhere\)/);
+    assert.doesNotMatch(h.checks.find(c => c.name === 'twilio-numbers').why, /Demo/, 'the demo number is made up and skipped');
+    const stale = await healthStatus(env, now + 5 * 3600e3);
+    assert.equal(stale.checks.some(c => c.name === 'apple-push'), false, 'a result older than three hours is not shown as current');
+  } finally { globalThis.fetch = realFetch; }
+});
