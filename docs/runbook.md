@@ -20,7 +20,7 @@ done from the Mac in the GatesHQ folder, the Cloudflare dashboard, or the GitHub
 Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `Set ... key.command` files in GatesHQ.
 `LEADS_KEY` (the ops key: /health detail, /ops routes, the deploy's checks; also a GitHub Actions secret), `VOICE_KEY`
 (Max's webhook addresses), `NTFY_URL` (your phone), `IP_SALT`, `ANTHROPIC_API_KEY`, `TWILIO_ACCOUNT_SID`,
-`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `NTFY_TOKEN` (the paid ntfy account's access token, set with `Set ntfy token.command`), `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `PLACES_KEY`, `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `META_*`. GitHub holds
 `CLOUDFLARE_API_TOKEN` and `LEADS_KEY`. Plain settings (towns, counties, renewals, the sending address) are in
 `wrangler.toml`.
@@ -44,7 +44,7 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `health:email` | The email binding is missing | The deploy fell back to `wrangler.noemail.toml`; fix Email Routing and redeploy |
 | `health:max-line` | A Max key is missing | `wrangler secret list`, set the missing one |
 | `health:apple-push` | Owners are not getting pushes | Apple key in App Store Connect; `APNS_KEY`, `APNS_KEY_ID` |
-| `health:ntfy` | Your phone pushes are not arriving | ntfy.sh status, the ntfy app on your phone |
+| `health:ntfy` | Your phone pushes are not arriving, or ntfy turned down the account token | ntfy.sh status, the ntfy app on your phone; for the token, make a new one at ntfy.sh (Account, Access tokens) and run `Set ntfy token.command` |
 | `health:twilio-numbers` | A live number no longer points at us (the only alert loud at night) | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
 | `health:google-connections` | A Google connection was refused | The owner has a reconnect card; if several at once, the Google Cloud consent screen is in Testing |
 | `health:backup` | No backup in 8 days | `POST /ops/backup` with the key; check the email or the R2 bucket |

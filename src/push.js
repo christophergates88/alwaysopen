@@ -10,6 +10,10 @@
 //      instead, once, between 8 AM and 9 PM.
 // Pushes never carry keys or customer card details; they're the same short notes that already went by push and email.
 //
+// With a paid ntfy account (NTFY_TOKEN, an access token), ntfy counts our pushes against our account instead of the
+// shared Cloudflare address, which is what gets refused. A token ntfy turns down never makes things worse: that push
+// goes again at once without it, and the hourly check says so.
+//
 // Night, 10 PM to 7 AM Eastern: every push arrives silently (ntfy priority "low": no sound, no buzz) unless it is marked
 // loud. Problems still go by email and are listed in the 7 AM push (ops.js, morning.js). Loud at night is kept for the
 // few things where callers can reach nobody at all: a number that no longer points at us, or Twilio out of money.
@@ -44,8 +48,15 @@ async function direct(env, p, h) {
   const headers = { Title: ascii(p.title), Priority: p.priority || 'default' };
   if (p.tags) headers.Tags = ascii(p.tags);
   if (p.click) headers.Click = String(p.click).slice(0, 500);
+  const body = String(p.body || '').slice(0, 3000);
+  const send = hd => f(env.NTFY_URL, { method: 'POST', headers: hd, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
   try {
-    const r = await f(env.NTFY_URL, { method: 'POST', headers, body: String(p.body || '').slice(0, 3000), signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const token = String(env.NTFY_TOKEN || '').trim();
+    let r = await send(token ? Object.assign({ Authorization: 'Bearer ' + token }, headers) : headers);
+    if (token && (r.status === 401 || r.status === 403)) {
+      try { await note(env, 'token', 'refused ' + r.status); } catch (e) { /* only a note */ }
+      r = await send(headers);
+    } else if (token && r.ok) { try { await note(env, 'token', 'ok'); } catch (e) { /* only a note */ } }
     return r.ok ? '' : 'ntfy answered ' + r.status;
   } catch (e) { return /abort|timeout/i.test(String(e && (e.name || e.message))) ? 'ntfy did not answer in time' : 'ntfy could not be reached'; }
 }
@@ -132,6 +143,8 @@ export async function pushHealth(env, now) {
   now = now || Date.now();
   if (!env.NTFY_URL) return { ok: false, why: 'no push topic set: nothing reaches your phone' };
   await ensurePush(env);
+  const tk = env.NTFY_TOKEN ? await env.DB.prepare("SELECT v FROM push_meta WHERE k = 'token'").first().catch(() => null) : null;
+  if (tk && /^refused/.test(tk.v || '')) return { ok: false, why: 'ntfy turned down the account token (' + tk.v + '), so pushes are going without it, on the free limits. Make a new token at ntfy.sh, Account, Access tokens, and set it with “Set ntfy token” on the Mac' };
   const stuck = await env.DB.prepare("SELECT COUNT(*) AS n, MIN(at) AS first FROM push_queue WHERE status IN ('queued', 'out') AND at < ?1").bind(new Date(now - 15 * 60e3).toISOString()).first();
   const relay = await env.DB.prepare("SELECT at FROM push_meta WHERE k = 'relay'").first().catch(() => null);
   const d = await env.DB.prepare("SELECT at, v FROM push_meta WHERE k = 'direct'").first().catch(() => null);

@@ -101,3 +101,18 @@ test('/ops/push-queue: only with the key; the Mac takes and reports', async () =
   assert.equal(d.done, 1);
   assert.equal((await DB.prepare("SELECT via FROM push_queue").first()).via, 'mac');
 });
+
+test('a paid ntfy account: the token goes with every push; a token ntfy turns down is dropped at once and reported', async () => {
+  const env = envFor({ NTFY_TOKEN: 'tk_example' }), seen = [];
+  const answer = status => async (url, init) => { seen.push(init.headers.Authorization || ''); return new Response('', { status: init.headers.Authorization ? status : 200 }); };
+  assert.equal(await P.push(env, { title: 'With the token' }, { fetch: answer(200), now: Date.parse('2026-10-29T15:00:00Z') }), 'sent');
+  assert.deepEqual(seen, ['Bearer tk_example']);
+  assert.equal((await P.pushHealth(env, Date.now())).ok, true);
+  seen.length = 0;
+  assert.equal(await P.push(env, { title: 'Token revoked' }, { fetch: answer(403), now: Date.parse('2026-10-29T15:00:00Z') }), 'sent', 'still delivered, without the token');
+  assert.deepEqual(seen, ['Bearer tk_example', '']);
+  const h = await P.pushHealth(env, Date.now());
+  assert.equal(h.ok, false); assert.match(h.why, /ntfy turned down the account token \(refused 403\)/);
+  assert.deepEqual(await P.push(envFor(), { title: 'No token' }, { fetch: async (u, i) => { seen.push(i.headers.Authorization || 'none'); return new Response(''); } }), 'sent');
+  assert.equal(seen.pop(), 'none', 'no token set: exactly as before');
+});
