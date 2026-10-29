@@ -16,7 +16,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if ! npx -y wrangler@4 d1 export alwaysopen --remote --output=dump.sql > export.log 2>&1; then
-            echo "::error title=Export failed::$(tail -c 600 export.log | tr '\n' ' ')"
+            echo "::error title=Export failed::$(grep -iE 'error|code|permission|denied|not found|unauthorized' export.log | grep -v '^│' | head -6 | cut -c1-200 | tr '\n' ' ')"
             exit 1
           fi
           ls -la dump.sql
