@@ -97,8 +97,14 @@ export async function handleVoice(req, env, ctx, url) {
 async function incoming(env, f) {
   const sid = f.get('CallSid') || '', to = f.get('To') || '', from = f.get('From') || '';
   if (!SID_RE.test(sid)) return twiml('<Hangup/>');
-  const line = await lineFor(env, to);
+  let line = await lineFor(env, to);
   if (!line) return twiml(say('Sorry, this number is not set up yet. Goodbye.') + '<Hangup/>');
+  // Hear Max (hearmax.js): Christopher armed his own line for one staged call from his own number. Max answers as the
+  // demo line, the call is recorded and marked a test. No other call is ever recorded.
+  let sample = null;
+  if (line.client_id === OWN_ID && E164.test(from)) {
+    try { const hm = await import('./hearmax.js'); const got = await hm.takeArm(env, from, sid); const as = got && await lineFor(env, got.line.number); if (as) { sample = { tw: hm.recordingTwiml(env) }; line = as; } } catch (e) { sample = null; }
+  }
   const biz = line.business || 'our office';
   if (!+line.on_air) {
     if (E164.test(line.transfer_to || '')) return twiml('<Dial timeout="25" callerId="' + xa(E164.test(from) ? from : to) + '"><Number>' + xa(line.transfer_to) + '</Number></Dial>');
@@ -112,14 +118,14 @@ async function incoming(env, f) {
   const n = x => ((x && x.results && x.results[0]) || {}).n || 0;
   // Numbers listed as testers on the line (the owner trying it out) skip the per-caller limit, and their calls are
   // marked as tests: no lead, no push, kept out of the counts.
-  const tester = String((parse(line.facts) || {}).testers || '').split(/[,\s]+/).filter(x => E164.test(x)).indexOf(from) > -1;
+  const tester = !!sample || String((parse(line.facts) || {}).testers || '').split(/[,\s]+/).filter(x => E164.test(x)).indexOf(from) > -1;
   // The daily safety cap: 120 minutes in a day on one line is a robocall storm or abuse, not a busy day.
   let capped = false;
   try { capped = !tester && await (await import('./minutes.js')).overDailyCap(env, to, now); } catch (e) { capped = false; }
   const limited = (!tester && n(a) >= PER_CALLER_HOUR) || n(b) >= PER_LINE_DAY || capped;
   if (capped) opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had over 120 minutes of calls in a day. Callers now hear a short message asking them to text or call back. If it is a real rush, raise the cap; if it is a storm, check the callers in the app.').catch(() => {});
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', ?8, 0, ?9)")
-    .bind(sid, line.client_id, to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
+    .bind(sid, line.client_id, sample ? line.number : to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
   if (capped) return twiml(say('Thanks for calling ' + biz + '. We are getting a lot of calls right now. Please text this number, or call back in an hour. Goodbye.') + '<Hangup/>');
   if (limited) return twiml(say('Thanks for calling ' + biz + '. We have your number and will call you back as soon as we can. Goodbye.') + '<Hangup/>');
   if (!tester && f.get('AoTest') !== '1' && line.client_id !== OWN_ID) liveCallStart(env, line.client_id, sid, line.business || '', spokenNumber(from, true)).catch(() => {});
@@ -127,7 +133,7 @@ async function incoming(env, f) {
   const hints = hintsFor(line);
   const vv = voiceFor(line);
   const audio = (parse(line.facts) || {}).greetAudio;
-  return twiml((audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
+  return twiml((sample ? sample.tw : '') + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
     (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greeting(line)) + '" welcomeGreetingInterruptible="none" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
     // English-only lines use Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
     // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over.

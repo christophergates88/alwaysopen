@@ -95,7 +95,16 @@ export async function boardItems(env) {
     if (metaReady(env) && !(await S.connected(env))) items.push({ key: 'fb-connect', group: 'One tap so Always Open posts on its own', title: 'Connect Always Open’s Facebook Page', detail: 'Open https://alwaysopenoffice.com/meta/connect?hq=' + (await boardToken(env)) + ', sign in to Facebook as yourself, and pick the Always Open Page (and its Instagram). Three posts a week go up on their own after that.' });
     socialLine = await S.socialLine(env);
   } catch (e) { /* the board stands without it */ }
+  let hearLine = 'not read';
+  try {
+    const H = await import('./hearmax.js');
+    const cur = await H.current(env, 'en');
+    const link = 'https://alwaysopenoffice.com/ops/hear-max?t=' + (await boardToken(env));
+    hearLine = cur ? 'live: ' + cur.seconds + ' seconds, recorded ' + String(cur.at).slice(0, 10) + '. Record a new one or take it down: ' + link : 'no sample yet. Open ' + link + ' on your phone, type your number, tap Ready, then call (706) 460-2226';
+    if (!cur) items.push({ key: 'hear-max', group: 'One call so the website can play Max', title: 'Record the Hear Max sample', detail: 'Open ' + link + ' on your phone, type the number you will call from, tap Ready, and call (706) 460-2226. Ask for a plumber tonight, give a made-up name, hang up after Max confirms.' });
+  } catch (e) { /* the board stands without it */ }
   const sys = [
+    ['Hear Max on the website', hearLine],
     ['Always Open’s own Facebook and Instagram', socialLine],
     ['Always Open check (reviews and leads)', await (await import('./funding.js')).checkRunLine(env)],
     ['Twilio balance', await fundingStateLine(env)],

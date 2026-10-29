@@ -149,7 +149,7 @@ a.btn{color:inherit}
 .feature{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px;margin-top:14px}.reflist{list-style:none;padding:0;margin:0;display:grid;gap:6px}.reflist li{display:flex;justify-content:space-between;gap:10px;font-size:14px}.reflist span{opacity:.75;text-align:right}
 .feature h3{margin:0;font:800 1.1rem var(--display);font-stretch:92%}
 .money{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:8px}.money.on{border-color:rgba(255,106,94,.55);box-shadow:var(--glow)}
-.money .mh{font:600 13px var(--mono);color:var(--slate);margin:0}.money .mv{font:850 2.4rem/1 var(--display);font-stretch:92%;color:var(--sign);margin:2px 0 0}.money .mv small{font:600 15px var(--body);color:var(--slate);margin-left:6px}
+.money .mh{font:600 13px var(--mono);color:var(--slate);margin:0}.money .mv{font:850 2.4rem/1 var(--display);font-stretch:92%;color:var(--sign);margin:2px 0 0}.money .mv small{display:block;font:600 15px/1.3 var(--body);color:var(--slate);margin-top:4px}
 .money .mr{color:var(--slate);font-size:14px;margin:0}.money details summary{cursor:pointer;color:var(--slate);font-size:14px;min-height:44px;display:flex;align-items:center}.money details p{margin:0 0 6px;font-size:14px}
 .feature p{margin:0;color:var(--slate);font-size:15px}
 .recs{display:grid;gap:10px}
@@ -374,7 +374,7 @@ function vHome(){
     return h;
   }
   if(SEG==='results'){
-    h+=monthBlock()+(f.competitors?rivalCard():'')+insightsBlock()+lostCard()+shareCard()+(isTech()?'':upCard())+referCard();
+    h+=moneyCard()+monthBlock()+(f.competitors?rivalCard():'')+insightsBlock()+lostCard()+shareCard()+(isTech()?'':upCard())+referCard();
     return h;
   }
   if(SEG==='settings'){

@@ -59,10 +59,22 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `minutes-invoice` | An overage could not be billed | The business has no Stripe customer; bill by hand |
 | `mail-send` | An email could not be sent | Email Routing in Cloudflare for `alwaysopenoffice.com` |
 | `social` | Today’s Always Open Facebook post did not go up | The ops board line for Facebook; reconnect the Page from the board link if the token died; `POST /ops/social-post` with the key puts it up now |
+| `hear-max` | The Hear Max call left no recording, or saving it failed | Open the Hear Max page from the ops board and call again |
 | `photo-post` | A client’s photo could not be turned into a post after 3 tries | Open the photo link in the alert and write the post by hand in HQ |
 
 Problems arrive once per kind every 15 minutes with a count of the ones held back. A 7 AM push says "all good"
 every morning; if it does not arrive, that is itself the alarm, and the outside monitor backs it up.
+
+## Hear Max, the money card and grade letters
+
+- **Hear Max** (`src/hearmax.js`): the website plays one staged call. Open the Hear Max page from the ops board on your
+  phone, type the number you will call from, tap Ready, and call (706) 460-2226 within 30 minutes. Max answers as the
+  demo plumbing line and only that call is recorded; the MP3 is kept in D1 and Twilio's copy is deleted. A newer good
+  call replaces it; "Take it down" on the same page hides the player. No customer call is ever recorded.
+- **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
+  same figure in the app, the monthly report and the ops board. No average job, no dollars.
+- **Grade letters** (`src/letter.js`): on `/audit/tool`, "Make the letter" under an audit, or the "Grade letters to
+  print" box for up to ten. One page each on Letter paper; competitors only as an average.
 
 ## Facebook and Instagram
 
