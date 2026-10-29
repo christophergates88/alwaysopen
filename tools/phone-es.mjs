@@ -48,7 +48,6 @@ export const ES_HOME = [
   { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos y su perfil de Google, resueltos. El día 2 de cada mes, una página le muestra lo que se hizo.' },
   { s: 'header.hero .ctas a.ph-only', h: 'Ver mi calificación' },
   { s: 'header.hero .ctas a[href="#contact"]', h: 'Quiero mi auditoría gratis' },
-  { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
   { s: 'header.hero .promise > span', h: PROMISE },
   { s: 'header.hero p.fine', h: 'Sin cargo de instalación · Mes a mes · Inglés y español' },
   { s: 'header.hero .onlylink', h: 'Todo lo que hacemos, en una pantalla <span aria-hidden="true">&darr;</span>' },
