@@ -23,8 +23,8 @@ const scene = (n, h3, aria, scn, why) => [
 ];
 const PLANS = [
   { name: 'Starter', price: '$149', per: 'Unos $5 al día', for: 'Cada reseña contestada. Hasta la del martes.', btn: ['line', 'Empezar con Starter'], items: [
-    'Max, su asistente telefónico, contesta sus llamadas de día y de noche (300 minutos al mes)', 'Todas las reseñas en un solo lugar, cada una con respuesta', 'Aviso de reseñas malas el mismo día',
-    'Perfil de Google al día, una publicación por semana', 'Informe mensual de una página', 'Un registro mensual de cada respuesta y publicación', 'Respuestas en español',
+    'Todas las reseñas en un solo lugar, cada una con respuesta', 'Aviso de reseñas malas el mismo día',
+    'Perfil de Google al día, una publicación por semana', 'Max, su línea telefónica, contesta sus llamadas de día y de noche (300 minutos al mes)', 'Informe mensual de una página', 'Un registro mensual de cada respuesta y publicación', 'Respuestas en español',
     'Su propia app: apruebe respuestas y publicaciones con un toque, vea su mes y escríbanos'] },
   { name: 'Growth', price: '$299', per: 'Unos $10 al día', for: 'A cada cliente se le pide reseña. Cada publicación, escrita. Usted toca OK.', btn: ['primary', 'Empezar con Growth'], items: [
     '<li class="plus">Todo lo de Starter, más:</li>', 'Solicitudes de reseña después de cada trabajo', 'Publicaciones en Facebook e Instagram con sus fotos<span class="soon" data-launch="meta">Próximamente</span>',
@@ -174,6 +174,36 @@ export function esFront(key) {
     for (const k in PICK) out.push({ s: '#go .aos-pick button[data-pick="' + k + '"]', h: PICK[k] });
   }
   return out;
+}
+
+// Practices and agencies: Max only takes the message, and the pillars name only what their plans include.
+const MAP_STORM_ES = '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Storm Desk</b><span>: una publicación de cierre por clima, lista en el minuto en que llega una alerta a su condado</span></li>';
+const AR = ' <span aria-hidden="true">&rarr;</span>';
+// Regulated pages: nothing goes out on its own, so Full Max is not offered.
+const esPillar = (n, swap) => { const e = ES_DOES.find(x => x.s === '#does .pillar:nth-child(' + n + ') ul'); return { s: e.s, h: swap(e.h) }; };
+const NO_FULL_MAX = h => h.replace('<li><b>Full Max</b><span>: si quiere que lo rutinario salga solo</span></li>', '');
+export function esDoesFor(key) {
+  if (key === 'dental') return [
+    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma el recado</b><span>: nombre, número y lo que necesitan; nunca tarifas, tratamientos ni seguros</span></li><li><b>Cada recado en su teléfono</b><span>: en segundos, con el número de quien llamó</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
+    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Seguimiento de citas</b><span>: confirmaciones y recordatorios, con el texto ya escrito</span></li><li><b>Recordatorios de temporada</b><span>: a pacientes que aceptaron mensajes</span></li><li><b>Horario de días festivos</b><span>: y cierres publicados en Google, con su OK</span></li>' },
+    { s: '#does .pillar:nth-child(3) a', h: 'Qué incluye cada plan' + AR },
+    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Llene mi semana</b><span>: un día libre se ofrece a pacientes anteriores que aceptaron mensajes; el primer sí queda agendado</span></li><li><b>Solicitudes de cita</b><span>: a cualquier hora, y cada recado registrado</span></li><li><b>Confirmaciones de citas</b><span>: para que queden menos sillas vacías</span></li>' },
+    { s: '#does .pillar:nth-child(5) ul', h: MAP_STORM_ES },
+    esPillar(6, NO_FULL_MAX)
+  ];
+  if (key === 'insurance') return [
+    esPillar(2, h => h.replace('<li><b>Vigilancia de la competencia</b><span>: cómo se compara con los negocios cercanos, cada mes</span></li>', '<li><b>Avisos el mismo día</b><span>: por una reseña mala, para que usted llame primero</span></li>')),
+    esPillar(6, NO_FULL_MAX),
+    { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma recados fuera de horario</b><span>: nombre, número y una buena hora para llamar; nunca pólizas, tarifas ni reclamos</span></li><li><b>Cada recado en su teléfono</b><span>: en segundos, con el número de quien llamó</span></li><li><b>Inglés y español</b><span>: respuestas y recados, sin costo extra</span></li>' },
+    { s: '#does .pillar:nth-child(3) h3', h: 'Antes que la noticia' },
+    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Rate-Shock Radar</b><span>: sepa de una ola de alzas antes de que llegue a su página</span></li><li><b>Publicaciones educativas</b><span>: del calendario de la agencia; enseñan, nunca venden</span></li><li><b>Kit para pedir reseñas</b><span>: para que los clientes contentos sepan a dónde ir</span></li>' },
+    { s: '#does .pillar:nth-child(3) a', h: 'Vea Rate-Shock Radar' + AR },
+    { s: '#does .pillar:nth-child(4) h3', h: 'Un registro para cumplimiento' },
+    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Cada palabra pública archivada</b><span>: cada reseña, respuesta y publicación, cada mes</span></li><li><b>Su redacción aprobada</b><span>: las respuestas salen de la biblioteca que aprobó su contacto de cumplimiento</span></li><li><b>Sin lista de clientes</b><span>: trabajamos solo con páginas públicas</span></li>' },
+    { s: '#does .pillar:nth-child(4) a', h: 'Vea el registro' + AR },
+    { s: '#does .pillar:nth-child(5) ul', h: MAP_STORM_ES }
+  ];
+  return [];
 }
 
 // What Always Open does: the six pillars under the hero, on every page.
