@@ -310,7 +310,8 @@ export async function morningChecks(env, now) {
     const stale = ((await env.DB.prepare("SELECT i.client_id, c.business, COUNT(*) AS n, MIN(i.created) AS oldest FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'pending' AND i.created < ?1 GROUP BY i.client_id ORDER BY oldest LIMIT 4")
       .bind(new Date(now - 3 * DAY).toISOString()).all()).results || []).filter(r => !INTERNAL.has(r.client_id));
     if (stale.length) parts.push('Waiting on owners: ' + stale.map(r => (r.business || r.client_id) + ' (' + r.n + ', oldest ' + Math.floor((now - Date.parse(r.oldest)) / DAY) + ' days)').join(', ') + '.');
-    const msgs = (await unanswered(env, now)).filter(r => businessHours(Date.parse(r.at), now) >= 8);
+    // Unanswered for most of a business day: yesterday morning's message shows in this morning's push.
+    const msgs = (await unanswered(env, now)).filter(r => businessHours(Date.parse(r.at), now) >= 6);
     if (msgs.length) parts.push('Unanswered client messages: ' + msgs.slice(0, 4).map(r => (r.business || r.client_id)).join(', ') + '.');
     const setup = ((await env.DB.prepare("SELECT k FROM checks_meta WHERE k LIKE 'setup:%' AND v = '3'").all()).results || []).map(r => r.k.slice(6));
     if (setup.length) {
