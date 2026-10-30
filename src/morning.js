@@ -18,7 +18,7 @@ export async function morningCounts(env, now) {
   const q = async (sql, ...a) => { try { const r = await env.DB.prepare(sql).bind(...a).first(); return +(r && r.n) || 0; } catch (e) { return 0; } };
   return {
     calls: await q("SELECT COUNT(*) AS n FROM app_calls WHERE at >= ?1 AND at < ?2 AND test = 0 AND outcome NOT IN ('limited', 'spam') AND client_id NOT IN ('demo-plumbing', 'always-open')", from, to),
-    leads: await q("SELECT COUNT(*) AS n FROM leads WHERE at >= ?1 AND at < ?2 AND status != 'spam'", from, to),
+    leads: await q("SELECT COUNT(*) AS n FROM leads WHERE at >= ?1 AND at < ?2 AND status NOT IN ('spam', 'letter')", from, to),
     drafts: await q("SELECT COUNT(*) AS n FROM app_items WHERE status = 'pending' AND client_id != 'demo-plumbing'"),
     booked: await q("SELECT COUNT(*) AS n FROM biz_jobs WHERE stage = 'booked' AND updated >= ?1 AND updated < ?2 AND client_id != 'demo-plumbing'", from, to),
     errors: await q("SELECT COUNT(*) AS n FROM errors WHERE at >= ?1 AND at < ?2", from, to)
@@ -58,6 +58,7 @@ export async function morningCron(env, now, h) {
   let drill = '';
   try { drill = await (await import('./drill.js')).drillLine(env, now); } catch (e) { drill = ''; }
   try { const more = await (await import('./checks.js')).morningChecks(env, now); if (more) drill = (drill ? drill + ' ' : '') + more; } catch (e) { /* the push still goes */ }
+  try { const ml = await (await import('./mail.js')).mailMorning(env, now); if (ml) drill = (drill ? drill + ' ' : '') + ml; } catch (e) { /* the push still goes */ }
   const text = morningText(health, await morningCounts(env, now), await nightList(env), drill);
   await h.ping(text.title, text.body, health.ok ? 'default' : 'high', health.ok ? 'sunrise' : 'warning');
   return { sent: true, ok: health.ok };

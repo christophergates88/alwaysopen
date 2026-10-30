@@ -20,7 +20,7 @@ done from the Mac in the GatesHQ folder, the Cloudflare dashboard, or the GitHub
 Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `Set ... key.command` files in GatesHQ.
 `LEADS_KEY` (the ops key: /health detail, /ops routes, the deploy's checks; also a GitHub Actions secret), `VOICE_KEY`
 (Max's webhook addresses), `NTFY_URL` (your phone), `IP_SALT`, `ANTHROPIC_API_KEY`, `TWILIO_ACCOUNT_SID`,
-`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `NTFY_TOKEN` (the paid ntfy account's access token, set with `Set ntfy token.command`), `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `LOB_KEY` (mailed letters, set with `Set Lob key.command`), `NTFY_TOKEN` (the paid ntfy account's access token, set with `Set ntfy token.command`), `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `PLACES_KEY`, `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `META_*`. GitHub holds
 `CLOUDFLARE_API_TOKEN` and `LEADS_KEY`. Plain settings (towns, counties, renewals, the sending address) are in
 `wrangler.toml`.
@@ -149,6 +149,16 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   A lead from the Spanish page is marked Spanish, and that owner's Max line starts in Spanish.
 - **Grade letters** (`src/letter.js`): on `/audit/tool`, "Make the letter" under an audit, or the "Grade letters to
   print" box for up to ten. One page each on Letter paper; competitors only as an average.
+- **Mailed grade letters** (`src/mail.js`, `src/qr.js`): the Prospector adds businesses to `mail_queue`
+  (`POST /ops/mail-queue` with the key). Every 10 minutes on weekdays, 10 AM to 3 PM Eastern, the Worker grades the next
+  ones fresh and mails a color letter through Lob (lob.com) to each graded C, D or F, signed by the team, with a QR code
+  to that business's private live audit (`/your-audit/<token>`). Skipped: A and B grades, clients, anyone already a
+  lead, anyone mailed in the last six months, no street address on Google. Caps: 5 a day and $60 a month by default
+  (about $1.42 a letter), set by `Turn on mailed letters.command` (`POST /ops/mail-on`). Needs `LOB_KEY` (a `test_` key
+  makes letters in Lob's dashboard without mailing them) and `BUSINESS_ADDRESS` (the return address). The letter's page
+  exists only while Lob makes it; nothing from Google is kept. The first scan of a code pushes "X just scanned their
+  letter" at high priority; the 7 AM push lists letters landing that day and any scanned. To stop it, delete the
+  `enabled` row in `mail_meta` or remove `LOB_KEY`.
 
 ## Facebook and Instagram
 
@@ -196,7 +206,7 @@ ran; `POST` runs one now. How to restore, and the drill that proves it, is in `d
 Cloudflare (the Worker, D1, Email Routing; domain `alwaysopenoffice.com` renews Oct 24, 2027), Twilio (prepaid
 balance: auto-recharge on, the Worker warns at $25 and $10), Anthropic (API credits: the Worker warns when a call is
 refused for credit), Apple Developer Program (Oct 7, 2027), Google Cloud (Places key, OAuth: keep the consent screen
-published), Stripe (nothing to renew), ntfy (free topic), the outside uptime monitor (free account, watches
+published), Stripe (nothing to renew), ntfy (paid plan), Lob (mailed letters: pay per letter, card on file), the outside uptime monitor (free account, watches
 `/health`). The Worker reminds you 30, 7 and 1 days before each date in `RENEWALS` in `wrangler.toml`.
 
 ## If you cannot be reached

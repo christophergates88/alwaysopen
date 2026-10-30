@@ -47,13 +47,13 @@ export function letterFor(audit, opts) {
   const offer = clean(o.offer, 220) || DEFAULT_OFFER;
   const phone = phoneText(o.phone);
   const fixes = topThree(audit);
-  const own = b.reviews ? b.rating.toFixed(1) + ' stars from ' + b.reviews + (b.reviews === 1 ? ' review' : ' reviews') + ' on Google today' : 'no Google reviews yet';
+  const own = b.reviews ? b.rating.toFixed(1) + ' stars from ' + b.reviews + (b.reviews === 1 ? ' review' : ' reviews') + (o.mailed ? ' on Google' : ' on Google today') : 'no Google reviews yet';
   return {
-    name: b.name || 'Your business', address: b.address || '', date: dateText(audit.at), grade: audit.grade || '', score: audit.score || 0, own,
+    name: b.name || 'Your business', address: String(b.address || '').replace(/, (USA|United States)$/, ''), date: dateText(audit.at), mailed: !!o.mailed, grade: audit.grade || '', score: audit.score || 0, own,
     areas: (audit.areas || []).map(a => ({ label: a.label, grade: a.grade })),
     fixes, fine: (audit.fine || []).slice(0, 4), pitch: pitch.text, kind: pitch.kind, offer,
-    contact: phone ? 'Call or text me at ' + phone + '. To hear Max answer a call, dial (706) 460-2226.' : 'To hear Max answer a call, dial (706) 460-2226. To reach me, email hello@' + SITE + ' and I’ll come by.',
-    sign: 'Christopher Gates, Always Open, Eatonton',
+    contact: o.contact ? clean(o.contact, 300) : (phone ? 'Call or text me at ' + phone + '. To hear Max answer a call, dial (706) 460-2226.' : 'To hear Max answer a call, dial (706) 460-2226. To reach me, email hello@' + SITE + ' and I’ll come by.'),
+    sign: o.sign ? clean(o.sign, 120) : 'Christopher Gates, Always Open, Eatonton',
     gradeLink: SITE + '/#go-grade'
   };
 }
@@ -61,13 +61,14 @@ export function letterFor(audit, opts) {
 export function letterText(audit, opts) {
   const L = letterFor(audit, opts);
   const head = L.name + ': grade ' + L.grade + ' (' + L.score + ' of 100) on how you look to people searching Google.';
-  const fx = L.fixes.length ? ' The three things I would fix first: ' + L.fixes.map((f, i) => (i + 1) + ') ' + f.title.toLowerCase()).join(', ') + '.' : ' Nothing major to fix; you’re in good shape.';
+  const fx = L.fixes.length ? ' The ' + things(L.fixes.length) + ' I would fix first: ' + L.fixes.map((f, i) => (i + 1) + ') ' + f.title.toLowerCase()).join(', ') + '.' : ' Nothing major to fix; you’re in good shape.';
   const tail = ' Want me to walk you through it? ' + L.offer + ' Christopher, Always Open. See your grade: ' + L.gradeLink;
   let t = head + fx + tail;
   if (t.length > 600) t = head + fx + ' Christopher, Always Open. ' + L.gradeLink;
   return t.slice(0, 600);
 }
 
+function things(n) { return n === 1 ? 'one thing' : (['', '', 'two', 'three'][n] || n) + ' things'; }
 const GC = { A: '#1C6B54', B: '#1C6B54', C: '#B7791F', D: '#C4271B', F: '#C4271B' };
 function onePage(L) {
   const gc = GC[L.grade] || '#C4271B';
@@ -76,11 +77,12 @@ function onePage(L) {
     '<div class="head"><div><h1>' + esc(L.name) + ', graded</h1><p class="addr">' + esc(L.address) + '</p><p class="own">' + esc(L.own) + '</p></div>' +
     '<div class="grade" style="border-color:' + gc + ';color:' + gc + '"><b>' + esc(L.grade) + '</b><span>' + L.score + ' of 100</span></div></div>' +
     (L.areas.length ? '<p class="areas">' + L.areas.map(a => '<span><b style="color:' + (GC[a.grade] || '#C4271B') + '">' + esc(a.grade) + '</b> ' + esc(a.label) + '</span>').join('') + '</p>' : '') +
-    '<p class="lead">This is how ' + esc(L.name) + ' looks to someone searching Google for what you do, checked this morning. ' + (L.fixes.length ? 'Here are the three things I would fix first.' : 'There is nothing major to fix, which is rare.') + '</p>' +
+    '<p class="lead">This is how ' + esc(L.name) + ' looks to someone searching Google for what you do, checked ' + (L.mailed ? 'on ' + esc(L.date) : 'this morning') + '. ' + (L.fixes.length ? 'Here ' + (L.fixes.length === 1 ? 'is the ' : 'are the ') + things(L.fixes.length) + (L.mailed ? ' we' : ' I') + ' would fix first.' : 'There is nothing major to fix, which is rare.') + '</p>' +
     (L.fixes.length ? '<ol class="fx">' + L.fixes.map(f => '<li><b>' + esc(f.title) + '.</b> ' + esc(f.saw) + ' <span>' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '') +
     (L.fine.length ? '<p class="fine">Already good: ' + L.fine.map(esc).join('; ') + '.</p>' : '') +
     '<h2>What Always Open does for a business like yours</h2><p>' + esc(L.pitch) + ' You approve everything from your phone; nothing goes out in your name without your OK.</p>' +
     '<div class="offer"><b>' + esc(L.offer) + '</b></div>' +
+    (L.qr ? '<div class="qrrow">' + L.qr + '<p><b>Your full audit, checked live</b><span>Point your phone’s camera at the code, or type</span><code>' + esc(L.qrLink || '') + '</code></p></div>' : '') +
     '<p class="contact">' + esc(L.contact) + '</p>' +
     '<footer><span>' + esc(L.sign) + '</span><span>See your grade any time: ' + esc(L.gradeLink) + '</span></footer>' +
     '</article>';
@@ -97,6 +99,13 @@ const CSS = '@page{size:letter;margin:0.75in}*{box-sizing:border-box}body{margin
   'footer{margin-top:auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid #DCDAD3;padding-top:8pt;font:500 9pt ui-monospace,Menlo,monospace;color:#586075}' +
   '@media (max-width:700px){.page{padding:20px 16px;min-height:0;margin:0}.head{flex-direction:column}h1{font-size:20pt}.areas{flex-wrap:wrap}}' +
   '@media print{body{background:#fff}.bar{display:none}.page{margin:0;padding:0;min-height:9.4in;max-width:none;break-after:page}.page:last-child{break-after:auto}}';
+// For the mail service (mail.js): one letter, no toolbar, sized for a letter sheet, with the QR code to their live audit.
+const MAIL_CSS = '@page{size:8.5in 11in;margin:0}body{background:#fff}.page{margin:0;max-width:none;width:8.5in;min-height:11in;padding:0.6in 0.7in}' +
+  '.qrrow{display:flex;gap:14pt;align-items:center;border:1px solid #DCDAD3;border-radius:12px;padding:8pt 12pt}.qrrow svg{width:1.05in;height:1.05in;flex:none}.qrrow b{display:block;font:800 12pt "Archivo","Arial Narrow",Arial,sans-serif}.qrrow span{display:block;font-size:10pt;color:#586075}.qrrow code{display:block;margin-top:2pt;font:600 10.5pt ui-monospace,Menlo,monospace;white-space:nowrap;color:#171B26}';
+export function mailPage(L) {
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=Instrument+Sans:wght@400;600;700&display=swap">' +
+    '<title>' + esc(L.name) + ', graded</title><style>' + CSS + MAIL_CSS + '</style></head><body>' + onePage(L) + '</body></html>';
+}
 // The printable page for one or more letters.
 export function letterPage(letters, missed) {
   const n = letters.length;

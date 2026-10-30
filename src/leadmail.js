@@ -332,6 +332,8 @@ export async function handleAuditPage(req, env, url, h) {
   }
   const views = +lead.views || 0;
   await env.DB.prepare('UPDATE leads SET views = ?1 WHERE id = ?2').bind(String(views + 1), lead.id).run();
+  // A mailed letter's QR code, opened for the first time: Christopher hears at once (mail.js).
+  if (!views && /^letter /.test(lead.origin || '')) { try { await (await import('./mail.js')).letterOpened(env, lead, h.letterPing ? { ping: h.letterPing } : null); } catch (e) { /* the page still shows */ } }
   const copyBox = '<div class="copy"><b>' + (es ? '¿Se la mandamos por correo?' : 'Want a copy by email?') + '</b><form method="post"><input type="email" name="email" required autocomplete="email" placeholder="' + (es ? 'su@correo.com' : 'you@yourbusiness.com') + '" aria-label="Email"><button type="submit">' + (es ? 'Mandármela' : 'Email it to me') + '</button></form></div>';
   let a = null;
   if (views < MAX_VIEWS) { try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { a = null; } }
