@@ -107,7 +107,7 @@ export async function handleMapApi(req, env, url, ctx) {
   // Round to about a quarter degree: the answer is cached per area, and nothing finer than that is ever used or kept.
   const rl = Math.round(lat * 4) / 4, rg = Math.round(lng * 4) / 4;
   const pv = url.searchParams.get('preview') || '';
-  if (pv) { const want = (await previewKey(env)); if (want && pv === want) { const out = await nearby(env, rl, rg, true); out.preview = true; out.approx = approx; return j(out, 200, 0); } }
+  if (pv) { const want = (await previewKey(env)); if (want && pv.length === want.length && [...pv].reduce((d, ch, i) => d | (ch.charCodeAt(0) ^ want.charCodeAt(i)), 0) === 0) { const out = await nearby(env, rl, rg, true); out.preview = true; out.approx = approx; return j(out, 200, 0); } }
   const key = new Request('https://alwaysopenoffice.com/__map/' + rl + ',' + rg);
   const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
   if (cache) { const hit = await cache.match(key); if (hit) return withApprox(hit, approx); }

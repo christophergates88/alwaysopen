@@ -260,7 +260,8 @@ export async function advance(env, cid) {
   catch (e) {
     await save(row.status, row.step, '', f);   // keep any SIDs created before the error
     if ((+row.tries || 0) >= 5 || (e.status && e.status < 500 && e.status !== 429)) {
-      await env.DB.prepare("UPDATE a2p_reg SET status = 'failed', error = ?1 WHERE client_id = ?2").bind(String(e.message || e).slice(0, 300), cid).run();
+      // The EIN is never kept once a registration stops, whichever way it stops.
+      await env.DB.prepare("UPDATE a2p_reg SET status = 'failed', error = ?1, form = ?2 WHERE client_id = ?3").bind(String(e.message || e).slice(0, 300), JSON.stringify(Object.assign({}, f, { ein: '' })), cid).run();
       await opsPing(env, 'Texting registration stuck: ' + ((c && c.business) || cid), 'Step ' + row.step + ': ' + String(e.message || e).slice(0, 300), 'high', 'warning');
       return 'failed';
     }
@@ -324,10 +325,15 @@ export async function textingPage(env, c, base, req) {
     const fd = await req.formData(), b = {};
     for (const [k, v] of fd.entries()) b[k] = v;
     const chk = checkForm(b);
+    // Each new submission files a new brand and campaign with the carriers, and each one has a vetting fee: two tries by
+    // the owner, then we fix it with them. The demo account never files anything.
+    const resubmits = +(prev && prev.resubmits) || 0;
     if (!chk.ok) { err = chk.error; prev = Object.assign({}, b, { ein: '' }); }
+    else if (c.client_id === 'demo-plumbing') err = 'The demo account can’t register for texting.';
     else if (row && ['submitted', 'in_review', 'approved'].includes(row.status)) err = 'This is already on its way.';
+    else if (row && resubmits >= 2) err = 'Message us in Ask us and we’ll fix this one with you, so it goes through the next time.';
     else {
-      const f = chk.form;
+      const f = Object.assign({}, chk.form, { resubmits: row ? resubmits + 1 : 0 });
       await env.DB.prepare("INSERT INTO a2p_reg (client_id, status, step, form, sids, error, tries, created, updated) VALUES (?1,'submitted',?2,?3,'{}','',0,?4,?4) ON CONFLICT(client_id) DO UPDATE SET status = excluded.status, step = excluded.step, form = excluded.form, sids = '{}', error = '', tries = 0, updated = excluded.updated")
         .bind(c.client_id, f.noEin ? 'sp_profile' : 'profile', JSON.stringify(f), now()).run();
       try { const { markOnboard } = await import('./biz.js'); await markOnboard(env, c.client_id, 'texting'); } catch (e) {}

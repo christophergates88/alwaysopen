@@ -408,8 +408,10 @@ async function stripeSigOk(secret, header, body) {
   const sigs = parts.filter(x => x.trim().startsWith('v1=')).map(x => x.trim().slice(3));
   if (!tt || !sigs.length || Math.abs(Date.now() / 1000 - tt) > 300) return false;
   const want = await hmacHex(secret, tt + '.' + body);
-  return sigs.includes(want);
+  return sigs.some(x => safeSame(x, want));
 }
+// Constant-time string comparison for signatures and tokens.
+function safeSame(a, b) { a = String(a || ''); b = String(b || ''); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 // /stripe/webhook (Connect events), /stripe/done and /stripe/again (where Stripe sends the owner back).
 export async function handleStripe(req, env, ctx, url) {
   const p = url.pathname;
@@ -520,12 +522,12 @@ export async function metaWebhook(req, env, ctx, url) {
   if (!env.META_APP_SECRET) return new Response('Not found', { status: 404 });
   if (req.method === 'GET') {
     const want = env.META_VERIFY_TOKEN || 'alwaysopen-inbox';
-    if (url.searchParams.get('hub.mode') === 'subscribe' && url.searchParams.get('hub.verify_token') === want) return new Response(url.searchParams.get('hub.challenge') || '', { headers: { 'content-type': 'text/plain' } });
+    if (url.searchParams.get('hub.mode') === 'subscribe' && safeSame(url.searchParams.get('hub.verify_token'), want)) return new Response(url.searchParams.get('hub.challenge') || '', { headers: { 'content-type': 'text/plain' } });
     return new Response('Forbidden', { status: 403 });
   }
   const body = await req.text();
   const sig = String(req.headers.get('x-hub-signature-256') || '').replace(/^sha256=/, '');
-  if (!sig || sig !== await hmacHex(env.META_APP_SECRET, body)) return new Response('bad signature', { status: 400 });
+  if (!sig || !safeSame(sig, await hmacHex(env.META_APP_SECRET, body))) return new Response('bad signature', { status: 400 });
   await ensureBiz(env);
   let ev = {}; try { ev = JSON.parse(body); } catch (e) {}
   for (const en of (ev.entry || [])) {

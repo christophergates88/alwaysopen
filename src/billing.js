@@ -182,7 +182,10 @@ async function welcome(env, url, h) {
   let line = null;
   try {
     for (let i = 0; i < 4 && !(line && line.status === 'live'); i++) {
-      line = await Promise.race([provisionLine(env, b.client_id), new Promise(r => setTimeout(() => r(null), 9000))]);
+      // The setup keeps running after this page is sent (waitUntil), so a slow Twilio never leaves a number half set up.
+      const p = provisionLine(env, b.client_id);
+      if (h && h.later) h.later(p.catch(() => {}));
+      line = await Promise.race([p, new Promise(r => setTimeout(() => r(null), 9000))]);
       if (!line || line.status === 'live' || line.status === 'failed') break;
       await new Promise(r => setTimeout(r, 2000));
     }

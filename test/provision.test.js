@@ -45,6 +45,7 @@ test('a paid signup gets a number near them, wired to Max, and only one', async 
   globalThis.fetch = async (url, init) => {
     calls.push((init && init.method || 'GET') + ' ' + url + (init && init.body ? ' ' + init.body : ''));
     if (/AvailablePhoneNumbers/.test(url)) return new Response(JSON.stringify({ available_phone_numbers: [{ phone_number: '+14785550199' }] }));
+    if (/IncomingPhoneNumbers\.json\?/.test(url)) return new Response(JSON.stringify({ incoming_phone_numbers: t.mine || [] }));   // looking for one bought earlier
     if (/IncomingPhoneNumbers\.json/.test(url)) { t.bought++; return new Response(JSON.stringify({ sid: 'PN1', phone_number: '+14785550199' })); }
     return new Response('{}');
   };
@@ -52,7 +53,8 @@ test('a paid signup gets a number near them, wired to Max, and only one', async 
   assert.equal(r.status, 'live');
   assert.equal(r.numberText, '(478) 555-0199');
   assert.equal(t.bought, 1);
-  assert.ok(calls[0].includes('AreaCode=478'));
+  assert.match(calls[0], /IncomingPhoneNumbers\.json\?PageSize=5&FriendlyName=Always%20Open%20c1%3A%20Sinclair%20Plumbing/, 'first, a number bought earlier for this client');
+  assert.ok(calls[1].includes('AreaCode=478'));
   const buy = calls.find(c => c.startsWith('POST'));
   assert.match(buy, /VoiceUrl=https%3A%2F%2Falwaysopenoffice.com%2Fvoice%2Fin%2Fk/);
   assert.match(buy, /SmsUrl=https%3A%2F%2Falwaysopenoffice.com%2Fvoice%2Fsms%2Fk/);
@@ -61,4 +63,20 @@ test('a paid signup gets a number near them, wired to Max, and only one', async 
   const again = await provisionLine(env, 'c1');
   assert.equal(again.status, 'live');
   assert.equal(t.bought, 1);
+});
+
+test('a number an earlier try bought but never wrote down is used, not bought again', async () => {
+  const { env, t } = fake();
+  t.mine = [{ phone_number: '+14785550199', sid: 'PN0' }];
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push((init && init.method || 'GET') + ' ' + url);
+    if (/IncomingPhoneNumbers\.json\?/.test(url)) return new Response(JSON.stringify({ incoming_phone_numbers: t.mine }));
+    if (/IncomingPhoneNumbers\.json/.test(url)) { t.bought++; return new Response(JSON.stringify({ sid: 'PN1', phone_number: '+14785550111' })); }
+    return new Response('{}');
+  };
+  const r = await provisionLine(env, 'c1');
+  assert.equal(r.status, 'live');
+  assert.equal(t.bought, 0);
+  assert.ok(!calls.some(c => /AvailablePhoneNumbers/.test(c)));
 });

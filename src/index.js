@@ -279,7 +279,7 @@ async function serve(req, env, ctx) {
     if (path.startsWith('/meta/')) return handleMeta(req, env, url);
     if (path.startsWith('/voice/recorded/')) {
       // Twilio's note that the Hear Max recording is done (hearmax.js). Only the armed call is ever kept.
-      if (req.method !== 'POST' || !env.VOICE_KEY || path !== '/voice/recorded/' + env.VOICE_KEY) return new Response('Not found', { status: 404 });
+      if (req.method !== 'POST' || !env.VOICE_KEY || !(await sameKey(path.slice('/voice/recorded/'.length), env.VOICE_KEY))) return new Response('Not found', { status: 404 });
       const form = await req.formData().catch(() => new FormData());
       ctx.waitUntil((await import('./hearmax.js')).recordedHook(env, form, { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click) }).catch(e => opsAlert(env, 'hear-max', 'always-open', 'Saving the Hear Max recording failed: ' + String((e && e.message) || e))));
       return new Response('ok');

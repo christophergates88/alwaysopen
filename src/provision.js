@@ -87,13 +87,21 @@ export async function provisionLine(env, cid) {
   if (!c) return fail('no such client');
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return fail('The Twilio keys are not set on the worker.');
   const business = (b && b.business) || c.business || '', town = (b && b.town) || '';
+  // Every number is named with the client's id. If an earlier try bought one but stopped before writing it down, that
+  // number is found here and used, never a second one bought.
+  const fname = ('Always Open ' + cid + ': ' + business).slice(0, 64);
   let bought = null, lastErr = '';
-  for (const q of searches((b && b.phone) || c.phone, town)) {
+  try {
+    const mine = await tw(env, 'GET', '/IncomingPhoneNumbers.json?PageSize=5&FriendlyName=' + encodeURIComponent(fname));
+    const n0 = ((mine.j && mine.j.incoming_phone_numbers) || []).find(x => x.phone_number && x.sid);
+    if (n0) bought = { number: n0.phone_number, sid: n0.sid };
+  } catch (e) { /* buying below still works */ }
+  for (const q of (bought ? [] : searches((b && b.phone) || c.phone, town))) {
     const s = await tw(env, 'GET', '/AvailablePhoneNumbers/US/Local.json?VoiceEnabled=true&SmsEnabled=true&ExcludeAllAddressRequired=true&PageSize=5' + (q ? '&' + q : ''));
     const list = (s.j.available_phone_numbers || []).map(x => x.phone_number).filter(Boolean);
     for (const num of list.slice(0, 3)) {
       const r = await tw(env, 'POST', '/IncomingPhoneNumbers.json', {
-        PhoneNumber: num, FriendlyName: ('Always Open: ' + business).slice(0, 64),
+        PhoneNumber: num, FriendlyName: fname,
         VoiceUrl: SITE + '/voice/in/' + env.VOICE_KEY, VoiceMethod: 'POST', StatusCallback: SITE + '/voice/status/' + env.VOICE_KEY, StatusCallbackMethod: 'POST',
         VoiceFallbackUrl: fallbackUrl(business, env.VOICE_KEY), VoiceFallbackMethod: 'GET',
         SmsUrl: SITE + '/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST'

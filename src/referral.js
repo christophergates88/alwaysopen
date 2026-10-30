@@ -58,7 +58,9 @@ export async function matchLeads(env, now) {
   let n = 0;
   for (const l of leads) {
     const em = String(l.email || '').toLowerCase().trim(), ph = digits(l.phone);
-    const c = cands.find(x => x.created > l.at && ((em && String(x.email || '').toLowerCase() === em) || (ph.length === 10 && digits(x.phone) === ph)));
+    // The same email only: a phone number is easy to copy off a business's own website, so a phone match alone could
+    // let a client claim credit for businesses that found us on their own.
+    const c = cands.find(x => x.created > l.at && em && String(x.email || '').toLowerCase() === em);
     if (!c) continue;
     const res = await noteSignup(env, { clientId: c.client_id, ref: l.ref, email: c.email, phone: c.phone, business: c.business, source: 'lead', now });
     if (res === 'pending' || res === 'void') { n++; cands.splice(cands.indexOf(c), 1); }
