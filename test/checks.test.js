@@ -183,3 +183,26 @@ test('a chargeback reaches Christopher the same day with the deadline and the cl
   assert.match(p.body, /Chargeback: Quillen Plumbing disputed \$299\.00\. Reason given: product not received\. Answer by Saturday, November 7 in the Stripe dashboard/);
   assert.match(p.body, /3 calls answered by Max, 0 replies and posts they approved, 3 months as a client/);
 });
+
+test('sales call-backs: a real caller Max promised a call gets one push about 90 business minutes later; test calls never', async () => {
+  const C = await import('../src/checks.js');
+  const DB = H.makeDB(), env = { DB };
+  await DB.prepare("CREATE TABLE IF NOT EXISTS app_calls (id TEXT PRIMARY KEY, test INTEGER)").run();
+  await (await import('../src/leadmail.js')).ensureLeadMail(env);
+  await DB.prepare("INSERT INTO app_calls (id, client_id, test) VALUES ('CAreal', 'always-open', 0), ('CAtest', 'always-open', 1)").run();
+  const thu8pm = Date.parse('2026-10-30T00:14:00Z');
+  await DB.prepare("INSERT INTO leads (at, name, business, phone, plan, town, origin, grade, status) VALUES (?1, 'Caller at +14787182248', '', '+14787182248', 'Growth', '', 'phone CAreal', '', 'new'), (?1, 'Me', '', '+14783652533', '', '', 'phone CAtest', '', 'new'), (?1, '', 'Quillen Plumbing', '(478) 555-0142', '', 'Eatonton, GA', 'letter 4', 'D', 'letter')").bind(new Date(thu8pm).toISOString()).run();
+  const pings = [], h = { ping: async (t, b, p) => pings.push([t, b, p]) };
+  const fri = t => Date.parse('2026-10-30T' + t + ':00-04:00');
+  assert.deepEqual(await C.salesCallbacks(env, thu8pm + 3600e3, h), { waiting: 'outside business hours' });
+  assert.deepEqual((await C.salesCallbacks(env, fri('10:00'), h)).told, [], 'one business hour is too soon');
+  assert.deepEqual((await C.salesCallbacks(env, fri('10:31'), h)).told, ['Caller at +14787182248']);
+  assert.deepEqual(pings[0], ['Always Open: call Caller at +14787182248 back', 'Max told them Katie would call. +14787182248 · Growth plan · called Thursday. If it’s done, ignore this.', 'high']);
+  assert.deepEqual((await C.salesCallbacks(env, fri('11:00'), h)).told, [], 'once');
+  // The letter's lead counts from its "Call me".
+  await C.markCallMe(env, 3, fri('13:00'));
+  assert.deepEqual((await C.salesCallbacks(env, fri('14:00'), h)).told, []);
+  assert.deepEqual((await C.salesCallbacks(env, fri('14:31'), h)).told, ['Quillen Plumbing']);
+  assert.match(pings[1][1], /^They asked for a call from their mailed letter\. \(478\) 555-0142 · Eatonton, GA · grade D · asked Friday\./);
+  assert.equal(pings.length, 2, 'never the test call');
+});

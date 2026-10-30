@@ -332,6 +332,7 @@ export async function handleAuditPage(req, env, url, h) {
       const shown = '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
       if (one(lead.phone).replace(/\D/g, '').slice(-10) !== d) {
         await env.DB.prepare('UPDATE leads SET phone = ?1 WHERE id = ?2').bind(shown, lead.id).run();
+        try { await (await import('./checks.js')).markCallMe(env, lead.id, h.now || Date.now()); } catch (e) { /* the push below still goes */ }
         if (h.ping) { try { await h.ping('Always Open: ' + one(lead.business) + ' wants a call', one(lead.business) + (lead.town ? ' in ' + one(lead.town) : '') + ' asked for a call at ' + shown + (letter ? ' from their mailed letter' : ' from their audit page') + (lead.grade ? ' (grade ' + lead.grade + ')' : '') + '. Call while it’s fresh.'); } catch (e) { /* the number is saved on the lead */ } }
       }
       return pageShell(es ? 'Listo' : 'Done', '<p class="ok">' + esc(es ? 'Listo. Katie le llama al ' + shown + ', normalmente el mismo día hábil.' : 'Done. Katie will call ' + shown + ', usually the same business day.') + '</p><p><a style="color:#FF8C82" href="/your-audit/' + t + '">' + (es ? 'Volver a la auditoría' : 'Back to the audit') + '</a></p>', es);

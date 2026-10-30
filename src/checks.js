@@ -284,6 +284,42 @@ export async function mailRecords(env, now, h) {
 }
 
 // ---------- the 10-minute run ----------
+// Sales call-backs we promised. Max tells a caller on Always Open's own line that Katie will call, and a mailed letter's
+// "Call me" box says the same. Once a lead has waited about an hour and a half of business time, one high push names it.
+const CALLBACK_AFTER = 1.5;   // business hours
+// The audit page's "Call me" box (leadmail.js) records when they asked.
+export async function markCallMe(env, leadId, now) { await ensureChecks(env); await setMark(env, 'callme:' + leadId, '', now); }
+export async function salesCallbacks(env, now, h) {
+  if (!weekday(now) || !daytime(now)) return { waiting: 'outside business hours' };
+  await ensureChecks(env);
+  const rows = ((await env.DB.prepare("SELECT l.id, l.at, l.name, l.business, l.phone, l.plan, l.town, l.origin, l.grade FROM leads l WHERE l.status IN ('new', 'letter') AND l.at > ?1 AND l.phone != '' AND (l.origin LIKE 'phone %' OR l.origin LIKE 'letter %') ORDER BY l.at LIMIT 30")
+    .bind(new Date(now - 4 * DAY).toISOString()).all()).results) || [];
+  const told = [];
+  for (const r of rows) {
+    if (/^phone /.test(r.origin) && businessHours(Date.parse(r.at), now) < CALLBACK_AFTER) continue;
+    if (await getMark(env, 'callback:' + r.id)) continue;
+    const phoneCall = /^phone /.test(r.origin);
+    if (!phoneCall) {
+      // A letter's lead counts from the moment they pressed "Call me", not from when it was mailed.
+      const m = await getMark(env, 'callme:' + r.id);
+      if (!m || businessHours(Date.parse(m.at), now) < CALLBACK_AFTER) continue;
+      r.at = m.at;
+    }
+    if (phoneCall) {
+      // Only real callers: test calls from Christopher's own numbers are marked on the call.
+      const c = await env.DB.prepare('SELECT test FROM app_calls WHERE id = ?1').bind(r.origin.slice(6)).first().catch(() => null);
+      if (!c || +c.test) { await setMark(env, 'callback:' + r.id, 'test', now); continue; }
+    }
+    const who = String(r.business || r.name || 'A caller').trim();
+    await ping(env, h, 'Always Open: call ' + who + ' back',
+      (phoneCall ? 'Max told them Katie would call. ' : 'They asked for a call from their mailed letter. ') + r.phone + [r.plan ? r.plan + ' plan' : '', r.town, r.grade ? 'grade ' + r.grade : ''].filter(Boolean).map(x => ' · ' + x).join('') +
+      ' · ' + (phoneCall ? 'called ' : 'asked ') + dayName(r.at) + '. If it’s done, ignore this.', 'high', 'telephone_receiver');
+    await setMark(env, 'callback:' + r.id, 'told', now);
+    told.push(who);
+  }
+  return { told };
+}
+
 export async function checksCron(env, now, h) {
   now = now || Date.now(); h = h || {};
   await ensureChecks(env);
@@ -296,6 +332,7 @@ export async function checksCron(env, now, h) {
   await step('paying', 20 * H, () => payingServed(env, now, h));
   await step('texts', 3 * H, () => textDelivery(env, now, h));
   await step('mail', 20 * H, () => mailRecords(env, now, h));
+  await step('sales-callbacks', 10 * 60e3 - 5000, () => salesCallbacks(env, now, h));
   const errs = Object.entries(out).filter(([, v]) => v && v.error);
   if (errs.length) throw new Error(errs.map(([k, v]) => k + ': ' + v.error).join('; '));
   return out;

@@ -108,18 +108,9 @@ Every 10 minutes, each at its own pace, with the open items in the 7 AM push:
   client's history).
 - **Delivery**: texts carriers stopped delivering (`text-delivery`, error 30007 is filtering) and the domain's SPF and
   DMARC records (`mail-records`).
-
-## Checks and balances (src/checks.js)
-
-Every 10 minutes, each at its own pace: owners reminded about drafts waiting on their OK (1 day, 3 days; a review under
-4 stars after 6 hours; push, or email when they have no app); new clients whose line has had no real call nudged with
-the forwarding steps on day 2 and day 5, and you told on day 7; every owner message answered at once with "Got it,
-Katie will reply by …", and you pushed after 4 business hours with no answer; Claude use, minutes and texts compared
-with a normal day (3x is the `spend:*` alert); once a day every Stripe subscription checked against the line and the
-app (a cancellation Stripe confirms is turned off, anything else is a note for you), plus texts carriers stopped
-delivering (`text-delivery`) and the domain's SPF and DMARC records (`mail-records`). Chargebacks arrive as
-`stripe-dispute` with the deadline and the client's history. Automatic texts stop for the hour past 60 for one business
-or 400 in all (`text-ceiling`); what an owner types always goes. Open items are listed in the 7 AM push.
+- **Sales call-backs we promised**: a real caller on Always Open's own line (Max tells them Katie will call), or a
+  mailed letter's "Call me", gets one high push about 90 business minutes later, on weekdays 9 AM to 7 PM, with the
+  number. Test calls from your own phone never count.
 
 ## The 4 AM test call and the backup switch
 
