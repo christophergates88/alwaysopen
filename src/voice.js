@@ -9,7 +9,7 @@
 // Nothing here records audio. The written transcript is kept so the owner and Always Open can see what was said.
 import { handleSms, sendText, TEXTING_ON } from './sms.js';
 import { recordLost } from './lost.js';
-import { slotForLine, createCallback, outboundTwiml, outboundGather, outboundStatus } from './callbacks.js';
+import { slotForLine, createCallback, outboundTwiml, outboundGather, outboundStatus, tzFor, callHoursOk } from './callbacks.js';
 import { neighborsFor, neighborsText, startHandoff, handedFrom, markHandoff } from './handoff.js';
 import { checkinTwiml, checkinGather, checkinStatus } from './checkin.js';
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
@@ -49,8 +49,15 @@ const SPEC_MS = 150;             // a finished sentence, no new words this long:
 const SPEC_IDLE_MS = 400;        // no punctuation, but no new words this long: it starts anyway
 const SPEC_MAX = 3;              // background starts per turn, at most
 const TICK_MS = 1000;
+const FIRST_TOKEN_MS = 6000;     // Claude has said nothing this long: give up on it for this turn (the backup model answers, or Max apologizes)
+const REPLY_MAX_MS = 15000;      // and a reply that has started never runs longer than this (a call note: the same)
+const TURN_STUCK_MS = 20000;     // an answer still not done after this (the backup model hung too): Max apologizes and moves on
+const DIAL_MAX_MS = 4 * 3600e3;  // a call being put through is written up from the dial's result; failing that, after this
 const PER_CALLER_HOUR = 5;       // more than this from one number in an hour gets a short message instead of the AI
 const PER_LINE_DAY = 80;         // the most AI calls one line takes in a day
+// What every caller hears first, whatever greeting the owner set: Max is an S.I. and the call may be recorded. The one
+// place this sentence lives; the owner's greeting can't remove it or say otherwise (greetingOk).
+export const DISCLOSURE = 'I\'m an S.I. assistant, and this call may be recorded.';
 const SID_RE = /^CA[0-9a-f]{32}$/;
 const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // Always Open's own number. Its callers are business owners asking about Always Open, so each call reaches Chris the way a
@@ -74,7 +81,13 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'sms') return await handleSms(req, env, form, true);
     // The voicemail backup finished a recording (voicemail.js): the owner gets the words now, not at the next sweep.
     if (kind === 'vm') { ctx.waitUntil((await import('./voicemail.js')).voicemailHook(env, form).catch(e => opsAlert(env, 'voicemail', '', (e && e.message) || e))); return new Response(null, { status: 204 }); }
-    if (kind === 'handdial') { const st = String(form.get('DialCallStatus') || ''); await markHandoff(env, form.get('CallSid') || '', st === 'completed' ? 'connected' : st); return twiml(st === 'completed' ? '<Hangup/>' : say('Sorry, they did not pick up. I will pass your number along. Goodbye.') + '<Hangup/>'); }
+    if (kind === 'handdial') {
+      const st = String(form.get('DialCallStatus') || ''), hs = String(form.get('CallSid') || '');
+      await markHandoff(env, hs, st === 'completed' ? 'connected' : st);
+      // The hand-off's dial is over: now the call is written up (see afterRelay).
+      if (SID_RE.test(hs)) { await env.DB.prepare('UPDATE app_calls SET transferred = 0, hq_synced = 0 WHERE id = ?1 AND transferred = 2').bind(hs).run(); ctx.waitUntil(env.CALLROOM.get(env.CALLROOM.idFromName(hs)).finalize(hs, 'handoff').catch(() => {})); }
+      return twiml(st === 'completed' ? '<Hangup/>' : say('Sorry, they did not pick up. I will pass your number along. Goodbye.') + '<Hangup/>');
+    }
     if (kind === 'ci') return await checkinTwiml(env, url, form);
     if (kind === 'cig') return await checkinGather(env, url, form);
     if (kind === 'cistatus') return await checkinStatus(env, url, form);
@@ -85,7 +98,7 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'iv') return await interviewTwiml(env, url, form);
     if (kind === 'ivstatus') return await interviewStatus(env, url, form);
     if (kind === 'after') return await afterRelay(env, ctx, form);
-    if (kind === 'dial') return await afterDial(env, form);
+    if (kind === 'dial') return await afterDial(env, ctx, form);
     if (kind === 'whisper') return await whisper(env, url);
     if (kind === 'status') return await callStatus(env, ctx, form);
   } catch (e) {
@@ -111,6 +124,9 @@ async function incoming(env, f) {
   }
   const biz = line.business || 'our office';
   if (!+line.on_air) {
+    // Paused (by the owner in the app, or by us): Max is not on this call. Noted so the voicemail sweep never writes it
+    // up as a hang-up (no "hung up" push, no "Sorry we missed you" text for a call the owner may well have answered).
+    try { await (await import('./voicemail.js')).markPassedBy(env, sid, E164.test(line.transfer_to || '') ? 'line paused: rang through' : 'line paused'); } catch (e) { /* the sweep also skips paused lines */ }
     if (E164.test(line.transfer_to || '')) return twiml('<Dial timeout="25" callerId="' + xa(E164.test(from) ? from : to) + '"><Number>' + xa(line.transfer_to) + '</Number></Dial>');
     return twiml(say('Thanks for calling ' + biz + '. We cannot take your call right now. Please call back during business hours. Goodbye.') + '<Hangup/>');
   }
@@ -174,7 +190,7 @@ async function interviewStatus(env, url, f) {
     await env.DB.prepare("UPDATE line_interviews SET status = 'missed', result = ?1, updated = ?2 WHERE id = ?3").bind(st, new Date().toISOString(), row.id).run();
     await pushClient(env, row.client_id, { aps: { alert: { title: 'Max could not reach you', body: 'Tap to try the call again, or type the answers in on the Max tab.' }, sound: 'default' }, screen: 'max' }).catch(() => {});
   }
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 }
 
 // Twilio calls this when the relay session ends: a hand-off to the owner, a failure, or a normal goodbye.
@@ -190,12 +206,16 @@ async function afterRelay(env, ctx, f) {
   const line = await lineFor(env, call.number);
   const room = env.CALLROOM.get(env.CALLROOM.idFromName(sid));
   const failed = f.get('SessionStatus') === 'failed' || !!f.get('ErrorCode');
+  // Putting the caller through (to the owner, or to a neighbor): the call is written up once the dial has a result
+  // (afterDial, handdial), so a caller who reached the owner never gets "Sorry we missed you", the owner never gets
+  // "hung up", and the note says how it went. transferred = 2 marks the dial in progress for the stuck-call sweeps.
+  const dialing = () => env.DB.prepare('UPDATE app_calls SET transferred = 2, hq_synced = 0 WHERE id = ?1').bind(sid).run();
   if (hand.reason === 'handoff' && E164.test(String(hand.to || ''))) {
-    ctx.waitUntil(room.finalize(sid, 'handoff').catch(() => {}));
+    await dialing();
     return twiml('<Dial timeout="25" action="' + SITE + '/voice/handdial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '"><Number>' + xa(hand.to) + '</Number></Dial>');
   }
   if (hand.reason === 'transfer' && line && E164.test(line.transfer_to || '')) {
-    ctx.waitUntil(room.finalize(sid, 'transfer').catch(() => {}));
+    await dialing();
     return twiml('<Dial timeout="20" action="' + SITE + '/voice/dial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '">' +
       '<Number url="' + xa(SITE + '/voice/whisper/' + env.VOICE_KEY + '?c=' + sid) + '">' + xa(line.transfer_to) + '</Number></Dial>');
   }
@@ -213,25 +233,46 @@ async function whisper(env, url) {
   return twiml(say('Always Open call from ' + who + (row && row.reason ? ', about ' + row.reason : '') + '. Connecting you now.'));
 }
 
-async function afterDial(env, f) {
+async function afterDial(env, ctx, f) {
   const sid = f.get('CallSid') || '', st = f.get('DialCallStatus') || '';
   const ok = st === 'completed' || st === 'answered';
   if (SID_RE.test(sid)) {
     await env.DB.prepare("UPDATE app_calls SET transfer_seconds = ?1, transferred = ?2, outcome = CASE WHEN ?2 = 1 THEN 'transferred' ELSE outcome END, hq_synced = 0 WHERE id = ?3")
       .bind(parseInt(f.get('DialCallDuration') || '0', 10) || 0, ok ? 1 : 0, sid).run();
+    // Now that the dial has a result, the call is written up (see afterRelay).
+    ctx.waitUntil(env.CALLROOM.get(env.CALLROOM.idFromName(sid)).finalize(sid, 'transfer').catch(() => {}));
   }
   if (ok) return twiml('<Hangup/>');
   return twiml(say('They could not pick up right now, but they have your message and will call you back soon. Goodbye.') + '<Hangup/>');
 }
 
-// Optional: the number's "call status changes" webhook gives the billed length of the whole call.
+// The number's "call status changes" webhook: the billed length of the whole call, and a last chance to write up a call
+// Max took whose write-up never ran. Calls Max never took are left alone: a rate-limited or capped call gets one quiet
+// line (limitedNote), a paused line's call has no row, and a call being put through waits for the dial's result.
 async function callStatus(env, ctx, f) {
   const sid = f.get('CallSid') || '', st = f.get('CallStatus') || '';
   if (SID_RE.test(sid) && /^(completed|busy|failed|no-answer|canceled)$/.test(st)) {
     await env.DB.prepare('UPDATE app_calls SET seconds = ?1, hq_synced = 0 WHERE id = ?2').bind(parseInt(f.get('CallDuration') || '0', 10) || 0, sid).run();
-    ctx.waitUntil(env.CALLROOM.get(env.CALLROOM.idFromName(sid)).finalize(sid, 'ended').catch(() => {}));
+    const call = await env.DB.prepare('SELECT id, client_id, number, caller, outcome, transferred, summary, test FROM app_calls WHERE id = ?1').bind(sid).first();
+    if (!call) return new Response(null, { status: 204 });
+    if (call.outcome === 'limited') { ctx.waitUntil(limitedNote(env, call).catch(() => {})); return new Response(null, { status: 204 }); }
+    if (call.outcome === 'live' && +call.transferred !== 2) ctx.waitUntil(env.CALLROOM.get(env.CALLROOM.idFromName(sid)).finalize(sid, 'status').catch(() => {}));
   }
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
+}
+
+// A call that got the short "too many calls" message instead of Max: a plain line on the call, no text to the caller and no
+// push per call. The owner gets at most one quiet push (no sound) a day per line, however many come in (a robocall storm).
+async function limitedNote(env, call) {
+  if (call.summary) return false;
+  await env.DB.prepare("UPDATE app_calls SET summary = ?1, hq_synced = 0 WHERE id = ?2 AND outcome = 'limited' AND (summary IS NULL OR summary = '')")
+    .bind('Max did not take this one: too many calls came in at once from this number or to this line, so the caller heard a short message to call back or text.', call.id).run();
+  if (call.test || call.client_id === OWN_ID) return true;
+  const day = new Date(Date.now() - 86400000).toISOString();
+  const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_calls WHERE number = ?1 AND outcome = 'limited' AND at > ?2 AND id != ?3 AND summary != ''").bind(call.number, day, call.id).first();
+  if (before && +before.n) return true;
+  await pushClient(env, call.client_id, { aps: { alert: { title: 'Max held back some calls', body: 'A lot of calls came in at once, so some callers heard a short message instead of Max. They are in your calls list.' }, 'thread-id': 'calls' }, screen: 'calls' }).catch(() => {});
+  return true;
 }
 
 async function relaySocket(req, env, sid, url) {
@@ -343,15 +384,16 @@ export class CallRoom extends DurableObject {
     await this.say(s, s.more);
   }
 
+  // The socket closing is the end of the call, unless Max just handed it to Twilio to put through (see finalize).
   async webSocketClose(ws, code) {
     try { ws.close(1000, 'bye'); } catch (e) { /* already closed */ }
     const s = await this.load();
-    if (s && s.sid) await this.finalize(s.sid, 'ended');
+    if (s && s.sid) await this.finalize(s.sid, 'closed').catch(() => { /* kept for the 10-minute cron's retry */ });
   }
 
   async webSocketError() {
     const s = await this.load();
-    if (s && s.sid) await this.finalize(s.sid, 'ended');
+    if (s && s.sid) await this.finalize(s.sid, 'closed').catch(() => { /* kept for the 10-minute cron's retry */ });
   }
 
   async onSetup(m) {
@@ -376,6 +418,11 @@ export class CallRoom extends DurableObject {
       s.last = now + speakMs(s.msgs[0].t) + 1000;
     }
     if (s.more) s.last += speakMs(s.more);
+    // Quiet hours for putting callers through (9 PM to 8 AM, the business's time): an owner who takes calls "when they
+    // ask" only gets urgent ones then; asking for a person or pressing 0 gets a message taken instead.
+    if (!iv && s.line.canTransfer && s.line.transferWhen === 'asked') {
+      try { if (!callHoursOk(await tzFor(this.env, call.client_id), now)) { s.line.transferWhen = 'urgent'; s.line.transferQuiet = true; } } catch (e) { /* the owner's setting as is */ }
+    }
     if (!iv && !s.line.regulated && call.client_id !== OWN_ID) {
       try { const cs = await slotForLine(this.env, line); if (cs) { s.line.cbSlot = cs.spoken; s.line.cbBusy = cs.busyText; s.cbSlot = { at: cs.at }; } } catch (e) {}
       try { const nb = await neighborsFor(this.env, call.client_id); if (nb.length) { s.neighbors = nb; s.line.neighbors = neighborsText(nb); } } catch (e) {}
@@ -487,7 +534,7 @@ export class CallRoom extends DurableObject {
     const sys = promptFor(s, Date.now() - s.started > WRAP_MS), extra = turnNote(heard, s.msgs) + (s.mode === 'interview' ? '' : callerNotes(s, p.text));
     const sp = { norm: p.norm, text: p.text, lead, skip, n: s.msgs.length, sys, chat: JSON.stringify(chat), extra, toks: [], sink: null, done: false, at: Date.now(), ctl: new AbortController() };
     sp.promise = brain(this.env, sys, chat, t => { if (sp.sink) sp.sink(t); else sp.toks.push(t); }, 200, extra, sp.ctl.signal)
-      .then(r => { sp.done = true; return r; }, () => { sp.done = true; return null; });
+      .then(r => { sp.done = true; return r; }, e => { sp.done = true; if (e && e.timeout) sp.timedOut = true; return null; });
     this.spec = sp; p.specs += 1;
     this.mark('Q', p.n);
   }
@@ -527,6 +574,9 @@ export class CallRoom extends DurableObject {
   async onPrompt(s, said, opts) {
     said = said.trim();
     if (!said) return;
+    // Max already said he is putting them through (or ended a robocall): their words ("okay, thanks") are noted, and the
+    // transfer or the goodbye goes ahead. A new answer here would cancel it.
+    if (s.transfer || s.robo) { this.dropSpec(); s.msgs.push({ r: 'u', t: said }); await this.keep(s); return; }
     // A caller who speaks Spanish gets Spanish from here on (when the line answers in Spanish).
     if (s.lang === 'en-US' && s.line && s.line.spanish && looksSpanish(said)) {
       s.lang = 'es-US';
@@ -634,7 +684,7 @@ export class CallRoom extends DurableObject {
     // The AI is told which reaction was just said, in its instructions (never as the caller's words).
     const extra = turnNote(heardNow, s.msgs) + (s.mode === 'interview' ? '' : callerNotes(s, said));
     if (spec && (spec.sys !== sys || spec.chat !== JSON.stringify(chat) || spec.extra !== extra)) { this.dropSpec(); spec = null; }
-    const ask = async x => { mine.ctl = new AbortController(); try { return await brain(this.env, sys, chat, onTok, 200, x, mine.ctl.signal); } catch (e) { return null; } };
+    const ask = async x => { mine.ctl = new AbortController(); try { return await brain(this.env, sys, chat, onTok, 200, x, mine.ctl.signal); } catch (e) { if (e && e.timeout) mine.timedOut = true; return null; } };
     let r, r2 = null;
     const fixed = s.lang === 'es-US' || s.mode === 'interview' ? '' : fixedReply(s.line, lead, s.msgs);
     if (fixed) {
@@ -649,10 +699,12 @@ export class CallRoom extends DurableObject {
       const q = spec.toks; spec.toks = [];
       for (const t of q) onTok(t);
       r = await spec.promise;
+      if (spec.timedOut) mine.timedOut = true;
     } else r = await ask(extra);
     flushHead();
-    // Nothing sayable came back (it happens): ask once more, plainly, instead of leaving the caller hanging.
-    if (!(sp.spoken + sp.pending).trim() && !sp.flags.end && !sp.flags.transfer && mine.cut == null && this.cur === mine) {
+    // Nothing sayable came back (it happens): ask once more, plainly, instead of leaving the caller hanging. Not after the AI
+    // timed out: the caller has waited long enough, and hears "could you say that again" instead.
+    if (!(sp.spoken + sp.pending).trim() && !sp.flags.end && !sp.flags.transfer && mine.cut == null && this.cur === mine && !mine.timedOut) {
       this.mark('E', { stop: r ? r.stop || '' : 'error', raw: raw.slice(0, 160) });
       await vlog(this.env, 'empty-reply', JSON.stringify({ sid: s.sid, stop: r ? r.stop || '' : 'error', raw: raw.slice(0, 200), lead: mine.lead }));
       raw = ''; head = heardNow ? '' : null; sent = ''; heldQ = '';
@@ -664,7 +716,7 @@ export class CallRoom extends DurableObject {
     if (this.live === mine) this.live = null; // never clear a newer turn's answer
     this.mark('D', raw.slice(0, 240));
     const cur = (await this.load()) || s;
-    if (cur.done || cur.turn !== my) return;
+    if (cur.done || cur.turn !== my || mine.dead) return;   // dead: the alarm gave up on this answer and already said sorry
     for (const x of [r, r2]) if (x) { cur.aiIn += x.inTok || 0; cur.aiOut += x.outTok || 0; cur.model = x.model || cur.model; }
     if (r2) r = r2;
     if (mine.first != null) cur.lat = (cur.lat || []).concat([mine.first]).slice(-40);
@@ -720,7 +772,9 @@ export class CallRoom extends DurableObject {
     // Keep only what the caller heard of the reply they talked over.
     const i = hit ? (lastA > lastU ? lastA : -1) : (L ? lastBefore(s.msgs, 'a', lastU) : lastA);
     if (i >= 0) s.msgs[i].t = cutText(s.msgs[i].lead, u, s.msgs[i].t);
-    s.endAt = 0; s.transfer = false; s.last = Date.now();
+    // A transfer or an end of call is only ever set once the line saying it was fully written ("One moment, let me reach
+    // him."): talking over it does not undo it. (An answer cut off while still being written never sets either.)
+    s.last = Date.now();
     await this.keep(s);
   }
 
@@ -732,7 +786,10 @@ export class CallRoom extends DurableObject {
       return this.say(s, 'Claro. Soy el asistente de inteligencia artificial y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
     }
     if (d === '0') {
-      if (s.line.canTransfer) { s.transfer = true; await this.say(s, s.lang === 'es-US' ? 'Un momento, voy a intentar comunicarle.' : 'One moment, let me try to reach someone for you.'); const c = await this.load(); c.transfer = true; c.endAt = Date.now() + 2500; await this.keep(c); return; }
+      // 0 puts them through only when the owner takes calls whenever a caller asks (and not in quiet hours, see onSetup).
+      // An owner who takes urgent calls only is rung once Max hears it is urgent, never for a keypress.
+      if (s.line.canTransfer && s.line.transferWhen === 'asked') { s.transfer = true; await this.say(s, s.lang === 'es-US' ? 'Un momento, voy a intentar comunicarle.' : 'One moment, let me try to reach someone for you.'); const c = await this.load(); c.transfer = true; c.endAt = Date.now() + 2500; await this.keep(c); return; }
+      if (s.line.canTransfer) return this.say(s, s.lang === 'es-US' ? 'Ahora solo puedo comunicarle si es urgente. Dígame qué pasa y se lo paso al equipo.' : 'Right now I can only put urgent calls through. Tell me what is going on, and I will get it to the team.');
       return this.say(s, s.lang === 'es-US' ? 'No puedo comunicarle ahora, pero el equipo recibirá su mensaje. ¿En qué le puedo ayudar?' : 'I cannot connect you right now, but the team will get your message. What can I help you with?');
     }
   }
@@ -757,10 +814,10 @@ export class CallRoom extends DurableObject {
     try { return await this.onAlarm(); } catch (e) { await this.crash('alarm', e); }
   }
   async onAlarm() {
-    const s = await this.load();
+    let s = await this.load();
     if (!s || s.done) return;
     const now = Date.now();
-    if (!this.ctx.getWebSockets().length) { await this.finalize(s.sid, 'ended'); return; }
+    if (!this.ctx.getWebSockets().length) { await this.finalize(s.sid, 'closed'); return; }
     if (s.endAt && now >= s.endAt) {
       s.done = true;
       await this.keep(s);
@@ -770,9 +827,34 @@ export class CallRoom extends DurableObject {
     }
     if (this.cur) this.release(this.cur);   // an answer held while the caller talked, now that they have stopped
     if (s.more && !s.moreDone && !s.agentTalking && now - s.started > speakMs(s.msgs[0] && s.msgs[0].t) + 2500) { await this.sayMore(s); await this.keep(s); }
-    if (!this.live && !s.endAt && now - s.started > MAX_CALL_MS + 20000) await this.sayAndEnd(s, 'I have to let you go now. The team has your message. Goodbye.');
+    // An answer still not done long after the caller stopped talking (the AI and its backup both hung): Max lets it go and
+    // says sorry, instead of leaving the caller in silence with the check-ins held off.
+    if (this.live && !this.live.dead && now - this.live.t0 > TURN_STUCK_MS) { await this.giveUp(s); s = (await this.load()) || s; }
+    // The call cap holds whatever is going on, an answer being written included.
+    if (!s.endAt && now - s.started > MAX_CALL_MS + 20000) { this.stopLive(); await this.sayAndEnd(s, s.lang === 'es-US' ? 'Tengo que despedirme, pero el equipo tiene su mensaje y le devolverá la llamada. Adiós.' : 'I have to let you go now. The team has your message. Goodbye.'); }
     else await this.maybeNudge(s, now);
     await this.ctx.storage.setAlarm(Date.now() + TICK_MS);
+  }
+  // Drop the answer being written: nothing more of it is said, and when (if) the AI gets back, it is ignored (onPrompt).
+  stopLive() {
+    const L = this.live;
+    if (!L) return null;
+    L.dead = true; if (L.cut == null) L.cut = ''; L.held = [];
+    try { L.sp.stop(); } catch (e) { /* not started */ }
+    if (L.ctl) { try { L.ctl.abort(); } catch (e) { /* done */ } }
+    this.live = null;
+    this.dropSpec();
+    return L;
+  }
+  async giveUp(s) {
+    const L = this.stopLive();
+    if (!L) return;
+    this.mark('E', 'stuck');
+    await vlog(this.env, 'turn-stuck', JSON.stringify({ sid: s.sid, ms: Date.now() - L.t0 }));
+    if (L.lead) s.msgs.push({ r: 'a', t: L.lead, lead: L.lead });
+    s.fails = (s.fails || 0) + 1;
+    if (s.fails >= 2) return this.sayAndEnd(s, s.lang === 'es-US' ? 'Disculpe, tengo un problema técnico. El equipo tiene su número y le devolverá la llamada. Adiós.' : 'Sorry, I am having trouble on my end. The team has your number and will call you back. Goodbye.');
+    return this.say(s, s.lang === 'es-US' ? 'Disculpe, ¿me lo puede repetir?' : 'Sorry, I lost my train of thought. Could you say that one more time?');
   }
 
   // Silence: "Hello? Are you there?", then "I'm not hearing anything...", then a friendly goodbye. Never while Max is
@@ -823,21 +905,43 @@ export class CallRoom extends DurableObject {
   }
 
   // Write the note, tell the owner. Runs once per call, whoever gets here first (socket close, Twilio's callbacks).
+  // why: 'closed' (the socket went), 'ended' / 'failed' (the relay's end), 'transfer' / 'handoff' (the dial's result),
+  // 'status' (Twilio says the whole call is over).
   async finalize(sid, why) {
+    if (this.finalizing) return this.finalizing;   // already writing it up (two callbacks at once): one write-up
     this.dropSpec(); this.endPartials();
     const s = await this.load();
     if (s && s.finalized) return true;
-    await this.ctx.storage.put('s', Object.assign({}, s || { sid }, { finalized: true, done: true }));
-    await this.ctx.storage.deleteAlarm();
-    for (const w of this.ctx.getWebSockets()) { try { w.close(1000, 'done'); } catch (e) { /* gone */ } }
-    if (s && s.test && this.tl && this.tl.length) await vlog(this.env, 'timeline', JSON.stringify({ sid, tl: this.tl }), 30000);
-    return writeUp(this.env, sid, s, why);
+    // Max handed the call to Twilio to put through: the socket closing is the start of the dial, not the end of the call.
+    // The dial's result writes it up (afterDial, handdial), or Twilio's status callback once the whole call is over.
+    if (s && s.done && (s.transfer || s.handoff) && why === 'closed') return false;
+    const run = async () => {
+      // Done (no more alarms or answers), but the words stay until the note is saved, so a failed write-up can be retried
+      // (the 10-minute cron finalizes calls still "live") instead of being swept later as a hang-up.
+      if (s && !s.done) await this.ctx.storage.put('s', Object.assign({}, s, { done: true }));
+      await this.ctx.storage.deleteAlarm();
+      for (const w of this.ctx.getWebSockets()) { try { w.close(1000, 'done'); } catch (e) { /* gone */ } }
+      if (s && s.test && this.tl && this.tl.length) await vlog(this.env, 'timeline', JSON.stringify({ sid, tl: this.tl }), 30000);
+      let ok;
+      try { ok = await writeUp(this.env, sid, s, why === 'closed' || why === 'status' ? 'ended' : why); } catch (e) {
+        await vlog(this.env, 'writeup-error', JSON.stringify({ sid, why, error: String((e && e.message) || e).slice(0, 300) }));
+        throw e;
+      }
+      // Saved in D1: the room keeps only the flag, not the transcript.
+      await this.ctx.storage.put('s', { sid, finalized: true, done: true });
+      return ok;
+    };
+    this.finalizing = run();
+    try { return await this.finalizing; } finally { this.finalizing = null; }
   }
 }
 
 async function writeUp(env, sid, s, why) {
   const call = SID_RE.test(sid) ? await env.DB.prepare('SELECT * FROM app_calls WHERE id = ?1').bind(sid).first() : null;
   if (!call) return false;
+  // Only a call Max took and has not written up yet ('transferred' is set by afterDial just before this runs). A
+  // rate-limited or capped call never reached him: no "hung up" push and no text to the caller (see limitedNote).
+  if (call.outcome !== 'live' && call.outcome !== 'transferred') return false;
   const line = await lineFor(env, call.number);
   const msgs = (s && s.msgs) || [];
   const heard = msgs.filter(x => x.r === 'u').length;
@@ -862,7 +966,12 @@ async function writeUp(env, sid, s, why) {
   if (note && note.spam) outcome = 'spam';
   const relay = call.relay_seconds || (s && s.started ? Math.round((Date.now() - s.started) / 1000) : 0);
   const callback = note && E164.test(note.callback || '') ? note.callback : (E164.test(call.caller || '') ? call.caller : '');
-  const summary = note ? note.summary : (outcome === 'failed' ? 'The phone line could not start this call. Call them back.' : 'They hung up before leaving a message.');
+  // Written up after the dial (afterDial): the owner picked up, or Max tried and nobody did.
+  const putThrough = outcome === 'transferred', notPickedUp = why === 'transfer' && call.outcome !== 'transferred';
+  const talked = +call.transfer_seconds > 0 ? ' You talked for ' + (call.transfer_seconds < 90 ? 'about a minute' : Math.round(call.transfer_seconds / 60) + ' minutes') + '.' : '';
+  const summary = note ? note.summary : (outcome === 'failed' ? 'The phone line could not start this call. Call them back.'
+    : putThrough ? 'Max put them through to you.' + talked
+      : notPickedUp ? 'They asked to be put through, and nobody picked up. Call them back.' : 'They hung up before leaving a message.');
   const transcript = JSON.stringify(msgs.slice(0, 80).map(x => ({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) }))).slice(0, 24000);
   if (s && s.lat && s.lat.length) await vlog(env, 'latency', JSON.stringify({ sid, model: (s && s.model) || '', firstWordMs: s.lat }));
   await env.DB.prepare('UPDATE app_calls SET caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
@@ -880,13 +989,16 @@ async function writeUp(env, sid, s, why) {
   }
   if (outcome === 'spam' || call.test) return true;
   if (call.client_id !== OWN_ID && !(s && s.voicemail)) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
-  if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});
+  // A call-back promise only when nobody took the call: not once the owner talked to them, nor once a neighbor did.
+  if (note && note.callbackWanted && line && !+line.regulated && call.client_id !== OWN_ID && outcome !== 'transferred' && outcome !== 'handoff') await createCallback(env, line, call, note, s && s.cbSlot).catch(() => {});
   if (note && note.booked === 'no' && note.lost && line && !+line.regulated && call.client_id !== OWN_ID) await recordLost(env, call.client_id, sid, note.lost, note.lostNote).catch(() => {});
   if (call.client_id === OWN_ID) { await ownLead(env, call, note, outcome, callback, summary).catch(() => {}); return true; }
   const who = (note && note.name) || (callback ? spokenNumber(callback, true) : 'a caller');
   const bookedOk = !!(s && s.booked && s.booked.ok);
-  const title = outcome === 'failed' ? 'Missed call from ' + who : (note && note.upset) ? 'Upset caller: ' + who : (bookedOk ? (s.booked.held ? 'To confirm: ' : 'Booked: ') + who + ', ' + s.booked.at : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who));
-  const body = outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so Max could not take the call. If they leave a voicemail, it comes next. Tap to call them back.' : summary + ' Tap to call back.');
+  const title = outcome === 'failed' || (notPickedUp && !note) ? 'Missed call from ' + who : (note && note.upset) ? 'Upset caller: ' + who : (bookedOk ? (s.booked.held ? 'To confirm: ' : 'Booked: ') + who + ', ' + s.booked.at : ((note && note.urgent ? 'Urgent call: ' : 'New call: ') + who));
+  const body = notPickedUp ? (note ? summary + ' ' : '') + 'Max tried to put them through to you, and nobody picked up. Tap to call them back.'
+    : putThrough ? summary + (note ? ' Max put them through to you.' + talked : '')
+      : outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so Max could not take the call. If they leave a voicemail, it comes next. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
   // Booked or penciled in: one text to the caller with the time (only once the business can text under its own name).
   if (bookedOk && TEXTING_ON && line && !+line.regulated && E164.test(callback || '')) {
@@ -969,13 +1081,45 @@ async function diag(env) {
 }
 
 // ---------- the AI ----------
-// Every greeting says it is an AI and that the call may be recorded; nothing can remove that. A line may add a short pitch.
+// Every greeting says it is an AI and that the call may be recorded (DISCLOSURE, added here, never by the owner); nothing
+// can remove or contradict that. A line may add a short pitch.
 // Kept short on purpose: a long scripted greeting is what makes a phone line sound like a robot.
 function greeting(line) {
   const f = (line && parse(line.facts)) || {};
   // After the owner's own recorded greeting, Max says only the disclosure and the question.
-  if (f.greetAudio) return 'I\'m an S.I. assistant, and this call may be recorded.' + (+(line && line.spanish) ? ' Para español, oprima dos.' : '') + ' What can I do for you?';
+  if (f.greetAudio) return DISCLOSURE + (+(line && line.spanish) ? ' Para español, oprima dos.' : '') + ' What can I do for you?';
   return greetingText((line && line.business) || 'our office', !!(line && +line.spanish), f.greeting);
+}
+// What an owner's greeting (or the lines said after it) may not say: that this is not an AI or not automated, that it is
+// a person, or that calls are not recorded. Such a greeting is not used; the standard one is.
+const DENY_AI = /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/;
+const DENY_WORDS = /\b(?:no|not|never|nothing|isn['’]?t|ain['’]?t|aren['’]?t|without|won['’]?t be|will not be|don['’]?t|do not|doesn['’]?t|does not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:robots?|bots?|machines?|computers?|automated|automation|automatic|artificial|recorded|recording|recordings|record)\b|\b(?:robots?|machines?|computers?)\s+(?:could|can|will|would)\s+never\b/i;
+const CLAIMS_HUMAN = /\b(?:real|live|actual)\s+(?:person|human|people|receptionist)\b|\b(?:a|an)\s+human\b|\bhuman being\b|\bI['’]?m\s+(?:a\s+)?(?:person|human)\b|\bI am\s+(?:a\s+)?(?:person|human)\b|\b(?:at|from|on) the front desk\b/i;
+function contradicts(t) { t = String(t || ''); return DENY_AI.test(t) || DENY_WORDS.test(t) || CLAIMS_HUMAN.test(t); }
+// The owner's greeting with the disclosure put in: after its first sentence (before it, if it is one question). Their own
+// sentences about being an AI or being recorded give way to it, so callers hear it once.
+const NOT_DISC = /\b(?:thank|thanks|calling|welcome|hello|hi|hey|help)\b/i;
+function withDisclosure(t) {
+  const n = x => String(x).replace(/[’‘]/g, '\'').toLowerCase();
+  if (n(t).indexOf(n(DISCLOSURE)) > -1) return t;
+  // what the app added to greetings before (it becomes the one disclosure)
+  const legacy = /\s*I['’]m an S\.I\.,?(?: assistant,?)? and this call may be recorded\./i;
+  if (legacy.test(t)) return (t.replace(legacy, ' ' + DISCLOSURE)).trim();
+  const parts = t.replace(/\b([AS])\.I\./g, '$1\u0001I\u0001').split(/(?<=[.!?]["'”’)]*)\s+/).map(x => x.replace(/\u0001/g, '.')).filter(x => x.trim());
+  const keep = []; let at = -1, name = '';
+  for (const p of parts) {
+    const aboutIt = /\b(?:AI|A\.I\.|S\.I\.)(?![\w])|\b(?:automated|virtual|digital)\s+(?:assistant|receptionist|agent)\b|\bartificial intelligence\b/i.test(p) || /\brecord(?:ed|ing|s)?\b/i.test(p);
+    if (aboutIt && !NOT_DISC.test(p) && p.split(/\s+/).length <= 14) {
+      if (at < 0) at = keep.length;
+      const m = /^(?:I['’]m|I am|this is|This is)\s+([A-Z][a-z'’-]{1,20})\b/.exec(p);
+      if (m && !/^(?:An?|The|Your|Our)$/.test(m[1]) && !name) name = m[1];
+      continue;
+    }
+    keep.push(p);
+  }
+  if (at < 0) at = keep.length >= 2 ? 1 : (keep.length === 1 && /\?["'”’)]*$/.test(keep[0]) ? 0 : keep.length);
+  keep.splice(at, 0, (name ? 'This is ' + name + '. ' : '') + DISCLOSURE);
+  return keep.join(' ');
 }
 // A line with its own greeting may add a second, lighter line right after the disclosure ("Yep, I said that part fast...").
 // The disclosure itself can't be talked over; this part can, and it's skipped if the caller has already started talking.
@@ -988,25 +1132,23 @@ function quietText(line) {
   const f = (line && parse(line.facts)) || {};
   return greetingOk(f.greeting) ? moreText(f.nudge) : '';
 }
-function moreText(t) { t = oneLine(String(t || '')); return t.length >= 2 && t.length <= 320 && !/[<>\[\]]/.test(t) ? t : ''; }
+function moreText(t) { t = oneLine(String(t || '')); return t.length >= 2 && t.length <= 320 && !/[<>\[\]]/.test(t) && !contradicts(t) ? t : ''; }
 // A line's own answer to "Are you AI?" (Max: "I could sing for you, but you wouldn't like it."), said as written right after
 // the one-word honest reaction ("Guilty." / "Nope."), once a call; after that the AI answers in its own words.
 function fixedReply(L, lead, msgs) {
   if (!lead || (lead.kind !== 'isai' && lead.kind !== 'ishuman') || !L || !L.aiJoke) return '';
   return (msgs || []).some(x => x.r === 'a' && String(x.t || '').indexOf(L.aiJoke) > -1) ? '' : L.aiJoke;
 }
-// A line may use its own greeting, but only one that still says it is AI and that calls are recorded; otherwise the default.
+// A line may use its own greeting: a sensible length, and nothing in it that says Max is not an AI, is a person, or that
+// calls are not recorded (the disclosure is added to it either way). Otherwise the standard greeting.
 export function greetingOk(g) {
   const t = oneLine(String(g || ''));
-  return t.length >= 20 && t.length <= 320 && /\b(AI|SI|S\.I)\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t);
+  return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !contradicts(t);
 }
-function greetingText(biz, spanish, custom) {
+export function greetingText(biz, spanish, custom) {
   const sp = spanish ? ' Para español, oprima dos.' : '';
-  if (greetingOk(custom)) {
-    const t = oneLine(String(custom));
-    return sp ? t.replace(/(\?|\.|!)?$/, m => m) + sp : t;
-  }
-  return 'Hi, thanks for calling ' + biz + '. I\'m an S.I., and this call may be recorded.' + sp + ' What can I do for you?';
+  if (greetingOk(custom)) return withDisclosure(oneLine(String(custom))) + sp;
+  return 'Hi, thanks for calling ' + biz + '. ' + DISCLOSURE + sp + ' What can I do for you?';
 }
 
 export function lineView(line) {
@@ -1039,7 +1181,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     : 'You cannot connect calls to anyone. If they ask for a person, say the team will call them back.';
   return [
     'You are ' + (L.name ? L.name + ', ' : '') + (L.role || 'the phone receptionist') + ' for ' + L.business + (L.town ? ', a local business in ' + L.town : '') + '.' + (L.goal ? '' : ' You answer when the team cannot get to the phone.') + (L.name ? ' ' + L.name + ' is the name you go by.' : ''),
-    'The caller has already heard: "' + (L.recorded ? '(the owner\'s own recorded greeting) I\'m an S.I. assistant, and this call may be recorded. What can I do for you?' : greetingText(L.business, L.spanish, L.greeting)) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + (L.heardQuiet ? ' ' + L.heardQuiet : '') + '" Do not repeat the greeting or the recording notice.',
+    'The caller has already heard: "' + (L.recorded ? '(the owner\'s own recorded greeting) ' + DISCLOSURE + ' What can I do for you?' : greetingText(L.business, L.spanish, L.greeting)) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + (L.heardQuiet ? ' ' + L.heardQuiet : '') + '" Do not repeat the greeting or the recording notice.',
     L.pitch ? 'If they sound annoyed or doubtful about talking to AI, own it lightly and keep going, in your own words, along the lines of: "' + L.pitch + '"' : '',
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
@@ -1162,16 +1304,29 @@ async function summarize(env, line, msgs, caller) {
 export async function brain(env, system, messages, onText, maxTokens, extra, signal) {
   if (env.ANTHROPIC_API_KEY && !(env.AI && await backupForced(env))) {
     // If Claude is down or the key stops working, the free Cloudflare model answers instead, as long as nothing was said yet.
-    let said = false;
-    const cb = onText ? t => { said = true; onText(t); } : null;
-    try { return await claude(env, system, messages, cb, maxTokens, extra, signal); } catch (e) {
+    // Claude saying nothing for FIRST_TOKEN_MS counts as down for this turn (a stalled request would otherwise leave the
+    // caller in silence, with the call cap and the "are you there" check-ins waiting on it); a reply that started is cut
+    // at REPLY_MAX_MS. The request is dropped either way, even if it never answers the abort.
+    let said = false, timer = null, cap = null;
+    const ctl = new AbortController(), drop = () => { try { ctl.abort(); } catch (x) { /* done */ } };
+    if (signal) { if (signal.aborted) drop(); else signal.addEventListener('abort', drop, { once: true }); }
+    const firstMs = +env.VOICE_FIRST_TOKEN_MS || FIRST_TOKEN_MS, capMs = Math.max(firstMs, +env.VOICE_REPLY_MAX_MS || REPLY_MAX_MS);
+    const late = new Promise((res, rej) => {
+      const fail = why => { drop(); const e = new Error(why); e.timeout = true; rej(e); };
+      timer = setTimeout(() => { if (!said) fail('Claude said nothing for ' + firstMs + ' ms'); }, onText ? firstMs : capMs);
+      cap = setTimeout(() => fail('Claude took over ' + capMs + ' ms'), capMs);
+    });
+    late.catch(() => {});
+    const cb = onText ? t => { if (!said) { said = true; clearTimeout(timer); } onText(t); } : null;
+    try { return await Promise.race([claude(env, system, messages, cb, maxTokens, extra, ctl.signal), late]); } catch (e) {
+      if (e && e.timeout) await vlog(env, 'claude-timeout', String(e.message || e));
       if (!env.AI || said || (signal && signal.aborted)) throw e;
       // Tell Chris at most once an hour, so a dead key or empty credits gets noticed.
       const now = Date.now();
       await vlog(env, 'claude-fallback', String((e && e.message) || e));
       try { await (await import('./funding.js')).claudeProblem(env, (e && e.message) || e); } catch (x) {}
       if (!brain.pinged || now - brain.pinged > 3600000) { brain.pinged = now; opsPing(env, 'AI line: Claude is not answering', 'The free Cloudflare model took over. ' + String((e && e.message) || e).slice(0, 300), 'default', 'warning').catch(() => {}); }
-    }
+    } finally { clearTimeout(timer); clearTimeout(cap); if (signal) signal.removeEventListener('abort', drop); }
   }
   if (signal && signal.aborted) throw new Error('Dropped');
   if (env.AI) return workersAi(env, extra ? system + '\n\n' + extra : system, messages, onText, maxTokens);
@@ -1377,16 +1532,42 @@ export function quickQuestion(t) {
 // Callers who want a person, and callers who are upset: counted per call (callerNotes) as well as reacted to.
 const WANT_PERSON = /\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real|someone|somebody|the owner|a manager|chris)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b|\b(real|live|actual) (person|human)\b/;
 const UPSET = /\b(ridiculous|unacceptable|furious|pissed( off)?|fed up|third time|fourth time|(nobody|no one) (ever )?(calls?|called) (me )?back|been waiting (for )?(days|weeks|hours|all day)|this is (crazy|insane|a joke)|terrible service|worst (service|company)|rip ?off|ripped (me )?off|you people|i want (a|my) refund|i'?m (so )?(angry|upset|mad))\b/;
-// Robocalls and sales pitches, by their first words: Max says one line and hangs up instead of chatting with them.
-const ROBO = /\b(extended (auto |car |vehicle )?warranty|(your|the) (google|business) (listing|profile) (is|will be|has been) (about to be |going to be )?(suspended|removed|deleted|unverified|expir\w*)|verify (your|the) (google|business) listing|business (loan|funding|line of credit)|merchant (services|processing)|credit card processing|press (one|1|two|2) (to|now|for)|this is (a|an) (recorded|automated|pre-?recorded) (message|call)|final notice|search engine optimization|lower your processing)\b/i;
-export function looksRobo(t) { return ROBO.test(String(t || '')); }
+// Robocalls and sales pitches, by their first words: Max says one line and hangs up instead of chatting with them. Only on
+// words a customer would not say ("press one", "this is a recorded message", a listing "about to be suspended"), or on two
+// pitch signals together. One alone ("is my transmission covered by my extended warranty?", "a final notice from the
+// county") is a customer: Max talks with them, and a sales call he does talk to is still kept out of the owner's list
+// when its note says spam.
+const ROBO_SURE = /\b(press (one|1|two|2|nine|9) (to|now|for)|this is (a|an) (recorded|automated|pre-?recorded) (message|call)|to be removed from (our|this|the) (call(ing)?|contact|mailing) list|(your|the) (google (business )?|business )(listing|profile) (is|will be) (about to be |going to be )?(suspended|removed|deleted|deactivated|unverified)( today| soon)?\b)/i;
+const ROBO_HINTS = [
+  /\bextended (auto |car |vehicle )?warranty\b|\b(car|vehicle|auto)['’]?s? (factory )?warranty\b/i,
+  /\b(we('re| are)|i('m| am)|this is \w+ )\s*calling (you )?(about|regarding|in regards to|to (let you know|inform you)) your\b/i,
+  /\b(final|last|second) (notice|attempt)\b/i,
+  /\bbusiness (loan|funding|line of credit|cash advance)\b|\bworking capital\b/i,
+  /\bmerchant (services|processing|account)\b|\bcredit card processing\b/i,
+  /\b(lower|cut|reduce) your (processing|rates|fees|bills?|costs?)\b|\bsave you (money|thousands)\b/i,
+  /\bsearch engine optimization\b|\bfirst page of google\b|\b(verify|claim|update) (your|the) (google (business )?|business )(listing|profile)\b/i,
+  /\bcongratulations\b|\byou('ve| have)? (been )?(pre-?)?(selected|approved|qualif(y|ied))\b/i,
+  /\bwe('ve| have) been trying to reach you\b/i
+];
+export function looksRobo(t) {
+  t = String(t || '');
+  if (ROBO_SURE.test(t)) return true;
+  let n = 0;
+  for (const re of ROBO_HINTS) if (re.test(t) && ++n >= 2) return true;
+  return false;
+}
 const wordsOf = t => String(t || '').split(/\s+/).filter(w => /[a-z0-9]/i.test(w)).length;
 // What Max is told this turn about this caller, on top of the reaction he just said.
 function callerNotes(s, said) {
   const out = [];
-  if ((s.wantPerson || 0) >= 2) out.push(s.line.canTransfer
+  // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
+  // an owner who takes urgent calls only is rung only for an urgent one, however many times they ask.
+  const back = 'say the owner will call them back' + (s.line.cbSlot ? ' at ' + s.line.cbSlot : ' soon') + ', confirm the best number if you do not have it, then say goodbye and end with [END].';
+  if ((s.wantPerson || 0) >= 2) out.push(s.line.canTransfer && s.line.transferWhen === 'asked'
     ? 'The caller has asked for a person twice. Stop trying to help them yourself: say one short line that you are connecting them now, and end that reply with [TRANSFER].'
-    : 'The caller has asked for a person twice. Stop trying to help them yourself: say the owner will call them back' + (s.line.cbSlot ? ' at ' + s.line.cbSlot : ' soon') + ', confirm the best number if you do not have it, then say goodbye and end with [END].');
+    : s.line.canTransfer
+      ? 'The caller has asked for a person twice. ' + (s.line.transferQuiet ? 'It is after hours, so the owner' : 'The owner') + ' only takes calls put through when it is urgent' + (s.line.urgent ? ' (urgent means: ' + s.line.urgent + ')' : '') + '. If it is urgent, say one short line that you are connecting them now and end that reply with [TRANSFER]. If not, stop trying to help them yourself: ' + back
+      : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');
   return out.length ? ' ' + out.join(' ') : '';
@@ -1734,8 +1915,13 @@ export async function voiceCron(env) {
   // room kept in the eastern US, like the calls themselves (Twilio connects from there).
   try { await env.CALLROOM.get(env.CALLROOM.idFromName('rehearsals'), { locationHint: 'enam' }).rehearse(); } catch (e) { await rehearse(env).catch(() => {}); }
   try {
-    const stuck = await env.DB.prepare("SELECT id FROM app_calls WHERE outcome = 'live' AND at < ?1 LIMIT 20").bind(new Date(Date.now() - 20 * 60000).toISOString()).all();
-    for (const r of (stuck.results || [])) await env.CALLROOM.get(env.CALLROOM.idFromName(r.id)).finalize(r.id, 'failed').catch(() => {});
+    // A call still "live" 20 minutes on never got its write-up (or the write-up failed and is tried again here, from the
+    // words the call room kept). One being put through (transferred = 2) waits for the dial's result, unless Twilio said
+    // the whole call is over (seconds set) or it has been DIAL_MAX_MS.
+    const now = Date.now();
+    const stuck = await env.DB.prepare("SELECT id, transferred FROM app_calls WHERE outcome = 'live' AND ((COALESCE(transferred, 0) != 2 AND at < ?1) OR (transferred = 2 AND ((seconds > 0 AND at < ?2) OR at < ?3))) LIMIT 20")
+      .bind(new Date(now - 20 * 60000).toISOString(), new Date(now - 2 * 60000).toISOString(), new Date(now - DIAL_MAX_MS).toISOString()).all();
+    for (const r of (stuck.results || [])) await env.CALLROOM.get(env.CALLROOM.idFromName(r.id)).finalize(r.id, +r.transferred === 2 ? 'ended' : 'failed').catch(() => {});
     await env.DB.prepare("UPDATE app_calls SET transcript = '[]' WHERE at < ?1 AND transcript != '[]'").bind(new Date(Date.now() - 395 * 86400000).toISOString()).run();
   } catch (e) { /* next run */ }
 }

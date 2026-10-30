@@ -38,6 +38,7 @@ export function industryOf(business, type) {
 // What a caller hears if our webhook ever fails: the voicemail backup, served by Twilio itself so it works when we are
 // down (voicemail.js). It never rings the owner's cell: at 3 AM that woke them because our server was down.
 import { voicemailTwiml, fallbackUrl } from './voicemail.js';
+import { ensureLineTz, lineZone } from './callbacks.js';
 export { voicemailTwiml as fallbackTwiml, fallbackUrl };
 
 export function searches(phone, town) {
@@ -114,9 +115,13 @@ export async function provisionLine(env, cid) {
   }
   if (!bought) return fail(lastErr ? 'Twilio would not sell a number: ' + lastErr : 'No numbers with calls and texts were available near them.');
   const at = new Date().toISOString();
+  // The business's time zone, for its call-back times, check-in calls, open slots and quiet hours: from its state, or
+  // its own phone's area code, or the number we just bought near it.
+  await ensureLineTz(env);
+  const tz = lineZone({ town, phone: (b && b.phone) || c.phone, number: bought.number });
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, '{}', '', 'never', 0, ?7, '{}')")
-      .bind(bought.number, cid, business, +c.regulated ? 1 : 0, industryOf(business, b && b.type), town, at),
+    env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set, tz) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, '{}', '', 'never', 0, ?7, '{}', ?8)")
+      .bind(bought.number, cid, business, +c.regulated ? 1 : 0, industryOf(business, b && b.type), town, at, tz),
     env.DB.prepare("UPDATE provision SET status = 'live', number = ?1, number_sid = ?2, error = '', updated = ?3 WHERE client_id = ?4").bind(bought.number, bought.sid, at, cid)
   ]);
   // An owner who wrote to us from the Spanish page gets a line that answers Spanish-speaking callers in Spanish from day one.

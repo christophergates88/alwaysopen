@@ -11,6 +11,7 @@
 // what the caller said, a caller who left nothing gets the usual missed-call text (only while the call is fresh), and
 // the recording is deleted from Twilio once its words are saved. Callers never ring an owner's cell from here: the old
 // fallback dialed the urgent-transfer number, which at 3 AM meant waking them because our server was down.
+import { ownerOff } from './callbacks.js';
 const SITE = 'https://alwaysopenoffice.com';
 const TW = 'https://api.twilio.com/2010-04-01/Accounts/';
 const VOICE = 'Polly.Matthew';
@@ -62,6 +63,13 @@ async function mark(env, sid, status, note, rec, tries) {
   await env.DB.prepare('INSERT INTO vm_seen (call_sid, at, status, tries, rec_sid, note) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(call_sid) DO UPDATE SET at = excluded.at, status = excluded.status, tries = excluded.tries, rec_sid = excluded.rec_sid, note = excluded.note')
     .bind(sid, iso(Date.now()), status, tries || 0, rec || '', String(note || '').slice(0, 200)).run();
   return status;
+}
+// A call to a line the owner paused never reaches Max: it rings through to their own phone (or hears a short message).
+// It is noted here so the sweep never writes it up as a hang-up.
+export async function markPassedBy(env, sid, note) {
+  if (!SID_RE.test(String(sid || ''))) return;
+  await ensureVoicemail(env);
+  await env.DB.prepare("INSERT OR IGNORE INTO vm_seen (call_sid, at, status, tries, rec_sid, note) VALUES (?1, ?2, 'skipped', 0, '', ?3)").bind(sid, iso(Date.now()), String(note || 'line paused').slice(0, 200)).run();
 }
 const triesOf = async (env, sid) => { const r = await env.DB.prepare('SELECT tries FROM vm_seen WHERE call_sid = ?1').bind(sid).first().catch(() => null); return (r && +r.tries) || 0; };
 
@@ -155,7 +163,9 @@ export async function vmSweep(env, now, h) {
   now = now || Date.now(); h = h || {};
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return { off: true };
   await ensureVoicemail(env);
-  const lines = new Set((((await env.DB.prepare('SELECT number FROM voice_lines WHERE on_air = 1').all()).results) || []).map(r => r.number));
+  // Lines on the air for callers: HQ has them on and the owner has not paused Max (as withOwner in app.js). Calls to a
+  // paused line ring through to the owner's phone; they were never Max's to miss.
+  const lines = new Set((((await env.DB.prepare('SELECT number, owner_set FROM voice_lines WHERE on_air = 1').all()).results) || []).filter(r => !ownerOff(r.owner_set)).map(r => r.number));
   if (!lines.size) return { lines: 0 };
   const last = await env.DB.prepare("SELECT v FROM vm_meta WHERE k = 'swept'").first().catch(() => null);
   const from = Math.max(now - LOOKBACK_MS, (last && Date.parse(last.v)) ? Date.parse(last.v) - 30 * 60e3 : now - 3 * 3600e3);
@@ -181,7 +191,8 @@ export async function vmSweep(env, now, h) {
   const out = { checked: cand.length, delivered: 0, retry: 0, appended: 0 };
   const todo = cand.filter(c => !known.has(c.sid)).map(c => ({ sid: c.sid, from: c.from, to: c.to, start: c.start_time, end: c.end_time, name: c.caller_name }));
   // A call row left "live" long after it started never got its write-up (our code stopped between answering and Max).
-  const stuck = ((await env.DB.prepare("SELECT c.id, c.number, c.caller, c.caller_name, c.at FROM app_calls c LEFT JOIN vm_seen v ON v.call_sid = c.id WHERE c.outcome = 'live' AND c.test = 0 AND c.at > ?1 AND c.at < ?2 AND (v.call_sid IS NULL OR v.status = 'retry') LIMIT 5")
+  // Not a call Max is putting through (transferred = 2): that one is written up from the dial's result (voice.js).
+  const stuck = ((await env.DB.prepare("SELECT c.id, c.number, c.caller, c.caller_name, c.at FROM app_calls c LEFT JOIN vm_seen v ON v.call_sid = c.id WHERE c.outcome = 'live' AND c.test = 0 AND COALESCE(c.transferred, 0) != 2 AND c.at > ?1 AND c.at < ?2 AND (v.call_sid IS NULL OR v.status = 'retry') LIMIT 5")
     .bind(iso(from), iso(now - STUCK_MS)).all()).results) || [];
   for (const s of stuck) if (!todo.find(t => t.sid === s.id)) todo.push({ sid: s.id, from: s.caller, to: s.number, start: s.at, end: s.at, name: s.caller_name });
   for (const c of todo.slice(0, PER_RUN)) {

@@ -5,7 +5,7 @@
 //   mode 'off':  Max takes their preferred time as a message, as before.
 // Settings live in the line's owner_set.book: { mode, slotMin, bufferMin, days: { Mon: [openMinute, closeMinute], ... } }.
 import { busyTimes, bookSlot as calendarBook, spokenSlot } from './gcal.js';
-import { tzFor, local, fromLocal } from './callbacks.js';
+import { tzFor, local, fromLocal, zoneOk } from './callbacks.js';
 
 const DAY = 864e5;
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -80,7 +80,8 @@ export async function slotsFor(env, line, now, max) {
   await ensureBookings(env);
   now = now || Date.now();
   const cid = line.client_id, end = now + 8 * DAY;
-  let tz = await tzFor(env, cid), busy = [];
+  // The business's own zone (stored on the line, or worked out from its town and number); a connected calendar's wins below.
+  let tz = zoneOk(line.tz) ? line.tz : await tzFor(env, cid), busy = [];
   try { const cal = await busyTimes(env, cid, now, end); if (cal) { tz = cal.tz || tz; busy = cal.busy; } } catch (e) { /* no calendar: our own book only */ }
   const taken = ((await env.DB.prepare("SELECT start, end FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled' AND end > ?2 AND start < ?3").bind(cid, now, end).all()).results) || [];
   busy = busy.concat(taken.map(r => [+r.start, +r.end]));

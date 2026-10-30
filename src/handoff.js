@@ -2,6 +2,7 @@
 // nearby does, Max can put them through. Only if both owners turned it on; never to or from a regulated business; nearest
 // first and only by distance, never by plan; never a business that is not a client. Both sides see it in their record.
 import { milesBetween } from './map.js';
+import { lineLive } from './callbacks.js';
 
 let ready = false;
 export async function ensureHandoff(env) {
@@ -41,11 +42,12 @@ export async function neighborsFor(env, cid) {
   const here = await env.DB.prepare('SELECT m.lat, m.lng, v.industry, c.regulated FROM map_listing m JOIN app_clients c ON c.client_id = m.client_id LEFT JOIN voice_lines v ON v.client_id = m.client_id WHERE m.client_id = ?1 LIMIT 1').bind(cid).first().catch(() => null);
   if (!here || here.lat == null || here.lng == null || +here.regulated) return [];
   const rows = ((await env.DB.prepare(
-    'SELECT c.client_id, c.business, c.regulated, m.lat, m.lng, v.industry, v.number, v.on_air, b.status AS bstatus FROM handoff_prefs h JOIN app_clients c ON c.client_id = h.client_id JOIN map_listing m ON m.client_id = h.client_id ' +
+    'SELECT c.client_id, c.business, c.regulated, m.lat, m.lng, v.industry, v.number, v.on_air, v.owner_set, b.status AS bstatus FROM handoff_prefs h JOIN app_clients c ON c.client_id = h.client_id JOIN map_listing m ON m.client_id = h.client_id ' +
     'LEFT JOIN voice_lines v ON v.client_id = h.client_id LEFT JOIN billing b ON b.client_id = h.client_id WHERE h.take = 1 AND h.client_id != ?1 AND c.active = 1 LIMIT 500').bind(cid).all()).results) || [];
   const out = [];
   for (const r of rows) {
-    if (+r.regulated || !r.number || !+r.on_air || r.lat == null || r.lng == null) continue;
+    // On the air means on the air for callers: a line its owner paused in the app takes no hand-offs either.
+    if (+r.regulated || !r.number || !lineLive(r) || r.lat == null || r.lng == null) continue;
     if ((r.industry || '').toLowerCase() === (here.industry || '').toLowerCase()) continue;
     if (r.bstatus && !/^(active|trialing|past_due)$/.test(r.bstatus)) continue;
     const mi = milesBetween(+here.lat, +here.lng, +r.lat, +r.lng);

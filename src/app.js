@@ -527,7 +527,18 @@ export function withOwner(row) {
   return out;
 }
 function fmtNum(e) { return /^\+1\d{10}$/.test(e || '') ? '(' + e.slice(2, 5) + ') ' + e.slice(5, 8) + '-' + e.slice(8) : ''; }
-function greetOk(g) { const t = oneLine(String(g || '')); return t.length >= 20 && t.length <= 320 && /\b(AI|SI|S\.I)\b/.test(t) && /record/i.test(t) && !/[<>]/.test(t); }
+// The same rule as greetingOk in voice.js: Max adds the disclosure sentence (DISCLOSURE there) to every greeting himself,
+// so the owner's greeting only has to be a sensible length and must not say Max is not an AI, is a person, or that calls
+// are not recorded ("this is Sarah, no AI here" is refused).
+function greetOk(g) {
+  const t = oneLine(String(g || ''));
+  const denies = [
+    /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/,
+    /\b(?:no|not|never|nothing|isn['’]?t|ain['’]?t|aren['’]?t|without|won['’]?t be|will not be|don['’]?t|do not|doesn['’]?t|does not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:robots?|bots?|machines?|computers?|automated|automation|automatic|artificial|recorded|recording|recordings|record)\b|\b(?:robots?|machines?|computers?)\s+(?:could|can|will|would)\s+never\b/i,
+    /\b(?:real|live|actual)\s+(?:person|human|people|receptionist)\b|\b(?:a|an)\s+human\b|\bhuman being\b|\bI['’]?m\s+(?:a\s+)?(?:person|human)\b|\bI am\s+(?:a\s+)?(?:person|human)\b|\b(?:at|from|on) the front desk\b/i
+  ];
+  return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !denies.some(re => re.test(t));
+}
 // The "After the call" card: three switches, and whether texts can go out yet (one answer for every text feature).
 async function afterState(env, cid, line) {
   const o = parse(line.owner_set) || {};
