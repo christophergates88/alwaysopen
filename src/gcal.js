@@ -119,7 +119,9 @@ export async function gcalStatus(env, cid) {
   } catch (e) { return { connected: false, since: '', needsReconnect: false }; }
 }
 
-async function access(env, cid) {
+// Null when no calendar is connected, or when Google refused the refresh. With strict, a refusal throws instead, so a
+// caller can tell "no calendar" from "calendar we could not read".
+async function access(env, cid, strict) {
   await ensureGcal(env);
   const row = await env.DB.prepare('SELECT refresh, tz FROM gcal_tokens WHERE client_id = ?1').bind(cid).first();
   if (!row) return null;
@@ -127,7 +129,9 @@ async function access(env, cid) {
     body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
   const j = await r.json().catch(() => ({}));
   try { const cn = await import('./connections.js'); if (r.ok && j.access_token) await cn.markOk(env, cid, 'calendar'); else if (cn.refusedForGood(r.status, j)) await cn.markBroken(env, cid, 'calendar', j.error || ('Google answered ' + r.status)); } catch (e) { /* the cron will find it */ }
-  return r.ok && j.access_token ? { token: j.access_token, tz: row.tz || 'America/New_York' } : null;
+  if (r.ok && j.access_token) return { token: j.access_token, tz: row.tz || 'America/New_York' };
+  if (strict) throw Object.assign(new Error('Google Calendar refused the connection (' + r.status + ')'), { calendar: true });
+  return null;
 }
 export async function tryRefresh(env, cid) {
   await ensureGcal(env);
@@ -152,13 +156,15 @@ export function spokenSlot(tz, at) {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at).replace(':00', '');
 }
 
-// Busy stretches on the owner's calendar between two moments, or null when no calendar is connected (availability.js).
+// Busy stretches on the owner's calendar between two moments (availability.js). Null only when no calendar is connected.
+// When a calendar is connected but can't be read (Google down, connection refused), this throws: offering times from a
+// calendar we couldn't see would book callers over real appointments, so the caller must offer none.
 export async function busyTimes(env, cid, from, to) {
-  const a = await access(env, cid);
+  const a = await access(env, cid, true);
   if (!a) return null;
   const q = new URLSearchParams({ timeMin: new Date(from).toISOString(), timeMax: new Date(to).toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '250' });
   const r = await fetch(API + '?' + q, { headers: { authorization: 'Bearer ' + a.token } });
-  if (!r.ok) return null;
+  if (!r.ok) throw Object.assign(new Error('Google Calendar answered ' + r.status), { calendar: true });
   const j = await r.json();
   const busy = (j.items || []).filter(e => e.status !== 'cancelled' && e.transparency !== 'transparent').map(e => [Date.parse((e.start || {}).dateTime || (e.start || {}).date), Date.parse((e.end || {}).dateTime || (e.end || {}).date)]);
   return { tz: j.timeZone || a.tz, busy };

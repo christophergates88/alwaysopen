@@ -46,7 +46,7 @@ export function renderYearPage(v) {
   const title = (v.business || 'Your business') + ' · Your year';
   const joined = s.joinedLabel ? 'Since you joined in ' + s.joinedLabel : 'The last twelve months';
   const worth = money && s.worth ? '<div class="worth"><span>What after-hours calls were worth</span><b>about ' + dollars(s.worth) + '</b><small>' + pl(s.after || 0, 'after-hours call', 'after-hours calls') + ' since you joined, at your win rate and ' + dollars(t.avgJob) + ' average job.</small></div>'
-    : (s.won ? '<div class="worth"><span>Jobs booked, finished or paid</span><b>' + dollars(s.won) + '</b><small>From the jobs in your app since you joined.</small></div>'
+    : (!t.noMoney && s.won ? '<div class="worth"><span>Jobs booked, finished or paid</span><b>' + dollars(s.won) + '</b><small>From the jobs in your app since you joined.</small></div>'
     : '<div class="worth calm"><span>Before Max</span><b>' + num(s.after) + ' to voicemail</b><small>Every after-hours call Max answered would have gone to voicemail.</small></div>');
   const tiles = [
     [num(s.after), 'after hours', 'calls that would have gone to voicemail'],

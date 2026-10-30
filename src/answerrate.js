@@ -9,7 +9,10 @@ const MIN_CALLS = 10;
 let ready = false;
 export async function ensureAnswer(env) {
   if (ready) return;
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS answer_prefs (client_id TEXT PRIMARY KEY, show INTEGER DEFAULT 0, updated TEXT DEFAULT '')").run();
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS answer_prefs (client_id TEXT PRIMARY KEY, show INTEGER DEFAULT 0, updated TEXT DEFAULT '')"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS answer_network (k TEXT PRIMARY KEY, at TEXT, data TEXT DEFAULT '')")
+  ]);
   ready = true;
 }
 
@@ -85,10 +88,12 @@ export async function publicLines(env, cids) {
 // Every business together, last full month: after-hours calls and how many Max picked up. For the website's sample
 // report, shown only once the total is big enough to mean something; never a percentage of a handful.
 export const NETWORK_MIN = 50;
+const lastFullAt = now => Date.parse(new Date(now).toISOString().slice(0, 8) + '01T12:00:00Z') - 10 * 864e5;
+const lastFullMonth = now => new Date(lastFullAt(now)).toISOString().slice(0, 7);
 export async function networkMonth(env, now) {
   now = now || Date.now();
   const rows = ((await env.DB.prepare("SELECT client_id FROM app_clients WHERE active = 1 AND client_id NOT IN ('always-open', 'demo-plumbing')").all()).results) || [];
-  const at = Date.parse(new Date(now).toISOString().slice(0, 8) + '01T12:00:00Z') - 10 * 864e5;
+  const at = lastFullAt(now);
   const out = { month: '', after: 0, answered: 0, businesses: 0 };
   for (const r of rows) {
     const c = await monthCounts(env, r.client_id, at);
@@ -97,6 +102,28 @@ export async function networkMonth(env, now) {
   }
   return out;
 }
+// The website's sample report reads the network month from here: worked out at most once a day and kept in D1 (and
+// for a few minutes in the worker's memory), never once per visitor.
+const NETWORK_EVERY = 24 * 3600e3, MEMO_MS = 5 * 60e3;
+let memo = null;
+export async function networkCached(env, now) {
+  now = now || Date.now();
+  if (memo && now - memo.t < MEMO_MS) return memo.n;
+  await ensureAnswer(env);
+  const row = await env.DB.prepare("SELECT at, data FROM answer_network WHERE k = 'month'").first().catch(() => null);
+  let n = null;
+  if (row && now - Date.parse(row.at || '') < NETWORK_EVERY) { try { n = JSON.parse(row.data || 'null'); } catch (e) { n = null; } }
+  if (n && n.month && n.month !== lastFullMonth(now)) n = null;   // a new month started: last month's figure is due
+  if (!n) {
+    // Stamp first, so visitors arriving while it's being worked out read the old figure instead of all working it out too.
+    if (row) await env.DB.prepare("UPDATE answer_network SET at = ?1 WHERE k = 'month'").bind(new Date(now).toISOString()).run();
+    n = await networkMonth(env, now);
+    await env.DB.prepare("INSERT OR REPLACE INTO answer_network (k, at, data) VALUES ('month', ?1, ?2)").bind(new Date(now).toISOString(), JSON.stringify(n)).run();
+  }
+  memo = { t: now, n };
+  return n;
+}
+export function forgetNetwork() { memo = null; }
 export function networkLine(n) {
   if (!n || n.after < NETWORK_MIN || n.businesses < 3) return '';
   return 'Real numbers, not the sample: in ' + monthName(n.month) + ', Max answered ' + Math.round(100 * n.answered / n.after) + '% of ' + n.after.toLocaleString('en-US') + ' after-hours calls across ' + n.businesses + ' Always Open businesses.';

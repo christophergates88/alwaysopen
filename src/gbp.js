@@ -88,8 +88,10 @@ export function normName(s) {
   return String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(llc|inc|co|corp|company|the|and|ltd)\b/g, ' ').replace(/\s+/g, ' ').trim();
 }
 // Which of the account's locations is this client's? Google's place id first (we keep the client's own place id from
-// competitor watch), then the phone number, then the exact name. Two equally good answers means no answer.
+// competitor watch), then the phone number, then the exact name. Two equally good answers means no answer. When both
+// sides have a place id and they differ, that location is someone else's, however alike the name or phone.
 export function pickLocation(client, locs) {
+  if (client.placeId) locs = locs.filter(l => !l.placeId || l.placeId === client.placeId);
   const by = (fn, how) => { const hit = locs.filter(fn); return hit.length === 1 ? { loc: hit[0], how } : null; };
   if (client.placeId) { const r = by(l => l.placeId && l.placeId === client.placeId, 'place'); if (r) return r; }
   const phones = (client.phones || []).map(ph10).filter(Boolean);
@@ -123,12 +125,33 @@ async function listLocations(tok) {
   return out;
 }
 
+// One Google location belongs to one client. Ids compare without the account part ("locations/123").
+export const locKey = s => String(s || '').replace(/^.*locations\//, '');
+const STRENGTH = { hand: 9, place: 4, phone: 3, 'only one': 3, name: 1 };
+// Every client's best location, then one owner per location: a hand mapping, or a mapping we are not re-checking today,
+// keeps it; otherwise the single strongest match takes it (place id, then phone or the owner's own one-profile
+// connection, then name). Equal matches mean nobody gets it. Everyone refused goes on the HQ board. Pure, for tests.
+// hits: [{ cid, name, loc, how }]; keep: [{ cid, name, location }] (mappings that stand as they are).
+export function settleLocations(hits, keep) {
+  const held = new Map(keep.map(k => [locKey(k.location), k]));
+  const by = new Map();
+  for (const h of hits) { const k = locKey(h.loc.location); if (!by.has(k)) by.set(k, []); by.get(k).push(h); }
+  const win = [], refused = [];
+  for (const [k, list] of by) {
+    const owner = held.get(k);
+    if (owner) { for (const h of list) refused.push({ cid: h.cid, name: h.name, location: h.loc.location, other: owner.name }); continue; }
+    const best = Math.max(...list.map(h => STRENGTH[h.how] || 0)), top = list.filter(h => (STRENGTH[h.how] || 0) === best);
+    if (top.length === 1) win.push(top[0]);
+    for (const h of list) if (!(top.length === 1 && h === top[0])) refused.push({ cid: h.cid, name: h.name, location: h.loc.location, other: (top.length === 1 ? top[0] : list.find(x => x !== h) || {}).name || '' });
+  }
+  return { win, refused };
+}
 // Daily: find each client's location. Mappings set by hand (matched = 'hand') are kept.
 export async function mapLocations(env) {
   await ensureGbp(env);
   const { DEMO_ID } = await import('./demo.js');
   const clients = ((await env.DB.prepare("SELECT c.client_id, c.business, c.phone, b.phone AS bphone, (SELECT place_id FROM rival_profile r WHERE r.client_id = c.client_id AND r.found = 1 LIMIT 1) AS place FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id WHERE c.active = 1 AND c.client_id != ?1").bind(DEMO_ID).all().catch(() => ({ results: [] }))).results) || [];
-  const have = new Map((((await env.DB.prepare('SELECT client_id, matched, via FROM gbp_locations').all()).results) || []).map(r => [r.client_id, r]));
+  const have = new Map((((await env.DB.prepare('SELECT client_id, location, matched, via FROM gbp_locations').all()).results) || []).map(r => [r.client_id, r]));
   const owners = new Set((((await env.DB.prepare('SELECT client_id FROM gbp_tokens').all()).results) || []).map(r => r.client_id));
   const pools = {};
   const pool = async who => {
@@ -137,23 +160,42 @@ export async function mapLocations(env) {
     pools[who] = tok ? await listLocations(tok).catch(() => null) : null;
     return pools[who];
   };
-  const out = { mapped: 0, unmatched: [] };
+  const out = { mapped: 0, unmatched: [], shared: [] };
+  const hits = [], keep = [];
+  const nameOf = c => c.business || c.client_id;
   for (const c of clients) {
     const h = have.get(c.client_id);
-    if (h && h.matched === 'hand') continue;
+    if (h && h.matched === 'hand') { keep.push({ cid: c.client_id, name: nameOf(c), location: h.location }); continue; }
     const who = owners.has(c.client_id) ? c.client_id : AGENCY;
     const locs = await pool(who);
-    if (!locs) continue;
+    if (!locs) { if (h) keep.push({ cid: c.client_id, name: nameOf(c), location: h.location }); continue; }   // Google did not answer: what we had stands
     const want = { business: c.business, phones: [c.phone, c.bphone], placeId: /^ChIJ/.test(c.place || '') ? c.place : '' };
     // An owner's own connection usually has just their one profile.
     const hit = pickLocation(want, locs) || (who !== AGENCY && locs.length === 1 ? { loc: locs[0], how: 'only one' } : null);
-    if (!hit) { out.unmatched.push(c.business || c.client_id); continue; }
+    if (!hit) { out.unmatched.push(nameOf(c)); continue; }
+    hits.push({ cid: c.client_id, name: nameOf(c), loc: hit.loc, how: hit.how, via: who === AGENCY ? 'agency' : 'owner' });
+  }
+  const { win, refused } = settleLocations(hits, keep);
+  for (const hit of win) {
     await env.DB.prepare('INSERT OR REPLACE INTO gbp_locations (client_id, account, location, title, matched, via, updated) VALUES (?1,?2,?3,?4,?5,?6,?7)')
-      .bind(c.client_id, hit.loc.account, hit.loc.location, hit.loc.title, hit.how, who === AGENCY ? 'agency' : 'owner', new Date().toISOString()).run();
+      .bind(hit.cid, hit.loc.account, hit.loc.location, hit.loc.title, hit.how, hit.via, new Date().toISOString()).run();
     out.mapped++;
   }
-  await run(env, 'map', JSON.stringify(out).slice(0, 500));
+  // A client refused a location loses any mapping it had to that location, so nothing of theirs goes to another business.
+  for (const r of refused) {
+    const h = have.get(r.cid);
+    if (h && h.matched !== 'hand' && locKey(h.location) === locKey(r.location)) await env.DB.prepare("DELETE FROM gbp_locations WHERE client_id = ?1 AND matched != 'hand'").bind(r.cid).run();
+    out.shared.push({ name: r.name, other: r.other });
+  }
+  await run(env, 'map', mapNote(out), 12000);
   return out;
+}
+// The note the HQ board reads: lists capped by count (so it is always whole JSON), names clipped.
+const NOTE_MAX = 40;
+export function mapNote(out) {
+  const clip = s => String(s || '').slice(0, 80);
+  return JSON.stringify({ mapped: out.mapped || 0, unmatched: (out.unmatched || []).slice(0, NOTE_MAX).map(clip), moreUnmatched: Math.max(0, (out.unmatched || []).length - NOTE_MAX),
+    shared: (out.shared || []).slice(0, NOTE_MAX).map(x => ({ name: clip(x.name), other: clip(x.other) })), moreShared: Math.max(0, (out.shared || []).length - NOTE_MAX) });
 }
 async function locationOf(env, cid) {
   const r = await env.DB.prepare('SELECT account, location FROM gbp_locations WHERE client_id = ?1').bind(cid).first().catch(() => null);
@@ -205,15 +247,34 @@ async function record(env, it, cid, kind, target, ok, result) {
   await env.DB.prepare("INSERT INTO gbp_posted (item_id, client_id, kind, target, ok, tries, result, at) VALUES (?1,?2,?3,?4,?5,1,?6,?7) ON CONFLICT(item_id) DO UPDATE SET target = excluded.target, ok = excluded.ok, tries = gbp_posted.tries + 1, result = excluded.result, at = excluded.at")
     .bind(it.id, cid, kind, target || '', ok ? 1 : 0, String(result || '').slice(0, 200), new Date().toISOString()).run();
 }
-// Returns 'posted' | 'already' | 'off' | 'skipped:<why>' | 'failed:<why>'.
+// Only one attempt at a time per item: the approval-time publish and the 10-minute timer can reach the same item at once.
+// The attempt first claims the item's gbp_posted row ('posting'); whoever doesn't get the claim stops. A claim older than
+// CLAIM_STALE (a worker that died mid-attempt) can be taken over by the next attempt; the dead attempt counts as a try,
+// so one that keeps dying ends on the HQ board like any other failure.
+const CLAIM_STALE = 15 * 60e3;
+async function claim(env, it, cid, kind) {
+  const now = Date.now(), at = new Date(now).toISOString();
+  const ins = await env.DB.prepare("INSERT OR IGNORE INTO gbp_posted (item_id, client_id, kind, target, ok, tries, result, at) VALUES (?1, ?2, ?3, '', 0, 0, 'posting', ?4)").bind(it.id, cid, kind, at).run();
+  if (ins && ins.meta && ins.meta.changes) return 'mine';
+  const up = await env.DB.prepare("UPDATE gbp_posted SET tries = tries + (CASE WHEN result = 'posting' THEN 1 ELSE 0 END), result = 'posting', at = ?2 WHERE item_id = ?1 AND ok = 0 AND (result != 'posting' OR at < ?3)").bind(it.id, at, new Date(now - CLAIM_STALE).toISOString()).run();
+  if (up && up.meta && up.meta.changes) return 'mine';
+  const row = await env.DB.prepare('SELECT ok FROM gbp_posted WHERE item_id = ?1').bind(it.id).first();
+  return row && +row.ok ? 'already' : 'busy';
+}
+// Returns 'posted' | 'already' | 'busy' (another attempt is on it) | 'off' | 'skipped:<why>' | 'failed:<why>'.
 export async function publishItem(env, c, it, text) {
   if (!(await isOn(env))) return 'off';
   const kind = it.kind === 'post' ? 'post' : (it.kind === 'reply' || it.kind === 'review' || !it.kind ? 'reply' : '');
   if (!kind) return 'skipped:kind';
   if (isYelp(it)) return 'skipped:yelp';
   await ensureGbp(env);
-  const done = await env.DB.prepare('SELECT ok FROM gbp_posted WHERE item_id = ?1').bind(it.id).first();
-  if (done && +done.ok) return 'already';
+  const got = await claim(env, it, c.client_id, kind);
+  if (got !== 'mine') return got;
+  // Whatever happens next, the row is written again, so the claim never outlives this attempt.
+  try { return await attempt(env, c, it, text, kind); }
+  catch (e) { const why = String((e && e.message) || e).slice(0, 200); await record(env, it, c.client_id, kind, '', 0, why).catch(() => {}); return 'failed:' + why; }
+}
+async function attempt(env, c, it, text, kind) {
   // A regulated client's edited reply waits for HQ's compliance look, exactly as before.
   if (+c.regulated && String(text).trim() !== String(it.text || '').trim()) { await record(env, it, c.client_id, kind, '', 0, 'held: regulated reply was edited'); return 'skipped:regulated edit'; }
   const loc = await locationOf(env, c.client_id);
@@ -342,9 +403,33 @@ async function metricsPass(env, now) {
     const s = await fetchMonth(env, r.client_id, month).catch(() => null);
     if (!s) continue;
     await env.DB.prepare('INSERT OR REPLACE INTO gbp_metrics (client_id, month, calls, clicks, directions, updated) VALUES (?1,?2,?3,?4,?5,?6)').bind(r.client_id, month, s.calls, s.clicks, s.directions, new Date(now).toISOString()).run();
+    await intoReport(env, r.client_id, month, s).catch(() => {});
     n++;
   }
   return n;
+}
+// The monthly report is written on the 2nd, a day before Google's numbers settle. When they arrive, they go into the
+// report already written, so its page shows "From your Google profile" (and the change from the month before).
+export function withGoogle(data, s, prevGoogle) {
+  if (!data || !data.a || typeof data.a !== 'object') return null;
+  const g = data.a.google;
+  if (g && (g.calls != null || g.clicks != null || g.directions != null)) return null;   // already there
+  const out = Object.assign({}, data, { a: Object.assign({}, data.a, { google: { calls: +s.calls || 0, clicks: +s.clicks || 0, directions: +s.directions || 0 } }) });
+  if (out.a.vs && prevGoogle && prevGoogle.calls != null) out.a.vs = Object.assign({}, out.a.vs, { googleCalls: out.a.google.calls - +prevGoogle.calls });
+  if (out.stats) { out.stats = Object.assign({}, out.stats); for (const k of ['calls', 'clicks', 'directions']) if (out.stats[k] == null || out.stats[k] === '') out.stats[k] = out.a.google[k]; }
+  return out;
+}
+async function intoReport(env, cid, month, s) {
+  const row = await env.DB.prepare('SELECT data, hash FROM app_months WHERE client_id = ?1 AND month = ?2').bind(cid, month).first();
+  if (!row || !String(row.hash || '').startsWith('auto:')) return false;   // only the reports this worker wrote
+  let data = null; try { data = JSON.parse(row.data || 'null'); } catch (e) { return false; }
+  const [y, m] = month.split('-').map(Number), prevKey = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
+  const prev = await env.DB.prepare('SELECT calls FROM gbp_metrics WHERE client_id = ?1 AND month = ?2').bind(cid, prevKey).first().catch(() => null);
+  const next = withGoogle(data, s, prev);
+  if (!next) return false;
+  const json = JSON.stringify(next);
+  await env.DB.prepare('UPDATE app_months SET data = ?3, hash = ?4 WHERE client_id = ?1 AND month = ?2').bind(cid, month, json, 'auto:' + json.length).run();
+  return true;
 }
 // For the app: Google's numbers fill the report tiles the HQ month record leaves empty.
 export async function mergeMonths(env, cid, months) {
@@ -362,17 +447,31 @@ export async function mergeMonths(env, cid, months) {
 }
 
 // ---------------- the timer ----------------
-async function run(env, k, note) { await env.DB.prepare('INSERT OR REPLACE INTO gbp_runs (k, at, note) VALUES (?1, ?2, ?3)').bind(k, new Date().toISOString(), String(note || '').slice(0, 500)).run(); }
+async function run(env, k, note, max) { await env.DB.prepare('INSERT OR REPLACE INTO gbp_runs (k, at, note) VALUES (?1, ?2, ?3)').bind(k, new Date().toISOString(), String(note || '').slice(0, max || 500)).run(); }
 async function due(env, k, everyMs) { const r = await env.DB.prepare('SELECT at FROM gbp_runs WHERE k = ?1').bind(k).first(); return !r || Date.now() - Date.parse(r.at) >= everyMs; }
 
+// The moment posting to Google went on. launch.js stamps it when Google's approval turns the switch on; when GBP_ON
+// forces the switch there is no stamp, so the first pass that finds it on stamps its own (gbp_runs 'on'), and the stamp
+// is dropped whenever the switch is off again. Anything approved before that moment was posted by hand.
+export async function onSince(env, now) {
+  const at = Date.parse(((await (await import('./launch.js')).launchState(env)).google || {}).at || '') || 0;
+  const own = await env.DB.prepare("SELECT at FROM gbp_runs WHERE k = 'on'").first().catch(() => null);
+  const mine = Date.parse((own && own.at) || '') || 0;
+  if (at && mine) return Math.min(at, mine);
+  if (at || mine) return at || mine;
+  await env.DB.prepare("INSERT OR IGNORE INTO gbp_runs (k, at, note) VALUES ('on', ?1, 'switch found on with no launch time')").bind(new Date(now).toISOString()).run();
+  const r = await env.DB.prepare("SELECT at FROM gbp_runs WHERE k = 'on'").first();
+  return Date.parse((r && r.at) || '') || now;
+}
+
 export async function gbpCron(env, at) {
-  if (!(await isOn(env))) return { off: true };
+  if (!(await isOn(env))) { try { await env.DB.prepare("DELETE FROM gbp_runs WHERE k = 'on'").run(); } catch (e) { /* no table yet: nothing to drop */ } return { off: true }; }
   await ensureGbp(env);
   const now = at || Date.now(), out = {};
   if (await due(env, 'map', 24 * 3600e3)) out.map = await mapLocations(env).catch(e => String(e.message || e));
   // Approved replies and posts not posted yet (a retry for anything the approval-time attempt missed). Only what was
   // approved after the switch went on: anything older was posted by hand.
-  const since = Math.max(now - 14 * 864e5, Date.parse(((await (await import('./launch.js')).launchState(env)).google || {}).at || '') || 0);
+  const since = Math.max(now - 14 * 864e5, await onSince(env, now));
   const rows = ((await env.DB.prepare("SELECT i.* FROM app_items i LEFT JOIN gbp_posted p ON p.item_id = i.id WHERE i.status = 'approved' AND i.kind IN ('reply', 'review', 'post') AND i.decided_at > ?1 AND (p.item_id IS NULL OR (p.ok = 0 AND p.tries < ?2 AND p.at < ?3)) ORDER BY i.decided_at LIMIT 15")
     .bind(new Date(since).toISOString(), MAX_TRIES, new Date(now - 30 * 60e3).toISOString()).all()).results) || [];
   let posted = 0;
@@ -396,8 +495,12 @@ export async function gbpBoard(env) {
     const stuck = ((await env.DB.prepare("SELECT p.item_id, p.result, COALESCE(c.business, p.client_id) AS biz FROM gbp_posted p LEFT JOIN app_clients c ON c.client_id = p.client_id WHERE p.ok = 0 AND p.tries >= ?1 ORDER BY p.at DESC LIMIT 20").bind(MAX_TRIES).all()).results) || [];
     for (const s of stuck) items.push({ key: 'gbp:' + s.item_id, group: 'Google: could not post on its own', title: s.biz, detail: s.result + '. Post it by hand, then tick Done' });
     const r = await env.DB.prepare("SELECT note FROM gbp_runs WHERE k = 'map'").first();
-    const un = r ? (JSON.parse(r.note || '{}').unmatched || []) : [];
+    let note = {}; try { note = JSON.parse((r && r.note) || '{}') || {}; } catch (e) { note = {}; }
+    const un = note.unmatched || [];
     for (const b of un) items.push({ key: 'gbpmap:' + b, group: 'Google: profiles we could not match', title: b, detail: 'No Google profile with the same phone or name is shared with Always Open. Ask them to invite hello@alwaysopenoffice.com as a Manager' });
+    if (+note.moreUnmatched) items.push({ key: 'gbpmap:+more', group: 'Google: profiles we could not match', title: 'And ' + note.moreUnmatched + ' more', detail: 'Only the first ' + un.length + ' are listed. Match the ones above and the rest show up here' });
+    for (const x of note.shared || []) items.push({ key: 'gbpdup:' + x.name, group: 'Google: two businesses, one profile', title: x.name, detail: 'It matched the same Google profile as ' + (x.other || 'another client') + ', so it was not given that profile and nothing of its goes there. Set its own profile by hand' });
+    if (+note.moreShared) items.push({ key: 'gbpdup:+more', group: 'Google: two businesses, one profile', title: 'And ' + note.moreShared + ' more', detail: 'Only the first ' + (note.shared || []).length + ' are listed' });
   } catch (e) { /* the board still shows the rest */ }
   return items;
 }

@@ -62,7 +62,8 @@ async function serve(req, env, ctx) {
       // The one page every client gets on the 2nd of the month, with a made-up plumber (monthpage.js).
       const { samplePage } = await import('./monthpage.js');
       // Above the made-up month, one line of real numbers from every business together, once there are enough of them.
-      let proof = ''; try { const A = await import('./answerrate.js'); proof = A.networkLine(await A.networkMonth(env)); } catch (e) { proof = ''; }
+      // Worked out at most once a day (answerrate.networkCached), not once per visitor.
+      let proof = ''; try { const A = await import('./answerrate.js'); proof = A.networkLine(await A.networkCached(env)); } catch (e) { proof = ''; }
       return withSiteHeaders(new Response(samplePage(proof), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } }), url);
     }
     if (path === '/health') {

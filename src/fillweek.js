@@ -19,7 +19,10 @@ export async function ensureFill(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek (client_id TEXT PRIMARY KEY, on_ INTEGER DEFAULT 0, agreed_at TEXT DEFAULT '', agreed_by TEXT DEFAULT '', updated TEXT DEFAULT '')"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, day TEXT, created TEXT, by TEXT DEFAULT '', offers INTEGER DEFAULT 0, booked INTEGER DEFAULT 0)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_offers (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, client_id TEXT NOT NULL, phone10 TEXT NOT NULL, name TEXT DEFAULT '', job TEXT DEFAULT '', day TEXT DEFAULT '', status TEXT DEFAULT 'sent', at TEXT, result TEXT DEFAULT '')"),
-    env.DB.prepare('CREATE INDEX IF NOT EXISTS fillweek_offers_p ON fillweek_offers (client_id, phone10, at)')
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS fillweek_offers_p ON fillweek_offers (client_id, phone10, at)'),
+    // The daily pass's last try for each client, run or not, so a client with nothing to offer (or a calendar we could
+    // not read) waits until tomorrow instead of being tried every ten minutes.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_tries (client_id TEXT PRIMARY KEY, at TEXT, result TEXT DEFAULT '')")
   ]);
   ready = true;
 }
@@ -170,16 +173,25 @@ export async function onReply(env, cid, from10, body) {
 }
 
 // Once a day per client, mid-morning in their time: a run when an open day is coming up and none ran in 14 days.
+// Each client is tried at most once a day (fillweek_tries), and the cap counts only clients whose hour it is, so a few
+// that never have anything to offer can't keep everyone after them from their turn.
+const RUNS_PER_PASS = 10, TRY_GAP_MS = 20 * 3600e3;
 export async function fillCron(env, at) {
   await ensureFill(env);
   const now = at || Date.now();
-  const rows = ((await env.DB.prepare("SELECT c.* FROM fillweek f JOIN app_clients c ON c.client_id = f.client_id WHERE f.on_ = 1 AND c.active = 1 AND c.regulated = 0 AND NOT EXISTS (SELECT 1 FROM fillweek_runs r WHERE r.client_id = f.client_id AND r.created > ?1) LIMIT 10").bind(new Date(now - RUN_GAP_DAYS * 864e5).toISOString()).all()).results) || [];
-  const { tzFor, local } = await import('./callbacks.js');
-  let ran = 0;
+  await (await import('./gcal.js')).ensureGcal(env);
+  const rows = ((await env.DB.prepare("SELECT c.*, g.tz AS fill_tz FROM fillweek f JOIN app_clients c ON c.client_id = f.client_id LEFT JOIN gcal_tokens g ON g.client_id = f.client_id WHERE f.on_ = 1 AND c.active = 1 AND c.regulated = 0 AND NOT EXISTS (SELECT 1 FROM fillweek_runs r WHERE r.client_id = f.client_id AND r.created > ?1) AND NOT EXISTS (SELECT 1 FROM fillweek_tries t WHERE t.client_id = f.client_id AND t.at > ?2)")
+    .bind(new Date(now - RUN_GAP_DAYS * 864e5).toISOString(), new Date(now - TRY_GAP_MS).toISOString()).all()).results) || [];
+  const { local } = await import('./callbacks.js');
+  let ran = 0, tried = 0;
   for (const c of rows) {
-    const l = local(await tzFor(env, c.client_id), now);
+    const l = local(c.fill_tz || 'America/New_York', now);   // the same zone tzFor gives: the calendar's, else Eastern
     if (l.hour < 10 || l.hour >= 11 || l.wd === 'Sat' || l.wd === 'Sun') continue;
-    const r = await runFill(env, c, { now }).catch(() => null);
+    if (tried >= RUNS_PER_PASS) break;   // the rest get the next pass, ten minutes on
+    tried++;
+    await env.DB.prepare("INSERT OR REPLACE INTO fillweek_tries (client_id, at, result) VALUES (?1, ?2, 'trying')").bind(c.client_id, new Date(now).toISOString()).run();
+    const r = await runFill(env, c, { now }).catch(e => ({ ok: false, error: String((e && e.message) || e) }));
+    await env.DB.prepare('UPDATE fillweek_tries SET result = ?2 WHERE client_id = ?1').bind(c.client_id, r && r.ok ? 'ran' : String((r && r.error) || 'failed').slice(0, 200)).run();
     if (r && r.ok) {
       ran++;
       try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Fill my week: ' + r.slot + ' offered', body: 'Texted ' + r.sent + (r.sent === 1 ? ' past customer' : ' past customers') + '. The first YES gets booked on your calendar.' }, sound: 'default', 'thread-id': 'fillweek' }, screen: 'home' }); } catch (e) {}

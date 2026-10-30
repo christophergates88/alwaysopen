@@ -4,12 +4,19 @@
 // A complete record HQ already wrote for that month is kept as it is; a partial one written mid-month is replaced.
 // The owner gets one push when it's ready.
 import { reportLine } from './money.js';
+import { fromLocal, tzFor } from './callbacks.js';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const PER_PASS = 10;
 
 export function monthOf(now) {
   const d = new Date(now), start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)), end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
   return { key: start.toISOString().slice(0, 7), start: start.toISOString(), end: end.toISOString(), label: MONTHS[start.getUTCMonth()] + ' ' + start.getUTCFullYear(), prevKey: new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1)).toISOString().slice(0, 7) };
+}
+// The same month in the business's own time: from midnight on the 1st to midnight on the next 1st where they are, the
+// way the app's month page (app.js monthFor) and the after-hours money (money.js) count it.
+export function inZone(m, tz) {
+  const nextKey = new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 1)).toISOString().slice(0, 7);
+  return Object.assign({}, m, { tz, start: new Date(fromLocal(tz, m.key + '-01', 0, 0)).toISOString(), end: new Date(fromLocal(tz, nextKey + '-01', 0, 0)).toISOString() });
 }
 const day = iso => { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : ''; };
 const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -89,9 +96,9 @@ async function oneClient(env, c, m, now) {
   // The analytics: when the phone rang, why callers didn't book, reviews, follow-ups, rivals, and what it means (insights.js).
   let an = null;
   try {
-    const I = await import('./insights.js'), { tzFor } = await import('./callbacks.js');
+    const I = await import('./insights.js');
     let prevA = null; try { const p = JSON.parse((prevRow && prevRow.data) || 'null'); prevA = p && p.a ? Object.assign({ label: p.label || '' }, p.a) : null; } catch (e) {}
-    an = await I.monthAnalytics(env, c.client_id, m.start, m.end, { tz: await tzFor(env, c.client_id), prev: prevA, money, regulated: !!+c.regulated });
+    an = await I.monthAnalytics(env, c.client_id, m.start, m.end, { tz: m.tz || await tzFor(env, c.client_id), prev: prevA, money, regulated: !!+c.regulated });
   } catch (e) { an = null; }
   const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n, money, a: an }, prev, now);
   const json = JSON.stringify(data);
@@ -109,10 +116,11 @@ export async function monthReportCron(env, at) {
   const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
   let made = 0;
   for (const c of clients) {
+    const mz = inZone(m, await tzFor(env, c.client_id));   // the month as the business lives it
     let d = null; try { d = JSON.parse(c.data || 'null'); } catch (e) {}
     if (String(c.hash || '').startsWith('auto:') || isComplete(d, m)) { await done(c.client_id, 'kept'); continue; }
-    if (!wasClient(await firstSeen(env, c.client_id), m)) { await done(c.client_id, 'not a client yet'); continue; }   // never a report for a month before they joined
-    const data = await oneClient(env, c, m, now);
+    if (!wasClient(await firstSeen(env, c.client_id), mz)) { await done(c.client_id, 'not a client yet'); continue; }   // never a report for a month before they joined
+    const data = await oneClient(env, c, mz, now);
     made++;
     await done(c.client_id, hasNews(data) ? 'made' : 'made, quiet month');
     if (!hasNews(data)) continue;

@@ -40,7 +40,7 @@ export async function gather(env, cid, fromIso, toIso) {
     all("SELECT call_id FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled' AND call_id != '' AND created >= ?2 AND created < ?3", cid, a, b),
     all("SELECT created, decided_at, status FROM app_items WHERE client_id = ?1 AND kind IN ('reply', 'review') AND created >= ?2 AND created < ?3", cid, a, b),
     all("SELECT at FROM sms_log WHERE client_id = ?1 AND kind = 'textback' AND status NOT IN ('skipped', 'held', 'failed') AND at >= ?2 AND at < ?3", cid, a, b),
-    all("SELECT updated, ROUND(amount / 100.0) AS amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND source != 'demo' AND updated >= ?2 AND updated < ?3", cid, a, b),
+    all("SELECT updated, ROUND(amount / 100.0) AS amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND COALESCE(source, '') NOT IN ('import', 'demo') AND updated >= ?2 AND updated < ?3", cid, a, b),
     all('SELECT at FROM app_leads WHERE client_id = ?1 AND at >= ?2 AND at < ?3', cid, a, b),
     all('SELECT month, data FROM ai_checks WHERE client_id = ?1', cid),
     one('SELECT avg_job, win_rate FROM app_settings WHERE client_id = ?1', cid),
@@ -170,7 +170,7 @@ export async function trendsFor(env, c, now) {
   const from = new Date(Date.parse(keys[0] + '-01T00:00:00Z') - 2 * 864e5).toISOString(), to = new Date(now + 864e5).toISOString();
   const rows = await gather(env, cid, from, to);
   const noMoney = c.role === 'tech';
-  if (noMoney) rows.avgJob = 0;
+  if (noMoney) { rows.avgJob = 0; rows.won = []; }   // a tech sees no dollars: not what calls were worth, not what jobs came to
   const months = series(rows, { tz, keys, now });
   const s = since(months, rows.joined, { noMoney });
   // Totals before the twelve months shown, so "since you joined" stays true for a business with us longer than a year.
@@ -178,7 +178,7 @@ export async function trendsFor(env, c, now) {
     const older = await gather(env, cid, rows.joined, from);
     const olderKeys = monthKeysBetween(local(tz, Date.parse(rows.joined)).day.slice(0, 7), keys[0]);
     if (olderKeys.length) {
-      if (noMoney) older.avgJob = 0;
+      if (noMoney) { older.avgJob = 0; older.won = []; }
       const om = series(Object.assign(older, { joined: rows.joined }), { tz, keys: olderKeys, now });
       for (const k of ['calls', 'after', 'leads', 'booked', 'minutes', 'reviews', 'replied', 'textbacks', 'requests', 'won', 'worth']) s[k] += om.filter(x => !x.before).reduce((t, x) => t + (+x[k] || 0), 0);
       s.months += om.filter(x => !x.before).length;

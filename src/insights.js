@@ -15,7 +15,14 @@ export function bandOf(hour) { return hour >= 6 && hour < 9 ? 0 : hour >= 9 && h
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
 const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-const money = v => { const n = parseInt(String(v == null ? '' : v).replace(/[^0-9.]/g, ''), 10); return isFinite(n) ? n : 0; };
+// A quote amount as the owner typed it ("$1,500", "1500-2000", "$2.5k", "about 900"): the first number only, k for
+// thousands. Anything without a readable number, or past any real quote, counts as nothing.
+export function money(v) {
+  const m = /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(k\b)?/i.exec(String(v == null ? '' : v));
+  if (!m) return 0;
+  const n = parseFloat(m[1].replace(/,/g, '') + (m[2] || '')) * (m[3] ? 1000 : 1);
+  return isFinite(n) && n > 0 && n < 1e7 ? Math.round(n) : 0;
+}
 
 // ---------- reading a month ----------
 export async function gather(env, cid, startIso, endIso) {
@@ -35,7 +42,9 @@ export async function gather(env, cid, startIso, endIso) {
     all('SELECT from_id, to_id FROM handoffs WHERE (from_id = ?1 OR to_id = ?1) AND at >= ?2 AND at < ?3', cid, a, b),
     all('SELECT kind, COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at >= ?2 AND at < ?3 GROUP BY kind', cid, a, b),
     all("SELECT stars, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind IN ('reply', 'review') AND created >= ?2 AND created < ?3", cid, a, b),
-    all("SELECT stage, ROUND(amount / 100.0) AS amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND updated >= ?2 AND updated < ?3", cid, a, b),
+    // Imported past jobs are history (dated the day of the import), not this month's work, as on the app's job board
+    // (biz.js bizState). The sample business's own jobs (source 'demo') are its month, so they count.
+    all("SELECT stage, ROUND(amount / 100.0) AS amount FROM biz_jobs WHERE client_id = ?1 AND stage IN ('booked', 'done', 'paid') AND COALESCE(source, '') != 'import' AND updated >= ?2 AND updated < ?3", cid, a, b),
     one('SELECT calls, clicks, directions FROM gbp_metrics WHERE client_id = ?1 AND month = ?2', cid, ym),
     one('SELECT week FROM rival_snap WHERE client_id = ?1 AND at < ?2 ORDER BY week DESC LIMIT 1', cid, b)
   ]);

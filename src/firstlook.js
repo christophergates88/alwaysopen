@@ -63,6 +63,7 @@ function lastMonth(now) {
   const d = new Date(now), start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)), end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
   return { start: start.toISOString(), end: end.toISOString(), label: start.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }) };
 }
+// w.paid is whole dollars.
 export function shareMessage(w, link) {
   const bits = [];
   if (w.calls) bits.push('Max picked up ' + w.calls + (w.calls === 1 ? ' call' : ' calls') + ' I couldn’t');
@@ -82,7 +83,7 @@ export async function shareState(env, c, refLink) {
   const calls = await one("SELECT COUNT(*) AS n FROM app_calls WHERE client_id = ?1 AND at >= ?2 AND at < ?3 AND test = 0 AND outcome IN ('done','transferred','handoff')", c.client_id, m.start, m.end);
   const books = await one("SELECT COUNT(*) AS n FROM app_leads WHERE client_id = ?1 AND at >= ?2 AND at < ?3 AND need LIKE 'Booked %'", c.client_id, m.start, m.end);
   const paid = await one("SELECT SUM(amount) AS s FROM app_invoices WHERE client_id = ?1 AND status = 'paid' AND paid_at >= ?2 AND paid_at < ?3", c.client_id, m.start, m.end);
-  const w = { calls: +calls.n || 0, bookings: +books.n || 0, paid: +paid.s || 0 };
+  const w = { calls: +calls.n || 0, bookings: +books.n || 0, paid: Math.round((+paid.s || 0) / 100) };   // invoices are kept in cents
   if (!w.calls && !w.bookings && !w.paid) return null;   // only real wins
   return { month: m.label, wins: w, message: shareMessage(w, refLink), link: refLink };
 }
