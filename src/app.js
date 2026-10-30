@@ -1125,8 +1125,7 @@ async function ensureLive(env) {
 }
 // Phone tokens remember the link (code hash) they signed in with. Only phones whose link still opens this business get
 // its notifications: the owner's current link, a staff link HQ hasn't removed, or the owner's link of another location in
-// the same group. A client that is turned off gets none. Tokens from before this was kept have no link and get none
-// until the app opens once and sends its token again.
+// the same group. A client that is turned off gets none. Tokens from before this was kept have no link; see LINK_OK.
 const devReady = new WeakSet();
 async function ensureDeviceLinks(env) {
   if (devReady.has(env.DB)) return;
