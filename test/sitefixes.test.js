@@ -248,17 +248,17 @@ test('review requests: every customer, after every job; nothing on the site or i
   for (const f of ['index.html', 'plumbing.html', 'builders.html']) assert.match(text(f), /Every customer gets the review request, whatever they answer/, f);
 });
 
-test('Storm Desk and Rate-Shock Radar say what they do today: central Georgia, read by our team', () => {
+test('Storm Desk is sold for wherever the business is; Rate-Shock Radar says what it does today', () => {
   for (const f of pages) {
     const s = visible(f);
     assert.doesNotMatch(s, /drafted that minute|ready the minute a|the minute a (weather )?warning|lista en el minuto|en ese mismo minuto/, f);
-    if (/Storm Desk/.test(s)) assert.match(s, /central Georgia|centro de Georgia/, f + ' sells Storm Desk without saying where it works');
+    for (const m of s.match(/Storm Desk[^<]{0,80}/g) || []) assert.doesNotMatch(m, /central Georgia|centro de Georgia/, f + ': Storm Desk now works wherever the business is');
   }
   const ins = visible('insurance.html');
   assert.doesNotMatch(ins, /Rate complaints double|heads-up the same day|a week early|Rate complaints doubled/);
   for (const t of ['Eatonton', 'Madison', 'Greensboro', 'Milledgeville', 'Monticello', 'Gray', 'Sparta', 'Macon']) assert.match(ins, new RegExp('covers[^<]*' + t), t);
   const storm = THEMES.find(t => t.name === 'storm');
-  assert.match(storm.about + storm.fallback, /central Georgia/);
+  assert.doesNotMatch(storm.about + storm.fallback, /central Georgia/);
 });
 
 test('honest labels: a sample call, no receptionist, Max on every plan, nobody named Christopher, Google Maps credited under the grade', () => {

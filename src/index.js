@@ -331,52 +331,21 @@ function stormCounties(env) {
   String(env.STORM_COUNTIES || '').split(',').forEach(x => { const [code, name] = x.split(':'); if (code && name) m['013' + code.trim()] = name.trim(); });
   return m;
 }
+// Nationwide, by each client's own location (stormdesk.js). The old hand-set Georgia counties still count for HQ-only clients.
 async function stormWatch(env) {
-  const counties = stormCounties(env);
-  if (!Object.keys(counties).length) return;
-  try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS storms (id TEXT PRIMARY KEY, at TEXT, event TEXT, grp TEXT, counties TEXT, headline TEXT, ends TEXT, link TEXT, sent TEXT)').run(); } catch (e) {}
-  let data;
-  try {
-    const r = await fetch('https://api.weather.gov/alerts/active?area=GA', { headers: { 'User-Agent': 'AlwaysOpen Storm Desk (hello@alwaysopenoffice.com)', 'Accept': 'application/geo+json' } });
-    if (!r.ok) return;
-    data = await r.json();
-  } catch (e) { return; }
-  const feats = (data && data.features) || [];
-  let sentNow = 0;
-  for (const f of feats) {
-    const p = f.properties || {};
-    if (!STORM_EVENTS.test(p.event || '') || p.status !== 'Actual' || p.messageType === 'Cancel') continue;
-    const same = ((p.geocode && p.geocode.SAME) || []).filter(c => counties[c]);
-    if (!same.length) continue;
-    const id = String(p.id || f.id || '').slice(-120);
-    if (!id) continue;
-    const seen = await env.DB.prepare('SELECT id FROM storms WHERE id = ?1').bind(id).first();
-    if (seen) continue;
-    // An update of a warning we already sent: remember it, don't send again.
-    const refs = (p.references || []).map(x => String(x.identifier || x['@id'] || '').slice(-120)).filter(Boolean);
-    let isUpdate = false;
-    for (const ref of refs) { if (await env.DB.prepare('SELECT id FROM storms WHERE id = ?1').bind(ref).first()) { isUpdate = true; break; } }
-    const names = [...new Set(same.map(c => counties[c]))];
-    const row = { id, at: new Date().toISOString(), event: p.event, grp: stormGroup(p.event), counties: names.join(', '), headline: oneLine(p.headline || '').slice(0, 300), ends: p.ends || p.expires || '', link: 'https://alerts.weather.gov' };
-    let sent = isUpdate ? 'update' : 'new';
-    if (!isUpdate && sentNow < 6) {
-      sentNow++;
-      await Promise.all([stormPush(env, row), stormMail(env, row).then(st => { sent = st; })]);
-    }
-    await env.DB.prepare('INSERT OR IGNORE INTO storms (id, at, event, grp, counties, headline, ends, link, sent) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)')
-      .bind(row.id, row.at, row.event, row.grp, row.counties, row.headline, row.ends, row.link, sent).run().catch(() => {});
-  }
+  const { stormRun } = await import('./stormdesk.js');
+  return stormRun(env, Date.now(), { extra: stormCounties(env), push: s => stormPush(env, s), mail: s => stormMail(env, s) });
 }
 async function stormPush(env, s) {
   await phonePush(env, { title: 'Storm Desk: ' + s.event + ' - ' + s.counties, priority: 'high', tags: 'cloud_with_lightning_and_rain',
-    body: (s.headline || s.event) + '\nOpen Always Open HQ > Today > Storm Desk to draft storm posts for clients there.' });
+    body: (s.businesses ? 'Clients there: ' + s.businesses + '\n' : '') + (s.headline || s.event) + '\nStorm posts for them are drafted at the next Always Open check.' });
 }
 async function stormMail(env, s) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
   const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const text = ['National Weather Service warning in a county we watch.', '',
-    'Storm ID: ' + s.id, 'Event: ' + s.event, 'Group: ' + s.grp, 'Counties: ' + s.counties, 'Ends: ' + s.ends, 'Headline: ' + s.headline, 'Source: ' + s.link, '',
-    'The Always Open check drafts storm posts for Storm Desk clients in these counties. Nothing posts until the client approves it.'].join('\r\n');
+  const text = ['National Weather Service warning where a Storm Desk client is.', '',
+    'Storm ID: ' + s.id, 'Event: ' + s.event, 'Group: ' + s.grp, 'Counties: ' + s.counties, 'Clients: ' + (s.clients || ''), 'Ends: ' + s.ends, 'Headline: ' + s.headline, 'Source: ' + s.link, '',
+    'The Always Open check drafts storm posts for the clients listed (and any HQ client in these counties). Nothing posts until the client approves it.'].join('\r\n');
   const raw = ['From: "Always Open Storm Desk" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>',
     'Subject: ' + encodeHeader('Always Open storm alert: ' + s.event + ': ' + s.counties),
     'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(),

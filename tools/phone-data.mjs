@@ -11,7 +11,7 @@ const WHY = {
   check: 'Three days after the job, Max calls: did it hold up? A no reaches you right away, so you can make it right. Every customer gets the review request, whatever they answer.',
   cb: 'No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.',
   fill: 'A day is wide open. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.',
-  storm: 'In central Georgia counties, when a weather warning hits, our team drafts a storm-day post. You approve it from wherever you are.',
+  storm: 'When a weather warning hits your county, our team drafts a storm-day post. You approve it from wherever you are.',
   ai: 'Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.'
 };
 
@@ -239,7 +239,7 @@ export const PAGES = {
           { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Haskell Insurance on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · posted 3:15 PM']] }
         ],
-        carrier: { why: 'In central Georgia counties, when a weather warning hits, our team drafts a storm-day post. If your company approves posts first, it goes to them first.',
+        carrier: { why: 'When a weather warning hits your county, our team drafts a storm-day post. If your company approves posts first, it goes to them first.',
           choices: [
             { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sent to your company for approval', 'Storm tonight in Putnam County', 'Your compliance contact gets it with your OK already on it.', 'ok'], ['sys', 'Approved by your company · posted 4:40 PM']] },
             { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · sent to your company for approval']] }

@@ -161,6 +161,15 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   letter" at high priority; the 7 AM push lists letters landing that day and any scanned. To stop it, delete the
   `enabled` row in `mail_meta` or remove `LOB_KEY`.
 
+## Storm Desk (src/stormdesk.js)
+
+Nationwide, by each client's own location. Every active Growth or Pro client is placed once (their map address, else
+their town through OpenStreetMap) and turned into a National Weather Service county and forecast zone
+(`storm_watch`; a place that can't be found is tried again daily). Every 10 minutes the active warnings for each state
+with clients are matched to those zones; a match pushes you and sends the "Always Open storm alert" email with a
+`Clients:` line, and the Always Open check drafts the storm posts for them. `STORM_COUNTIES` in `wrangler.toml` (the
+old Georgia list) still matches for clients that exist only in HQ.
+
 ## Facebook and Instagram
 
 Two separate things share one Meta app:
