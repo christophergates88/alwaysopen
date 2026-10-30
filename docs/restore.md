@@ -27,8 +27,14 @@ damage and tell the owners whose data moved. The Worker keeps running; no deploy
 The weekly file is `alwaysopen-<date>.jsonl.gz`: one JSON object per line, `{ "table": "...", "row": { ... } }`, for
 every data table (never tokens or keys). To load it into a fresh database:
 
-1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen` and deploy the Worker once; the Worker
-   creates its tables on first use. Or run `test/fixtures/schema.sql` against it.
+1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen`, put the new database id in
+   `wrangler.toml`, then create the tables (deploying the Worker is not enough: it never creates `app_clients`,
+   `voice_lines`, `app_calls`, `leads`, `app_items` and a few others on its own):
+
+```
+npx wrangler@4 d1 execute alwaysopen --remote --file=test/fixtures/schema.sql --yes
+npx wrangler@4 d1 execute alwaysopen --remote --file=tools/restore-extra.sql --yes
+```
 2. Turn the copy into a SQLite file and the inserts (Node 22, from the Mac, in `GatesHQ/alwaysopen`):
 
 ```
@@ -37,9 +43,10 @@ npx wrangler@4 d1 execute alwaysopen --remote --file=restore.sql --yes
 ```
 
    The first line prints the row count per table and leaves `restored.sqlite` you can open with any SQLite viewer.
+   `restore.sql` also adds any column the live database gained after `schema.sql` was written, so no row is dropped.
 
 3. Owners reconnect Google (tokens are never in the copy) and the iPhone app re-registers for pushes on its next
-   open. Max's lines, calls, leads, jobs, bookings and billing are all back.
+   open. App links are never in the copy either: send each owner a new link from HQ. Max's lines, calls, leads, jobs, bookings and billing are all back.
 
 ## The drill
 

@@ -102,7 +102,12 @@ export async function drillCron(env, now, h) {
   if (!E164.test(from)) {
     if (await getMeta(env, 'buy') !== 'approved') return { off: 'no test number yet' };
     from = await buyNumber(env, h);
-    if (!from) { await setMeta(env, 'buy', 'failed ' + new Date(now).toISOString()); return { off: 'could not buy a test number' }; }
+    if (!from) {
+      // He approved this test; if it can't start, he hears once instead of it silently never running.
+      await setMeta(env, 'buy', 'failed ' + new Date(now).toISOString());
+      try { await (await import('./ops.js')).opsAlert(env, 'test-call', '', 'The 4 AM test call could not buy its number from Twilio, so it is not running. Check the Twilio balance and account, then run "Turn on 4 AM test call" again.'); } catch (e) { /* noted in drill_meta */ }
+      return { off: 'could not buy a test number' };
+    }
     await setMeta(env, 'from', from);
   }
   const line = await ownLine(env);
@@ -137,7 +142,10 @@ export async function drillLine(env, now) {
   try {
     await ensureDrill(env);
     const r = await env.DB.prepare('SELECT status, detail FROM drill_runs WHERE day = ?1').bind(eastern(now || Date.now()).day).first();
-    if (!r) return (await getMeta(env, 'from')) ? 'The 4 AM test call did not run.' : '';
+    if (!r) {
+      if (await getMeta(env, 'from')) return 'The 4 AM test call did not run.';
+      return /^failed/.test(await getMeta(env, 'buy')) ? 'The 4 AM test call is not running: it could not buy its number.' : '';
+    }
     if (r.status === 'passed') return 'The 4 AM test call passed.';
     if (r.status === 'failed') return 'The 4 AM test call failed: ' + r.detail + '.';
     return 'The 4 AM test call is still being checked.';

@@ -65,8 +65,8 @@ test('the outside monitor sees the site, the database, the jobs and the phone li
   globalThis.fetch = async () => new Response('{}');
   try {
     const names = h => h.checks.filter(c => !c.ok).map(c => c.name).sort();
-    assert.deepEqual(names(await O.healthStatus(env, Date.now(), 'monitor')), ['stripe'], 'the Stripe key is missing in this test; the backup and one owner’s Google are not the monitor’s business');
-    assert.deepEqual(names(await O.healthStatus(env, Date.now())), ['backup', 'google-connections', 'stripe'], 'the ops board and the 7 AM push still see everything');
+    assert.deepEqual(names(await O.healthStatus(env, Date.now(), 'monitor')), [], 'Stripe, the backup and one owner’s Google are not the monitor’s business');
+    assert.deepEqual(names(await O.healthStatus(env, Date.now())), ['backup', 'google-connections'], 'the ops board and the 7 AM push still see everything (Stripe is an hourly check now)');
     await DB.prepare("UPDATE health_slow SET ok = 0, why = 'webhook points elsewhere' WHERE name = 'twilio-numbers'").run();
     assert.ok(names(await O.healthStatus(env, Date.now(), 'monitor')).includes('twilio-numbers'), 'a number that no longer reaches us does turn the monitor red');
   } finally { globalThis.fetch = real; }

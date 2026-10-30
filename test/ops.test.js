@@ -37,7 +37,8 @@ test('/health is ok while the 10-minute cron keeps ticking, and not ok 25 minute
     await env.DB.prepare("UPDATE cron_runs SET at = ?1 WHERE name = 'tick'").bind(new Date(now - 10 * 60000).toISOString()).run();
     h = await healthStatus(env, now);
     assert.equal(h.checks.find(c => c.name === 'cron').ok, true);
-    assert.equal(h.checks.find(c => c.name === 'stripe').ok, false, 'no Stripe key in this test, so the page is still not ok');
+    assert.equal(h.checks.find(c => c.name === 'stripe'), undefined, 'Stripe is an hourly check, never part of the 10-minute page');
+    assert.equal((await healthStatus(env, now - CRON_LATE_MS * 3, true)).checks.find(c => c.name === 'cron'), undefined, 'the deploy check never fails on the cron’s age');
     await env.DB.prepare("UPDATE cron_runs SET at = ?1 WHERE name = 'tick'").bind(new Date(now - CRON_LATE_MS - 60000).toISOString()).run();
     h = await healthStatus(env, now);
     assert.equal(h.checks.find(c => c.name === 'cron').ok, false);
@@ -101,13 +102,14 @@ test('the Twilio fallback: a voicemail served by Twilio itself, never a ring to 
 test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; each failure is one alert and shows on /health', async () => {
   const { slowCron, healthStatus } = await import('../src/ops.js');
   const hasVM = (await import('../src/voicemail.js')).hasVoicemail;
-  const env = envFor(makeDB(), { NTFY_URL: 'https://ntfy.example.test/topic', APNS_KEY: 'k', APNS_KEY_ID: 'id', VOICE_KEY: 'vk', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' });
+  const env = envFor(makeDB(), { NTFY_URL: 'https://ntfy.example.test/topic', APNS_KEY: 'k', APNS_KEY_ID: 'id', VOICE_KEY: 'vk', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', STRIPE_KEY: 'sk_x' });
   await env.DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air) VALUES ('+14785551234', 'c1', 'Sinclair Plumbing', 1)").run();
   await env.DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air) VALUES ('+14785550123', 'demo-plumbing', 'Demo Plumbing Co.', 1)").run();   // 555-01xx numbers are made up
   const pings = [];
   const world = { apple: [400, '{"reason":"BadDeviceToken"}'], ntfy: 200, voice_url: 'https://alwaysopenoffice.com/voice/in/vk', sms_url: 'https://alwaysopenoffice.com/voice/sms/vk', fallback: 'https://twimlets.com/echo?Twiml=x', setStatus: 200 };
   const f = async (url, init) => {
     url = String(url);
+    if (url.includes('api.stripe.com')) return new Response('{}', { status: world.stripe || 200 });
     if (url.includes('push.apple.com')) return new Response(world.apple[1], { status: world.apple[0] });
     if (url.includes('ntfy.example.test')) { if (init && init.method === 'POST') pings.push(init.headers.Title); return new Response('', { status: world.ntfy }); }
     if (url.includes('IncomingPhoneNumbers/PN1.json')) {
@@ -124,7 +126,7 @@ test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; e
     const now = Date.parse('2026-10-29T12:00:00Z');
     world.fallback = '';
     let r = await slowCron(env, now, { fetch: f, apnsJwt: async () => 'jwt' });
-    assert.deepEqual(r, { checked: 4, bad: [] });
+    assert.deepEqual(r, { checked: 5, bad: [] });
     assert.equal(world.fixed, 1, 'a live number of ours with no fallback gets one set, quietly');
     assert.equal(pings.length, 0);
     assert.deepEqual(await slowCron(env, now + 30 * 60000, { fetch: f, apnsJwt: async () => 'jwt' }), { skipped: true }, 'once an hour');

@@ -128,6 +128,14 @@ export async function boardItems(env) {
     const line = runs.length ? runs.length + ' jobs. ' + (worst.length ? 'Needs a look: ' + worst.map(r => r.name + (r.ok ? ' (late)' : ' (failed: ' + (r.note || 'error') + ')')).join(', ') : 'All ran. ') + 'Last tick ' + (runs.find(r => r.name === 'tick') ? ageText(runs.find(r => r.name === 'tick').at) : 'never') + '. ' + runs.map(r => r.name + ' ' + ageText(r.at) + ' ' + r.ms + 'ms').join(' · ') : 'no runs recorded yet';
     items.push({ key: 'sys:cron:' + (worst.length ? 'bad' : 'ok'), group: 'Status of what you are waiting on', title: 'Worker jobs', detail: line });
   } catch (e) { /* the board stands without it */ }
+  // Crashes in the last week (the "crash:<route>" alerts), grouped by page, so the alert has somewhere to point.
+  try {
+    const { recentErrors } = await import('./ops.js');
+    const errs = (await recentErrors(env, 200)).filter(e => Date.now() - Date.parse(e.at) < 7 * 864e5);
+    const byRoute = new Map();
+    for (const e of errs) { const k = e.method + ' ' + e.route; const x = byRoute.get(k) || { n: 0, last: e }; x.n++; byRoute.set(k, x); }
+    for (const [route, x] of byRoute) items.push({ key: 'err:' + route + ':' + x.last.at.slice(0, 10), group: 'Errors this week', title: route + (x.n > 1 ? ' (' + x.n + ' times)' : ''), detail: 'Last ' + x.last.at.slice(0, 16).replace('T', ' ') + ' UTC: ' + x.last.message });
+  } catch (e) { /* the board stands without it */ }
   const done = new Set((await all(env, 'SELECT k FROM ops_done LIMIT 2000')).map(r => r.k));
   return items.filter(x => !done.has(x.key));
 }

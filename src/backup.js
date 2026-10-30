@@ -5,10 +5,11 @@
 import { EmailMessage } from 'cloudflare:email';
 export const TABLES = ['app_clients', 'app_staff', 'app_locations', 'voice_lines', 'app_calls', 'call_grades', 'leads', 'app_leads', 'app_items', 'app_followups', 'app_messages', 'app_months',
   'biz_jobs', 'biz_customers', 'biz_quotes', 'biz_pay', 'biz_prefs', 'app_invoices', 'line_bookings', 'billing', 'callbacks', 'checkins', 'checkin_prefs', 'fillweek', 'fillweek_offers',
-  'sms_optout', 'call_optout', 'referrals', 'referral_bank', 'map_listing', 'handoffs', 'handoff_prefs', 'gbp_locations', 'gbp_seen', 'gbp_posted', 'minute_overage', 'line_interviews', 'line_audio_meta'];
+  'sms_optout', 'call_optout', 'referrals', 'referral_bank', 'map_listing', 'handoffs', 'handoff_prefs', 'gbp_locations', 'gbp_seen', 'gbp_posted', 'minute_overage', 'line_interviews',
+  'sms_brands', 'a2p_reg', 'biz_stripe', 'app_settings', 'biz_msgs'];
 // Columns that open something (an owner's app link) never leave the database, even in a backup. A restored client
 // gets a new link from HQ; the app keeps only a hash of the code anyway (app_clients.code_hash).
-export const SECRET_COLUMNS = { billing: ['code'] };
+export const SECRET_COLUMNS = { billing: ['code'], a2p_reg: ['form'] };   // the texting form can hold an EIN for a moment
 const ready = new WeakSet();
 async function ensure(env) {
   if (ready.has(env.DB)) return;

@@ -2,6 +2,8 @@ name: Deploy
 on:
   push: { branches: [main] }
   workflow_dispatch:
+# Two quick pushes never race: the second waits, so one job can't roll back the other's deploy.
+concurrency: { group: deploy, cancel-in-progress: false }
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,7 +21,8 @@ jobs:
       - name: Deploy worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx -y wrangler@4 deploy || npx -y wrangler@4 deploy --config wrangler.noemail.toml
+        # No fallback config: a deploy that can't bind email fails here and the live site stays on the last good version.
+        run: npx -y wrangler@4 deploy
       - name: Check the live site, and roll back if it is not healthy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

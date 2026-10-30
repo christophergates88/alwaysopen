@@ -29,13 +29,22 @@ function enc(s) { return /^[\x20-\x7E]*$/.test(s) ? s : '=?UTF-8?B?' + btoa(unes
 
 // type: short stable name, e.g. 'stripe-webhook', 'cron:billing', 'mail-send', 'max-call', 'deploy', 'health:d1'.
 // who: the client_id (a code, not a name), or ''. Returns 'sent', 'limited' or 'off'.
+const MEMO = new Map();
 export async function opsAlert(env, type, who, detail) {
   try {
     const key = one(type).slice(0, 60) || 'error';
     const now = Date.now();
-    await ensureAlerts(env);
     // One statement decides whether this one goes out, so a burst of crashes in the same second is still one push.
-    const row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev) VALUES (?1, ?2, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ?3 THEN prev ELSE n END, n = CASE WHEN ?2 - at < ?3 THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ?3 THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS).first();
+    // When the database itself is what broke, a per-isolate memory decides instead, so that alert still gets out.
+    let row;
+    try {
+      await ensureAlerts(env);
+      row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev) VALUES (?1, ?2, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ?3 THEN prev ELSE n END, n = CASE WHEN ?2 - at < ?3 THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ?3 THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS).first();
+    } catch (e) {
+      const last = MEMO.get(key) || 0;
+      if (now - last < GAP_MS) return 'limited';
+      MEMO.set(key, now); row = { n: 0, prev: 0 };
+    }
     if (!row || +row.n !== 0) return 'limited';   // held back: n counts the ones since the last push
     const more = row.prev ? ' (' + row.prev + ' more since the last alert)' : '';
     const title = 'Always Open problem: ' + key;
@@ -67,7 +76,7 @@ export async function ensureRuns(env) {
   runsReady.add(env.DB);
 }
 export async function noteRun(env, name, ok, ms, note) {
-  try { await ensureRuns(env); await env.DB.prepare('INSERT OR REPLACE INTO cron_runs (name, at, ms, ok, note) VALUES (?1, ?2, ?3, ?4, ?5)').bind(name, new Date().toISOString(), Math.round(ms || 0), ok ? 1 : 0, one(note).slice(0, 200)).run(); } catch (e) { /* the run still counts */ }
+  try { await ensureRuns(env); await env.DB.prepare('INSERT OR REPLACE INTO cron_runs (name, at, ms, ok, note) VALUES (?1, ?2, ?3, ?4, ?5)').bind(name, new Date().toISOString(), Math.round(ms || 0), ok ? 1 : 0, scrub(one(note)).slice(0, 200)).run(); } catch (e) { /* the run still counts */ }
 }
 export function watched(env, name, p) {
   const t0 = Date.now();
@@ -92,15 +101,11 @@ export async function healthChecks(env) {
   const out = [];
   try { const r = await env.DB.prepare('SELECT 1 AS x').first(); out.push({ name: 'd1', ok: !!(r && r.x === 1), why: 'database did not answer' }); }
   catch (e) { out.push({ name: 'd1', ok: false, why: 'database error: ' + one(e && e.message).slice(0, 120) }); }
-  if (env.STRIPE_KEY) {
-    try {
-      const r = await fetch('https://api.stripe.com/v1/balance', { headers: { Authorization: 'Bearer ' + env.STRIPE_KEY } });
-      out.push({ name: 'stripe', ok: r.ok, why: r.ok ? '' : 'Stripe answered ' + r.status + (r.status === 401 ? ' (key rejected)' : '') });
-    } catch (e) { out.push({ name: 'stripe', ok: false, why: 'Stripe unreachable' }); }
-  } else out.push({ name: 'stripe', ok: false, why: 'Stripe key missing' });
+  // Stripe is checked hourly with the slow checks: a Stripe hiccup is not the site being down, so it never pages at night
+  // or rolls back a deploy.
   // Max's line: the call room, the voice key and a way to think must all be there, and the voice log must show the line is alive.
   const miss = [];
-  out.push({ name: 'email', ok: !!(env.EMAIL && env.MAIL_FROM && env.MAIL_TO), why: 'The email connection is missing, so website requests and alerts are not being emailed (the deploy likely fell back to wrangler.noemail.toml)' });
+  out.push({ name: 'email', ok: !!(env.EMAIL && env.MAIL_FROM && env.MAIL_TO), why: 'The email connection is missing, so website requests and alerts are not being emailed (check Email Routing in Cloudflare)' });
   out.push({ name: 'texting', ok: !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN), why: 'Twilio account SID or auth token missing' });
   if (!env.CALLROOM) miss.push('call room');
   if (!env.VOICE_KEY) miss.push('voice key');
@@ -123,6 +128,12 @@ export async function slowChecks(env, h) {
   h = h || {};
   const out = [];
   const f = h.fetch || fetch;
+  if (env.STRIPE_KEY) {
+    try {
+      const r = await f('https://api.stripe.com/v1/balance', { headers: { Authorization: 'Bearer ' + env.STRIPE_KEY }, signal: AbortSignal.timeout(8000) });
+      out.push({ name: 'stripe', ok: r.ok, why: r.ok ? '' : 'Stripe answered ' + r.status + (r.status === 401 ? ' (key rejected)' : '') });
+    } catch (e) { out.push({ name: 'stripe', ok: false, why: 'Stripe did not answer within 8 seconds' }); }
+  } else out.push({ name: 'stripe', ok: false, why: 'Stripe key missing' });
   // Apple push: a push to a made-up device with our key. Apple answers 400 BadDeviceToken when the key is fine, 403 when it is not.
   if (!(env.APNS_KEY && env.APNS_KEY_ID)) out.push({ name: 'apple-push', ok: false, why: 'Apple push key or key ID missing: owners get no pushes' });
   else {
@@ -142,10 +153,11 @@ export async function slowChecks(env, h) {
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
     try {
       const lines = ((await env.DB.prepare('SELECT number, business, transfer_to FROM voice_lines WHERE on_air = 1').all()).results) || [];
-      const wrong = [], fixed = [];
+      const wrong = [], fixed = [], unknown = [];
       for (const l of lines) {
         if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
         const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
+        if (!r.ok) { unknown.push(l.business || l.number); continue; }   // Twilio had a moment: not the number's fault
         const j = await r.json().catch(() => ({}));
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
         if (!pn) { wrong.push((l.business || l.number) + ' (not in the Twilio account)'); continue; }
@@ -171,7 +183,7 @@ export async function slowChecks(env, h) {
         const ping = h.ping || (async (t, b) => (await import('./app.js')).opsPing(env, t, b, 'default', 'wrench'));
         await ping('Always Open: pointed ' + (fixed.length === 1 ? 'a number' : fixed.length + ' numbers') + ' back at Max', 'Found pointing somewhere else and fixed: ' + fixed.join(', ') + '. Nothing for you to do. If you changed it on purpose in the Twilio console, take that line off the air first, or the hourly check will put it back.');
       }
-      out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : '' });
+      out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : (unknown.length ? 'Twilio did not answer for ' + unknown.length + (unknown.length === 1 ? ' number' : ' numbers') + '; checked again next hour' : '') });
     } catch (e) { out.push({ name: 'twilio-numbers', ok: false, why: 'could not read the numbers from Twilio' }); }
   }
   // Backups: one in the last 8 days (backup.js), once the first one has run.
@@ -216,7 +228,7 @@ export async function healthCron(env) {
 
 // GET /health: "ok" (200) for the outside monitor, or "not ok: ..." (503) when a check fails or the 10-minute cron has
 // not finished in 25 minutes. With the key, the detail: every check and the last run of every job.
-// mode: true (the deploy's check) = the fast checks only; 'monitor' (the outside monitor, which can page at night) = the
+// mode: true (the deploy's check) = the fast checks only, not the cron's age (a deploy may be what fixes a stopped cron); 'monitor' (the outside monitor, which can page at night) = the
 // fast checks plus whether every number still reaches us; anything else = everything, for the ops board and 7 AM push.
 // A late backup or one owner's Google connection shows on the board and in the morning, and never pages anyone.
 export async function healthStatus(env, now, mode) {
@@ -225,7 +237,7 @@ export async function healthStatus(env, now, mode) {
   const age = await cronAge(env, now);
   // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
   const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };
-  const all = res.concat([cron]);
+  const all = mode === true ? res : res.concat([cron]);
   return { ok: all.every(c => c.ok), checks: all, cronAge: age };
 }
 export async function healthDetail(env) {

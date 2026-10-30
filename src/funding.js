@@ -23,15 +23,20 @@ async function ensure(env) {
 }
 
 // One push per key per gap. level: 'warn' | 'urgent' | 'ok' (ok clears the key so the next problem alerts right away).
-export async function fundAlert(env, key, level, title, body) {
+// once: a reminder that goes out a single time (a renewal's 30-, 7- and 1-day notes), never repeated daily.
+export async function fundAlert(env, key, level, title, body, opts) {
   await ensure(env);
-  if (level === 'ok') { await env.DB.prepare('DELETE FROM funding_alerts WHERE k LIKE ?1').bind(key + '%').run(); return 'cleared'; }
+  // Only this key's own levels: clearing 'twilio' must not clear 'twilio-read'.
+  if (level === 'ok') { await env.DB.prepare('DELETE FROM funding_alerts WHERE k LIKE ?1').bind(key + ':%').run(); return 'cleared'; }
   const k = key + ':' + level, now = Date.now();
   const row = await env.DB.prepare('SELECT at FROM funding_alerts WHERE k = ?1').bind(k).first();
-  if (row && now - row.at < (level === 'urgent' ? URGENT_EVERY : WARN_EVERY)) return 'limited';
+  if (row && (opts && opts.once || now - row.at < (level === 'urgent' ? URGENT_EVERY : WARN_EVERY))) return 'limited';
   await env.DB.prepare('INSERT INTO funding_alerts (k, at) VALUES (?1, ?2) ON CONFLICT(k) DO UPDATE SET at = excluded.at').bind(k, now).run();
   // Loud at night only for Twilio running dry: at zero, callers get nothing, not even the voicemail backup.
-  await pushOps(env, title, body, level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag', '', key === 'twilio' && level === 'urgent');
+  const loud = key === 'twilio' && level === 'urgent';
+  // At night it arrives silently, so it also goes on the list the 7 AM push reads out.
+  try { const { isNight } = await import('./push.js'); if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), 'funding:' + key, String(title).slice(0, 200)).run(); } catch (e) { /* the push still goes */ }
+  await pushOps(env, title, body, level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag', '', loud);
   await mailOps(env, title, body);
   return 'sent';
 }
@@ -146,7 +151,7 @@ export async function fundingCron(env) {
   const hb = await checkHeartbeat(env).catch(() => null);
   for (const r of renewalsDue(env.RENEWALS, Date.now())) {
     await fundAlert(env, 'renew:' + r.name + ':' + r.bucket, r.days <= 1 ? 'urgent' : 'warn', 'Always Open: ' + r.name + ' renews ' + (r.days <= 1 ? 'tomorrow' : 'in ' + r.days + ' days'),
-      r.name + ' renews on ' + r.date + '. Make sure the card on file works, or service stops.');
+      r.name + ' renews on ' + r.date + '. Make sure the card on file works, or service stops.', { once: true });
   }
   return { twilio: t, claude: c, check: hb };
 }

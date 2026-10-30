@@ -41,14 +41,14 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 | `health:cron` | The 10-minute checks stopped | Cloudflare dashboard: is the Worker deployed and the cron trigger present? Last deploy on GitHub |
 | `health:d1` | The database did not answer | Cloudflare status page, then D1 in the dashboard |
 | `health:stripe` | Stripe rejected the key or is down | Stripe dashboard, API keys |
-| `health:email` | The email binding is missing | The deploy fell back to `wrangler.noemail.toml`; fix Email Routing and redeploy |
+| `health:email` | The email binding is missing | Check Email Routing for alwaysopenoffice.com in Cloudflare, then redeploy |
 | `health:max-line` | A Max key is missing | `wrangler secret list`, set the missing one |
 | `health:apple-push` | Owners are not getting pushes | Apple key in App Store Connect; `APNS_KEY`, `APNS_KEY_ID` |
 | `health:ntfy` | Your phone pushes are not arriving, or ntfy turned down the account token | ntfy.sh status, the ntfy app on your phone; for the token, make a new one at ntfy.sh (Account, Access tokens) and run `Set ntfy token.command` |
 | `health:twilio-numbers` | A live number points elsewhere and Twilio would not let the hourly check point it back (it fixes the usual case itself; the only alert loud at night) | Twilio console, Phone Numbers, Voice webhook; or `POST /ops/twilio-setup` with the key to repoint all of them |
 | `health:google-connections` | A Google connection was refused | The owner has a reconnect card; if several at once, the Google Cloud consent screen is in Testing |
 | `health:backup` | No backup in 8 days | `POST /ops/backup` with the key; check the email or the R2 bucket |
-| `crash:<route>` | Something threw; the visitor saw a plain page | The Errors tab on the ops board; the route tells you which page |
+| `crash:<route>` | Something threw; the visitor saw a plain page | "Errors this week" on the ops board; the route tells you which page |
 | `cron:<job>` | A background job threw | The ops board's Worker jobs line shows the note |
 | `max-call` | A Max call errored; the caller got the voicemail backup | Twilio console, Monitor, Calls, then the call in the owner's app |
 | `voicemail`, `cron:voicemail` | A voicemail could not be delivered, or the sweep could not read Twilio | The ops board's Worker jobs line; the sweep tries each call three times |
@@ -184,8 +184,10 @@ Two separate things share one Meta app:
 ## How to put the site in a "we're having trouble" state
 
 Push a commit that makes `serve()` in `src/index.js` return `crashResponse(path)` first thing for everything except
-`/voice/` and `/health`. Visitors see "Something went wrong on our side, call (706) 460-2226"; callers still get
-Max or the fallback; the deploy check will not roll it back because `/health` still answers. Revert when done.
+`/voice/`, `/health` and `/app/`. Visitors see "Something went wrong on our side, call (706) 460-2226"; callers still
+get Max or the fallback. The deploy's live check looks for page text on `/` and `/insurance`, so it WILL roll this back:
+run the deploy with that check's page list emptied in `.github/workflows/deploy.yml` (same commit), and put it back when
+you revert.
 
 ## Backups and restore
 
