@@ -4,13 +4,16 @@
 // weekdays between 10 AM and 3 PM Eastern, this runs a fresh audit for each queued business, and mails a one-page
 // letter through Lob (print, envelope and First-Class postage, about $1.42 each in color with its address page):
 //   - their grade and the three things we'd fix first (letter.js), signed by the Always Open team;
-//   - a QR code to their own live audit page (/your-audit/<token>), where they can have a copy emailed and the usual
-//     follow-ups start. The first time someone opens it, Christopher gets a push: that business is reading it now.
+//   - a QR code to their own live audit page (/your-audit/<token>), where they can have a copy emailed or ask Katie to
+//     call. Letter leads are never emailed unless they ask for that copy, and they get no follow-ups (followCron only
+//     reads status 'new'; theirs is 'letter'). The first time someone opens the page, Christopher gets a push.
 // Guardrails: nothing goes until Christopher turns it on with his caps ("Turn on mailed letters" on the Mac posts to
 // /ops/mail-on); at most the daily cap (5) and the monthly ceiling ($60) are spent; only grade C, D or F businesses
-// are mailed (a B or better has nothing to fix); never a client, someone already in the pipeline, or the same
-// business twice in 180 days. Google's details are looked up fresh for each letter and never kept: the address goes
-// straight to Lob, the letter's page is held only for the minute Lob takes to fetch it, then cleared.
+// are mailed (a B or better has nothing to fix); Google's top match must carry the name that was queued; never a
+// client, someone already in the pipeline, or the same business twice in 180 days, checked by name and by Google's
+// place ID (two spellings of one business are one business). Google's details are looked up fresh for each letter and
+// never kept: the lead row holds the name the Prospector queued and the place ID (which Google allows us to store), the
+// address goes straight to Lob, and the letter's page is held only for the minute Lob takes to fetch it, then cleared.
 import { runAudit } from './audit.js';
 import { letterFor, mailPage } from './letter.js';
 import { qrSvg } from './qr.js';
@@ -29,12 +32,32 @@ export async function ensureMail(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS mail_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, q TEXT, town TEXT, kind TEXT DEFAULT '', added TEXT, status TEXT DEFAULT 'queued', grade TEXT DEFAULT '', score INTEGER, letter_id TEXT DEFAULT '', lead_id INTEGER, tried_at TEXT DEFAULT '', token TEXT DEFAULT '', html TEXT DEFAULT '', sent_at TEXT DEFAULT '', expected TEXT DEFAULT '', cost INTEGER DEFAULT 0, opened_at TEXT DEFAULT '', note TEXT DEFAULT '')"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS mail_meta (k TEXT PRIMARY KEY, v TEXT, at TEXT)')
   ]);
+  try { await env.DB.prepare("ALTER TABLE mail_queue ADD COLUMN place_id TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
   ready.add(env.DB);
 }
 const meta = async (env, k) => { const r = await env.DB.prepare('SELECT v FROM mail_meta WHERE k = ?1').bind(k).first().catch(() => null); return r ? r.v : ''; };
 const setMeta = (env, k, v) => env.DB.prepare('INSERT OR REPLACE INTO mail_meta (k, v, at) VALUES (?1, ?2, ?3)').bind(k, String(v), new Date().toISOString()).run();
 const one = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 const norm = s => one(s).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(llc|inc|co|the|and)\b/g, ' ').replace(/\s+/g, ' ').trim();
+// Words that half the businesses in a trade share; a name has to match on more than these.
+const GENERIC = new Set(('plumbing plumber plumbers heating cooling air conditioning hvac electric electrical electrician electricians service services ' +
+  'company companies repair repairs auto automotive salon salons spa dental dentistry family construction builder builders contracting contractor contractors ' +
+  'roofing roofer marine boat boats restaurant grill cafe insurance agency group solutions pro pros home homes lawn landscaping cleaning pest control ' +
+  'center shop store studio drain drains sewer septic mechanical care clinic of ga georgia').split(' '));
+// Is Google's top match the business that was queued? Enough of the queued name's words (town words aside) must be in
+// Google's name, including at least one that isn't a trade word. "Sinclair Plumbing" is not "Sinclair Dental".
+export function nameMatch(queued, google, town) {
+  const t = new Set(norm(town).split(' ').filter(Boolean));
+  const a = norm(queued).split(' ').filter(w => w && !t.has(w) && !/^[a-z]$/.test(w)), b = norm(google).split(' ').filter(Boolean);
+  if (!a.length || !b.length) return false;
+  const ca = a.join(''), cb = b.join('');
+  if (ca === cb || (ca.length >= 6 && cb.includes(ca)) || (cb.length >= 6 && ca.includes(cb))) return true;   // "A1 Plumbing" is "A-1 Plumbing"
+  const same = (x, y) => x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x)));
+  const hit = w => b.some(y => same(w, y));
+  const own = a.filter(w => !GENERIC.has(w));
+  if (!own.length) return a.every(hit);
+  return own.some(hit) && a.filter(hit).length / a.length >= 0.6;
+}
 function tok() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(16)); return [...r].map(x => a[x % a.length]).join(''); }
 function eastern(now) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', weekday: 'short' }).formatToParts(new Date(now)).map(x => [x.type, x.value]));
@@ -102,6 +125,19 @@ async function lob(env, h, method, path, body, idem) {
   return j;
 }
 
+// The same business found under another spelling: by Google's place ID (clients' own profiles, leads, letters already
+// sent) and by Google's name against our clients. Nothing of Google's but the place ID is written down.
+async function knownPlace(env, row, pid, gname, now) {
+  const all = async (sql, ...a) => { try { return ((await env.DB.prepare(sql).bind(...a).all()).results) || []; } catch (e) { return []; } };
+  const clients = await all('SELECT business FROM app_clients');
+  if (gname && clients.some(c => nameMatch(c.business, gname, ''))) return 'already a client';
+  if (!pid) return '';
+  if ((await all("SELECT 1 AS x FROM rival_profile WHERE place_id = ?1 AND found = 1 LIMIT 1", pid)).length) return 'already a client';
+  if ((await all("SELECT 1 AS x FROM leads WHERE place_id = ?1 AND COALESCE(origin, '') NOT LIKE 'letter%' AND at > ?2 LIMIT 1", pid, new Date(now - 365 * DAY).toISOString())).length) return 'already in the pipeline';
+  if ((await all("SELECT 1 AS x FROM mail_queue WHERE place_id = ?1 AND id != ?2 AND (status = 'sending' OR (status IN ('sent', 'proof') AND sent_at > ?3)) LIMIT 1", pid, row.id, new Date(now - REPEAT_DAYS * DAY).toISOString())).length) return 'mailed in the last 6 months';
+  return '';
+}
+
 // One letter, start to finish.
 async function sendOne(env, row, now, h) {
   const why = await known(env, row, now);
@@ -109,6 +145,12 @@ async function sendOne(env, row, now, h) {
   let a;
   try { a = await (h.run || runAudit)(env, row.q, row.town); } catch (e) { return skip(env, row, 'audit failed: ' + String((e && e.message) || e).slice(0, 80)); }
   if (!a || !a.found) return skip(env, row, 'not found on Google');
+  // Google's top hit has to be the business that was queued, or the letter would grade someone else.
+  if (!nameMatch(row.q, a.business.name, row.town)) return skip(env, row, 'Google’s top match has a different name');
+  const pid = String(a.business.id || '').slice(0, 200);
+  if (pid) await env.DB.prepare('UPDATE mail_queue SET place_id = ?1 WHERE id = ?2').bind(pid, row.id).run();
+  const dup = await knownPlace(env, row, pid, a.business.name, now);
+  if (dup) return skip(env, row, dup);
   if (a.business.status && a.business.status !== 'OPERATIONAL') return skip(env, row, 'not open (' + a.business.status.toLowerCase() + ')');
   if (/^[AB]$/.test(a.grade)) { await env.DB.prepare('UPDATE mail_queue SET grade = ?1, score = ?2 WHERE id = ?3').bind(a.grade, a.score, row.id).run(); return skip(env, row, 'already in good shape (' + a.grade + ')'); }
   const to = splitAddress(a.business.address);
@@ -116,8 +158,9 @@ async function sendOne(env, row, now, h) {
   // Their private audit page: a lead row the QR code opens (the page runs the audit fresh each time).
   await (await import('./leadmail.js')).ensureLeadMail(env);
   const t = tok(), link = SITE + '/your-audit/' + t;
-  const ins = await env.DB.prepare("INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, sms_ok, ref, token, audit, audit_at, grade) VALUES (?1, '', '', '', ?2, ?3, ?4, '', '', ?5, ?6, '', 'letter', 'no', '', ?7, 'letter', ?1, ?8)")
-    .bind(new Date(now).toISOString(), one(a.business.name).slice(0, 120), row.town, row.kind || '', 'Mailed a grade letter (' + a.grade + ').', 'letter ' + row.id, t, a.grade).run();
+  // The lead keeps the name the Prospector queued (ours) and Google's place ID, never Google's display name.
+  const ins = await env.DB.prepare("INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, sms_ok, ref, token, audit, audit_at, grade, place_id) VALUES (?1, '', '', '', ?2, ?3, ?4, '', '', ?5, ?6, '', 'letter', 'no', '', ?7, 'letter', ?1, ?8, ?9)")
+    .bind(new Date(now).toISOString(), one(row.q).slice(0, 120), row.town, row.kind || '', 'Mailed a grade letter (' + a.grade + ').', 'letter ' + row.id, t, a.grade, pid).run();
   const leadId = ins && ins.meta && ins.meta.last_row_id;
   const L = letterFor(a, {
     offer: 'Try it for a month. If it isn’t worth it, you don’t pay. No contract and no setup fee.',

@@ -5,8 +5,8 @@
   if (!slots.length || !window.fetch) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var lang = (document.documentElement.getAttribute('data-lang') || '') === 'es' ? 'es' : 'en';
-  var TT = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', caller: 'Caller', note: 'A real call to our demo line, recorded with the caller’s OK. Max never records your customers.', mid: 'We join this call partway through, right at the hard part.' },
-             es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', caller: 'Quien llama', note: 'Una llamada real a nuestra línea de prueba, grabada con el permiso de quien llamó. Max nunca graba a sus clientes.', mid: 'Entramos a la llamada a la mitad, justo en la parte difícil.' } };
+  var TT = { en: { play: 'Hear Max take a call', pause: 'Pause', left: ' seconds left', read: 'Read it instead', caller: 'Caller', note: 'A sample call to our demo line. Max never records your customers.', mid: 'We join this call partway through, right at the hard part.' },
+             es: { play: 'Escuche a Max contestar una llamada', pause: 'Pausa', left: ' segundos', read: 'Leerla', caller: 'Quien llama', note: 'Una llamada de muestra a nuestra línea de prueba. Max nunca graba a sus clientes.', mid: 'Entramos a la llamada a la mitad, justo en la parte difícil.' } };
   var T = TT[lang];
   var css = '.hm{margin:18px 0 0;display:grid;gap:8px;max-width:520px;color:inherit}' +
     '.hm-b{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:8px 16px 8px 8px;border:2px solid #FF6A5E;border-radius:999px;background:transparent;color:inherit;font-weight:700;font-size:16px;line-height:1.2;font-family:inherit;cursor:pointer;text-align:left;box-shadow:0 0 18px rgba(255,90,77,.25)}' +

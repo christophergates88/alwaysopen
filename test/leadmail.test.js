@@ -106,7 +106,8 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
   const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
   await L.ensureLeadMail(env);
   const t0 = Date.parse('2026-10-26T14:00:00Z');   // Monday 10 AM Eastern
-  const add = async (email, business) => (await DB.prepare("INSERT INTO leads (at, name, email, business, plan, status, audit, audit_at, grade, top) VALUES (?1, 'Dana Whitfield', ?2, ?3, 'Growth', 'new', 'sent', ?1, 'D', ?4)")
+  // engaged: each of these addresses clicked through the audit email (a stranger's address never does; sitefixes.test.js)
+  const add = async (email, business) => (await DB.prepare("INSERT INTO leads (at, name, email, business, plan, status, audit, audit_at, grade, top, engaged) VALUES (?1, 'Dana Whitfield', ?2, ?3, 'Growth', 'new', 'sent', ?1, 'D', ?4, ?1)")
     .bind(new Date(t0).toISOString(), email, business, JSON.stringify({ title: 'No hours on Google', fix: 'We add hours, holiday hours and closures, and keep them current.' })).run()).meta.last_row_id;
   const a = await add('dana@example.com', 'Sinclair Plumbing'), b = await add('sam@example.com', 'Oak Electric'), c = await add('lee@example.com', 'Lee Lawn');
   const sent = []; const h = { send: async (to, m) => { sent.push({ to, subject: m.subject, text: m.text }); return 'sent'; } };
@@ -122,15 +123,15 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
   assert.match(await (await L.handleStop(new Request(bad), env, bad)).text(), /didn’t work/);
   let r = await L.followCron(env, t0 + 2 * 864e5, h);   // Wednesday 10 AM
   assert.deepEqual(r, { sent: 1, stopped: 1 });
-  assert.equal(sent[0].to, 'dana@example.com'); assert.equal(sent[0].subject, 'Re: Your free audit for Sinclair Plumbing');
-  assert.match(sent[0].text, /The quickest win for Sinclair Plumbing: we add hours, holiday hours and closures, and keep them current\./);
+  assert.equal(sent[0].to, 'dana@example.com'); assert.equal(sent[0].subject, 'Your free audit: the quickest win', 'no "Re:" and nothing typed into the form');
+  assert.match(sent[0].text, /The quickest win for your business: we add hours, holiday hours and closures, and keep them current\./);
   assert.match(sent[0].text, /lead\/stop\?i=/); assert.match(sent[0].text, /103 W Sumter St/);
   assert.deepEqual(await L.followCron(env, t0 + 3 * 864e5, h), { sent: 0, stopped: 0 }, 'not twice');
   r = await L.followCron(env, t0 + 6 * 864e5, h);   // the next Sunday: quiet
   assert.deepEqual(r, { quiet: true });
   r = await L.followCron(env, t0 + 7 * 864e5, h);   // Monday
   assert.deepEqual(r, { sent: 1, stopped: 0 });
-  assert.equal(sent[1].subject, 'Last note on Sinclair Plumbing’s audit');
+  assert.equal(sent[1].subject, 'Last note on your audit');
   assert.deepEqual(await L.followCron(env, t0 + 9 * 864e5, h), { sent: 0, stopped: 0 }, 'two follow-ups, never a third');
   const rows = (await DB.prepare('SELECT email, stop FROM leads ORDER BY id').all()).results.map(x => [x.email, x.stop || '']);
   assert.deepEqual(rows, [['dana@example.com', ''], ['sam@example.com', 'unsubscribed'], ['lee@example.com', 'signed up']]);
@@ -191,7 +192,7 @@ test('a caller who says yes gets one text with a private link; the page shows th
   assert.match(html, /Want a copy by email\?/); assert.match(html, /noindex/);
   r = await L.handleAuditPage(new Request(url, { method: 'POST', body: new URLSearchParams({ email: 'Dana@Example.com' }) }), env, url, h);
   assert.match(await r.text(), /A copy is on its way to dana@example\.com/);
-  assert.deepEqual(sent, [{ to: 'dana@example.com', subject: 'Your free audit: Sinclair Plumbing gets a D' }]);
+  assert.deepEqual(sent, [{ to: 'dana@example.com', subject: 'Your audit copy: grade D' }], 'built from what the page kept, with no second Google lookup');
   const row = await DB.prepare('SELECT email, audit, sms_ok FROM leads WHERE id = ?1').bind(id).first();
   assert.deepEqual([row.email, row.audit, row.sms_ok], ['dana@example.com', 'sent', 'yes'], 'the copy starts the follow-ups');
   const bad = new URL('https://alwaysopenoffice.com/your-audit/nope');

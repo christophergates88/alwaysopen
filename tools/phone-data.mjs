@@ -8,10 +8,10 @@ const TAG = { every: 'Every plan', growth: 'Growth', pro: 'Pro' };
 const WHY = {
   max: 'Max answers in your business’s name, gives the prices you’ve approved, and sends you the job.',
   handoff: 'A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back.',
-  check: 'Three days after the job, Max calls: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.',
+  check: 'Three days after the job, Max calls: did it hold up? A no reaches you right away, so you can make it right. Every customer gets the review request, whatever they answer.',
   cb: 'No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.',
   fill: 'A day is wide open. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.',
-  storm: 'When a weather warning hits your county, a storm-day post is drafted that minute. You approve it from wherever you are.',
+  storm: 'In central Georgia counties, when a weather warning hits, our team drafts a storm-day post. You approve it from wherever you are.',
   ai: 'Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.'
 };
 
@@ -39,8 +39,8 @@ function tradeCards(v) {
     key: 'check', title: 'The three-day check-in', tag: TAG.pro, why: v.checkWhy || WHY.check,
     intro: [['sys', 'Max called Dana · Thursday 11:20 AM'], ['out', 'Hi Dana, it’s Max with ' + v.biz + '. Quick one: ' + v.check.q + ' Press 1 if it did, 2 if something’s not right.']],
     choices: [
-      { label: 'Press 1', then: [['sys', 'Dana pressed 1'], ['out', 'Glad to hear it. Thanks, Dana.'], ['note', 'Next', 'Review request sent to Dana', 'One text, because she said yes to texts.', 'ok']] },
-      { label: 'Press 2', then: [['sys', 'Dana pressed 2'], ['out', 'I’m sorry. I’m letting ' + v.owner + ' know right now, and ' + he + '’ll call you today.'], ['note', 'On ' + v.owner + '’s phone · urgent', 'Dana: ' + v.check.bad, 'Call her before it turns into a review.', 'hot']] }
+      { label: 'Press 1', then: [['sys', 'Dana pressed 1'], ['out', 'Glad to hear it. Thanks, Dana.'], ['note', 'On ' + v.owner + '’s phone', 'Dana: it held up', 'Her review request goes out like every customer’s.', 'ok']] },
+      { label: 'Press 2', then: [['sys', 'Dana pressed 2'], ['out', 'I’m sorry. I’m letting ' + v.owner + ' know right now, and ' + he + '’ll call you today.'], ['note', 'On ' + v.owner + '’s phone · urgent', 'Dana: ' + v.check.bad, 'Call her today and make it right.', 'hot']] }
     ]
   });
   cards.push({
@@ -172,7 +172,7 @@ export const PAGES = {
       priceQ: 'What does a cut and color cost?', priceA: 'A cut and color starts at $120. Jess has Saturday at 10. Want it?', yes: 'Yes, book it.',
       job: ['Maria Lopez · cut and color', 'Saturday 10:00 AM · new client'], person: ['Maria Lopez · cut and color', 'New client. Wants to talk before booking.'],
       other: { ask: 'Do y’all do lash extensions?', what: 'lashes', name: 'Lake Lash Studio', dist: 'two doors down', back: 'A wedding party, six updos. They sent the caller to you.' },
-      check: { q: 'did the color hold up?', bad: 'the color is already fading.' }, checkWhy: 'A few days after a visit, Max calls: did it hold up? A yes becomes the review ask. A no reaches you first, before it becomes a review.',
+      check: { q: 'did the color hold up?', bad: 'the color is already fading.' }, checkWhy: 'A few days after a visit, Max calls: did it hold up? A no reaches you right away, so you can make it right. Every client gets the review request, whatever they answer.',
       busy: 'Jess is mid-color.', cbWhy: 'Lash extensions',
       fill: { day: 'Thursday', slot: 'Thursday at 2 PM', reason: 'it’s been six weeks since your color' },
       storm: { title: 'Storms this afternoon', post: 'If you need to move your visit because of the weather, call us. We’re answering all day and will fit you in.', extra: 'No fee for weather changes.' },
@@ -187,7 +187,7 @@ export const PAGES = {
       priceLabel: 'Ask for a ballpark', priceQ: 'Roughly what does that cost?', priceA: 'Catering for forty runs $14 to $18 a person. Sam can call you tomorrow at 10 to set the menu. Want that time?', yes: '10 is perfect.',
       job: ['Office lunch for 40', 'Call back tomorrow 10:00 AM · Tuesday order'], person: ['Office lunch for 40', 'Wants to talk menu. Call back tomorrow.'],
       other: { ask: 'Do y’all do wedding cakes?', what: 'cakes', name: 'Oconee Bakery', dist: 'two blocks over', back: 'A rehearsal dinner for 30. They sent the caller to you.' },
-      check: { q: 'did the catering order go the way you wanted?', bad: 'the order came out short.' }, checkWhy: 'A few days after a catering order, Max calls: how did it go? A yes becomes the review ask. A no reaches you first, before it becomes a review.',
+      check: { q: 'did the catering order go the way you wanted?', bad: 'the order came out short.' }, checkWhy: 'A few days after a catering order, Max calls: how did it go? A no reaches you right away, so you can make it right. Every customer gets the review request, whatever they answer.',
       busy: 'Sam’s on the line for lunch.', cbWhy: 'Wedding cake',
       storm: { title: 'Closing at 8 tonight', post: 'Storms are on the way, so we’re closing at 8. Delivery runs until 7:30. Stay dry.', extra: 'Regular hours tomorrow.' },
       ai: { q: 'Is Brickyard Kitchen open Mondays?', wrong: 'No. Brickyard Kitchen is closed Mondays, according to Tripadvisor.', fixT: 'Wrong hours on Tripadvisor', fixP: 'They’re open Mondays now. We fixed it on Tripadvisor.', q2: 'Where can I get lunch Monday in Eatonton?', right: 'Brickyard Kitchen is open Monday 11 to 9. 478-555-0142.' }
@@ -230,8 +230,8 @@ export const PAGES = {
         intro: [['sys', 'New 5-star review from Dana W.'], ['draft', 'Thanks, Dana. Glad we saved you $400 on your auto policy.']],
         choices: [{ label: 'Check it with Compliance Guard', then: [['note', 'Compliance Guard · stopped', 'Names her policy and a savings claim', '“Your auto policy” says she’s a client. “Saved you $400” is a rate claim.', 'hot'], ['draft', 'Thank you for the kind words, Dana. We’re glad we could help.'], ['sys', 'Ready for your OK']] }] },
       { key: 'radar', title: 'Rate-Shock Radar', tag: TAG.every,
-        why: 'Every week we read new public reviews for agencies in your town. When rate complaints climb, you hear first, with a reply and a post ready.',
-        intro: [['sys', 'Weekly check · agencies in Eatonton'], ['note', 'Rate-Shock Radar', 'Rate complaints doubled this week', '12 new reviews in town mention rate increases.', 'hot']],
+        why: 'Each Monday our team counts reviews that mention rates, in the central Georgia towns we watch. When complaints show up, a reply and a post are ready.',
+        intro: [['sys', 'Weekly check · agencies in Eatonton'], ['note', 'Rate-Shock Radar', 'Rate complaints showing up in town', '5 reviews from the last 30 days mention rate increases.', 'hot']],
         choices: [{ label: 'See what’s ready', then: [['note', 'Ready for your OK', 'A calm reply for rate reviews', 'Already through Compliance Guard.', 'ok'], ['note', 'Ready for your OK', 'Post: what moves rates', 'Educational. No numbers, no quotes.', 'ok']] }] },
       { key: 'storm', title: 'Storm Desk', tag: TAG.growth, why: WHY.storm,
         intro: [['sys', 'Severe thunderstorm warning · Putnam County · 3:12 PM'], ['note', 'Post · waiting for your OK', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Call us in the morning with questions.']],
@@ -239,7 +239,7 @@ export const PAGES = {
           { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Haskell Insurance on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · posted 3:15 PM']] }
         ],
-        carrier: { why: 'When a weather warning hits your county, a storm-day post is drafted that minute. If your company approves posts first, it goes to them before it goes live.',
+        carrier: { why: 'In central Georgia counties, when a weather warning hits, our team drafts a storm-day post. If your company approves posts first, it goes to them first.',
           choices: [
             { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sent to your company for approval', 'Storm tonight in Putnam County', 'Your compliance contact gets it with your OK already on it.', 'ok'], ['sys', 'Approved by your company · posted 4:40 PM']] },
             { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · sent to your company for approval']] }
@@ -284,7 +284,7 @@ export const FOLDS = {
   },
   insurance: {
     guard: 'Write a reply and watch Compliance Guard check it.',
-    radar: 'A heads-up when rate complaints start climbing in your town.',
+    radar: 'A weekly count of reviews about rates, in the central Georgia towns we watch.',
     max: 'How Max takes messages after hours, and what he never discusses.',
     posts: 'Educational posts you approve, plus your profile and monthly page.',
     record: 'Every public review, reply and post, kept on file.',

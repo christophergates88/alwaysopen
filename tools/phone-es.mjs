@@ -29,11 +29,11 @@ const PLANS = [
   { name: 'Growth', price: '$299', per: 'Unos $10 al día', for: 'A cada cliente se le pide reseña. Cada publicación, escrita. Usted toca OK.', btn: ['primary', 'Empezar con Growth'], items: [
     '<li class="plus">Todo lo de Starter, más:</li>', 'Solicitudes de reseña después de cada trabajo', 'Publicaciones en Facebook e Instagram con sus fotos<span class="soon" data-launch="meta">Próximamente</span>',
     'Los mismos datos en cada directorio<span class="soon">Próximamente</span>', 'Reservas en línea y solicitudes de cotización', 'Cada cliente potencial registrado', 'Vigilancia de la competencia',
-    'Storm Desk: una publicación lista cuando llega un aviso del clima a su condado', 'Respuestas a reseñas escritas con su estilo',
+    'Storm Desk, en los condados del centro de Georgia: cuando llega un aviso del clima a su condado, nuestro equipo redacta una publicación', 'Respuestas a reseñas escritas con su estilo',
     'Lo que dicen de usted los asistentes: una revisión mensual de lo que los asistentes les dicen a los clientes, y corregimos lo que esté mal'] },
   { name: 'Pro', price: '$499', per: 'Unos $16 al día', for: 'Su propio número, y nada se queda sin respuesta.', btn: ['line', 'Empezar con Pro'], note: 'Lo marcado como próximamente se activa en cuanto sale. Los mensajes de texto también necesitan que las compañías telefónicas aprueben el número de su negocio, normalmente unas dos semanas.', items: [
     '<li class="plus">Todo lo de Growth, más:</li>', 'Su propio número de negocio', 'Mensaje automático por llamada perdida', 'Seguimiento de cotizaciones y clientes potenciales',
-    'Llamadas de vuelta con hora fija. Si a usted se le pasa, Max llama para poner otra', 'La llamada de los tres días: Max llama al cliente, y un no le llega a usted antes de que se convierta en reseña',
+    'Llamadas de vuelta con hora fija. Si a usted se le pasa, Max llama para poner otra', 'La llamada de los tres días: Max llama al cliente, y un no le llega a usted de inmediato',
     'Pases: si alguien necesita otro oficio, Max lo comunica con un negocio cercano en Always Open, y ese negocio le puede mandar trabajo a usted', 'Confirmaciones y recordatorios de citas',
     'Recordatorios de facturas y pagos', 'Recordatorios de temporada y a clientes anteriores, pedidos de referidos',
     'Llene mi semana: un día libre en su calendario se les ofrece a clientes anteriores que aceptaron mensajes, y el primer sí queda reservado'] }
@@ -58,9 +58,9 @@ export const ES_HOME = [
   ...scene(1, 'Pases entre negocios', 'Ejemplo: Max le dice a quien llama que el negocio no hace trabajos eléctricos y lo comunica con Lane Electric, un negocio cercano en Always Open.',
     bub('in', '¿Ustedes hacen trabajos eléctricos? Se me sigue botando el breaker.') + bub('out', 'Nosotros no hacemos electricidad, pero Lane Electric, a dos millas de aquí, también está en Always Open. ¿Quiere que lo comunique?') + bub('in', 'Sí, por favor.') + bub('sys', 'Comunicado con Lane Electric · 2:14 PM'),
     'Alguien necesita un trabajo que usted no hace. Max lo comunica con un negocio cercano en Always Open, y ese negocio le puede mandar trabajo a usted. Los dos tienen que activarlo.'),
-  ...scene(2, 'La llamada de los tres días', 'Ejemplo: Max llama a una clienta tres días después de instalar un calentador de agua, ella marca 1 porque todo sigue bien, y se envía una solicitud de reseña.',
-    bub('sys', 'Max llamó a Dana · jueves 11:20 AM') + bub('out', 'Una pregunta rápida: ¿el calentador de agua sigue funcionando bien? Marque 1 si sí, 2 si algo no está bien.') + bub('sys', 'Marcó 1') + card('Siguiente', 'Solicitud de reseña enviada a Dana', 'Un solo mensaje, porque ella aceptó recibir mensajes.'),
-    'Tres días después del trabajo, Max llama al cliente: ¿todo sigue bien? Un sí se convierte en la solicitud de reseña. Un no le llega primero a usted, antes de que se convierta en una reseña.'),
+  ...scene(2, 'La llamada de los tres días', 'Ejemplo: Max llama a una clienta tres días después de instalar un calentador de agua y ella marca 1 porque todo sigue bien. Cada cliente recibe la solicitud de reseña, conteste lo que conteste.',
+    bub('sys', 'Max llamó a Dana · jueves 11:20 AM') + bub('out', 'Una pregunta rápida: ¿el calentador de agua sigue funcionando bien? Marque 1 si sí, 2 si algo no está bien.') + bub('sys', 'Marcó 1') + card('En su teléfono', 'Dana: el calentador sigue bien', 'Cada cliente recibe la solicitud de reseña, marque lo que marque.'),
+    'Tres días después del trabajo, Max llama al cliente: ¿todo sigue bien? Un no le llega a usted de inmediato, para que lo arregle. Cada cliente recibe la solicitud de reseña, conteste lo que conteste.'),
   ...scene(3, 'Llamadas de vuelta con hora fija', 'Ejemplo: Max le ofrece a quien llama que el dueño le devuelva la llamada a las 4:15 PM, la persona acepta y el dueño recibe una tarjeta para llamar.',
     bub('in', '¿Me puede llamar el dueño?') + bub('out', 'Sam está en un trabajo en Greensboro. Lo llama a las 4:15. ¿Le queda bien?') + bub('in', 'A las 4:15 está bien.') + card('En su teléfono', 'Llamar a Priya a las 4:15 PM', 'Se bota el breaker · 478-555-0142', ['Llamar ahora', 'Cambiar hora']),
     'Se acabó el “alguien le va a llamar”. Max da una hora según su calendario. Si a usted se le pasa, él llama para poner otra.'),
@@ -69,7 +69,7 @@ export const ES_HOME = [
     'El jueves está libre en su calendario. Se lo ofrecemos a clientes anteriores a los que ya les toca y que aceptaron recibir mensajes. El primer sí queda reservado.'),
   ...scene(5, 'Storm Desk', 'Ejemplo: un aviso de tormenta para el condado de Putnam genera una publicación lista que espera su aprobación.',
     bub('sys', 'Aviso de tormenta eléctrica severa · condado de Putnam · 3:12 PM') + card('Publicación · esperando su OK', 'Tormenta esta noche en el condado de Putnam', 'Si una rama tumba un cable o se cae un árbol, contestamos el teléfono toda la noche. Cuídense y llámenos en la mañana.', ['Aprobar', 'Editar']),
-    'Cuando hay un aviso del clima en su condado, en ese mismo minuto se redacta una publicación para el día de tormenta. Usted la aprueba desde donde esté.'),
+    'En los condados del centro de Georgia: cuando hay un aviso del clima en su condado, nuestro equipo redacta una publicación para el día de tormenta. Usted la aprueba desde donde esté.'),
   ...scene(6, 'Lo que dicen de usted los asistentes', 'Ejemplo: un asistente le da a un cliente un número viejo sacado de Yelp, y la revisión mensual lo detecta y lo corrige.',
     bub('in', '¿Cuál es el número de Sinclair Plumbing en Eatonton?') + bub('out', '478-555-0100, según Yelp.') + card('La revisión de este mes', 'Teléfono equivocado en Yelp', 'Ese es el número viejo. Lo corregimos en Yelp, y ahora el asistente lo nombra a usted primero entre los plomeros de Eatonton.'),
     'Los clientes les preguntan a los asistentes a quién llamar. Una vez al mes les preguntamos por usted y corregimos lo que digan mal, desde donde se origine.'),
@@ -189,7 +189,7 @@ export function esFront(key) {
 }
 
 // Practices and agencies: Max only takes the message, and the pillars name only what their plans include.
-const MAP_STORM_ES = '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Storm Desk</b><span>: una publicación de cierre por clima, lista en el minuto en que llega una alerta a su condado</span></li>';
+const MAP_STORM_ES = '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Storm Desk</b><span>: en el centro de Georgia, nuestro equipo redacta una publicación de cierre por clima cuando llega una alerta a su condado</span></li>';
 const AR = ' <span aria-hidden="true">&rarr;</span>';
 // Regulated pages: nothing goes out on its own, so Full Max is not offered.
 const esPillar = (n, swap) => { const e = ES_DOES.find(x => x.s === '#does .pillar:nth-child(' + n + ') ul'); return { s: e.s, h: swap(e.h) }; };
@@ -211,7 +211,7 @@ export function esDoesFor(key) {
     esPillar(6, NO_FULL_MAX),
     { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max toma recados fuera de horario</b><span>: nombre, número y una buena hora para llamar; nunca pólizas, tarifas ni reclamos</span></li><li><b>Llamadas urgentes, si las quiere</b><span>: pasadas a su teléfono, o cada recado ahí en segundos</span></li><li><b>Inglés y español</b><span>: respuestas y recados, sin costo extra</span></li>' },
     { s: '#does .pillar:nth-child(3) h3', h: 'Antes que la noticia' },
-    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Rate-Shock Radar</b><span>: sepa de una ola de alzas antes de que llegue a su página</span></li><li><b>Publicaciones educativas</b><span>: del calendario de la agencia; enseñan, nunca venden</span></li><li><b>Kit para pedir reseñas</b><span>: para que los clientes contentos sepan a dónde ir</span></li>' },
+    { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Rate-Shock Radar</b><span>: un conteo semanal de reseñas sobre tarifas, en los pueblos del centro de Georgia que vigilamos</span></li><li><b>Publicaciones educativas</b><span>: del calendario de la agencia; enseñan, nunca venden</span></li><li><b>Kit para pedir reseñas</b><span>: para que cada cliente sepa a dónde ir</span></li>' },
     { s: '#does .pillar:nth-child(3) a', h: 'Vea Rate-Shock Radar' + AR },
     { s: '#does .pillar:nth-child(4) h3', h: 'Un registro para cumplimiento' },
     { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Cada palabra pública archivada</b><span>: cada reseña, respuesta y publicación, cada mes</span></li><li><b>Su redacción aprobada</b><span>: las respuestas salen de la biblioteca que aprobó su contacto de cumplimiento</span></li><li><b>Sin lista de clientes</b><span>: trabajamos solo con páginas públicas</span></li>' },
@@ -233,13 +233,13 @@ export const ES_DOES = [
   { s: '#does .pillar:nth-child(2) ul', h: '<li><b>Cada reseña respondida</b><span>: con su voz, también las buenas</span></li><li><b>Perfil de Google al día</b><span>: y los mismos datos en cada directorio</span></li><li><b>Vigilancia de la competencia</b><span>: cómo se compara con los negocios cercanos, cada mes</span></li><li><b>Lo que dicen los asistentes de usted</b><span>: revisado cada mes y corregido donde esté mal</span></li>' },
   { s: '#does .pillar:nth-child(2) a', h: 'Cómo funciona <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(3) h3', h: 'Seguimientos que no se quedan callados' },
-  { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Cotizaciones y facturas</b><span>: con seguimiento el día que usted elija</span></li><li><b>La llamada a los tres días</b><span>: después de cada trabajo; un no le llega a usted antes de volverse reseña</span></li><li><b>Solicitudes de reseña</b><span>: más confirmaciones de citas y recordatorios de temporada</span></li>' },
+  { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Cotizaciones y facturas</b><span>: con seguimiento el día que usted elija</span></li><li><b>La llamada a los tres días</b><span>: después de cada trabajo; un no le llega a usted de inmediato</span></li><li><b>Solicitudes de reseña</b><span>: a cada cliente después de cada trabajo, más confirmaciones de citas y recordatorios de temporada</span></li>' },
   { s: '#does .pillar:nth-child(3) a', h: 'Vea la llamada a los tres días <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(4) h3', h: 'Su calendario, lleno' },
   { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Llene mi semana</b><span>: un día vacío se ofrece a clientes anteriores a los que ya les toca; el primer sí queda agendado</span></li><li><b>Reservas en línea</b><span>: y cotizaciones, a cualquier hora</span></li><li><b>Recordatorios a clientes anteriores</b><span>: y pedidos de referidos</span></li>' },
   { s: '#does .pillar:nth-child(4) a', h: 'Vea Llene mi semana <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(5) h3', h: 'La red de Always Open' },
-  { s: '#does .pillar:nth-child(5) ul', h: '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Pases</b><span>: quien necesita otro oficio va al miembro más cercano, y ese le manda trabajo a usted</span></li><li><b>Storm Desk</b><span>: una publicación lista en el minuto en que una alerta de clima llega a su condado</span></li>' },
+  { s: '#does .pillar:nth-child(5) ul', h: '<li><b>El mapa</b><span>: todos los negocios de Always Open, el más cercano primero; nadie paga por aparecer</span></li><li><b>Pases</b><span>: quien necesita otro oficio va al miembro más cercano, y ese le manda trabajo a usted</span></li><li><b>Storm Desk</b><span>: en el centro de Georgia, nuestro equipo redacta una publicación cuando una alerta de clima llega a su condado</span></li>' },
   { s: '#does .pillar:nth-child(5) a', h: 'Abrir el mapa <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(6) h3', h: 'Usted decide, en todo' },
   { s: '#does .pillar:nth-child(6) ul', h: '<li><b>Su OK primero</b><span>: nada sale a su nombre hasta que usted lo toque en la app</span></li><li><b>Compliance Guard</b><span>: revisa cada palabra, así que agencias de seguros y consultorios pueden usarnos</span></li><li><b>Full Max</b><span>: si quiere que lo rutinario salga solo</span></li><li><b>Su mes, en una página</b><span>: lo que se hizo, con un registro de cada respuesta y publicación</span></li>' },

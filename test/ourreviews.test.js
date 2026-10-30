@@ -1,6 +1,6 @@
-// Review requests for Always Open itself: only owners a month in who are clearly getting value, once, three a day at
-// most, in their 10 AM hour, with their own month's numbers; email when the text can't go; a tap is counted; a reply
-// reaches Christopher, loudly when it reads like a complaint.
+// Review requests for Always Open itself: every client a month in, whatever kind of month they had (no review gating),
+// once, three a day at most, in their 10 AM hour, with their own month's numbers; email when the text can't go; a tap is
+// counted; a reply reaches Christopher, loudly when it reads like a complaint.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeDB } from './rehearsal/harness.js';
@@ -30,12 +30,14 @@ async function seeded() {
   return env;
 }
 
-test('only owners a month in who are clearly getting value; every other one says why not', async () => {
+test('every client a month in is asked, whatever kind of month they had; every other one says why not', async () => {
   const env = await seeded();
+  await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES ('gone', 'h-gone', 'Gone Co.', 1)").run();
+  await env.DB.prepare("INSERT INTO billing (client_id, session_id, status, email, created) VALUES ('gone', 's-gone', 'canceled', 'gone@example.test', ?1)").bind(new Date(now - 35 * DAY).toISOString()).run();
   const { out, skipped } = await candidates(env, now);
-  assert.deepEqual(out.map(c => c.client_id), ['good']);
+  assert.deepEqual(out.map(c => c.client_id).sort(), ['alerted', 'broken', 'good', 'pastdue', 'quiet'], 'few approvals, an alert, a broken connection or a late bill never decide who is asked');
   const why = Object.fromEntries(skipped.map(s => [s.client_id, s.why]));
-  assert.deepEqual(why, { early: 'not 30 to 45 days in', late: 'not 30 to 45 days in', quiet: 'fewer than 5 approvals', pastdue: 'billing is past_due', alerted: 'an alert about them this week', broken: 'a Google connection is broken', stopped: 'opted out of our texts' });
+  assert.deepEqual(why, { early: 'not 30 to 45 days in', late: 'not 30 to 45 days in', stopped: 'opted out of our texts', gone: 'billing is canceled' });
 });
 
 test('one text in their 10 AM hour, with their own numbers and a counted link; never twice; email when the text cannot go', async () => {
@@ -43,20 +45,25 @@ test('one text in their 10 AM hour, with their own numbers and a counted link; n
   const texts = [], mails = [];
   const h = { send: async o => { texts.push(o); return { ok: true }; }, mail: async (to, s, t) => { mails.push({ to, t }); return 'sent'; } };
   assert.deepEqual(await askCron(env, now - 2 * 3600e3, h), { asked: 0 }, '8 AM is too early');
-  assert.deepEqual(await askCron(env, now, h), { asked: 1 });
-  assert.equal(texts.length, 1); assert.equal(texts[0].to, '4785550114');
-  assert.match(texts[0].body, /^Hi Sam, it’s Christopher from Always Open\. A month in: Max has taken 4 calls for you and 6 reviews got answered\. If it has helped, a Google review of us would mean a lot: https:\/\/alwaysopenoffice\.com\/r\/[A-Za-z0-9]{16} If anything is off, reply here and I’ll fix it myself\.$/);
-  assert.deepEqual(await askCron(env, now + 20 * 60e3, h), { asked: 0 }, 'once only');
-  const token = texts[0].body.match(/\/r\/([A-Za-z0-9]{16})/)[1];
+  assert.deepEqual(await askCron(env, now, h), { asked: 3 }, 'three a day at most');
+  assert.equal(texts.length, 3);
+  const good = texts.find(x => x.to === '4785550114');
+  assert.ok(good, 'the good client is among the first three');
+  assert.match(good.body, /^Hi Sam, it’s the Always Open team\. A month in: Max has taken 4 calls for you and 6 reviews got answered\. Would you leave an honest Google review of us\? It helps other owners decide: https:\/\/alwaysopenoffice\.com\/r\/[A-Za-z0-9]{16} Questions or anything to change, just reply here\.$/);
+  assert.doesNotMatch(texts.map(x => x.body).join(' '), /Christopher|If it has helped/);
+  assert.deepEqual(await askCron(env, now + 20 * 60e3, h), { skipped: 'three today already' });
+  assert.deepEqual(await askCron(env, now + DAY, h), { asked: 2 }, 'the other two the next day');
+  assert.deepEqual(await askCron(env, now + 2 * DAY, h), { asked: 0 }, 'once only');
+  const token = good.body.match(/\/r\/([A-Za-z0-9]{16})/)[1];
   assert.equal(await tap(env, token, now + 3600e3), 'good');
   assert.equal(await tap(env, 'x'.repeat(16)), null);
-  assert.equal(await asksLine(env, now + 3600e3), '1 ask sent this month, 1 tapped');
+  assert.equal(await asksLine(env, now + 3600e3), '5 asks sent this month, 1 tapped');
 
   const env2 = await seeded();
   const h2 = { send: async () => ({ ok: false, why: 'texting not registered for this business' }), mail: h.mail };
-  assert.deepEqual(await askCron(env2, now, h2), { asked: 1 });
-  assert.equal(mails.length, 1); assert.equal(mails[0].to, 'good@example.test');
-  assert.match(mails[0].t, /If anything is off, reply to this email and I’ll fix it myself\.$/);
+  assert.deepEqual(await askCron(env2, now, h2), { asked: 3 });
+  assert.equal(mails.length, 3); assert.ok(mails.some(m => m.to === 'good@example.test'));
+  assert.match(mails[0].t, /Questions or anything to change, just reply to this email\.$/);
   assert.deepEqual(await askCron({ DB: env2.DB }, now, h2), { skipped: 'no review link set' });
 });
 
@@ -82,5 +89,5 @@ test('a reply reaches Christopher, at high priority when it reads like a complai
   assert.deepEqual(pings.map(p => [p.t, p.pr]), [['Sam at GOOD Co. replied to the review ask', 'default'], ['Sam at GOOD Co. replied to the review ask', 'high']]);
   assert.equal(await onReply(env, '4785550000', 'Who is this?', ping, now), false, 'anyone else goes to the inbox as usual');
   assert.equal((await monthWords(env, 'early', new Date(now - 30 * DAY).toISOString())).text, '6 reviews got answered');
-  assert.equal(askText({ first: '' }, '', 'L', true), 'Hi there, it’s Christopher from Always Open. A few months in. If it has helped, a Google review of us would mean a lot: L If anything is off, reply here and I’ll fix it myself.');
+  assert.equal(askText({ first: '' }, '', 'L', true), 'Hi there, it’s the Always Open team. A few months in. Would you leave an honest Google review of us? It helps other owners decide: L Questions or anything to change, just reply here.');
 });

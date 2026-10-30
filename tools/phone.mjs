@@ -164,6 +164,7 @@ const CSS = `
 .aog-out:empty{display:none}
 .aog-out{margin-top:12px;display:grid;gap:10px;color:#ECEEF3;font-size:15px}
 .aog-msg{color:#A3ACBF}
+.aog-src{color:#8F98AB;font-size:13px}
 .aog-res{display:flex;gap:14px;align-items:center}
 .aog-gl{flex:none;width:68px;height:68px;border-radius:14px;display:grid;place-items:center;font:850 2.4rem/1 var(--display);background:#252C3D}
 .aog-gl.A,.aog-gl.B{background:#173229;color:#7FD8B9}.aog-gl.C{background:#3A2E12;color:#F2C46B}.aog-gl.D,.aog-gl.F{background:#3A1F22;color:#FF8C82}
@@ -400,7 +401,8 @@ const JS = `(function () {
             (r.areas && r.areas.length ? '<div class="aog-areas">' + r.areas.map(function (a) { return '<span><i>' + esc(a.grade) + '</i>' + esc(a.label) + '</span>'; }).join('') + '</div>' : '') +
             (r.top && r.top.length ? r.top.map(function (t) { return '<p class="aog-find"><strong>' + esc(t.title) + '.</strong> ' + esc(t.saw) + '</p>'; }).join('') : '<p>Nothing major. You’re in good shape.</p>') +
             (r.more ? '<p class="aog-msg">Plus ' + esc(r.more) + ' more in the full audit, with how you compare to your top competitors.</p>' : '') +
-            '<a class="aog-full" href="' + full + '">Get the full audit, free</a>';
+            '<a class="aog-full" href="' + full + '">Get the full audit, free</a>' +
+            '<p class="aog-src">' + (d.documentElement.lang === 'es' ? 'Calificaciones y número de reseñas de Google Maps' : 'Ratings and review counts from Google Maps') + '</p>';
           var a = out.querySelector('.aog-full');
           if (onHome) a.addEventListener('click', function () { var bz = d.getElementById('f-biz'), tw = d.getElementById('f-town'); if (bz && !bz.value) bz.value = r.name || q; if (tw && !tw.value) tw.value = town; });
         }, function () { done(); out.innerHTML = '<p class="aog-msg">No connection. Try again, or ask for the full audit.</p>'; });
@@ -434,6 +436,7 @@ const SLOT = '<div data-hearmax id="hear" hidden></div>';
 const LANG_BTN = '<!--ao:lang--><button type="button" class="lang-t" data-lang-t lang="es" aria-label="Ver en español">ES</button><!--/ao:lang-->';
 const ES_CSS = '.top{flex-wrap:nowrap}.top .wordmark{white-space:nowrap;flex:none}.lang-t{flex:none;min-width:44px;min-height:44px;margin-left:10px;padding:0 10px;border:1.5px solid rgba(236,238,243,.4);border-radius:10px;background:transparent;color:#ECEEF3;font:700 15px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;cursor:pointer}' +
   '@media (max-width:420px){html[data-lang="es"] .top{gap:8px}html[data-lang="es"] .top nav a.btn{white-space:normal;max-width:92px;text-align:center;line-height:1.15;padding-left:10px;padding-right:10px}.lang-t{margin-left:0}}' +
+  '@media (max-width:360px){.top,html[data-lang="es"] .top{gap:6px}.top .wordmark{font-size:1rem;gap:6px}.top .wordmark .mark{width:24px;height:24px}.top nav a.btn{padding-left:10px;padding-right:10px}.lang-t{padding:0 6px}}' +
   '.lang-t:hover{border-color:#FF6A5E}.lang-t:focus-visible{outline:3px solid #FF6A5E;outline-offset:2px}.es-line{margin:12px 0 0;font-weight:600;font-size:15px;line-height:1.4}';
 // The switch, as it runs in the page. Kept as a real function so it is checked like any other code.
 function esSwitch() {

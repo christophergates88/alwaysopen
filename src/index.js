@@ -246,10 +246,12 @@ async function serve(req, env, ctx) {
       const r = await opsAlert(env, 'deploy', '', why ? (/^the site is live/.test(why) ? why.charAt(0).toUpperCase() + why.slice(1) + '. Check the sending address in Cloudflare Email Routing.' : 'A deploy was rolled back because the live check failed: ' + why + '. The site is on the previous version. Open the Actions tab of christophergates88/alwaysopen to see why.') : 'A GitHub deploy failed. Open the Actions tab of christophergates88/alwaysopen to see why.');
       return json({ ok: true, alert: r }, 200);
     }
-    if (path === '/lead/stop') return (await import('./leadmail.js')).handleStop(req, env, url);
+    if (path === '/lead/stop' || path === '/lead/go') return (await import('./leadmail.js')).handleStop(req, env, url);
     if (path.startsWith('/your-audit/')) return (await import('./leadmail.js')).handleAuditPage(req, env, url, { ping: (t, b) => phonePush(env, { title: t, body: b, priority: 'high', tags: 'mag' }) });
     if (path === '/lead') {
       if (req.method === 'POST') return lead(req, env, ctx, url);
+      // The form's start time, signed by us, so how long the form was open never depends on the visitor's clock.
+      if (url.searchParams.get('t') === '1') return json({ ok: true, t: await (await import('./leadmail.js')).formStamp(env) }, 200);
       return Response.redirect(url.origin + '/#contact', 303);
     }
     if (path === '/leads') return leadsList(req, env, url);
@@ -312,7 +314,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); ctx.waitUntil(watched(env, 'silence', silenceWeekly(env, Date.now(), (type, who, detail) => opsAlert(env, type, who, detail)))); ctx.waitUntil(watched(env, 'maxweek', weeklyGrade(env, Date.now(), (t, b) => opsPing(env, t, b, 'default', 'telephone_receiver')))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'numbers', (async () => (await import('./numbers.js')).numbersDaily(env))())); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'lead-follow-ups', (async () => (await import('./leadmail.js')).followCron(env))())); ctx.waitUntil(watched(env, 'phone-push', (async () => (await import('./push.js')).pushCron(env))())); ctx.waitUntil(watched(env, 'voicemail', (async () => (await import('./voicemail.js')).vmSweep(env))())); ctx.waitUntil(watched(env, 'missed-texts', (async () => (await import('./sms.js')).smsSweep(env))())); ctx.waitUntil(watched(env, 'test-call', (async () => (await import('./drill.js')).drillCron(env))())); ctx.waitUntil(watched(env, 'checks', (async () => (await import('./checks.js')).checksCron(env))())); ctx.waitUntil(watched(env, 'mailed-letters', (async () => (await import('./mail.js')).mailCron(env))())); ctx.waitUntil(watched(env, 'audit-retry', (async () => (await import('./leadmail.js')).auditRetryCron(env, Date.now(), { ping: (t, b) => opsPing(env, t, b, 'high', 'mag') }))())); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text) => (async () => (await import('./app.js')).mailTo(env, to, subj, text, 'Christopher at Always Open', { replyTo: env.MAIL_TO }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'numbers', (async () => (await import('./numbers.js')).numbersDaily(env))())); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'lead-follow-ups', (async () => (await import('./leadmail.js')).followCron(env))())); ctx.waitUntil(watched(env, 'phone-push', (async () => (await import('./push.js')).pushCron(env))())); ctx.waitUntil(watched(env, 'voicemail', (async () => (await import('./voicemail.js')).vmSweep(env))())); ctx.waitUntil(watched(env, 'missed-texts', (async () => (await import('./sms.js')).smsSweep(env))())); ctx.waitUntil(watched(env, 'test-call', (async () => (await import('./drill.js')).drillCron(env))())); ctx.waitUntil(watched(env, 'checks', (async () => (await import('./checks.js')).checksCron(env))())); ctx.waitUntil(watched(env, 'mailed-letters', (async () => (await import('./mail.js')).mailCron(env))())); ctx.waitUntil(watched(env, 'audit-retry', (async () => (await import('./leadmail.js')).auditRetryCron(env, Date.now(), { ping: (t, b) => opsPing(env, t, b, 'high', 'mag') }))())); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text) => (async () => (await import('./app.js')).mailTo(env, to, subj, text, 'Always Open', { replyTo: env.MAIL_TO }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 
@@ -425,17 +427,18 @@ async function lead(req, env, ctx, url) {
   f.lang = String(form.get('lang') || '') === 'es' ? 'es' : '';
   const es = f.lang === 'es';
   const trap = String(form.get('company_site') || '').trim();
-  const t = +form.get('t') || 0;
   const now = Date.now();
   const at = new Date(now).toISOString();
   const origin = clean(req.headers.get('origin') || '', 200);
-  const ipHash = await hash((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'));
+  const ip = req.headers.get('cf-connecting-ip') || '';
+  const ipHash = await hash(ip + '|' + (env.IP_SALT || 'salt'));
+  const LM = await import('./leadmail.js');
+  // The sender's network (a /24), so one network can't send audit emails to a pile of strangers' addresses.
+  const netHash = await hash('net:' + LM.netOf(ip) + '|' + (env.IP_SALT || 'salt'));
 
   // Quiet drops: a bot gets the normal thank-you, so it learns nothing.
   let reason = '';
   if (trap) reason = 'trap field filled';
-  else if (!t || now - t < MIN_FILL_MS) reason = 'sent too fast';
-  else if (now - t > MAX_AGE_MS) reason = 'form too old';
   else if ((f.notes.match(/https?:\/\//g) || []).length > 2) reason = 'links in note';
 
   if (!reason) {
@@ -443,20 +446,25 @@ async function lead(req, env, ctx, url) {
       .bind(ipHash, new Date(now - 3600000).toISOString()).first();
     if (recent && recent.n >= PER_HOUR) reason = 'too many from one sender';
   }
+  // How long the form was open, from the start time we signed when the page loaded (a browser clock only as a fallback).
+  // Timing alone never drops a request: no automatic audit email, and it reaches Christopher quietly to look at.
+  const timing = reason ? '' : await LM.formTiming(env, String(form.get('t') || ''), now, MIN_FILL_MS, MAX_AGE_MS);
   if (!reason) {
     const problems = [];
     if (!f.name) problems.push('your name');
-    if (!EMAIL_RE.test(f.email)) problems.push('a valid email');
+    if (!LM.validEmail(f.email)) problems.push('a valid email');
     if (problems.length) return es ? reply(wantsJson, 400, false, 'Casi listo', 'Por favor agregue ' + problems.map(x => x === 'your name' ? 'su nombre' : 'un correo electrónico válido').join(' y ') + '.')
       : reply(wantsJson, 400, false, 'Almost there', 'Please add ' + problems.join(' and ') + '.');
   }
 
   await migrate(env);
-  const status = reason ? 'spam' : 'new';
+  await LM.ensureLeadMail(env);
+  const status = reason || timing ? 'spam' : 'new';
   const ins = await env.DB.prepare(
-    'INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, reason, sms_ok, ref, lang) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)'
-  ).bind(at, f.name, f.email, f.phone, f.business, f.town, f.type, f.plan, f.link, f.notes, origin, ipHash, status, reason || null, f.sms_ok, f.ref, f.lang).run();
+    'INSERT INTO leads (at, name, email, phone, business, town, type, plan, link, notes, origin, ip_hash, status, reason, sms_ok, ref, lang, email_key, net_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)'
+  ).bind(at, f.name, f.email, f.phone, f.business, f.town, f.type, f.plan, f.link, f.notes, origin, ipHash, status, reason || (timing ? 'timing only: ' + timing : null), f.sms_ok, f.ref, f.lang, LM.emailKey(f.email), netHash).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
+  f.net_hash = netHash;
 
   if (!reason && f.ref) {
     try {
@@ -464,15 +472,24 @@ async function lead(req, env, ctx, url) {
       f.referredBy = r && r.business ? r.business : 'unknown link (' + f.ref + ')';
     } catch (e) { f.referredBy = 'link ' + f.ref; }
   }
+  // Will the audit email go out on its own? Not to an address that asked us to stop, got one in the last 30 days, or
+  // past the day's limits; the page then promises only what will happen.
+  const hold = reason || timing ? '' : await LM.auditHold(env, f.email, netHash, id, now);
+  if (timing) f.quiet = 'Held for a look (' + timing + '): no audit email went out. If it is real, send the audit by hand.';
+  else if (hold) f.hold = hold === 'repeat' ? 'this address got an audit in the last 30 days, so no new one was emailed' : hold === 'stopped' ? 'this address asked us not to email it, so no audit was emailed' : 'audit not emailed (' + hold + '); send it by hand';
   if (!reason) {
     ctx.waitUntil(Promise.all([
       push(env, f, id),
       mail(env, f, id, at).then(state => id ? env.DB.prepare('UPDATE leads SET mail = ?1 WHERE id = ?2').bind(state, id).run().catch(() => {}) : null),
       // Speed to lead: their free audit, by email, within a minute (leadmail.js).
-      (async () => (await import('./leadmail.js')).sendAudit(env, f, id, { ping: (t, b) => phonePush(env, { title: t, body: b, priority: 'high', tags: 'mag' }) }))().catch(() => {})
+      timing ? null : LM.sendAudit(env, f, id, { ping: (t, b, pr) => phonePush(env, { title: t, body: b, priority: pr || 'high', tags: 'mag' }) }).catch(() => {})
     ]));
   }
   const first = (f.name || '').split(/\s+/)[0];
+  if (!reason && (timing || hold)) {
+    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Su solicitud nos llegó. Katie le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
+    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'Your request reached us. Katie follows up within one business day. You can close this tab.');
+  }
   if (es) return reply(wantsJson, 200, true, 'Recibido' + (first && !reason ? ', ' + first : '') + '.',
     'Su solicitud nos llegó. Su auditoría gratis ya va camino a su correo, y Katie le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
   return reply(wantsJson, 200, true, 'Got it' + (first && !reason ? ', ' + first : '') + '.',
@@ -482,15 +499,16 @@ async function lead(req, env, ctx, url) {
 async function push(env, f, id) {
   if (!env.NTFY_URL) return;
   const body = [f.name + (f.business ? ', ' + f.business : ''), [f.phone, f.email].filter(Boolean).join(' · '),
-    [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.lang === 'es' ? 'Wrote in Spanish: answer in Spanish' : '', f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : ''].filter(Boolean).join('\n');
-  await phonePush(env, { title: 'Always Open lead: ' + (f.business || f.name), priority: 'high', tags: 'telephone_receiver', body });   // the email and the daily check still catch it
+    [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.lang === 'es' ? 'Wrote in Spanish: answer in Spanish' : '', f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : '', f.quiet || (f.hold ? 'Note: ' + f.hold : '')].filter(Boolean).join('\n');
+  await phonePush(env, { title: (f.quiet ? 'Always Open lead to check: ' : 'Always Open lead: ') + (f.business || f.name), priority: f.quiet ? 'low' : 'high', tags: 'telephone_receiver', body });   // the email and the daily check still catch it
 }
 
 async function mail(env, f, id, at) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
-  const subject = 'Always Open website lead: ' + oneLine(f.business || f.name).slice(0, 120);
+  const subject = (f.quiet ? 'Always Open website lead (held for a look): ' : 'Always Open website lead: ') + oneLine(f.business || f.name).slice(0, 120);
   const text = [
     'New request from the Always Open website.', '',
+    ...(f.quiet ? [f.quiet, ''] : f.hold ? ['Audit email: ' + f.hold + '.', ''] : []),
     'Lead ID: ' + (id || '?'), 'Name: ' + f.name, 'Business: ' + f.business, 'Phone: ' + f.phone, 'Email: ' + f.email,
     'Town: ' + f.town, 'Type: ' + f.type, 'Plan: ' + f.plan, 'Language: ' + (f.lang === 'es' ? 'Spanish (they used the Spanish page; answer in Spanish, and their Max line starts in Spanish)' : 'English'), 'Link: ' + f.link, 'Notes: ' + f.notes.replace(/\r?\n/g, ' '), 'OK to text: ' + f.sms_ok, 'Referred by: ' + (f.referredBy || 'none'),
     'Sent at: ' + at, '',

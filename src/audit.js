@@ -66,7 +66,7 @@ export async function runAudit(env, q, town) {
   const p = hits[0];
   if (!p) return { found: false };
   const me = {
-    name: (p.displayName && p.displayName.text) || q, address: p.formattedAddress || '', type: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
+    id: p.id || '', name: (p.displayName && p.displayName.text) || q, address: p.formattedAddress || '', type: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
     rating: +p.rating || 0, reviews: +p.userRatingCount || 0, phone: p.nationalPhoneNumber || '', website: p.websiteUri || '',
     hours: !!(p.regularOpeningHours && (p.regularOpeningHours.weekdayDescriptions || []).length), photos: (p.photos || []).length,
     maps: p.googleMapsUri || '', status: p.businessStatus || 'OPERATIONAL'
@@ -97,7 +97,7 @@ export async function runAudit(env, q, town) {
   if (me.status !== 'OPERATIONAL') add(30, 'Google may show this business as closed', 'Google lists its status as ' + me.status.toLowerCase().replace(/_/g, ' ') + '.', 'We fix the listing status and keep hours current.');
   if (!me.reviews) add(25, 'No Google reviews yet', 'Customers searching see no reviews at all.', 'We ask every customer for a review after each job.');
   else if (avgRivalReviews && me.reviews < avgRivalReviews * 0.6) add(18, 'Fewer reviews than nearby competitors', me.reviews + ' reviews, while the top nearby competitors average ' + avgRivalReviews + '.', 'We ask every customer for a review after each job, so the count keeps climbing.');
-  if (me.reviews && me.rating && me.rating < 4.5) add(me.rating < 4 ? 20 : 12, 'Rating below 4.5', 'A ' + me.rating.toFixed(1) + ' rating' + (avgRivalRating ? ' (nearby competitors average ' + avgRivalRating.toFixed(1) + ')' : '') + '. Many customers filter out anything under 4.5.', 'More reviews from happy customers lift the average; every unhappy one gets a calm reply the same day.');
+  if (me.reviews && me.rating && me.rating < 4.5) add(me.rating < 4 ? 20 : 12, 'Rating below 4.5', 'A ' + me.rating.toFixed(1) + ' rating' + (avgRivalRating ? ' (nearby competitors average ' + avgRivalRating.toFixed(1) + ')' : '') + '. Many customers filter out anything under 4.5.', 'Asking every customer after every job lifts the average; every unhappy review gets a calm reply the same day.');
   if (me.newestDays != null && me.newestDays > 45) add(12, 'No recent reviews', 'The newest review is ' + me.newestDays + ' days old. Recent reviews are a ranking and trust signal.', 'A review request after every job keeps new ones coming each month.');
   if (me.recentLow) add(10, 'Recent low-star reviews', me.recentLow + ' review' + (me.recentLow > 1 ? 's' : '') + ' of 1 or 2 stars in the last 90 days among the reviews Google shows first.', 'We draft a calm, professional reply for your OK the same day.');
   if (!me.hours) add(12, 'No hours on Google', 'Google does not list opening hours.', 'We add hours, holiday hours and closures, and keep them current.');

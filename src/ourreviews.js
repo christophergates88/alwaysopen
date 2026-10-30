@@ -1,15 +1,15 @@
-// Review requests for Always Open itself. A month in, an owner who is clearly getting value gets one text asking for a
-// Google review of Always Open, with their own month's numbers in it. Never someone having a bad month:
-//   - active, first charge 30 to 45 days ago, at least 5 drafts approved;
-//   - no alert about their account in the last week, no broken Google connection, not past due or paused;
-//   - never opted out of texts from us. One ask per owner; a second only after 90 days if the first link was never opened.
-// At most 3 a day across everyone, in the 10 AM hour of the owner's own time. From Always Open's own number; if that
-// text can't go (texting not approved yet), the same words go by email. The link runs through /r/<token> so a tap counts.
-// A reply to it comes to Christopher's phone, at high priority when it reads like a complaint.
+// Review requests for Always Open itself. Every client, a month in, gets one text asking for an honest Google review of
+// Always Open, with their own month's numbers in it. Nobody is picked for being happy or skipped for having a hard
+// month (Google's rules, and ours): the only conditions are that they are a current client, 30 to 45 days in, with a
+// phone or email, and never opted out of texts from us. One ask per owner; a second only after 90 days if the first
+// link was never opened. At most 3 a day across everyone, in the 10 AM hour of the owner's own time. From Always
+// Open's own number; if that text can't go (texting not approved yet), the same words go by email. The link runs
+// through /r/<token> so a tap counts. A reply to it comes to Christopher's phone, at high priority when it reads like
+// a complaint, so it gets fixed; it never changes who is asked.
 // Nothing happens until ALWAYS_OPEN_REVIEW_LINK (the Google review link for Always Open) is set in wrangler.toml.
 import { tzFor, local } from './callbacks.js';
 const DAY = 864e5;
-export const PER_DAY = 3, MIN_APPROVED = 5, ASK_HOUR = 10;
+export const PER_DAY = 3, ASK_HOUR = 10;
 const COMPLAINT_RE = /\b(refund|cancel|unhappy|angry|furious|terrible|worst|scam|fraud|not working|doesn'?t work|didn'?t work|problem|issue|wrong|disappoint|frustrat|waste)\w*/i;
 const ready = new WeakSet();
 export async function ensureAsks(env) {
@@ -35,16 +35,11 @@ export async function candidates(env, now) {
     if (prev) {
       if (prev.tapped_at || +prev.asks >= 2 || now - Date.parse(prev.asked_at) < 90 * DAY) { skip('asked already'); continue; }
     } else if (!(age >= 30 && age <= 45)) { skip('not 30 to 45 days in'); continue; }
-    if (r.status !== 'active') { skip('billing is ' + (r.status || 'unknown')); continue; }
+    // A canceled subscription is no longer a client. Nothing about how their month went decides anything.
+    if (r.status === 'canceled') { skip('billing is canceled'); continue; }
     const phone10 = ph10(r.phone), email = /@/.test(r.email || '') ? r.email : '';
     if (!phone10 && !email) { skip('no phone or email'); continue; }
     if (phone10 && await one("SELECT 1 AS x FROM sms_optout WHERE client_id = 'always-open' AND phone10 = ?1", phone10)) { skip('opted out of our texts'); continue; }
-    const appr = await one("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND status = 'approved'", r.client_id);
-    if ((+(appr && appr.n) || 0) < MIN_APPROVED) { skip('fewer than ' + MIN_APPROVED + ' approvals'); continue; }
-    const alert = await one("SELECT 1 AS x FROM ops_alerts WHERE (type LIKE ?1 OR type LIKE ?2) AND at > ?3", '%:' + r.client_id, '%:' + r.client_id + ':%', now - 7 * DAY);
-    if (alert) { skip('an alert about them this week'); continue; }
-    const broken = await one("SELECT 1 AS x FROM connection_health WHERE client_id = ?1 AND broken_at != ''", r.client_id);
-    if (broken) { skip('a Google connection is broken'); continue; }
     out.push({ client_id: r.client_id, business: r.business || '', first: r.owner_first || String(r.owner || '').split(/\s+/)[0] || '', phone10, email, since: r.created, second: !!prev });
   }
   return { out, skipped };
@@ -61,8 +56,9 @@ export async function monthWords(env, cid, since) {
   if (replies) bits.push(pl(replies, 'review', 'reviews') + ' got answered');
   return { calls, replies, text: bits.join(' and ') };
 }
+// The same words for every client: an honest review, good or bad.
 export function askText(c, words, link, second) {
-  return 'Hi ' + (c.first || 'there') + ', it’s Christopher from Always Open. ' + (second ? 'A few months in' : 'A month in') + (words ? ': ' + words + '.' : '.') + ' If it has helped, a Google review of us would mean a lot: ' + link + ' If anything is off, reply here and I’ll fix it myself.';
+  return 'Hi ' + (c.first || 'there') + ', it’s the Always Open team. ' + (second ? 'A few months in' : 'A month in') + (words ? ': ' + words + '.' : '.') + ' Would you leave an honest Google review of us? It helps other owners decide: ' + link + ' Questions or anything to change, just reply here.';
 }
 
 // Every 10 minutes. h: { send(text) -> {ok, why}, mail(to, subject, text) -> result, now }
@@ -90,7 +86,7 @@ export async function askCron(env, now, h) {
     const text = askText(c, words.text, 'https://alwaysopenoffice.com/r/' + token, c.second);
     let by = '';
     if (c.phone10 && h && h.send) { const r = await h.send({ to: c.phone10, body: text, tz }); if (r && r.ok) by = 'text'; }
-    if (!by && c.email && h && h.mail) { const r = await h.mail(c.email, 'A month with Always Open', text.replace(/ If anything is off, reply here/, ' If anything is off, reply to this email')); if (r === 'sent' || (r && r.ok)) by = 'email'; }
+    if (!by && c.email && h && h.mail) { const r = await h.mail(c.email, 'A month with Always Open', text.replace(/ just reply here\.$/, ' just reply to this email.')); if (r === 'sent' || (r && r.ok)) by = 'email'; }
     await env.DB.prepare('UPDATE our_review_asks SET by = ?1 WHERE client_id = ?2').bind(by || 'failed', c.client_id).run();
     if (by) { asked++; left--; }
   }
