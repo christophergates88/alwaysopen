@@ -65,12 +65,13 @@ export function renderMonthPage(v) {
   const title = (v.business || 'Your business') + ' · ' + (v.label || '') + (v.mtd ? ' so far' : '');
   const actions = v.sample
     ? '<a class="btn" href="/#contact">Get this page for your business</a><a class="btn ghost" href="/">Back to Always Open</a>'
-    : '<button class="btn" type="button" id="pdf">Save as PDF</button><button class="btn ghost" type="button" id="share" hidden>Share</button>' + (v.back ? '<a class="btn ghost" href="' + esc(v.back) + '">Back to the app</a>' : '');
+    : '<button class="btn" type="button" id="pdf">Save as PDF</button><button class="btn ghost" type="button" id="share" hidden>Share</button>' + (v.year ? '<a class="btn ghost" href="' + esc(v.year) + '">Your year</a>' : '') + (v.back ? '<a class="btn ghost" href="' + esc(v.back) + '">Back to the app</a>' : '');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     (v.sample ? '<meta name="description" content="A sample of the one page every Always Open business gets on the 2nd of the month: calls answered, when the phone rang, why callers didn’t book, reviews, check-ins, follow-ups, what it was worth, and one thing for next month.">' : '<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">') +
     '<title>' + esc(title) + '</title>' +
     '<style>' + CSS + '</style></head><body><main class="page">' +
     '<div class="tools">' + actions + '</div>' +
+    (v.sample && v.proof ? '<p class="proof">' + esc(v.proof) + '</p>' : '') +
     '<div class="sheet"><header class="hd"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>Always Open</div>' +
     '<h1>' + esc(v.business || 'Your business') + '</h1><p class="when-made">' + esc(v.label || '') + (v.mtd ? ', so far' : ', on one page') + (v.sentText ? ' · ' + esc(v.sentText) : '') + '</p></header>' +
     '<section class="lead"><div class="big"><b>' + (c.n || 0) + '</b><span>' + (v.regulated ? 'calls answered' : 'calls answered') + '<small>' + (c.n ? c.after + ' after hours or on a weekend' + (c.leads ? ', ' + pl(c.leads, 'lead', 'leads') + ' left their details' : '') : 'No calls to Max this month') + '</small>' + delta(vs && vs.calls, vl) + '</span></div>' + worth + '</section>' +
@@ -82,6 +83,7 @@ export function renderMonthPage(v) {
     google +
     (ins.length ? '<section class="means"><h2>What it means</h2><ol>' + ins.map(x => '<li>' + esc(x.t) + '</li>').join('') + '</ol></section>' : '') +
     '<section class="next"><h2>One thing for next month</h2><p>' + esc(next) + '</p></section>' +
+    (v.since ? '<section class="since"><h2>Since you joined</h2><p>' + esc(v.since) + (v.year ? ' <a href="' + esc(v.year) + '">See your year</a>' : '') + '</p></section>' : '') +
     '<footer class="ft"><p>' + (v.record ? 'Every review, reply and post this month is in your <a href="' + esc(v.record) + '">record of public communications</a>. ' : 'Every review, reply and post is kept in a monthly record. ') +
     'Questions about this page? ' + SUPPORT_NAME + ' answers, usually the same business day: hello@alwaysopenoffice.com' + (v.sample ? '' : ', or Ask us in the app') + '.</p>' +
     '<p>Made by Always Open' + (v.sample ? '. Sample: made-up business and numbers.' : ' for ' + esc(v.business || 'your business') + (/\.$/.test(v.business || '') ? '' : '.') + ' Counts come from Max’s calls, your app and your Google profile.') + '</p></footer></div>' +
@@ -89,7 +91,7 @@ export function renderMonthPage(v) {
 }
 function ordinal(n) { return n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); }
 
-const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;--card:#fff;--sign:#D92D20;--sign-soft:#FDECEA;--ok:#0E4A2E;--ok-soft:#E9F6EF}' +
+export const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;--card:#fff;--sign:#D92D20;--sign-soft:#FDECEA;--ok:#0E4A2E;--ok-soft:#E9F6EF}' +
   '*{box-sizing:border-box}html{background:#ECE9E2}body{margin:0;color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}' +
   '.page{max-width:820px;margin:0 auto;padding:18px 16px 40px}' +
   '.tools{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}.btn{display:inline-flex;align-items:center;min-height:44px;padding:10px 16px;border-radius:12px;border:2px solid var(--sign);background:var(--sign);color:#fff;font:600 15px system-ui,sans-serif;text-decoration:none;cursor:pointer}.btn.ghost{background:transparent;color:var(--sign)}' +
@@ -110,7 +112,7 @@ const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;
   '.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.trio div{display:grid}.trio b{font:850 1.5rem/1 "Archivo","Arial Narrow",system-ui,sans-serif}.trio span{font-size:13px;color:var(--slate)}' +
   '.means ol{margin:4px 0 0;padding-left:20px}.means li{margin:5px 0}' +
   '.check{background:var(--ok-soft)}.check h2{color:var(--ok)}.ck{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 6px}.ck div{display:flex;gap:10px;align-items:baseline}.ck b{font:850 2rem/1 "Archivo","Arial Narrow",system-ui,sans-serif;color:var(--ok)}.ck span{font-size:14px}.check .sub{margin:0}' +
-  '.next{background:var(--ok-soft)}.next p{margin:0;font-weight:600}' +
+  '.proof{margin:0 0 14px;padding:12px 16px;border-radius:12px;border:1px solid var(--ok);background:var(--ok-soft);font-weight:600;font-size:14.5px}.next{background:var(--ok-soft)}.next p{margin:0;font-weight:600}.since p{margin:0}.since a{color:var(--sign);font-weight:600}' +
   '.ft{border-radius:0 0 18px 18px;padding:14px 24px 18px;font-size:12.5px;color:var(--slate)}.ft p{margin:4px 0}.ft a{color:inherit}' +
   '@media (max-width:640px){.lead,.when,.two,.ck{grid-template-columns:1fr}.two section+section{border-left:0;border-top:1px solid var(--line)}.tiles{grid-template-columns:1fr 1fr}.tiles div:nth-child(2){border-right:0}.tiles div:nth-child(-n+2){border-bottom:1px solid var(--line)}.hd,.lead,section,.ft{padding-left:16px;padding-right:16px}.big b{font-size:3.2rem}}' +
   // On screen the page is lit like the OPEN sign on the website: a dark sheet with a slow red glow, the big number in
@@ -133,7 +135,7 @@ const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#FBFAF7;
   '@media print{@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
 
 // The website's sample: a made-up plumber, in the same shape as a real month, run through the same findings.
-export function samplePage() {
+export function samplePage(proof) {
   const a = {
     v: 1,
     calls: { n: 14, after: 6, weekend: 3, spanish: 1, urgent: 2, transferred: 2, leads: 11, booked: 3, avgSec: 150, textback: 1, callbacks: { set: 3, kept: 3, missed: 0 },
@@ -148,5 +150,5 @@ export function samplePage() {
     stormPosts: 1
   };
   a.insights = insights(a, {}); a.next = nextStep(a, {});
-  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, a, stats: { posts: 2, rating: 4.6, count: 58, replies: 3 } });
+  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, proof: proof || '', a, stats: { posts: 2, rating: 4.6, count: 58, replies: 3 } });
 }

@@ -81,3 +81,23 @@ export async function publicLines(env, cids) {
   }
   return out;
 }
+
+// Every business together, last full month: after-hours calls and how many Max picked up. For the website's sample
+// report, shown only once the total is big enough to mean something; never a percentage of a handful.
+export const NETWORK_MIN = 50;
+export async function networkMonth(env, now) {
+  now = now || Date.now();
+  const rows = ((await env.DB.prepare("SELECT client_id FROM app_clients WHERE active = 1 AND client_id NOT IN ('always-open', 'demo-plumbing')").all()).results) || [];
+  const at = Date.parse(new Date(now).toISOString().slice(0, 8) + '01T12:00:00Z') - 10 * 864e5;
+  const out = { month: '', after: 0, answered: 0, businesses: 0 };
+  for (const r of rows) {
+    const c = await monthCounts(env, r.client_id, at);
+    out.month = out.month || c.month;
+    if (c.after) { out.after += c.after; out.answered += c.answered; out.businesses++; }
+  }
+  return out;
+}
+export function networkLine(n) {
+  if (!n || n.after < NETWORK_MIN || n.businesses < 3) return '';
+  return 'Real numbers, not the sample: in ' + monthName(n.month) + ', Max answered ' + Math.round(100 * n.answered / n.after) + '% of ' + n.after.toLocaleString('en-US') + ' after-hours calls across ' + n.businesses + ' Always Open businesses.';
+}

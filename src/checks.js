@@ -324,5 +324,7 @@ export async function morningChecks(env, now) {
       if (names.length) parts.push('No calls yet, forwarding probably off: ' + names.join(', ') + '.');
     }
   } catch (e) { /* the push still goes */ }
+  // Paying clients showing the signs that come before a cancellation (drift.js).
+  try { const D = await import('./drift.js'); const t = D.driftText(await D.driftRows(env, now)); if (t) parts.push(t); } catch (e) { /* the push still goes */ }
   return parts.join(' ');
 }

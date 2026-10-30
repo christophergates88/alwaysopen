@@ -194,6 +194,13 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub.startsWith('/month/')) {
       // The month on one page (monthpage.js): a past month, or this month so far.
       if (meth === 'GET' || meth === 'HEAD') return await monthPageFor(env, c, sub.slice(7), base);
+    } else if (sub === '/year') {
+      // Twelve months and everything since they joined, on one page (trends.js, yearpage.js).
+      if (meth === 'GET' || meth === 'HEAD') return await yearPageFor(env, c, base);
+    } else if (sub === '/api/trends' && meth === 'GET') {
+      // The same numbers for the iPhone app: months oldest first, the running totals, and the plain-words lines.
+      const t = await (await import('./trends.js')).trendsFor(env, c);
+      return new Response(JSON.stringify({ ok: true, months: t.months, since: t.since, lines: t.lines, avgJob: t.noMoney ? 0 : t.avgJob, page: '/year' }), { headers: { ...H, 'content-type': 'application/json', 'cache-control': 'no-store' } });
     } else if (sub === '/api/state' && meth === 'GET') {
       return await apiState(env, c, ctx);
     } else if (sub === '/api/decide' && meth === 'POST') {
@@ -904,7 +911,14 @@ async function monthPageFor(env, c, which, base) {
   const m = await monthFor(env, c, which);
   if (!m) return gone(404);
   const sent = m.mtd ? 'through ' + new Date(Date.parse(m.through + 'T12:00:00Z')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-  const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '' });
+  let since = '';
+  try { const T = await import('./trends.js'); since = T.sinceLine((await T.trendsFor(env, c)).since, { noMoney: c.role === 'tech' || !!+c.regulated }); } catch (e) { since = ''; }
+  const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '', year: base + '/year', since });
+  return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
+}
+async function yearPageFor(env, c, base) {
+  const t = await (await import('./trends.js')).trendsFor(env, c);
+  const html = (await import('./yearpage.js')).renderYearPage({ business: c.business || '', back: base, month: base + '/month/now', t, regulated: !!+c.regulated });
   return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
 }
 // The Home card's numbers: this month so far, short.
@@ -913,7 +927,7 @@ function monthNowOut(m) {
   const a = m.a, w = a.work;
   return { month: m.month, label: m.label, calls: a.calls.n, after: a.calls.after, leads: a.calls.leads + w.requests, booked: w.bookedCalls + w.fill.booked,
     reviews: a.reviews.n, replied: a.reviews.replied, followups: w.followups.done, posts: m.stats.posts || 0, checkYes: w.checkins.yes, checkNo: w.checkins.no,
-    worth: a.worth ? a.worth.mid : 0, insight: (a.insights[0] && a.insights[0].t) || '', page: '/month/now' };
+    worth: a.worth ? a.worth.mid : 0, insight: (a.insights[0] && a.insights[0].t) || '', page: '/month/now', year: '/year' };
 }
 
 // ---------- the monthly record, as a page they can save as a PDF ----------

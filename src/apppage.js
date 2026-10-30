@@ -527,7 +527,7 @@ function monthNowCard(){
     '<div class="mnow-g">'+t.map(function(x){return '<div><b>'+(+x[0]||0)+'</b><span>'+esc(x[1])+'</span>'+(x[2]?'<small>'+esc(x[2])+'</small>':'')+'</div>';}).join('')+'</div>'+
     (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
     (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+
-    '<div class="acts" style="margin-top:10px"><a class="btn line sm" href="'+esc(BASE+m.page)+'">Open '+esc(mo)+'\u2019s page</a></div></div>';
+    '<div class="acts" style="margin-top:10px"><a class="btn line sm" href="'+esc(BASE+m.page)+'">Open '+esc(mo)+'\u2019s page</a>'+(m.year?'<a class="btn line sm" href="'+esc(BASE+m.year)+'">Your year</a>':'')+'</div></div>';
 }
 function heroCard(){
   var L=S.line,f=S.features||{};
