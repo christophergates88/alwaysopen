@@ -57,7 +57,8 @@ const PER_CALLER_HOUR = 5;       // more than this from one number in an hour ge
 const PER_LINE_DAY = 80;         // the most AI calls one line takes in a day
 // What every caller hears first, whatever greeting the owner set: Max is an S.I. and the call may be recorded. The one
 // place this sentence lives; the owner's greeting can't remove it or say otherwise (greetingOk).
-export const DISCLOSURE = 'I\'m an S.I. assistant, and this call may be recorded.';
+import { DISCLOSURE } from './disclosure.js';
+export { DISCLOSURE };
 const SID_RE = /^CA[0-9a-f]{32}$/;
 const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // Always Open's own number. Its callers are business owners asking about Always Open, so each call reaches Chris the way a

@@ -4,6 +4,7 @@
 // and reads back approvals, messages, finished jobs and photos. Approvals ping Christopher's phone right away (ntfy).
 // Every 10 minutes the cron sends iPhone notifications for new drafts and new replies from Always Open (when APNs is set up).
 import { opsAlert } from './ops.js';
+import { DISCLOSURE } from './disclosure.js';
 import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
@@ -539,6 +540,14 @@ function greetOk(g) {
   ];
   return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !denies.some(re => re.test(t));
 }
+// Why a greeting was refused, in words the owner can act on.
+function greetWhy(g) {
+  const t = oneLine(String(g || ''));
+  if (t.length < 10) return 'That greeting is too short. Leave it empty for the standard one.';
+  if (t.length > 320) return 'That greeting is too long. Keep it to a sentence or two.';
+  if (/[<>]/.test(t)) return 'Take out the < and > signs and try again.';
+  return 'Max always tells callers he is an automated assistant and that the call may be recorded, so the greeting can’t say otherwise. Keep it to your welcome.';
+}
 // The "After the call" card: three switches, and whether texts can go out yet (one answer for every text feature).
 async function afterState(env, cid, line) {
   const o = parse(line.owner_set) || {};
@@ -555,7 +564,7 @@ function lineOut(raw, c) {
   return {
     number: l.number, numberText: fmtNum(l.number), onAir: !!l.on_air, paused: !l.hq_on, name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30) || 'Max',
     hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')), spanish: !!+l.spanish,
-    defaultGreeting: 'Hi, thanks for calling ' + biz + '! I’m an S.I., and this call may be recorded. What can I do for you?',
+    defaultGreeting: 'Hi, thanks for calling ' + biz + '! ' + DISCLOSURE + ' What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop(),
     ...knowOut(raw.facts, raw.owner_set),
@@ -634,7 +643,7 @@ async function apiLine(req, env, ctx, c) {
     // Every greeting must tell callers they are talking to an AI and that the call may be recorded. If theirs doesn't, we add that sentence.
     const DISC = ' I’m an S.I., and this call may be recorded.';
     const g = greetOk(g0) || !g0 ? g0 : (g0.slice(0, 320 - DISC.length).trim() + DISC);
-    if (g && !greetOk(g)) return aj({ ok: false, error: 'That greeting is too short. Leave it empty for the standard one.' }, 422);
+    if (g && !greetOk(g)) return aj({ ok: false, error: greetWhy(g) }, 422);
     if (g !== String(f.greeting || '')) { o.greeting = { v: g, base: String(hq.greeting || '') }; changes.push('greeting: ' + (g || '(back to the standard one)')); }
   }
   if (b.transferTo != null) {

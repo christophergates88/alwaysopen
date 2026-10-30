@@ -82,7 +82,9 @@ export async function slotsFor(env, line, now, max) {
   const cid = line.client_id, end = now + 8 * DAY;
   // The business's own zone (stored on the line, or worked out from its town and number); a connected calendar's wins below.
   let tz = zoneOk(line.tz) ? line.tz : await tzFor(env, cid), busy = [];
-  try { const cal = await busyTimes(env, cid, now, end); if (cal) { tz = cal.tz || tz; busy = cal.busy; } } catch (e) { /* no calendar: our own book only */ }
+  // No calendar connected: our own book only. A calendar we can't read right now (Google down, connection refused):
+  // this throws, and the caller offers no times rather than times that may sit on top of the owner's appointments.
+  const cal = await busyTimes(env, cid, now, end); if (cal) { tz = cal.tz || tz; busy = cal.busy; }
   const taken = ((await env.DB.prepare("SELECT start, end FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled' AND end > ?2 AND start < ?3").bind(cid, now, end).all()).results) || [];
   busy = busy.concat(taken.map(r => [+r.start, +r.end]));
   const len = bk.slotMin * 60000, gap = bk.bufferMin * 60000, out = [];
