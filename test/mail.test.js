@@ -152,3 +152,28 @@ test('a test key makes three proofs and mails nothing; the live key puts them ba
   assert.equal(lob.length, 6);
   assert.equal(lob[3].auth, 'Basic ' + btoa('live_abc123:'));
 });
+
+test('the scanned letter’s page: its own wording, a call-me box, and the number reaches Christopher once', async () => {
+  const { DB, env, h } = await setup();
+  await M.turnOn(env, 5, 60);
+  await M.queueLetters(env, [{ q: 'Quillen Plumbing', town: 'Eatonton, GA' }]);
+  await M.mailCron(env, TUE_11, h);
+  const { token } = await DB.prepare("SELECT token FROM mail_queue WHERE q = 'Quillen Plumbing'").first();
+  const L = await import('../src/leadmail.js');
+  const pings = [];
+  const u = 'https://alwaysopenoffice.com/your-audit/' + token;
+  const hh = { run: h.run, letterPing: async () => {}, ping: async (t, b) => pings.push(t + ' | ' + b) };
+  const html = await (await L.handleAuditPage(new Request(u), env, new URL(u), hh)).text();
+  assert.match(html, /Here’s your full audit\./);
+  assert.match(html, /Want Katie to call you\?/);
+  assert.match(html, /href="tel:\+17064602226"/);
+  assert.match(html, /Max answers, and Katie calls you back\./);
+  assert.doesNotMatch(html, /Reply to our text|you asked for/);
+  const post = async phone => { const f = new FormData(); f.set('phone', phone); return (await L.handleAuditPage(new Request(u, { method: 'POST', body: f }), env, new URL(u), hh)).text(); };
+  assert.match(await post('12'), /That number doesn’t look right/);
+  assert.match(await post('478.555.0142'), /Katie will call \(478\) 555-0142/);
+  await post('(478) 555-0142');
+  assert.equal(pings.length, 1, 'the same number twice is one push');
+  assert.equal(pings[0], 'Always Open: Quillen Plumbing wants a call | Quillen Plumbing in Eatonton, GA asked for a call at (478) 555-0142 from their mailed letter (grade D). Call while it’s fresh.');
+  assert.equal((await DB.prepare("SELECT phone FROM leads WHERE token = ?1").bind(token).first()).phone, '(478) 555-0142');
+});
