@@ -92,7 +92,8 @@ for (const w of WIDTHS) {
     if (r.h > maxH) problems.push(name + ': ' + r.h + ' px tall with sections folded (limit ' + maxH + ')');
     // The monthly report leads the phone hero (Oct 29, 2026), so the grade check moved to the third screen.
     if (r.gradeTop < 0 || r.gradeTop > 812 * 3) problems.push(name + ': the grade check starts at ' + Math.round(r.gradeTop) + ' px (should be on the first three screens)');
-    if (r.strip > 560) problems.push(name + ': the cards are ' + r.strip + ' px tall (limit 560)');
+    // 572: the cards' wording on every plan (Max included with Starter) is one line longer on some phones (Oct 30).
+    if (r.strip > 572) problems.push(name + ': the cards are ' + r.strip + ' px tall (limit 572)');
     r.small.forEach(x => problems.push(name + ': small tap target ' + x));
     r.tiny.forEach(x => problems.push(name + ': small text ' + x));
 
