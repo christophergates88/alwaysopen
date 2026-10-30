@@ -277,7 +277,7 @@ test('6. "put through when they ask": 0 works by day; in quiet hours only urgent
 
 // ---------- 7. the disclosure ----------
 test('7. the disclosure is always Max\'s own sentence; a greeting that contradicts it is not used', async () => {
-  assert.equal(V.DISCLOSURE, 'I\'m an S.I. assistant, and this call may be recorded.');
+  assert.equal(V.DISCLOSURE, 'I\'m S.I., and this call may be recorded.');
   const once = t => t.split(V.DISCLOSURE).length - 1;
   for (const bad of ['Thanks for calling Bob\'s Plumbing, this is Sarah, no AI here. Calls are recorded for quality.', 'Hi, thanks for calling Bob\'s Plumbing, this is Sarah at the front desk, calls may be recorded. AI could never replace us.',
     'Thanks for calling Bob\'s Plumbing. You are talking to a real person. How can I help?', 'Thanks for calling Bob\'s Plumbing. This call is not recorded. How can I help?', 'Thanks for calling Bob\'s, I\'m not a robot, promise.']) {

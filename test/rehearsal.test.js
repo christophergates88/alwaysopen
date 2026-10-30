@@ -641,7 +641,7 @@ test('repeat callers: Dana is greeted as a question, a visit coming up comes fir
   assert.match(wsOf(l.sid).store.get('s').line.memory, /visit penciled in \(not confirmed yet\) for /);
   world.aiScript = ['Hi, is this about your visit?'];
   await say(l.sid, 'Hi there.');
-  assert.match(sysText(), /visit coming up: before anything else, ask whether they are calling about it/);
+  assert.match(sysText(), /visit coming up. If what they say is clearly a new problem, do not bring the visit up/);
   await hook('after', { CallSid: l.sid, SessionDuration: '20', SessionStatus: 'ended' }); await site.settle();
 });
 
@@ -667,7 +667,7 @@ test('the owner picks a voice, names the assistant and records a greeting; Max s
   r = await startCall('+14785550192');
   assert.match(r.r.text, /^[\s\S]*<Play>https:\/\/alwaysopenoffice\.com\/a\/[A-Za-z0-9]{32}<\/Play><Connect/, 'the owner’s recording plays first');
   assert.match(r.r.text, /voice="XrExE9yKIg1WjnnlVkGX/);
-  assert.match(r.r.text, /welcomeGreeting="I&apos;m an S\.I\. assistant, and this call may be recorded\./);
+  assert.match(r.r.text, /welcomeGreeting="I&apos;m S\.I\., and this call may be recorded\./);
   await openRoom(r.sid, '+14785550192');
   world.aiScript = ['This is Rosie. What can I do for you?'];
   await say(r.sid, 'Hi, who is this?');

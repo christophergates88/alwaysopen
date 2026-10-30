@@ -1,6 +1,6 @@
 // What Max says about himself on every call, in one place: the phone line (voice.js) adds it to every greeting, and
 // the owner's app (app.js) shows it in the default greeting. Change the wording here and only here.
-export const DISCLOSURE = 'I\'m an S.I. assistant, and this call may be recorded.';
+export const DISCLOSURE = 'I\'m S.I., and this call may be recorded.';
 
 // A greeting that says Max is not an AI, is a person, or that calls are not recorded is never used.
 const DENY_AI = /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/;
@@ -19,7 +19,7 @@ export function withDisclosure(t) {
   const n = x => String(x).replace(/[’‘]/g, '\'').toLowerCase();
   if (n(t).indexOf(n(DISCLOSURE)) > -1) return t;
   // what the app put in greetings before (it becomes the one disclosure)
-  const legacy = /\s*I['’]m an S\.I\.,?(?: assistant,?)? and this call may be recorded\./i;
+  const legacy = /\s*I['’]m (?:an )?S\.I\.,?(?: assistant,?)? and this call may be recorded\./i;
   if (legacy.test(t)) return t.replace(legacy, ' ' + DISCLOSURE).trim();
   if (SAYS_AUTOMATED.test(t) && SAYS_RECORDED.test(t)) return t;
   const parts = t.replace(/\b([AS])\.I\./g, '$1\u0001I\u0001').split(/(?<=[.!?]["'”’)]*)\s+/).map(x => x.replace(/\u0001/g, '.')).filter(x => x.trim());
