@@ -274,7 +274,7 @@ test('honest labels: a sample call, no receptionist, Max on every plan, nobody n
   assert.match(text('index.html'), /id="check-go">Send me the full audit<\/a>'\+\s*'<p class="muted gsrc">/, 'the home page’s own grade box too');
   const idx = fs.readFileSync('src/index.js', 'utf8');
   assert.doesNotMatch(idx, /'Christopher at Always Open'/);
-  assert.match(idx, /mailTo\(env, to, subj, text, 'Always Open', \{ replyTo: env\.MAIL_TO \}\)/);
+  assert.match(idx, /mailTo\(env, to, subj, text, 'Always Open', \{ replyTo: 'hello@alwaysopenoffice\.com' \}\)/);
 });
 
 test('the 320 px header fits: the phone kit has a narrow-screen rule for the ES/EN switch', () => {

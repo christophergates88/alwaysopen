@@ -50,7 +50,8 @@ export function recordingTwiml(env) {
 }
 
 function captionFor(industry, at) {
-  const who = { plumbing: 'A plumber’s line', hvac: 'A heating and air company’s line', electrical: 'An electrician’s line', salon: 'A salon’s line' }[industry] || 'A small business’s line';
+  // A staged sample call, said plainly: it is our demo line, not a customer's business.
+  const who = { plumbing: 'Our demo plumbing line', hvac: 'Our demo heating and air line', electrical: 'Our demo electrician’s line', salon: 'Our demo salon line' }[industry] || 'Our demo line';
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', hour: 'numeric', minute: '2-digit' }).formatToParts(new Date(at)).map(x => [x.type, x.value]));
   return who + ', ' + p.weekday + ' at ' + p.hour + ':' + p.minute + ' ' + (p.dayPeriod || '').toUpperCase();
 }

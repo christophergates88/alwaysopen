@@ -71,7 +71,7 @@ test('armed from the ops board page: only that number, once, answered as the dem
   assert.ok(seen.some(s => /^DELETE .*\/Recordings\/RE/.test(s)), 'Twilio’s copy is deleted');
   assert.ok(world.pushes.some(p => /Hear Max sample saved, 24 seconds/.test(p.title)));
   const j = (await site.call('/hear-max.json')).json();
-  assert.equal(j.ok, true); assert.equal(j.seconds, 24); assert.match(j.caption, /^A plumber’s line, \w+day at \d{1,2}:\d{2} [AP]M$/);
+  assert.equal(j.ok, true); assert.equal(j.seconds, 24); assert.match(j.caption, /^Our demo plumbing line, \w+day at \d{1,2}:\d{2} [AP]M$/);
   assert.deepEqual(j.lines, [{ who: 'Max', t: 'Thanks for calling Demo Plumbing Co.' }, { who: 'Caller', t: 'My water heater is leaking.' }]);
   const full = await site.call(j.src.split('?')[0]);
   assert.equal(full.status, 200);

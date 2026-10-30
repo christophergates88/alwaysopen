@@ -41,3 +41,20 @@ test('a renewal reminds once at each step, not every day', async () => {
   const left = ((await DB.prepare('SELECT k FROM funding_alerts ORDER BY k').all()).results).map(r => r.k);
   assert.ok(left.includes('twilio-read:warn') && !left.includes('twilio:warn'));
 });
+
+test('a waiting push is quiet or loud by the hour it is SENT, and a loud one may be texted at night', async () => {
+  const P = await import('../src/push.js');
+  const night = Date.parse('2026-10-31T03:05:00Z'), day = Date.parse('2026-10-30T15:00:00Z');   // 11:05 PM and 11 AM Eastern
+  assert.equal(P.sendPriority({ orig: 'high', priority: 'high', loud: 0 }, night), 'low', 'queued at 9:55 PM, retried at 11:05 PM: quiet');
+  assert.equal(P.sendPriority({ orig: 'high', priority: 'low', loud: 0 }, day), 'high', 'queued at night, sent in the day: as asked');
+  assert.equal(P.sendPriority({ orig: 'urgent', priority: 'urgent', loud: 1 }, night), 'urgent', 'a loud one rings at night');
+  const DB = H.makeDB(), env = { DB, NTFY_URL: 'https://ntfy.example.test/x', OPS_TEXT_TO: '+14785550100' };
+  await P.ensurePush(env);
+  const at = new Date(night - 20 * 60e3).toISOString();
+  await DB.prepare("INSERT INTO push_queue (at, title, body, priority, status, orig, loud) VALUES (?1, 'Max unreachable', 'x', 'urgent', 'queued', 'urgent', 1), (?1, 'A quiet one', 'y', 'low', 'queued', 'high', 0)").bind(at).run();
+  const texts = [];
+  await P.pushCron(env, night, { fetch: async () => new Response('', { status: 503 }), text: async b => { texts.push(b); return { ok: true }; } });
+  assert.equal(texts.length, 1);
+  assert.match(texts[0], /Max unreachable/);
+  assert.doesNotMatch(texts[0], /A quiet one/);
+});

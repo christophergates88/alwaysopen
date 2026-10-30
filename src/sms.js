@@ -15,7 +15,7 @@ export function keywordOf(body) {
   return STOP_WORDS.has(w) ? 'stop' : (START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : ''));
 }
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
-const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway']);
+const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops']);   // 'ops': only ever to Christopher; push.js decides the hour
 const TEXTS_PER_CLIENT_HOUR = 60, TEXTS_PER_HOUR = 400;   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
 const TEXTS_PER_CLIENT_DAY = 200;   // automatic texts for one business in a day, whatever starts them
 

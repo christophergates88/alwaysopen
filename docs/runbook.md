@@ -131,8 +131,8 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   call replaces it; "Take it down" on the same page hides the player. No customer call is ever recorded.
 - **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
   same figure in the app, the monthly report and the ops board. No average job, no dollars.
-- **Review asks for Always Open** (`src/ourreviews.js`): a month in, owners clearly getting value get one text (or email)
-  asking for a Google review of us, three a day at most. Off until `ALWAYS_OPEN_REVIEW_LINK` is set in `wrangler.toml`.
+- **Review asks for Always Open** (`src/ourreviews.js`): a month in, every client gets one text (or email) asking for a
+  Google review of us (never only the happy ones: Google forbids that), three a day at most. Off until `ALWAYS_OPEN_REVIEW_LINK` is set in `wrangler.toml`.
   Replies come to your phone; a complaint arrives at high priority.
 - **Spanish on the site** (`tools/phone-es.mjs`): the ES/EN switch in the header swaps the hero, the menu, the cards'
   frame, the grade form, the six features, plans and the request form (the sample conversations in the cards stay

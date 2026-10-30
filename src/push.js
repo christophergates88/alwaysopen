@@ -37,6 +37,8 @@ export async function ensurePush(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS push_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, title TEXT, body TEXT, priority TEXT DEFAULT 'default', tags TEXT DEFAULT '', click TEXT DEFAULT '', status TEXT DEFAULT 'queued', out_at TEXT DEFAULT '', done_at TEXT DEFAULT '', via TEXT DEFAULT '', why TEXT DEFAULT '')"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS push_meta (k TEXT PRIMARY KEY, at TEXT, v TEXT)')
   ]);
+  // The priority asked for and whether it may ring at night, kept so a retry decides quiet or loud when it is SENT.
+  for (const c of ["orig TEXT DEFAULT ''", 'loud INTEGER DEFAULT 0']) { try { await env.DB.prepare('ALTER TABLE push_queue ADD COLUMN ' + c).run(); } catch (e) { /* already there */ } }
   ready.add(env.DB);
 }
 const ascii = s => String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[^\x20-\x7E]/g, '').slice(0, 120);
@@ -61,17 +63,23 @@ async function direct(env, p, h) {
   } catch (e) { return /abort|timeout/i.test(String(e && (e.name || e.message))) ? 'ntfy did not answer in time' : 'ntfy could not be reached'; }
 }
 
+// The priority a waiting push goes out with: what was asked for, but quiet if it is night now (unless it may ring).
+export function sendPriority(r, now) {
+  const asked = r.orig || r.priority || 'default';
+  return !+r.loud && isNight(now) ? 'low' : asked;
+}
 // p: { title, body, priority, tags, click }. Returns 'sent', 'queued' or 'off'.
 export async function push(env, p, h) {
   if (!env.NTFY_URL) return 'off';
   p = p || {};
+  const orig = p.priority || 'default';
   if (!p.loud && isNight(h && h.now)) p = Object.assign({}, p, { priority: 'low' });
   const why = await direct(env, p, h);
   try { await ensurePush(env); await note(env, 'direct', why ? 'failed: ' + why : 'ok'); } catch (e) { /* the push itself is what matters */ }
   if (!why) return 'sent';
   try {
-    await env.DB.prepare("INSERT INTO push_queue (at, title, body, priority, tags, click, status, why) VALUES (?1,?2,?3,?4,?5,?6,'queued',?7)")
-      .bind(new Date().toISOString(), String(p.title || '').slice(0, 200), String(p.body || '').slice(0, 3000), String(p.priority || 'default').slice(0, 12), String(p.tags || '').slice(0, 120), String(p.click || '').slice(0, 500), why).run();
+    await env.DB.prepare("INSERT INTO push_queue (at, title, body, priority, tags, click, status, why, orig, loud) VALUES (?1,?2,?3,?4,?5,?6,'queued',?7,?8,?9)")
+      .bind(new Date().toISOString(), String(p.title || '').slice(0, 200), String(p.body || '').slice(0, 3000), String(p.priority || 'default').slice(0, 12), String(p.tags || '').slice(0, 120), String(p.click || '').slice(0, 500), why, String(orig).slice(0, 12), p.loud ? 1 : 0).run();
     return 'queued';
   } catch (e) { return 'off'; }
 }
@@ -82,7 +90,8 @@ export async function relayTake(env, now) {
   await ensurePush(env);
   await note(env, 'relay', 'asked', now);
   const stale = new Date(now - LEASE_MS).toISOString();
-  const rows = ((await env.DB.prepare("SELECT id, at, title, body, priority, tags, click FROM push_queue WHERE status = 'queued' OR (status = 'out' AND out_at < ?1) ORDER BY id LIMIT 20").bind(stale).all()).results) || [];
+  const rows = (((await env.DB.prepare("SELECT id, at, title, body, priority, tags, click, orig, loud FROM push_queue WHERE status = 'queued' OR (status = 'out' AND out_at < ?1) ORDER BY id LIMIT 20").bind(stale).all()).results) || [])
+    .map(r => ({ id: r.id, at: r.at, title: r.title, body: r.body, priority: sendPriority(r, now), tags: r.tags, click: r.click }));
   if (rows.length) await env.DB.batch(rows.map(r => env.DB.prepare("UPDATE push_queue SET status = 'out', out_at = ?1 WHERE id = ?2").bind(new Date(now).toISOString(), r.id)));
   return { ok: true, items: rows };
 }
@@ -110,17 +119,19 @@ export async function pushCron(env, now, h) {
   // 1. ntfy straight again: one first, the rest only if that one goes.
   const fresh = waiting.filter(r => r.status === 'queued');
   for (const r of fresh) {
-    const why = await direct(env, r, h);
+    const why = await direct(env, Object.assign({}, r, { priority: sendPriority(r, now) }), h);
     if (why) { await note(env, 'direct', 'failed: ' + why, now); break; }
     await env.DB.prepare("UPDATE push_queue SET status = 'done', done_at = ?1, via = 'direct' WHERE id = ?2").bind(iso(now), r.id).run();
     await note(env, 'direct', 'ok', now);
     r.status = 'done'; sent++;
   }
   // 2. Important ones still waiting: one text for all of them.
-  const late = waiting.filter(r => r.status !== 'done' && HIGH.has(String(r.priority).toLowerCase()) && now - Date.parse(r.at) >= TEXT_AFTER_MS);
+  const late = waiting.filter(r => r.status !== 'done' && HIGH.has(String(r.orig || r.priority).toLowerCase()) && now - Date.parse(r.at) >= TEXT_AFTER_MS);
   const to = env.OPS_TEXT_TO || '';
   const hour = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/New_York' }).format(new Date(now));
-  if (late.length && to && hour >= 8 && hour < 21) {
+  const textable = late.filter(r => +r.loud || (hour >= 8 && hour < 21));   // a loud one (Max unreachable, money out) at any hour
+  late.length = 0; late.push(...textable);
+  if (late.length && to) {
     const lines = late.slice(0, 4).map(r => ascii(r.title) + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, late.length === 1 ? 300 : 90) : ''));
     const body = 'Always Open: ' + (late.length === 1 ? '' : late.length + ' alerts didn’t reach your phone app.\n') + lines.join('\n') + (late.length > 4 ? '\n+' + (late.length - 4) + ' more by email.' : '');
     let r = { ok: false };
