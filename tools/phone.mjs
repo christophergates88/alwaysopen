@@ -43,7 +43,7 @@ const CHIPS = [
 const TRADES = [['plumbing', 'Plumber'], ['hvac', 'Heating and air'], ['builders', 'Builder'], ['auto-repair', 'Auto repair'], ['marine', 'Docks and marine'], ['salons', 'Salon or gym'], ['restaurants', 'Restaurant or shop'], ['dental', 'Dental'], ['insurance', 'Insurance']];
 // The cards lead with what no answering service does (an open day filled, a check-in, a hand-off); Max answering
 // comes after, so a phone visitor's first card is never "we pick up the phone".
-const LEAD = ['fill', 'guard', 'check', 'radar', 'handoff', 'max', 'cb', 'storm', 'ai'];
+const LEAD = ['fill', 'radar', 'guard', 'check', 'handoff', 'max', 'cb', 'storm', 'ai'];
 const rank = k => { const i = LEAD.indexOf(k); return i < 0 ? LEAD.length : i; };
 function set(key, p0, on) {
   const p = Object.assign({}, p0, { cards: p0.cards.slice().sort((a, b) => rank(a.key) - rank(b.key)) });
