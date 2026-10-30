@@ -21,7 +21,7 @@ function tradeCards(v) {
   const cards = [];
   cards.push({
     key: 'max', title: 'Max answers', tag: TAG.every, why: v.maxWhy || WHY.max, call: true,
-    intro: [['sys', v.callTime + ' · call to ' + v.biz], ['out', 'Thanks for calling ' + v.biz + '. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', v.problem]],
+    intro: [['sys', v.callTime + ' · call to ' + v.biz], ['out', 'Thanks for calling ' + v.biz + '. This is Max. How can I help?'], ['in', v.problem]],
     choices: [
       { label: v.priceLabel || 'Ask what it costs', then: [['in', v.priceQ], ['out', v.priceA], ['in', v.yes], ['note', 'On ' + v.owner + '’s phone · new job', v.job[0], v.job[1], 'ok']] },
       { label: 'Ask for a person', then: [['in', 'Can I talk to a real person?'], ['out', v.personA || ('Sure. I’m trying ' + v.owner + '’s cell now. If ' + he + ' can’t pick up, ' + he + '’ll call you back ' + (v.cbWhen || 'first thing in the morning') + '.')], ['sys', 'Ringing ' + v.owner + ' · ' + v.callTime.split(' ').slice(1).join(' ')], ['note', 'On ' + v.owner + '’s phone' + (v.urgent ? ' · urgent' : ''), v.person[0], v.person[1], v.urgent ? 'hot' : '']] }
@@ -198,7 +198,7 @@ export const PAGES = {
     cards: [
       { key: 'max', title: 'Max answers', tag: TAG.every, call: true,
         why: 'Max takes the name, number and what they need, nothing more, and never talks fees, treatment or insurance.',
-        intro: [['sys', 'Sun 9:40 PM · call to Elm Street Family Dental'], ['out', 'Thanks for calling Elm Street Family Dental. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I cracked a tooth at dinner. Can I get in tomorrow?']],
+        intro: [['sys', 'Sun 9:40 PM · call to Elm Street Family Dental'], ['out', 'Thanks for calling Elm Street Family Dental. This is Max. How can I help?'], ['in', 'I cracked a tooth at dinner. Can I get in tomorrow?']],
         choices: [
           { label: 'Ask for the first opening', then: [['in', 'Can I get the first opening?'], ['out', 'I’ll mark this urgent. The front desk will call you at 8, when the office opens. What’s the best number?'], ['in', '478-555-0142.'], ['note', 'On the front desk’s phone · urgent', 'Cracked tooth · first opening', 'Called 9:40 PM · 478-555-0142', 'hot']] },
           { label: 'Ask for a person', then: [['in', 'Can I talk to someone now?'], ['out', 'The office is closed, so I’m trying the doctor’s on-call cell now, the way the practice asked.'], ['sys', 'Ringing the on-call cell · 9:41 PM'], ['note', 'On the on-call phone · urgent', 'Cracked tooth', 'Called 9:40 PM · 478-555-0142', 'hot']] }
@@ -220,7 +220,7 @@ export const PAGES = {
     cards: [
       { key: 'max', title: 'Max takes the message', tag: TAG.every, call: true,
         why: 'Max takes a name, number and a good time to call back, and never talks policies, rates or claims.',
-        intro: [['sys', 'Tue 7:12 PM · call to Haskell Insurance'], ['out', 'Thanks for calling Haskell Insurance. I’m Max, an automated assistant, and this call may be recorded. How can I help?'], ['in', 'I’m adding my 16-year-old as a driver. Can someone call me?']],
+        intro: [['sys', 'Tue 7:12 PM · call to Haskell Insurance'], ['out', 'Thanks for calling Haskell Insurance. This is Max. How can I help?'], ['in', 'I’m adding my 16-year-old as a driver. Can someone call me?']],
         choices: [
           { label: 'Ask about the cost', then: [['in', 'How much will that add to my rate?'], ['out', 'I can’t talk about rates or coverage, but I’ll have Priya call you. Is tomorrow after 10 good?'], ['in', 'After 10 works.'], ['note', 'On Priya’s phone', 'Dana Whitfield · new driver', 'Call back tomorrow after 10 · 478-555-0142', 'ok']] },
           { label: 'Ask for a person', then: [['in', 'Can I talk to someone tonight?'], ['out', 'The office is closed, so I’ll take a message. Priya will call you first thing tomorrow.'], ['note', 'On Priya’s phone', 'Dana Whitfield · new driver', 'Call back first thing · 478-555-0142', 'ok']] }
