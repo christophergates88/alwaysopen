@@ -73,6 +73,15 @@ A 7 AM push says "all good" every morning; if it does not arrive, that is itself
 backs it up. Plain `/health` (what the outside monitor reads) only goes red for the site, the database, the keys, the
 10-minute jobs and the phone numbers; `/health?all=1` shows everything, as the ops board does.
 
+## What Max says about himself
+
+Every call opens with the disclosure in `src/disclosure.js` ("I'm an S.I. assistant, and this call may be recorded."),
+the one place that sentence lives: the line and the owner's app both read it. An owner's own greeting is played as they
+wrote it when it already says both things (an assistant of some kind, and that calls are recorded); otherwise the
+disclosure goes in after their first sentence. A greeting that says Max is not an AI, claims to be a person, or says
+calls aren't recorded is refused when saved and never played. The website, terms and privacy page describe this
+sentence: change them together.
+
 ## When Max can't take a call
 
 Every number's Twilio fallback is a voicemail served by Twilio itself (`twimlets.com`), so a caller can leave a message
