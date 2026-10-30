@@ -103,7 +103,7 @@ export async function handleMapApi(req, env, url, ctx) {
     const cf = req.cf || {};
     lat = parseFloat(cf.latitude); lng = parseFloat(cf.longitude); approx = true;
   }
-  if (!isFinite(lat) || !isFinite(lng)) return j({ ok: true, enough: false, approx: true });
+  if (!isFinite(lat) || !isFinite(lng)) return j({ ok: true, enough: false, approx: true, center: [39.5, -98.35] });
   // Round to about a quarter degree: the answer is cached per area, and nothing finer than that is ever used or kept.
   const rl = Math.round(lat * 4) / 4, rg = Math.round(lng * 4) / 4;
   const pv = url.searchParams.get('preview') || '';
@@ -112,6 +112,7 @@ export async function handleMapApi(req, env, url, ctx) {
   const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
   if (cache) { const hit = await cache.match(key); if (hit) return withApprox(hit, approx); }
   const out = await nearby(env, rl, rg);
+  out.center = [rl, rg];
   const res = j(out, 200, 600);
   if (cache && ctx && ctx.waitUntil) ctx.waitUntil(cache.put(key, res.clone()));
   return withApprox(res, approx);

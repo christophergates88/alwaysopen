@@ -120,7 +120,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
       <div class="row" id="sh-acts"></div>
     </div>
     <div class="none-real" id="nonereal" hidden><div class="neon" aria-hidden="true"><b>OPEN</b><span>24 HOURS</span></div><h2>Not open in this area yet</h2><p>The public map opens in an area once five Always Open businesses are within 50 miles. Until then nothing shows here, and nothing on this page is made up.</p></div>
-    <p class="demotag" id="demotag" hidden><b>Sample map.</b> Made-up businesses around Lake Oconee and Lake Sinclair, to show how it works. Real ones show up as they join.</p>
+    <p class="demotag" id="demotag" hidden><b>Placeholder map.</b> These are made-up businesses placed around you to show how it works. It updates live and accurate once five Always Open businesses are within 50 miles of you. Tap Near me for a closer fit.</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
@@ -158,32 +158,44 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function say(t) { $('#status').textContent = t; }
 
-  // When no area near the visitor has enough real businesses yet, the map shows these instead: made-up, labeled Sample
-  // everywhere they appear, with no phone numbers or addresses. Distances are from downtown Eatonton.
-  var HOME = [33.3268, -83.3885];
-  var SAMPLE = [
-    { id: 's1', name: 'Sample Plumbing', kind: 'Plumber', town: 'Eatonton', lat: 33.329, lng: -83.386, hours: 'Mon to Fri 7 to 6, Sat 8 to noon. Emergencies any hour.', answered: 'Answered 46 calls this month, 19 after hours' },
-    { id: 's2', name: 'Sample Agency', kind: 'Insurance agency', town: 'Monticello', lat: 33.305, lng: -83.684, hours: 'Mon to Fri 9 to 5', answered: 'Answered 22 after-hours calls this month' },
-    { id: 's3', name: 'Sample Electric', kind: 'Electrician', town: 'Eatonton', lat: 33.392, lng: -83.404, hours: 'Mon to Fri 7:30 to 5', answered: 'Answered 31 calls this month', handoff: 'Took 4 callers put through from Sample Plumbing' },
-    { id: 's4', name: 'Sample Marine', kind: 'Docks and boat repair', town: 'Lake Oconee', lat: 33.418, lng: -83.268, hours: 'Mon to Sat 8 to 5', answered: 'Answered 38 calls this month, 12 on the weekend' },
-    { id: 's5', name: 'Sample Kitchen', kind: 'Restaurant', town: 'Lake Sinclair', lat: 33.172, lng: -83.287, hours: 'Tue to Sun 11 to 9', answered: 'Answered 64 calls this month, most during the dinner rush' },
-    { id: 's6', name: 'Sample Builders', kind: 'Builder and remodeler', town: 'Greensboro', lat: 33.571, lng: -83.181, hours: 'Mon to Fri 7 to 5', answered: 'Answered 27 calls this month' },
-    { id: 's7', name: 'Sample Heating and Air', kind: 'HVAC', town: 'Madison', lat: 33.589, lng: -83.476, hours: 'Mon to Fri 7 to 6. No-heat calls any hour.', answered: 'Answered 52 calls this month, 21 after hours' },
-    { id: 's8', name: 'Sample Family Dental', kind: 'Dentist', town: 'Sparta', lat: 33.276, lng: -82.976, hours: 'Mon to Thu 8 to 5', answered: 'Took 18 messages after hours this month' },
-    { id: 's9', name: 'Sample Auto', kind: 'Auto repair', town: 'Milledgeville', lat: 33.087, lng: -83.239, hours: 'Mon to Fri 7:30 to 5:30', answered: 'Answered 40 calls this month' },
-    { id: 's10', name: 'Sample Salon', kind: 'Salon', town: 'Gray', lat: 33.009, lng: -83.534, hours: 'Tue to Sat 9 to 6', answered: 'Answered 35 calls this month, mid-appointment' }
+  // When no area near the visitor has enough real businesses yet, the map shows these placeholders instead, placed
+  // around wherever the visitor is: made-up, labeled Sample everywhere they appear, with no phone numbers or addresses.
+  var KINDS = [
+    { name: 'Sample Plumbing', kind: 'Plumber', hours: 'Mon to Fri 7 to 6, Sat 8 to noon. Emergencies any hour.', answered: 'Answered 46 calls this month, 19 after hours' },
+    { name: 'Sample Agency', kind: 'Insurance agency', hours: 'Mon to Fri 9 to 5', answered: 'Answered 22 after-hours calls this month' },
+    { name: 'Sample Electric', kind: 'Electrician', hours: 'Mon to Fri 7:30 to 5', answered: 'Answered 31 calls this month', handoff: 'Took 4 callers put through from Sample Plumbing' },
+    { name: 'Sample Heating and Air', kind: 'HVAC', hours: 'Mon to Fri 7 to 6. No-heat calls any hour.', answered: 'Answered 52 calls this month, 21 after hours' },
+    { name: 'Sample Kitchen', kind: 'Restaurant', hours: 'Tue to Sun 11 to 9', answered: 'Answered 64 calls this month, most during the dinner rush' },
+    { name: 'Sample Roofing', kind: 'Roofer', hours: 'Mon to Sat 7 to 6', answered: 'Answered 29 calls this month, 9 after a storm' },
+    { name: 'Sample Builders', kind: 'Builder and remodeler', hours: 'Mon to Fri 7 to 5', answered: 'Answered 27 calls this month' },
+    { name: 'Sample Family Dental', kind: 'Dentist', hours: 'Mon to Thu 8 to 5', answered: 'Took 18 messages after hours this month' },
+    { name: 'Sample Auto', kind: 'Auto repair', hours: 'Mon to Fri 7:30 to 5:30', answered: 'Answered 40 calls this month' },
+    { name: 'Sample Salon', kind: 'Salon', hours: 'Tue to Sat 9 to 6', answered: 'Answered 35 calls this month, mid-appointment' },
+    { name: 'Sample Lawn and Tree', kind: 'Lawn and tree service', hours: 'Mon to Sat 7 to 5', answered: 'Answered 24 calls this month' },
+    { name: 'Sample Pest Control', kind: 'Pest control', hours: 'Mon to Fri 8 to 5', answered: 'Answered 33 calls this month, 11 after hours' }
   ];
   function miles(a, b) {
     var r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
     var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
     return Math.round(3958.8 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h)) * 10) / 10;
   }
-  SAMPLE.forEach(function (b) { b.sample = true; b.miles = miles(HOME, [b.lat, b.lng]); });
-  SAMPLE.sort(function (a, b) { return a.miles - b.miles; });
+  // Scatter the placeholders 2 to 30 miles around the visitor. Seeded by the area, so the same place shows the same map.
+  function samplesAround(c) {
+    var seed = Math.abs(Math.round(c[0] * 1000) * 31 + Math.round(c[1] * 1000)) || 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var out = KINDS.map(function (k, i) {
+      var ang = (i / KINDS.length) * 2 * Math.PI + rnd() * 0.5, dist = 2 + Math.pow(rnd(), 0.8) * 28;
+      var lat = c[0] + (dist / 69) * Math.sin(ang), lng = c[1] + (dist / (69 * Math.cos(c[0] * Math.PI / 180))) * Math.cos(ang);
+      var b = Object.assign({ id: 's' + (i + 1), sample: true, town: '' }, k, { lat: lat, lng: lng });
+      b.miles = miles(c, [lat, lng]); return b;
+    });
+    return out.sort(function (a, b) { return a.miles - b.miles; });
+  }
+  var SAMPLE = [];
   var demo = false;
   function rowHtml(b, i) {
     return '<li><button class="biz" type="button" data-i="' + i + '"><b>' + esc(b.name) + (b.sample ? '<span class="smp">Sample</span>' : '') + '</b><span>' + esc([b.kind, b.town].filter(Boolean).join(' · ')) + '</span>' +
-      (b.miles != null ? '<span class="mi">' + esc(b.miles) + ' mi' + (b.sample ? ' from Eatonton' : '') + '</span>' : '') + '</button></li>';
+      (b.miles != null ? '<span class="mi">' + esc(b.miles) + ' mi' + (b.sample ? ' away' : '') + '</span>' : '') + '</button></li>';
   }
 
   var PV = (new URLSearchParams(location.search).get('preview') || '');
@@ -193,20 +205,15 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
     if (PV) q = (q || '') + (q ? '&' : '?') + 'preview=' + encodeURIComponent(PV);
     return fetch('/api/map' + (q || ''), { headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
   }
-  function show(res, precise) {
+  function show(res, precise, here) {
     if (!res || !res.ok) { say('The map didn’t load. Try again in a minute.'); return; }
     $('#q').value = ''; $('#sheet').hidden = true;
-    if (!res.enough && REAL) {
-      demo = false; all = []; data = []; $('#list').innerHTML = ''; $('#map').hidden = true; $('#demotag').hidden = true; $('#getlisted').hidden = true;
-      $('#nonereal').hidden = false; markers.forEach(function (m) { m.remove(); }); markers = [];
-      say(precise ? 'Nothing listed within 50 miles of you yet.' : 'Nothing listed near your area yet.');
-      return;
-    }
     $('#nonereal').hidden = true;
     demo = !res.enough;
+    if (demo) SAMPLE = samplesAround(here || res.center || [39.5, -98.35]);
     all = demo ? SAMPLE.slice() : (res.businesses || []); data = all.slice();
     $('#demotag').hidden = !demo; $('#getlisted').hidden = !demo; $('#map').hidden = false; $('.mapwrap').classList.remove('empty');
-    if (demo) say((precise ? 'Nothing listed within 50 miles of you yet' : 'Nothing listed near your area yet') + ', so here is a sample: ' + data.length + ' made-up businesses around Lake Oconee and Lake Sinclair, closest first.');
+    if (demo) say('Placeholder map: ' + data.length + ' made-up businesses placed around ' + (precise ? 'you' : 'your area') + '. It updates live and accurate once five Always Open businesses are within 50 miles of you.');
     else say(res.preview ? 'Preview: every listed business, closest first. The public only sees an area once five are within 50 miles.' : data.length + (data.length === 1 ? ' business' : ' businesses') + ' within ' + res.radius + ' miles' + (precise ? ' of you' : ' of your area') + ', closest first.');
     $('#list').innerHTML = data.map(rowHtml).join('');
     draw();
@@ -265,7 +272,7 @@ h1{font:850 clamp(1.9rem,4vw,2.4rem)/1.05 var(--display);font-stretch:88%;margin
     btn.disabled = true; say('Asking your browser for your location…');
     navigator.geolocation.getCurrentPosition(function (p) {
       var q = '?lat=' + p.coords.latitude.toFixed(3) + '&lng=' + p.coords.longitude.toFixed(3);
-      load(q).then(function (r) { btn.disabled = false; show(r, true); });
+      load(q).then(function (r) { btn.disabled = false; show(r, true, [p.coords.latitude, p.coords.longitude]); });
     }, function () { btn.disabled = false; say('No location shared. The list uses your general area instead.'); }, { maximumAge: 600000, timeout: 15000 });
   }
   $('#q').addEventListener('input', suggest);
