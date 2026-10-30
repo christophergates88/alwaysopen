@@ -57,7 +57,7 @@ const PER_CALLER_HOUR = 5;       // more than this from one number in an hour ge
 const PER_LINE_DAY = 80;         // the most AI calls one line takes in a day
 // What every caller hears first, whatever greeting the owner set: Max is an S.I. and the call may be recorded. The one
 // place this sentence lives; the owner's greeting can't remove it or say otherwise (greetingOk).
-import { DISCLOSURE } from './disclosure.js';
+import { DISCLOSURE, contradicts, withDisclosure } from './disclosure.js';
 export { DISCLOSURE };
 const SID_RE = /^CA[0-9a-f]{32}$/;
 const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
@@ -231,7 +231,10 @@ async function whisper(env, url) {
   const sid = url.searchParams.get('c') || '';
   const row = SID_RE.test(sid) ? await env.DB.prepare('SELECT caller_name, reason FROM app_calls WHERE id = ?1').bind(sid).first() : null;
   const who = row && row.caller_name ? row.caller_name : 'a caller';
-  return twiml(say('Always Open call from ' + who + (row && row.reason ? ', about ' + row.reason : '') + '. Connecting you now.'));
+  // The note is written after the dial now, so while the owner's phone rings the reason comes from the call itself.
+  let about = row && row.reason ? ', about ' + row.reason : '';
+  if (!about && SID_RE.test(sid) && env.CALLROOM) { try { const b = await env.CALLROOM.get(env.CALLROOM.idFromName(sid)).brief(); if (b) about = '. They said: ' + b; } catch (e) { /* the name alone */ } }
+  return twiml(say('Always Open call from ' + who + about + '. Connecting you now.'));
 }
 
 async function afterDial(env, ctx, f) {
@@ -298,6 +301,13 @@ export class CallRoom extends DurableObject {
   async rehearse() { return rehearse(this.env); }
 
   async load() { return (await this.ctx.storage.get('s')) || null; }
+  // What the caller first said that has some substance (four words or more), for the owner's whisper on a transfer.
+  async brief() {
+    const s = await this.load();
+    const said = ((s && s.msgs) || []).filter(m => m.r === 'u').map(m => String(m.t || '').replace(/\s+/g, ' ').trim());
+    const first = said.find(t => t.split(' ').length >= 4) || said[0] || '';
+    return first.split(' ').slice(0, 16).join(' ').replace(/[<>&]/g, '');
+  }
   async keep(s) { await this.ctx.storage.put('s', s); this.snapshot(s); }
   // A small live snapshot for the owner's app (the pulsing card on Today): the last thing heard and said, a few times a
   // call at most. Fire and forget; the call never waits on it.
@@ -773,8 +783,9 @@ export class CallRoom extends DurableObject {
     // Keep only what the caller heard of the reply they talked over.
     const i = hit ? (lastA > lastU ? lastA : -1) : (L ? lastBefore(s.msgs, 'a', lastU) : lastA);
     if (i >= 0) s.msgs[i].t = cutText(s.msgs[i].lead, u, s.msgs[i].t);
-    // A transfer or an end of call is only ever set once the line saying it was fully written ("One moment, let me reach
-    // him."): talking over it does not undo it. (An answer cut off while still being written never sets either.)
+    // A transfer is only ever set once the line saying it was fully written ("One moment, let me reach him."): talking over
+    // it does not undo it. A goodbye is different: a caller who talks over it ("wait, my number changed") keeps the call.
+    if (!s.transfer && !s.handoff) s.endAt = 0;
     s.last = Date.now();
     await this.keep(s);
   }
@@ -975,7 +986,7 @@ async function writeUp(env, sid, s, why) {
       : notPickedUp ? 'They asked to be put through, and nobody picked up. Call them back.' : 'They hung up before leaving a message.');
   const transcript = JSON.stringify(msgs.slice(0, 80).map(x => ({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) }))).slice(0, 24000);
   if (s && s.lat && s.lat.length) await vlog(env, 'latency', JSON.stringify({ sid, model: (s && s.model) || '', firstWordMs: s.lat }));
-  await env.DB.prepare('UPDATE app_calls SET caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
+  await env.DB.prepare('UPDATE app_calls SET transferred = CASE WHEN transferred = 2 THEN 0 ELSE transferred END, caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
       summary, transcript, (s && s.lang) || 'en-US', heard, relay, aiIn, aiOut, model, outcome, sid).run();
   env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
@@ -1093,35 +1104,6 @@ function greeting(line) {
 }
 // What an owner's greeting (or the lines said after it) may not say: that this is not an AI or not automated, that it is
 // a person, or that calls are not recorded. Such a greeting is not used; the standard one is.
-const DENY_AI = /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/;
-const DENY_WORDS = /\b(?:no|not|never|nothing|isn['’]?t|ain['’]?t|aren['’]?t|without|won['’]?t be|will not be|don['’]?t|do not|doesn['’]?t|does not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:robots?|bots?|machines?|computers?|automated|automation|automatic|artificial|recorded|recording|recordings|record)\b|\b(?:robots?|machines?|computers?)\s+(?:could|can|will|would)\s+never\b/i;
-const CLAIMS_HUMAN = /\b(?:real|live|actual)\s+(?:person|human|people|receptionist)\b|\b(?:a|an)\s+human\b|\bhuman being\b|\bI['’]?m\s+(?:a\s+)?(?:person|human)\b|\bI am\s+(?:a\s+)?(?:person|human)\b|\b(?:at|from|on) the front desk\b/i;
-function contradicts(t) { t = String(t || ''); return DENY_AI.test(t) || DENY_WORDS.test(t) || CLAIMS_HUMAN.test(t); }
-// The owner's greeting with the disclosure put in: after its first sentence (before it, if it is one question). Their own
-// sentences about being an AI or being recorded give way to it, so callers hear it once.
-const NOT_DISC = /\b(?:thank|thanks|calling|welcome|hello|hi|hey|help)\b/i;
-function withDisclosure(t) {
-  const n = x => String(x).replace(/[’‘]/g, '\'').toLowerCase();
-  if (n(t).indexOf(n(DISCLOSURE)) > -1) return t;
-  // what the app added to greetings before (it becomes the one disclosure)
-  const legacy = /\s*I['’]m an S\.I\.,?(?: assistant,?)? and this call may be recorded\./i;
-  if (legacy.test(t)) return (t.replace(legacy, ' ' + DISCLOSURE)).trim();
-  const parts = t.replace(/\b([AS])\.I\./g, '$1\u0001I\u0001').split(/(?<=[.!?]["'”’)]*)\s+/).map(x => x.replace(/\u0001/g, '.')).filter(x => x.trim());
-  const keep = []; let at = -1, name = '';
-  for (const p of parts) {
-    const aboutIt = /\b(?:AI|A\.I\.|S\.I\.)(?![\w])|\b(?:automated|virtual|digital)\s+(?:assistant|receptionist|agent)\b|\bartificial intelligence\b/i.test(p) || /\brecord(?:ed|ing|s)?\b/i.test(p);
-    if (aboutIt && !NOT_DISC.test(p) && p.split(/\s+/).length <= 14) {
-      if (at < 0) at = keep.length;
-      const m = /^(?:I['’]m|I am|this is|This is)\s+([A-Z][a-z'’-]{1,20})\b/.exec(p);
-      if (m && !/^(?:An?|The|Your|Our)$/.test(m[1]) && !name) name = m[1];
-      continue;
-    }
-    keep.push(p);
-  }
-  if (at < 0) at = keep.length >= 2 ? 1 : (keep.length === 1 && /\?["'”’)]*$/.test(keep[0]) ? 0 : keep.length);
-  keep.splice(at, 0, (name ? 'This is ' + name + '. ' : '') + DISCLOSURE);
-  return keep.join(' ');
-}
 // A line with its own greeting may add a second, lighter line right after the disclosure ("Yep, I said that part fast...").
 // The disclosure itself can't be talked over; this part can, and it's skipped if the caller has already started talking.
 function greetingMore(line) {
@@ -1540,9 +1522,9 @@ const UPSET = /\b(ridiculous|unacceptable|furious|pissed( off)?|fed up|third tim
 // when its note says spam.
 const ROBO_SURE = /\b(press (one|1|two|2|nine|9) (to|now|for)|this is (a|an) (recorded|automated|pre-?recorded) (message|call)|to be removed from (our|this|the) (call(ing)?|contact|mailing) list|(your|the) (google (business )?|business )(listing|profile) (is|will be) (about to be |going to be )?(suspended|removed|deleted|deactivated|unverified)( today| soon)?\b)/i;
 const ROBO_HINTS = [
-  /\bextended (auto |car |vehicle )?warranty\b|\b(car|vehicle|auto)['’]?s? (factory )?warranty\b/i,
+  /\bextended (auto|car|vehicle) warranty\b|\b(auto|vehicle) (service|protection) (plan|contract)\b/i,   // the pitch, not "my car's warranty"
   /\b(we('re| are)|i('m| am)|this is \w+ )\s*calling (you )?(about|regarding|in regards to|to (let you know|inform you)) your\b/i,
-  /\b(final|last|second) (notice|attempt)\b/i,
+  /\b(final|last) attempt to (reach|contact) you\b/i,   // the pitch; "a second notice from the dealer" is a customer
   /\bbusiness (loan|funding|line of credit|cash advance)\b|\bworking capital\b/i,
   /\bmerchant (services|processing|account)\b|\bcredit card processing\b/i,
   /\b(lower|cut|reduce) your (processing|rates|fees|bills?|costs?)\b|\bsave you (money|thousands)\b/i,

@@ -182,10 +182,10 @@ export async function fillCron(env, at) {
   await (await import('./gcal.js')).ensureGcal(env);
   const rows = ((await env.DB.prepare("SELECT c.*, g.tz AS fill_tz FROM fillweek f JOIN app_clients c ON c.client_id = f.client_id LEFT JOIN gcal_tokens g ON g.client_id = f.client_id WHERE f.on_ = 1 AND c.active = 1 AND c.regulated = 0 AND NOT EXISTS (SELECT 1 FROM fillweek_runs r WHERE r.client_id = f.client_id AND r.created > ?1) AND NOT EXISTS (SELECT 1 FROM fillweek_tries t WHERE t.client_id = f.client_id AND t.at > ?2)")
     .bind(new Date(now - RUN_GAP_DAYS * 864e5).toISOString(), new Date(now - TRY_GAP_MS).toISOString()).all()).results) || [];
-  const { local } = await import('./callbacks.js');
+  const { local, zoneOk, tzFor } = await import('./callbacks.js');
   let ran = 0, tried = 0;
   for (const c of rows) {
-    const l = local(c.fill_tz || 'America/New_York', now);   // the same zone tzFor gives: the calendar's, else Eastern
+    const l = local(zoneOk(c.fill_tz) ? c.fill_tz : await tzFor(env, c.client_id), now);   // the same zone as everything else
     if (l.hour < 10 || l.hour >= 11 || l.wd === 'Sat' || l.wd === 'Sun') continue;
     if (tried >= RUNS_PER_PASS) break;   // the rest get the next pass, ten minutes on
     tried++;

@@ -70,7 +70,7 @@ export function analyze(raw, ctx) {
     if (l.wd === 'Sat' || l.wd === 'Sun') weekend++;
     if (/^es/i.test(c.lang || '')) spanish++;
     if (/urgent|emergency|high/i.test(c.urgency || '')) urgent++;
-    if (+c.transferred) transferred++;
+    if (+c.transferred === 1) transferred++;   // 2 is a dial that was still ringing
     if (+c.seconds > 0) secs.push(+c.seconds);
     const isBooked = booked.has(String(c.id));
     if (isBooked) nBooked++;

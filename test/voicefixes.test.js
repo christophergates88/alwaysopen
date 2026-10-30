@@ -288,9 +288,13 @@ test('7. the disclosure is always Max\'s own sentence; a greeting that contradic
   const own = V.greetingText('Bob\'s Plumbing', false, 'Thanks for calling Bob\'s Plumbing. How can I help today?');
   assert.equal(own, 'Thanks for calling Bob\'s Plumbing. ' + V.DISCLOSURE + ' How can I help today?', 'added by Max, after the first sentence');
   assert.equal(V.greetingText('X', false, 'Thanks for calling Bob\'s, what can I do for you?'), V.DISCLOSURE + ' Thanks for calling Bob\'s, what can I do for you?');
-  // their own AI and recording sentences give way to it (said once); the app's old added sentence becomes it
+  // their own words that already say both things play as written (nothing of theirs is cut: the business name lives
+  // there); the app's old added sentence becomes the disclosure
   const theirs = V.greetingText('X', false, 'Thanks for calling Lake Country Foam Party! I\'m Max, an S.I., and this call may be recorded. What can I do for you?');
-  assert.equal(theirs, 'Thanks for calling Lake Country Foam Party! This is Max. ' + V.DISCLOSURE + ' What can I do for you?');
+  assert.equal(theirs, 'Thanks for calling Lake Country Foam Party! I\'m Max, an S.I., and this call may be recorded. What can I do for you?');
+  assert.equal(V.greetingText('X', false, 'You\'ve reached Quillen Plumbing\'s AI assistant, and this call may be recorded. How can I help?'), 'You\'ve reached Quillen Plumbing\'s AI assistant, and this call may be recorded. How can I help?', 'the business name stays');
+  assert.equal(V.greetingText('X', false, 'This is Max with Quillen Plumbing, your virtual assistant. How can I help?'), 'This is Max with Quillen Plumbing, your virtual assistant. ' + V.DISCLOSURE + ' How can I help?', 'recording not said: the disclosure goes in, nothing comes out');
+  assert.equal(V.greetingOk('Thanks for calling Quillen Plumbing! Press 0 to reach a real person.'), true, 'reaching a person is not claiming to be one');
   assert.equal(V.greetingText('X', false, 'Hey there, Bob\'s Plumbing! I’m an S.I., and this call may be recorded.'), 'Hey there, Bob\'s Plumbing! ' + V.DISCLOSURE);
   const es = V.greetingText('X', true, 'Thanks for calling Bob\'s Plumbing. SI, hablamos espanol. This call is recorded.');
   assert.equal(once(es), 1); assert.match(es, /SI, hablamos espanol\./); assert.match(es, /Para español, oprima dos\.$/);
@@ -499,7 +503,7 @@ test('15. a write-up that fails keeps the call for a retry; once saved, the call
   w.world.aiScript = ['Got it. What is your name? '];
   await w.say(x, 'My water heater is leaking.');
   const prepare = w.DB.prepare; let failed = 0;
-  w.DB.prepare = sql => { if (/^UPDATE app_calls SET caller_name/.test(sql) && !failed) { failed++; throw new Error('D1 is down'); } return prepare.call(w.DB, sql); };
+  w.DB.prepare = sql => { if (/^UPDATE app_calls SET (?:transferred = CASE[^,]*, )?caller_name/.test(sql) && !failed) { failed++; throw new Error('D1 is down'); } return prepare.call(w.DB, sql); };
   await assert.rejects(() => x.room.finalize(sid, 'ended'));
   w.DB.prepare = prepare;
   let st = x.store.get('s');

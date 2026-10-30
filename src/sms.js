@@ -10,9 +10,13 @@ const TWILIO = 'https://api.twilio.com/2010-04-01/Accounts/';
 const STOP_WORDS = new Set(['stop', 'stopall', 'stop all', 'unsubscribe', 'cancel', 'end', 'quit', 'revoke', 'optout', 'opt out', 'opt-out', 'stop texting me', "don't text me", 'dont text me', 'do not text me', 'remove me']);
 const START_WORDS = new Set(['start', 'unstop', 'yes']);   // only for a number that opted out
 const HELP_WORDS = new Set(['help', 'info']);
+// Someone saying in plain words to stop texting them, anywhere in the text, is an opt-out too ("Please stop texting me",
+// "Remove me from your list"). "Stop by after 3" and "cancel my appointment" are not.
+const STOP_SAID = /\b(?:stop|quit) (?:texting|messaging|sending (?:me )?(?:texts|messages))\b|\b(?:don'?t|do not|never) (?:text|message) me\b|\b(?:remove|take) me (?:off|from) (?:your|the|this) (?:list|texts|text list|messages)\b|\bunsubscribe me\b|\bno more (?:texts|messages)\b/i;
 export function keywordOf(body) {
   const w = String(body || '').replace(/[‘’]/g, "'").trim().toLowerCase().replace(/[\s.!]+$/, '').replace(/\s+/g, ' ');
-  return STOP_WORDS.has(w) ? 'stop' : (START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : ''));
+  if (STOP_WORDS.has(w) || STOP_SAID.test(w)) return 'stop';
+  return START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : '');
 }
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
 const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops']);   // 'ops': only ever to Christopher; push.js decides the hour

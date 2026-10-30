@@ -68,11 +68,22 @@ const rnd = (n, abc) => { abc = abc || 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopq
 const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 14).replace(/-+$/, '') || 'client';
 async function sha256hex(s) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join(''); }
 
+// A billing row whose app row never got written (the request failed between the two): finished here, so a paid signup
+// is never left without an app or a line. Otherwise returns the row as it is.
+async function finishIfMissing(env, got, h) {
+  if (!got || await env.DB.prepare('SELECT 1 AS x FROM app_clients WHERE client_id = ?1').bind(got.client_id).first()) return got;
+  await env.DB.prepare("INSERT OR IGNORE INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
+    .bind(got.client_id, await sha256hex(got.code), got.ref, got.business || '', String(got.owner || '').split(' ')[0], REGULATED.indexOf(got.type) > -1 ? 1 : 0, got.phone || '', got.plan, new Date().toISOString(), 'calls').run();
+  try { await queueLine(env, got.client_id); if (h && h.later) h.later(provisionLine(env, got.client_id).catch(() => {})); } catch (e) { /* the timer picks it up */ }
+  if (h && h.notify) await h.notify('New signup: ' + (got.business || 'a business'), got.plan + ' plan. Their app is live and Max’s line is being set up on its own.');
+  return got;
+}
+
 // A paid checkout becomes a client with a private app link, right away. Safe to call twice (webhook and welcome page).
 export async function createFromSession(env, s, h) {
   await ensureBilling(env);
   const have = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
-  if (have) return have;
+  if (have) return finishIfMissing(env, have, h);
   const m = s.metadata || {};
   const email = s.customer_email || (s.customer_details && s.customer_details.email) || '';
   // Only the website's own checkout (/start) carries the plan and business. A payment through a Stripe Payment Link (sent
@@ -91,7 +102,7 @@ export async function createFromSession(env, s, h) {
   // together, and only one of them may make the client and buy the number.
   const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
     .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', email, m.phone || '', m.town || '', m.type || '', code, ref, now).run();
-  if (!(ins.meta && ins.meta.changes)) return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  if (!(ins.meta && ins.meta.changes)) return finishIfMissing(env, await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first(), h);
   await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
   try { await noteSignup(env, { clientId: cid, ref: m.ref, email, phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }

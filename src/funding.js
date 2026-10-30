@@ -150,7 +150,7 @@ export async function fundingCron(env) {
   const c = await claudeHourly(env);
   const hb = await checkHeartbeat(env).catch(() => null);
   for (const r of renewalsDue(env.RENEWALS, Date.now())) {
-    await fundAlert(env, 'renew:' + r.name + ':' + r.bucket, r.days <= 1 ? 'urgent' : 'warn', 'Always Open: ' + r.name + ' renews ' + (r.days <= 1 ? 'tomorrow' : 'in ' + r.days + ' days'),
+    await fundAlert(env, 'renew:' + r.name + ':' + r.date + ':' + r.bucket, r.days <= 1 ? 'urgent' : 'warn', 'Always Open: ' + r.name + ' renews ' + (r.days <= 1 ? 'tomorrow' : 'in ' + r.days + ' days'),
       r.name + ' renews on ' + r.date + '. Make sure the card on file works, or service stops.', { once: true });
   }
   return { twilio: t, claude: c, check: hb };

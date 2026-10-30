@@ -4,7 +4,7 @@
 // and reads back approvals, messages, finished jobs and photos. Approvals ping Christopher's phone right away (ntfy).
 // Every 10 minutes the cron sends iPhone notifications for new drafts and new replies from Always Open (when APNs is set up).
 import { opsAlert } from './ops.js';
-import { DISCLOSURE } from './disclosure.js';
+import { DISCLOSURE, contradicts } from './disclosure.js';
 import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
 import { billingPage } from './billing.js';
@@ -533,12 +533,7 @@ function fmtNum(e) { return /^\+1\d{10}$/.test(e || '') ? '(' + e.slice(2, 5) + 
 // are not recorded ("this is Sarah, no AI here" is refused).
 function greetOk(g) {
   const t = oneLine(String(g || ''));
-  const denies = [
-    /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/,
-    /\b(?:no|not|never|nothing|isn['’]?t|ain['’]?t|aren['’]?t|without|won['’]?t be|will not be|don['’]?t|do not|doesn['’]?t|does not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:robots?|bots?|machines?|computers?|automated|automation|automatic|artificial|recorded|recording|recordings|record)\b|\b(?:robots?|machines?|computers?)\s+(?:could|can|will|would)\s+never\b/i,
-    /\b(?:real|live|actual)\s+(?:person|human|people|receptionist)\b|\b(?:a|an)\s+human\b|\bhuman being\b|\bI['’]?m\s+(?:a\s+)?(?:person|human)\b|\bI am\s+(?:a\s+)?(?:person|human)\b|\b(?:at|from|on) the front desk\b/i
-  ];
-  return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !denies.some(re => re.test(t));
+  return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !contradicts(t);
 }
 // Why a greeting was refused, in words the owner can act on.
 function greetWhy(g) {
