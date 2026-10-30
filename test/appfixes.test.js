@@ -174,15 +174,20 @@ test('6. notifications go only to phones whose link still works, and never for a
   await site.call('/app/' + STAFF + '/api/device', { json: { token: 'b'.repeat(64) } });
   await site.call('/app/' + STAFF + '/api/device', { json: { token: 'c'.repeat(64), live: 'start' } });
   await q("INSERT INTO app_devices (token, client_id, platform, env, created, last_seen) VALUES (?1, 'c1', 'ios', 'production', 'x', 'x')", 'd'.repeat(64));   // from before: no link
-  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 2, 'the owner and the staff member');
+  // A phone from before links were recorded keeps its pushes while the client is on (the iPhone app only re-sends its
+  // token when linked), until it registers again and is held to its link like the rest.
+  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 3, 'the owner, the staff member and the older phone');
   assert.equal(await APP.liveCallStart(env, 'c1', 'CA1', 'Sinclair', ''), 1);
   await q('DELETE FROM app_staff WHERE code_hash = ?1', sha(STAFF));   // HQ removes Jake
-  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 1, 'removed staff get nothing');
+  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 2, 'removed staff get nothing');
   assert.equal(await APP.liveCallStart(env, 'c1', 'CA2', 'Sinclair', ''), 0);
   await q("UPDATE app_clients SET code_hash = 'replaced' WHERE client_id = 'c1'");   // a leaked code replaced
-  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 0, 'the old link gets nothing');
+  assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 1, 'the old link gets nothing (only the older phone, until it registers again)');
   await q("UPDATE app_clients SET code_hash = ?1, active = 0 WHERE client_id = 'c1'", sha(OWNER));
   assert.equal(await APP.pushClient(env, 'c1', { aps: { alert: 'x' } }), 0, 'a client that is off gets nothing');
+  await q("UPDATE app_clients SET active = 1 WHERE client_id = 'c1'");
+  await site.call('/app/' + OWNER + '/api/device', { json: { token: 'd'.repeat(64) } });
+  assert.equal((await env.DB.prepare('SELECT code_hash FROM app_devices WHERE token = ?1').bind('d'.repeat(64)).first()).code_hash, sha(OWNER), 'registering again records the link');
 });
 
 // ---------- 7. staff names ----------

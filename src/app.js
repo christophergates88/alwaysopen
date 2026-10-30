@@ -1116,7 +1116,10 @@ async function ensureDeviceLinks(env) {
   for (const t of ['app_devices', 'app_live']) { try { await env.DB.prepare('ALTER TABLE ' + t + " ADD COLUMN code_hash TEXT DEFAULT ''").run(); } catch (e) { /* already there */ } }
   devReady.add(env.DB);
 }
-const LINK_OK = "d.code_hash != '' AND c.active = 1 AND (d.code_hash = c.code_hash" +
+// A phone registered before links were recorded (code_hash '') keeps getting pushes while the client is active, as it
+// always did: the iPhone app only sends its token again when it is linked, so cutting those off would silently stop
+// every existing owner's pushes. Each new registration records its link and is held to it.
+const LINK_OK = "c.active = 1 AND (COALESCE(d.code_hash, '') = '' OR d.code_hash = c.code_hash" +
   ' OR EXISTS (SELECT 1 FROM app_staff s WHERE s.code_hash = d.code_hash AND s.client_id = d.client_id)' +
   ' OR EXISTS (SELECT 1 FROM app_clients o JOIN app_locations lo ON lo.client_id = o.client_id JOIN app_locations ld ON ld.group_id = lo.group_id WHERE o.code_hash = d.code_hash AND o.active = 1 AND ld.client_id = d.client_id))';
 async function devicesFor(env, cid) {
