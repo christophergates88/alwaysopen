@@ -217,7 +217,8 @@ export async function payingServed(env, now, h) {
   const notes = [], fixed = [];
   for (const r of rows) {
     let st = '';
-    try { st = String((await stripe(env, 'GET', 'subscriptions/' + r.sub)).status || ''); } catch (e) { st = e && e.status === 404 ? 'canceled' : ''; }
+    // Our own reading of Stripe's status: a pause or a cancellation at the period's end reads "active" there.
+    try { st = String((await import('./billing.js')).statusOf(await stripe(env, 'GET', 'subscriptions/' + r.sub)) || ''); } catch (e) { st = e && e.status === 404 ? 'canceled' : ''; }
     if (!st) continue;
     if (st !== r.status) await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(st, new Date(now).toISOString(), r.client_id).run();
     const biz = r.business || r.client_id;

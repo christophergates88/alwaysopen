@@ -65,19 +65,27 @@ export async function minutesCron(env, now, h) {
   }
   // The 2nd of the month: last month's overage, once, on the next invoice.
   if (new Date(now).getUTCDate() >= 2) {
-    const last = monthKey(Date.parse(monthRange(key).from) - DAY);
-    for (const c of clients) {
+    const last = monthKey(Date.parse(monthRange(key).from) - DAY), lr = monthRange(last);
+    // Everyone Max answered for last month, including a client who has since ended or paused.
+    const billed = ((await env.DB.prepare("SELECT DISTINCT a.client_id, c.business FROM app_calls a JOIN app_clients c ON c.client_id = a.client_id WHERE a.at >= ?1 AND a.at < ?2 AND a.test = 0 AND a.client_id NOT IN ('demo-plumbing', 'always-open')").bind(lr.from, lr.to).all()).results) || [];
+    for (const c of billed) {
       const done = await env.DB.prepare('SELECT invoiced FROM minute_overage WHERE client_id = ?1 AND month = ?2').bind(c.client_id, last).first();
       if (done && done.invoiced) continue;
       const u = await usedMinutes(env, c.client_id, last), included = await includedFor(env, c.client_id);
       const over = Math.max(0, u.minutes - included), cents = over * OVER_CENTS_PER_MIN;
       let item = '';
       if (over > 0 && stripe) {
-        const b = await env.DB.prepare('SELECT customer FROM billing WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
+        const b = await env.DB.prepare('SELECT customer, status FROM billing WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
         if (b && b.customer) {
           try {
-            const r = await stripe(env, 'POST', 'invoiceitems', { customer: b.customer, amount: cents, currency: 'usd', description: 'Max minutes past ' + included + ' in ' + last + ': ' + over + ' minutes at 25¢' });
+            const idem = 'overage-' + c.client_id + '-' + last;
+            const r = await stripe(env, 'POST', 'invoiceitems', { customer: b.customer, amount: cents, currency: 'usd', description: 'Max minutes past ' + included + ' in ' + last + ': ' + over + ' minutes at 25¢' }, idem);
             item = r && r.id ? r.id : '';
+            // No next invoice is coming for a client who ended, is ending or is paused: bill it now on its own.
+            if (/^(canceled|canceling|paused)$/.test(b.status || '')) {
+              const inv = await stripe(env, 'POST', 'invoices', { customer: b.customer, auto_advance: 'true', collection_method: 'charge_automatically', pending_invoice_items_behavior: 'include', description: 'Max minutes in ' + last }, idem + '-invoice');
+              if (inv && inv.id) await stripe(env, 'POST', 'invoices/' + inv.id + '/finalize', {}, idem + '-finalize');
+            }
           } catch (e) { await alert('minutes-invoice', c.client_id, 'Could not add ' + over + ' overage minutes for ' + (c.business || c.client_id) + ' to their Stripe invoice: ' + String((e && e.message) || e).slice(0, 120)); continue; }
         } else {
           item = 'manual';

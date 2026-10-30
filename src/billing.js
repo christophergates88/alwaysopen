@@ -36,11 +36,10 @@ function form(obj, prefix, out) {
   }
   return out.join('&');
 }
-export async function stripe(env, method, path, body) {
-  const r = await fetch('https://api.stripe.com/v1/' + path, {
-    method, headers: { Authorization: 'Bearer ' + env.STRIPE_KEY, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' },
-    body: body ? form(body) : undefined
-  });
+export async function stripe(env, method, path, body, idem) {
+  const headers = { Authorization: 'Bearer ' + env.STRIPE_KEY, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' };
+  if (idem) headers['Idempotency-Key'] = idem;   // a retry after a timeout can't charge twice
+  const r = await fetch('https://api.stripe.com/v1/' + path, { method, headers, body: body ? form(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Stripe ' + r.status)); e.status = r.status; throw e; }
   return j;
@@ -75,18 +74,27 @@ export async function createFromSession(env, s, h) {
   const have = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
   if (have) return have;
   const m = s.metadata || {};
-  const plan = PLANS[m.plan] ? m.plan : 'Starter';
+  const email = s.customer_email || (s.customer_details && s.customer_details.email) || '';
+  // Only the website's own checkout (/start) carries the plan and business. A payment through a Stripe Payment Link (sent
+  // by hand) has neither: it is never made into a client or a phone line on its own; Christopher sets it up in HQ.
+  if (!PLANS[m.plan]) {
+    const known = email ? await env.DB.prepare('SELECT business FROM billing WHERE lower(email) = lower(?1)').bind(email).first().catch(() => null) : null;
+    if (h && h.notify) await h.notify('Payment Link payment: ' + (email || 'no email'), '$' + ((+s.amount_total || 0) / 100).toFixed(2) + ' through a Stripe Payment Link. Nothing was set up on its own: add them in Always Open HQ, or send them alwaysopenoffice.com/start instead.' + (known ? ' Careful: ' + (known.business || 'a client') + ' already pays with this email, so this may be a second subscription.' : ''), 'high');
+    return null;
+  }
+  const plan = m.plan;
   const cid = 'c-' + rnd(10, 'abcdefghjkmnpqrstuvwxyz23456789');
   const code = rnd(32), ref = slug(m.business) + '-' + rnd(4, 'abcdefghjkmnpqrstuvwxyz23456789');
   const now = new Date().toISOString();
   const reg = REGULATED.indexOf(m.type) > -1 ? 1 : 0;
-  await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
-      .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', s.customer_email || (s.customer_details && s.customer_details.email) || '', m.phone || '', m.town || '', m.type || '', code, ref, now),
-    env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
-      .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls')
-  ]);
-  try { await noteSignup(env, { clientId: cid, ref: m.ref, email: s.customer_email || (s.customer_details && s.customer_details.email) || '', phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
+  // The billing row first, and only the request that wrote it goes on: the webhook and the welcome page often arrive
+  // together, and only one of them may make the client and buy the number.
+  const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
+    .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', email, m.phone || '', m.town || '', m.type || '', code, ref, now).run();
+  if (!(ins.meta && ins.meta.changes)) return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
+    .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
+  try { await noteSignup(env, { clientId: cid, ref: m.ref, email, phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
   // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
   try { await queueLine(env, cid); if (h && h.later) h.later(provisionLine(env, cid).catch(() => {})); } catch (e) { /* the timer picks it up */ }
   if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live and Max’s line is being set up on its own.');
@@ -168,6 +176,7 @@ async function welcome(env, url, h) {
   try { s = await stripe(env, 'GET', 'checkout/sessions/' + id); } catch (e) { if (e && (e.status === 404 || e.status === 400)) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404); return page('Welcome', '<h1>Almost there.</h1><p class="sub">We could not confirm the payment yet. Refresh this page in a minute.</p>', 502); }
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
+  if (!b) return page('Welcome', '<h1>Thank you.</h1><p class="sub">Your payment went through. Katie will be in touch today to set everything up. Questions? Email hello@alwaysopenoffice.com or call (706) 460-2226.</p>');
   const link = SITE + '/app/' + b.code;
   // Max's number, bought just now (or a moment ago by the webhook). Wait a few seconds for it, never longer.
   let line = null;
@@ -198,13 +207,20 @@ ${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p
 <div class="card"><h2>What happens next</h2><p>Once you invite us to your Google profile (above), a reply to each new review shows up in the app for your OK. Questions? Message us from Ask us in the app.</p></div>`);
 }
 
+// The free month's pause: once in any 12 months, and not while paused or ending.
+async function canPause(env, b) {
+  if (b.status === 'paused' || b.status === 'canceling' || b.status === 'canceled') return false;
+  const last = await env.DB.prepare('SELECT v FROM billing_config WHERE k = ?1').bind('paused:' + b.client_id).first().catch(() => null);
+  return !(last && Date.now() - Date.parse(last.v) < 365 * 864e5);
+}
+
 // ---------- client billing page (from the app) ----------
 export async function billingPage(env, c, base, req, url, h) {
   await ensureBilling(env);
   const b = await env.DB.prepare('SELECT * FROM billing WHERE client_id = ?1').bind(c.client_id).first();
   if (!b || !b.sub) return page('Your plan', '<h1>Your plan</h1><p class="sub">Your billing is handled directly with us. To change or cancel, message us in Ask us or email hello@alwaysopenoffice.com.</p><div class="acts"><a class="btn line" href="' + esc(base) + '">Back to the app</a></div>');
   const step = url.searchParams.get('step') || '';
-  let note = url.searchParams.get('done') ? '<p class="ok">' + esc({ paused: 'Paused. Your next month is free and nothing else changes.', resumed: 'Welcome back. Billing picks up on your next date.', changed: 'Done. Your new plan starts now; the difference is prorated.', canceled: 'Your plan ends at the end of this billing month. You can undo that here until then.', undone: 'Cancellation undone. Nothing changes.' }[url.searchParams.get('done')] || '') + '</p>' : '';
+  let note = url.searchParams.get('done') ? '<p class="ok">' + esc({ paused: 'Paused. Your next month is free and nothing else changes.', resumed: 'Welcome back. Billing picks up on your next date.', changed: 'Done. Your new plan starts now. The difference for the rest of this month was charged, or credited to your next bill.', canceled: 'Your plan ends at the end of this billing month. You can undo that here until then.', undone: 'Cancellation undone. Nothing changes.' }[url.searchParams.get('done')] || '') + '</p>' : '';
   if (req.method === 'POST') {
     const f = await req.formData(), a = String(f.get('a') || '');
     try {
@@ -214,9 +230,14 @@ export async function billingPage(env, c, base, req, url, h) {
         return Response.redirect(ps.url, 303);
       }
       if (a === 'pause') {
+        // One free month a year: the offer on the cancel screen, not a way to stop paying for good.
+        if (!(await canPause(env, b))) return Response.redirect(SITE + base + '/billing', 303);
         const until = Math.floor(Date.now() / 1000) + 31 * 86400;
         await stripe(env, 'POST', 'subscriptions/' + b.sub, { pause_collection: { behavior: 'void', resumes_at: until } });
-        await env.DB.prepare("UPDATE billing SET status = 'paused', paused_until = ?1, updated = ?2 WHERE client_id = ?3").bind(new Date(until * 1000).toISOString(), new Date().toISOString(), c.client_id).run();
+        await env.DB.batch([
+          env.DB.prepare("UPDATE billing SET status = 'paused', paused_until = ?1, updated = ?2 WHERE client_id = ?3").bind(new Date(until * 1000).toISOString(), new Date().toISOString(), c.client_id),
+          env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES (?1, ?2)").bind('paused:' + c.client_id, new Date().toISOString())
+        ]);
         if (h && h.notify) await h.notify((c.business || 'A client') + ' paused for a month', 'From the cancel screen. Billing resumes ' + new Date(until * 1000).toDateString() + '.');
         return Response.redirect(SITE + base + '/billing?done=paused', 303);
       }
@@ -231,7 +252,7 @@ export async function billingPage(env, c, base, req, url, h) {
         const sub = await stripe(env, 'GET', 'subscriptions/' + b.sub + '?expand[]=items.data.price.product');
         const item = (sub.items.data || []).find(i => !/Max/.test((i.price && i.price.product && i.price.product.name) || '')) || sub.items.data[0];
         const prod = await stripe(env, 'POST', 'products', { name: 'Always Open ' + plan });
-        await stripe(env, 'POST', 'subscriptions/' + b.sub, { items: [{ id: item.id, price_data: { currency: 'usd', unit_amount: PLANS[plan].cents, recurring: { interval: 'month' }, product: prod.id } }], proration_behavior: 'create_prorations', cancel_at_period_end: 'false' });
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { items: [{ id: item.id, price_data: { currency: 'usd', unit_amount: PLANS[plan].cents, recurring: { interval: 'month' }, product: prod.id } }], proration_behavior: 'always_invoice', cancel_at_period_end: 'false' });
         await env.DB.batch([
           env.DB.prepare('UPDATE billing SET plan = ?1, updated = ?2 WHERE client_id = ?3').bind(plan, new Date().toISOString(), c.client_id),
           env.DB.prepare('UPDATE app_clients SET tier = ?1 WHERE client_id = ?2').bind(plan, c.client_id)
@@ -255,9 +276,10 @@ export async function billingPage(env, c, base, req, url, h) {
   const status = { active: 'Active', past_due: 'Payment failed: please update your card', paused: 'Paused until ' + (b.paused_until ? new Date(b.paused_until).toDateString() : 'next month'), canceling: 'Ends at the end of this billing month', canceled: 'Canceled' }[b.status] || b.status;
   const btn = (a, label, cls, extra) => `<form method="post" style="display:inline">${extra || ''}<input type="hidden" name="a" value="${a}"><button class="btn ${cls || ''}" type="submit">${label}</button></form>`;
   if (step === 'cancel' && b.status !== 'canceling') {
+    const pausable = await canPause(env, b);
     const lower = b.plan === 'Pro' ? 'Growth' : (b.plan === 'Growth' ? 'Starter' : '');
     return page('Before you go', `<h1>Before you go.</h1><p class="sub">Most people who cancel just need a break or a smaller plan. Either is one tap.</p>
-<div class="card"><h2>Take a month off, free</h2><p>Pause billing for one month. Your reviews, records and app stay put, and everything picks up after.</p><div class="acts">${btn('pause', 'Pause for a month', '')}</div></div>
+${pausable ? `<div class="card"><h2>Take a month off, free</h2><p>Pause billing for one month. Your reviews, records and app stay put, and everything picks up after.</p><div class="acts">${btn('pause', 'Pause for a month', '')}</div></div>` : ''}
 ${lower ? `<div class="card"><h2>Switch to ${lower}, ${money(PLANS[lower].cents)}/mo</h2><p>${esc(PLANS[lower].blurb)}</p><div class="acts">${btn('plan', 'Switch to ' + lower, 'line', '<input type="hidden" name="plan" value="' + lower + '">')}</div></div>` : ''}
 <div class="card"><h2>Still want to cancel?</h2><form method="post" style="display:grid;gap:10px"><input type="hidden" name="a" value="cancel"><label>What could we have done better? (optional)<input name="why" maxlength="300"></label><button class="btn quiet" type="submit">Cancel at the end of this month</button></form><p class="fine">No fee. You keep everything through the end of the month you paid for. Your Google profile, reviews and phone numbers stay yours.</p></div>
 <div class="acts"><a class="btn line" href="${esc(base)}/billing">Keep my plan</a></div>`);
@@ -265,7 +287,7 @@ ${lower ? `<div class="card"><h2>Switch to ${lower}, ${money(PLANS[lower].cents)
   return page('Your plan', `<div><p class="mono">${esc(c.business || '')}</p><h1>Your plan</h1></div>${note}
 <div class="card"><h2>${esc(b.plan)}${b.max ? ' + 300 more Max minutes' : ''}</h2><p class="sub">${esc(status)}</p><p>${esc((PLANS[b.plan] || {}).blurb || '')}</p>
 <div class="acts">${btn('card', 'Update card or see invoices', 'line')}${b.status === 'paused' ? btn('resume', 'Resume now', '') : ''}${b.status === 'canceling' ? btn('undo', 'Undo cancellation', '') : ''}</div></div>
-<div class="card"><h2>Change plan</h2><div class="acts">${Object.keys(PLANS).filter(k => k !== b.plan).map(k => btn('plan', k + ' · ' + money(PLANS[k].cents) + '/mo', 'line', '<input type="hidden" name="plan" value="' + k + '">')).join('')}</div><p class="fine">Changes start now; the difference is prorated on your next bill.</p></div>
+<div class="card"><h2>Change plan</h2><div class="acts">${Object.keys(PLANS).filter(k => k !== b.plan).map(k => btn('plan', k + ' · ' + money(PLANS[k].cents) + '/mo', 'line', '<input type="hidden" name="plan" value="' + k + '">')).join('')}</div><p class="fine">Changes start now. The difference for the rest of this month is charged now, or credited to your next bill for a smaller plan.</p></div>
 ${b.status !== 'canceling' && b.status !== 'canceled' ? `<p><a href="${esc(base)}/billing?step=cancel" class="sub">Cancel my plan</a></p>` : ''}
 <div class="acts"><a class="btn quiet" href="${esc(base)}">Back to the app</a></div>`);
 }
@@ -289,6 +311,7 @@ export async function handleBilling(req, env, url, h) {
     if (!row || !(await verifyStripe(row.v, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
     const ev = JSON.parse(body), o = ev.data && ev.data.object || {};
     const bySub = async (sub, set, msg) => {
+      if (!sub || typeof sub !== 'string') return;
       const b = await env.DB.prepare('SELECT client_id, business FROM billing WHERE sub = ?1').bind(sub).first();
       if (!b) return;
       await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(set, new Date().toISOString(), b.client_id).run();
@@ -296,11 +319,11 @@ export async function handleBilling(req, env, url, h) {
       if (msg && h.notify) await h.notify((b.business || 'A client') + ': ' + msg, 'Stripe event ' + ev.type + '.', set === 'past_due' ? 'high' : 'default');
     };
     if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') await createFromSession(env, o, h);
-    else if (ev.type === 'invoice.payment_failed') await bySub(o.subscription, 'past_due', 'payment failed. Stripe retries automatically and emails them.');
-    else if (ev.type === 'invoice.paid' && o.billing_reason !== 'subscription_create') await bySub(o.subscription, 'active', '');
+    else if (ev.type === 'invoice.payment_failed') await bySub(invoiceSub(o), 'past_due', 'payment failed. Stripe retries automatically and emails them.');
+    else if (ev.type === 'invoice.paid' && o.billing_reason !== 'subscription_create') await bySub(invoiceSub(o), 'active', '');
     else if (ev.type === 'customer.subscription.deleted') await bySub(o.id, 'canceled', 'subscription ended. Their app is off.');
     // Stripe's own status after retries run out (unpaid, past_due, paused): kept so the daily check sees it (checks.js).
-    else if (ev.type === 'customer.subscription.updated' && /^(active|trialing|past_due|unpaid|paused)$/.test(o.status || '')) await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE sub = ?3 AND status != ?1').bind(o.status, new Date().toISOString(), o.id).run();
+    else if (ev.type === 'customer.subscription.updated' && /^(active|trialing|past_due|unpaid|paused)$/.test(o.status || '')) await subUpdated(env, o, h);
     else if (ev.type === 'charge.dispute.created' || ev.type === 'charge.dispute.closed') await dispute(env, ev.type, o, h);
     return new Response('ok');
   }
@@ -310,6 +333,41 @@ export async function handleBilling(req, env, url, h) {
     return h.json(await setupStripe(env), 200);
   }
   return new Response('Not found', { status: 404 });
+}
+
+// The subscription id on an invoice: top level in older Stripe versions, under parent in newer ones.
+export function invoiceSub(o) {
+  const v = o && (o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription));
+  return typeof v === 'string' ? v : (v && v.id) || '';
+}
+// Our status from Stripe's: a pause and a cancellation at the period's end both read "active" in Stripe.
+export function statusOf(o) {
+  if (o.pause_collection) return 'paused';
+  if (o.cancel_at_period_end === true || o.cancel_at_period_end === 'true') return 'canceling';
+  return o.status;
+}
+// A subscription changed in Stripe (by us, by the portal, or by hand in the dashboard): status, plan and the Max add-on.
+export async function subUpdated(env, o, h, call) {
+  call = call || stripe;
+  const b = await env.DB.prepare('SELECT client_id, plan, max, status FROM billing WHERE sub = ?1').bind(o.id).first().catch(() => null);
+  if (!b) return;
+  const status = statusOf(o);
+  let plan = b.plan, max = b.max;
+  try {
+    const sub = await call(env, 'GET', 'subscriptions/' + o.id + '?expand[]=items.data.price.product');
+    const items = (sub.items && sub.items.data) || [];
+    const name = i => String((i.price && i.price.product && i.price.product.name) || '');
+    max = items.some(i => /Max/.test(name(i))) ? 1 : 0;
+    const main = items.find(i => !/Max/.test(name(i)));
+    const byName = main && Object.keys(PLANS).find(k => new RegExp('\\b' + k + '\\b').test(name(main)));
+    const byCents = main && Object.keys(PLANS).find(k => PLANS[k].cents === +(main.price && main.price.unit_amount));
+    plan = byName || byCents || plan;
+  } catch (e) { /* the status still updates; the plan waits for the next event or the daily check */ }
+  await env.DB.batch([
+    env.DB.prepare('UPDATE billing SET status = ?1, plan = ?2, max = ?3, updated = ?4 WHERE client_id = ?5').bind(status, plan, max, new Date().toISOString(), b.client_id),
+    env.DB.prepare('UPDATE app_clients SET tier = ?1 WHERE client_id = ?2').bind(plan, b.client_id)
+  ]);
+  if (plan !== b.plan && h && h.notify) await h.notify('Plan changed in Stripe', b.plan + ' to ' + plan + ' for ' + b.client_id + '.');
 }
 
 // A chargeback. The deadline to answer is short and missing it loses the payment and a fee, so Christopher hears the
@@ -356,7 +414,7 @@ export async function setupStripe(env) {
     const out = {};
     const have = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first();
     if (!have) {
-      const w = await stripe(env, 'POST', 'webhook_endpoints', { url: SITE + '/billing/webhook', enabled_events: EVENTS, description: 'Always Open billing' });
+      const w = await stripe(env, 'POST', 'webhook_endpoints', { url: SITE + '/billing/webhook', enabled_events: EVENTS, description: 'Always Open billing', api_version: '2024-06-20' });
       await env.DB.batch([
         env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_id', ?1)").bind(w.id),
         env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_secret', ?1)").bind(w.secret)
