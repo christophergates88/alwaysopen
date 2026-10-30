@@ -32,8 +32,9 @@ test('texts that missed the site are delivered to the owner afterwards, once; no
   const pings = [];
   const r = await S.smsSweep(env, NOW, { ping: async (t, b) => pings.push(t + ' | ' + b) });
   assert.deepEqual(r, { checked: 3, delivered: 2 }, 'two missed, one we had; the outbound, the other number and the one still settling are left out');
-  const inbox = ((await DB.prepare("SELECT thread, text FROM biz_msgs WHERE client_id = 'c1' AND dir = 'in' ORDER BY at").all()).results).map(x => x.text);
-  assert.deepEqual(inbox.sort(), ['Already here', 'Can you come Thursday instead?'], 'the missed one is in the inbox, the one we had is not doubled, the old one is untouched');
+  const inbox = ((await DB.prepare("SELECT thread, text, by FROM biz_msgs WHERE client_id = 'c1' AND dir = 'in' ORDER BY at").all()).results);
+  assert.deepEqual(inbox.map(x => x.text).sort(), ['Already here', 'Can you come Thursday instead?', 'STOP'], 'the missed ones are in the inbox (the STOP too, so the owner knows), the one we had is not doubled, the old one is untouched');
+  assert.equal(inbox.find(x => x.text === 'STOP').by, 'Opted out of texts', 'the STOP is marked as an opt-out');
   assert.ok(await DB.prepare("SELECT 1 AS x FROM sms_optout WHERE client_id = 'c1' AND phone10 = '4785550002'").first(), 'a STOP sent while we were down is honored');
   assert.match(pings[0], /^Always Open: 2 texts picked up late \| Customer texts arrived while the site could not take them\./);
   const again = await S.smsSweep(env, NOW + 10 * 60e3, { ping: false });

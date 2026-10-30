@@ -5,12 +5,19 @@
 
 export const TEXTING_ON = true;   // the Twilio campaign is approved (Oct 28, 2026)
 const TWILIO = 'https://api.twilio.com/2010-04-01/Accounts/';
-const STOP_RE = /^\s*(stop|stopall|unsubscribe|cancel|end|quit|no more|don'?t text( me)?|remove me)\b/i;
-const START_RE = /^\s*(start|unstop|yes|resume)\b/i;
-const HELP_RE = /^\s*(help|info)\b/i;
+// Carrier keywords count only when they are the whole text ("STOP", "stop.", " Help "), never the first word of a
+// sentence: "Cancel my appointment Tuesday" or "Stop by after 3" is a message for the owner, not an opt-out.
+const STOP_WORDS = new Set(['stop', 'stopall', 'stop all', 'unsubscribe', 'cancel', 'end', 'quit', 'revoke', 'optout', 'opt out', 'opt-out', 'stop texting me', "don't text me", 'dont text me', 'do not text me', 'remove me']);
+const START_WORDS = new Set(['start', 'unstop', 'yes']);   // only for a number that opted out
+const HELP_WORDS = new Set(['help', 'info']);
+export function keywordOf(body) {
+  const w = String(body || '').replace(/[‘’]/g, "'").trim().toLowerCase().replace(/[\s.!]+$/, '').replace(/\s+/g, ' ');
+  return STOP_WORDS.has(w) ? 'stop' : (START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : ''));
+}
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
 const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway']);
 const TEXTS_PER_CLIENT_HOUR = 60, TEXTS_PER_HOUR = 400;   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
+const TEXTS_PER_CLIENT_DAY = 200;   // automatic texts for one business in a day, whatever starts them
 
 export function textingReady(env) { return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN); }
 
@@ -33,10 +40,13 @@ export async function ensureSms(env) {
   ready = true;
 }
 
-function hourIn(tz) {
-  try { return +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: tz || 'America/New_York' }).format(new Date()); }
-  catch (e) { return new Date().getUTCHours() - 4; }
+function hourIn(tz, now) {
+  const d = new Date(now || Date.now());
+  try { return +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: tz || 'America/New_York' }).format(d); }
+  catch (e) { return (d.getUTCHours() + 20) % 24; }
 }
+// Daytime for the customer (8 AM to 9 PM in the business's zone): when texts that aren't an answer may go out.
+export function textDaytime(tz, now) { const h = hourIn(tz, now); return h >= 8 && h < 21; }
 
 async function optedOut(env, cid, p10) {
   const a = await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, p10).first().catch(() => null);
@@ -49,11 +59,16 @@ async function fromFor(env, cid) {
   const l = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 AND on_air = 1 ORDER BY updated DESC LIMIT 1').bind(cid).first().catch(() => null);
   return (l && l.number) || env.TWILIO_FROM || '';
 }
+// The business's own texting number (the one its customers text), or '' when it has none of its own.
+export async function ownNumber(env, cid) {
+  const l = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 AND on_air = 1 ORDER BY updated DESC LIMIT 1').bind(cid).first().catch(() => null);
+  return /^\+1\d{10}$/.test((l && l.number) || '') ? l.number : '';
+}
 // Carrier rules (A2P 10DLC): every business that texts needs its own registered brand and campaign; one campaign can't
 // speak for several companies. Always Open's own campaign covers Always Open's own number only. A client's texts go out
 // through that client's own Messaging Service, set once their registration is approved; until then nothing is sent for them.
 export const OWN = 'always-open';
-async function ensureBrands(env) {
+export async function ensureBrands(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS sms_brands (client_id TEXT PRIMARY KEY, messaging_sid TEXT DEFAULT '', status TEXT DEFAULT 'pending', updated TEXT)").run();
 }
 export async function senderFor(env, cid) {
@@ -76,14 +91,21 @@ export async function sendText(env, o) {
   if (!to10 || !body || !cid) return { ok: false, why: 'bad number' };
   await ensureSms(env);
   if (await optedOut(env, cid, to10)) { await log('skipped', 'opted out'); return { ok: false, why: 'opted out' }; }
-  if (!ANYTIME.has(kind)) { const h = hourIn(o.tz); if (h < 8 || h >= 21) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; } }
+  if (!ANYTIME.has(kind) && !textDaytime(o.tz)) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; }
   // The hourly ceiling: something looping can't text hundreds of customers before anyone looks. What an owner types
   // (reply) and tests always go; automatic texts wait for the next hour (checks.js watches the daily totals too).
+  // A day's ceiling per business as well, so nothing (a busy public page, a loop) runs one number into the ground.
   if (kind !== 'reply' && kind !== 'test') {
-    const hour = new Date(Date.now() - 3600e3).toISOString(), sent = "status NOT IN ('skipped', 'held', 'failed')";
-    const [mine, all] = await Promise.all([
+    const hour = new Date(Date.now() - 3600e3).toISOString(), day = new Date(Date.now() - 24 * 3600e3).toISOString(), sent = "status NOT IN ('skipped', 'held', 'failed')";
+    const [mine, all, today] = await Promise.all([
       env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at > ?2 AND ' + sent).bind(cid, hour).first().catch(() => null),
-      env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE at > ?1 AND ' + sent).bind(hour).first().catch(() => null)]);
+      env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE at > ?1 AND ' + sent).bind(hour).first().catch(() => null),
+      cid === OWN ? null : env.DB.prepare("SELECT COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at > ?2 AND kind NOT IN ('reply', 'test') AND " + sent).bind(cid, day).first().catch(() => null)]);
+    if (today && +today.n >= TEXTS_PER_CLIENT_DAY) {
+      await log('held', 'daily ceiling');
+      try { await (await import('./ops.js')).opsAlert(env, 'text-ceiling', cid, 'One business sent ' + today.n + ' automatic texts in the last day, so its automatic texts are waiting. Look at the ops board for what is sending them.'); } catch (e) { /* the hold stands */ }
+      return { ok: false, why: 'held: daily ceiling', retry: true };
+    }
     if ((mine && +mine.n >= TEXTS_PER_CLIENT_HOUR) || (all && +all.n >= TEXTS_PER_HOUR)) {
       await log('held', 'hourly ceiling');
       try { await (await import('./ops.js')).opsAlert(env, 'text-ceiling', cid, (mine && +mine.n >= TEXTS_PER_CLIENT_HOUR ? 'One business sent ' + mine.n : 'All businesses together sent ' + all.n) + ' automatic texts in the last hour, so automatic texts are waiting for the next hour. Look at the ops board for what is sending them.'); } catch (e) { /* the hold stands */ }
@@ -122,32 +144,41 @@ export async function handleSms(req, env, form, sigOk) {
     const fresh = await env.DB.prepare('INSERT OR IGNORE INTO sms_seen (sid, at) VALUES (?1, ?2)').bind(msgSid, new Date().toISOString()).run().catch(() => null);
     if (fresh && fresh.meta && fresh.meta.changes === 0) return xml();
   }
-  const cid = line.client_id, now = new Date().toISOString();
-  if (STOP_RE.test(body)) {
+  const cid = line.client_id, now = new Date().toISOString(), biz = (line.business || 'this business').replace(/[<&>]/g, '');
+  // STOP, START and HELP only when they are the whole text. Whatever it is, the text is saved for the owner below.
+  let key = keywordOf(body), reply = '', mark = '';
+  if (key === 'start' && !(await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).first().catch(() => null))) key = '';
+  if (key === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO sms_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, from10, now).run();
     await env.DB.prepare('UPDATE biz_customers SET optout = 1, agreed = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
-    return xml();
-  }
-  if (START_RE.test(body) && await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).first()) {
+    mark = 'Opted out of texts';
+  } else if (key === 'start') {
     await env.DB.prepare('DELETE FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).run();
     await env.DB.prepare('UPDATE biz_customers SET optout = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
-    return xml('<Message>You are back on the list for ' + (line.business || 'this business').replace(/[<&>]/g, '') + '. Reply STOP any time to end texts.</Message>');
+    reply = '<Message>You are back on the list for ' + biz + '. Reply STOP any time to end texts.</Message>';
+    mark = 'Back on texts';
+  } else if (key === 'help') {
+    reply = '<Message>This is the text line for ' + biz + '. Reply STOP to end texts. Call the business for anything else.</Message>';
+    mark = 'Answered automatically';
   }
-  if (HELP_RE.test(body)) return xml('<Message>This is the text line for ' + (line.business || 'this business').replace(/[<&>]/g, '') + '. Reply STOP to end texts. Call the business for anything else.</Message>');
   // A YES to a Fill my week offer books the time (fillweek.js pushes the owner); the text still lands in the inbox.
   let filled = null;
-  try { filled = await (await import('./fillweek.js')).onReply(env, cid, from10, body); } catch (e) { filled = null; }
+  if (!key) { try { filled = await (await import('./fillweek.js')).onReply(env, cid, from10, body); } catch (e) { filled = null; } }
   const cu = await env.DB.prepare('SELECT name FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 LIMIT 1').bind(cid, from10).first().catch(() => null);
   const name = (cu && cu.name) || '';
   const sid = String(form.get('MessageSid') || '');
-  await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, status, ext_id) VALUES (?1,'text',?2,?3,?4,'in',?5,'new',?6)").bind(cid, from10, name, body, now, sid).run().catch(() => {});
+  await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, by, status, ext_id) VALUES (?1,'text',?2,?3,?4,'in',?5,?6,'new',?7)").bind(cid, from10, name, body, now, mark, sid || null).run().catch(() => {});
   const who = name || ('(' + from10.slice(0, 3) + ') ' + from10.slice(3, 6) + '-' + from10.slice(6));
-  if (filled) return xml();
+  // Someone who booked online and ticked "text me" proves the number is theirs by texting in: their confirmation goes now.
+  // (A YES to a Fill my week offer books through the same path just above, so its confirmation goes here too.)
+  if (key !== 'stop') { try { await (await import('./autotext.js')).textedIn(env, cid, from10); } catch (e) { /* the timer picks it up */ } }
+  if (filled) return xml(reply);
   // An owner answering Always Open's own review ask: straight to Christopher's phone (ourreviews.js).
-  if (cid === OWN) { try { const app = await import('./app.js'); if (await (await import('./ourreviews.js')).onReply(env, from10, body, (t, b, pr, tag) => app.opsPing(env, t, b, pr, tag))) return xml(); } catch (e) { /* falls through to the inbox push */ } }
+  if (cid === OWN && !key) { try { const app = await import('./app.js'); if (await (await import('./ourreviews.js')).onReply(env, from10, body, (t, b, pr, tag) => app.opsPing(env, t, b, pr, tag))) return xml(); } catch (e) { /* falls through to the inbox push */ } }
+  const said = key === 'stop' ? '“' + body + '”: they won’t get texts from you any more. Call them if you need to reach them.' : (key === 'start' ? '“' + body + '”: they’re back on texts from you.' : body);
   const { pushClient } = await import('./app.js').catch(() => ({ pushClient: async () => {} }));
-  await pushClient(env, cid, { aps: { alert: { title: 'Text from ' + who, body: body.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'inbox' }).catch(() => {});
-  return xml();
+  await pushClient(env, cid, { aps: { alert: { title: 'Text from ' + who, body: said.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'inbox' }).catch(() => {});
+  return xml(reply);
 }
 
 // Owner replies to a text thread from the inbox: msg-text-<phone10>.

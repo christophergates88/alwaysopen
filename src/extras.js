@@ -61,10 +61,16 @@ export async function handleBooking(req, env, ctx, url) {
   if (!ok) return bookForm(c, open, T('cantBook'), v, lang, url);
   const need = 'Booked ' + slot.say + (reason ? ': ' + reason : '') + (email ? ' (' + email + ')' : '');
   await env.DB.prepare("INSERT INTO app_leads (client_id, at, name, phone, need, sms_ok, status, ip_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)").bind(c.client_id, new Date().toISOString(), name, phone, need, smsOk, ip).run();
-  // They ticked "text me": a confirmation now and a reminder the afternoon before, from the business's own number (autotext.js).
-  if (smsOk) ctx.waitUntil(import('./autotext.js').then(m => m.fromBooking(env, c.client_id, { name, phone, start: slot.start })).catch(() => {}));
+  // They ticked "text me": a confirmation and a reminder the afternoon before, from the business's own number
+  // (autotext.js), once they text that number first. Anyone can type any number here, so nothing is texted before that.
+  let textTo = '';
+  if (smsOk) { try { textTo = await (await import('./autotext.js')).fromBooking(env, c.client_id, { name, phone, start: slot.start }); } catch (e) { textTo = ''; } }
   ctx.waitUntil(pushClient(env, c.client_id, { aps: { alert: { title: 'New booking: ' + name, body: need.slice(0, 300) }, sound: 'default', 'thread-id': 'leads' }, screen: 'home' }).catch(() => {}));
-  return page(200, T('booked'), '<p>' + esc(T('bookedLine', { n: name.split(' ')[0], b: c.business, s: slot.say })) + '</p>', lang);
+  const nice = textTo ? '(' + textTo.slice(2, 5) + ') ' + textTo.slice(5, 8) + '-' + textTo.slice(8) : '';
+  const textLine = !nice ? '' : '<p><b>' + (lang === 'es'
+    ? 'Para recibir la confirmación y un recordatorio por mensaje de texto, envíe SÍ al ' + esc(nice) + ' desde el número que nos dio.'
+    : 'To get your confirmation and a reminder by text, text YES to ' + esc(nice) + ' from the number you gave us.') + '</b></p>';
+  return page(200, T('booked'), '<p>' + esc(T('bookedLine', { n: name.split(' ')[0], b: c.business, s: slot.say })) + '</p>' + textLine, lang);
 }
 function bookForm(c, open, err, v, lang, url) {
   v = v || {}; lang = lang || 'en';
@@ -84,8 +90,13 @@ function bookForm(c, open, err, v, lang, url) {
 }
 
 // ---------------- invoices ----------------
+const invReady = new WeakSet();
 export async function ensureInvoices(env) {
+  if (invReady.has(env.DB)) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, token TEXT UNIQUE, number TEXT DEFAULT '', name TEXT DEFAULT '', phone TEXT DEFAULT '', email TEXT DEFAULT '', amount INTEGER DEFAULT 0, due TEXT DEFAULT '', pay_link TEXT DEFAULT '', sms_ok INTEGER DEFAULT 0, status TEXT DEFAULT 'open', created TEXT, paid_at TEXT DEFAULT '', reminded TEXT DEFAULT '')").run();
+  // text_wait: an approved reminder text that had to wait for daytime: {"item":"inv-<id>-<step>","at":"<when approved>"}.
+  try { await env.DB.prepare("ALTER TABLE app_invoices ADD COLUMN text_wait TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
+  invReady.add(env.DB);
 }
 const money = cents => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 });
 export function invOut(r) {
@@ -160,8 +171,10 @@ export async function handleInvoicePage(req, env, url) {
 export function reminderText(inv, biz, days) {
   return 'Hi ' + String(inv.name || '').split(' ')[0] + ', a friendly reminder from ' + biz + ' that invoice' + (inv.number ? ' #' + inv.number : '') + ' (' + money(+inv.amount) + ') was due ' + inv.due + '. You can see it and pay here: ' + SITE + '/i/' + inv.token + (days >= 7 ? ' If you already paid, thank you, and please ignore this.' : '');
 }
-// Cron: on due+3 and due+7 a reminder draft lands in the owner's Approve list.
+// Cron: on due+3 and due+7 a reminder draft lands in the owner's Approve list. Approved reminder texts that had to wait
+// for daytime go out first.
 export async function invoiceCron(env, at) {
+  try { await sendWaitingInvoiceTexts(env, at); } catch (e) { /* the next run tries again */ }
   try {
     await ensureInvoices(env);
     const now = at || Date.now();
@@ -181,15 +194,53 @@ export async function invoiceCron(env, at) {
   } catch (e) { return 0; }
 }
 // After the owner approves a reminder: email it when we can, text only with consent and once texting is on.
+// A text that has to wait (after 9 PM, or an hourly ceiling) is kept on the invoice and sent by the next daytime run.
+const tzOf = async (env, cid) => { try { return await (await import('./callbacks.js')).tzFor(env, cid); } catch (e) { return 'America/New_York'; } };
 export async function sendInvoiceReminder(env, c, it, text, mailer) {
   const m = /^inv-(\d+)-/.exec(it.id || '');
   if (!m) return 'none';
+  await ensureInvoices(env);
   const inv = await env.DB.prepare('SELECT * FROM app_invoices WHERE id = ?1 AND client_id = ?2').bind(+m[1], c.client_id).first();
   if (!inv || inv.status === 'paid') return 'none';
   let out = [];
   if (inv.email && mailer) out.push('email:' + await mailer(inv.email, 'Invoice reminder from ' + (c.business || ''), text));
-  if (TEXTING_ON && inv.sms_ok && inv.phone) { const r = await sendText(env, { clientId: c.client_id, to: inv.phone, body: text, kind: 'invoice' }); out.push('text:' + (r.ok ? 'sent' : (r.why || 'failed'))); }
+  if (TEXTING_ON && inv.sms_ok && inv.phone) {
+    const r = await sendText(env, { clientId: c.client_id, to: inv.phone, body: text, kind: 'invoice', tz: await tzOf(env, c.client_id) });
+    if (!r.ok && r.retry) {
+      await env.DB.prepare('UPDATE app_invoices SET text_wait = ?1 WHERE id = ?2').bind(JSON.stringify({ item: it.id, at: new Date(Date.now()).toISOString() }), inv.id).run();
+      out.push('text:waiting');
+    } else out.push('text:' + (r.ok ? 'sent' : (r.why || 'failed')));
+  }
   return out.join(',') || 'manual';
+}
+// Every 10 minutes (from invoiceCron): approved reminder texts that waited for daytime. Each is claimed before it is
+// sent, so two runs can't both send it; one for an invoice paid (or deleted) since then is dropped, and one still
+// waiting after three days is dropped too (something is wrong; the owner can approve a new one).
+const WAIT_MAX_MS = 3 * 864e5;
+export async function sendWaitingInvoiceTexts(env, at) {
+  if (!TEXTING_ON) return 0;
+  await ensureInvoices(env);
+  const now = at || Date.now();
+  const rows = (await env.DB.prepare("SELECT i.id, i.client_id, i.phone, i.sms_ok, i.status, i.text_wait, c.active FROM app_invoices i JOIN app_clients c ON c.client_id = i.client_id WHERE i.text_wait != '' AND i.text_wait IS NOT NULL ORDER BY i.id LIMIT 50").all()).results || [];
+  const { textDaytime } = await import('./sms.js');
+  let sent = 0;
+  const tzs = {};
+  for (const r of rows) {
+    let w = {}; try { w = JSON.parse(r.text_wait) || {}; } catch (e) { w = {}; }
+    const drop = () => env.DB.prepare("UPDATE app_invoices SET text_wait = '' WHERE id = ?1 AND text_wait = ?2").bind(r.id, r.text_wait).run();
+    if (r.status === 'paid' || !+r.active || !+r.sms_ok || !r.phone || !w.item || now - (Date.parse(w.at) || 0) > WAIT_MAX_MS) { await drop(); continue; }
+    const tz = tzs[r.client_id] || (tzs[r.client_id] = await tzOf(env, r.client_id));
+    if (!textDaytime(tz, now)) continue;   // still night where they are
+    const it = await env.DB.prepare("SELECT decided_text, text FROM app_items WHERE id = ?1 AND client_id = ?2 AND status = 'approved'").bind(w.item, r.client_id).first();
+    const body = it ? String(it.decided_text || it.text || '').trim() : '';
+    if (!body) { await drop(); continue; }
+    const got = await drop();   // the claim: only the run that clears it sends it
+    if (!(got && got.meta && got.meta.changes === 1)) continue;
+    const s = await sendText(env, { clientId: r.client_id, to: r.phone, body, kind: 'invoice', tz });
+    if (s.ok) sent++;
+    else if (s.retry) await env.DB.prepare("UPDATE app_invoices SET text_wait = ?1 WHERE id = ?2 AND text_wait = ''").bind(r.text_wait, r.id).run();
+  }
+  return sent;
 }
 
 // ---------------- Facebook and Instagram ----------------

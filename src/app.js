@@ -28,7 +28,7 @@ import { langOf, langBar, t as tr, bizState, finishOnboarding, apiWork, apiQuote
 import { apiMap, mapState } from './map.js';
 import { monthAnalytics } from './insights.js';
 import { renderMonthPage } from './monthpage.js';
-import { ensureAuto, autoReady, autoCron, autoNote } from './autotext.js';
+import { ensureAuto, autoReady, autoCron, autoNote, autoFail } from './autotext.js';
 import { publishItem, mergeMonths } from './gbp.js';
 import { lineStatus } from './provision.js';
 import { FACT_KEYS, cleanFacts, knowOut, startInterview, applyPending } from './interview.js';
@@ -43,6 +43,8 @@ const JOBS_PER_DAY = 60;
 const PHOTOS_PER_DAY = 20;
 const PHOTO_MAX = 1572864;        // 1.5 MB after the app shrinks it
 const PUSH_GAP_MS = 10 * 60000;   // at most one "approved" ping per client per 10 minutes
+const RAW_ROUTES = new Set(['/api/photo', '/api/greeting-audio']);   // image and audio bodies, not JSON
+const BODY_MAX = 1600000;         // the largest JSON body any route takes (a past-customer list, past.js)
 const BUNDLE = 'com.christophergates.alwaysopen';
 const TEAM = 'Z44959336K';
 const SITE = 'https://alwaysopenoffice.com';
@@ -114,9 +116,9 @@ export async function handleApp(req, env, ctx, url) {
   const since = new Date(Date.now() - 3600000).toISOString();
   const fails = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_fail WHERE ip_hash = ?1 AND at > ?2').bind(ip, since).first();
   if (fails && fails.n >= FAIL_LIMIT) return api ? aj({ ok: false, error: 'Too many tries. Please wait an hour.' }, 429) : gone(429);
-  let c = null;
+  let c = null, linkHash = '';
   if (CODE_RE.test(code)) {
-    const h = await sha256hex(code);
+    const h = linkHash = await sha256hex(code);
     c = await env.DB.prepare('SELECT * FROM app_clients WHERE code_hash = ?1 AND active = 1').bind(h).first();
     // Staff links: an office worker gets their own link to the same business (HQ adds and removes them).
     if (!c) {
@@ -147,13 +149,16 @@ export async function handleApp(req, env, ctx, url) {
     }
   } catch (e) { locations = []; }
   c.locations = locations.map(x => ({ id: x.client_id, name: x.label || x.business || '', current: x.client_id === c.client_id }));
+  c.linkHash = linkHash;   // which link opened this (the owner's or a staff link): phones register under it (apiDevice)
   const base = '/app/' + code;
   const meth = req.method;
   if (!c.staff) c.role = 'owner';
   // Team roles: techs never see money or billing. Every change records who made it (staff links can't pick another name).
   if (api && c.role === 'tech' && MONEY_ROUTES.indexOf(sub) > -1) return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
+  // Every handler reads its body as JSON whatever the content type says, so the staff name is set here for any body
+  // (not only application/json), and again inside each handler of this file (whoBy).
   let body = null;
-  if (api && meth === 'POST' && /json/i.test(req.headers.get('content-type') || '') && +(req.headers.get('content-length') || 0) <= 20000) {
+  if (api && meth === 'POST' && !RAW_ROUTES.has(sub) && +(req.headers.get('content-length') || 0) <= BODY_MAX) {
     const raw = await req.text();
     try { body = JSON.parse(raw); } catch (e) { body = null; }
     if (body && typeof body === 'object' && !Array.isArray(body)) {
@@ -162,6 +167,8 @@ export async function handleApp(req, env, ctx, url) {
     } else body = null;
     const hh = new Headers(req.headers); hh.delete('content-length');
     req = new Request(req.url, { method: 'POST', headers: hh, body: body ? JSON.stringify(body) : raw });
+  } else if (api && meth === 'POST' && !RAW_ROUTES.has(sub) && c.staff) {
+    return aj({ ok: false, error: 'That is too big to send.' }, 413);
   }
   if (api && meth === 'POST' && sub === '/api/photo' && c.staff) url.searchParams.set('by', c.staff);
   const res = await route();
@@ -479,7 +486,7 @@ async function apiCall(req, env, c) {
   const b = await readJson(req, 2000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const id = clean(b.id, 40);
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   const st = b.action === 'reopen' ? 'new' : 'handled';
   if (!/^CA[0-9a-f]{32}$/.test(id)) return aj({ ok: false, error: 'Bad request' }, 400);
   const now = new Date().toISOString();
@@ -550,7 +557,7 @@ async function apiLine(req, env, ctx, c) {
   if (!raw) return aj({ ok: false, error: 'You don’t have a phone line yet. Ask us to set up Max.' }, 403);
   const b = await readJson(req, 6000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM voice_log WHERE kind = 'line-edit' AND at > ?1 AND detail LIKE ?2")
     .bind(new Date(Date.now() - 3600000).toISOString(), '%"cid":"' + c.client_id + '"%').first();
   if (n && n.n >= 30) return aj({ ok: false, error: 'That is a lot of changes in an hour. Please wait a bit, or message us in Ask us.' }, 429);
@@ -653,13 +660,13 @@ const FU_PER_DAY = 40;
 function fuOut(r) {
   const d = /^\d{10}$/.test(r.phone || '') ? r.phone : '';
   return { id: r.id, kind: FU_KINDS[r.kind] ? r.kind : 'quote', name: r.name || '', phone: d ? '+1' + d : '', phoneText: d ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : '', amount: r.amount || '', due: r.due || '', note: r.note || '', status: r.status === 'done' ? 'done' : 'open', at: r.created || '', by: r.by || '', doneAt: r.done_at || '',
-    consent: !!+r.consent, apptAt: r.appt_at || '', texted: autoNote(r) };
+    consent: !!+r.consent, apptAt: r.appt_at || '', texted: autoNote(r), notTexted: autoFail(r) };
 }
 async function apiFollowup(req, env, ctx, c) {
   if (!features(c).followups) return aj({ ok: false, error: 'Quote and invoice follow-ups come with the Pro plan.' }, 403);
   const b = await readJson(req, 4000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   const now = new Date().toISOString();
   if (b.action === 'done' || b.action === 'reopen' || b.action === 'remove') {
     const id = parseInt(b.id, 10);
@@ -690,7 +697,7 @@ async function apiFollowup(req, env, ctx, c) {
   const ins = await env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, hq_synced, appt_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', ?9, ?10, 0, ?11)")
     .bind(c.client_id, kind, nm, phone, amount, due, note, consent, now, by, apptAt).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
-  if (consent && kind === 'appointment') ctx.waitUntil(autoCron(env).catch(() => {}));
+  if (consent && kind === 'appointment' && id) ctx.waitUntil(autoCron(env, Date.now(), [id]).catch(() => {}));
   ctx.waitUntil(throttledPing(env, c, 'New follow-up from ' + (c.business || 'a client'), FU_KINDS[kind] + ' for ' + nm + (amount ? ' (' + amount + ')' : '') + (due ? ', due ' + due : '') + '.'));
   return aj({ ok: true, followup: fuOut({ id, kind, name: nm, phone, amount, due, note, status: 'open', created: now, by, done_at: '', consent, appt_at: apptAt }) });
 }
@@ -700,7 +707,7 @@ async function apiDecide(req, env, ctx, c) {
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const id = clean(b.id, 120);
   const action = b.action === 'approve' ? 'approve' : (b.action === 'skip' ? 'skip' : '');
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   if (!id || !action) return aj({ ok: false, error: 'Bad request' }, 400);
   const it = await env.DB.prepare('SELECT * FROM app_items WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first();
   if (!it) return aj({ ok: false, error: 'That one is gone. Pull down to refresh.' }, 404);
@@ -743,7 +750,7 @@ async function apiMessage(req, env, ctx, c) {
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const kind = b.kind === 'hours' ? 'hours' : 'note';
   let text = clean(b.text, 1000);
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   if (!text) return aj({ ok: false, error: 'Type a message first.' }, 400);
   const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE client_id = ?1 AND dir = 'in' AND at > ?2")
     .bind(c.client_id, new Date(Date.now() - 3600000).toISOString()).first();
@@ -770,7 +777,7 @@ async function apiJob(req, env, ctx, c) {
   const first = oneLine(clean(b.first, 40));
   const phone = String(b.phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const job = oneLine(clean(b.job, 80));
-  const by = oneLine(clean(b.by, 40)) || 'Owner';
+  const by = whoBy(c, b.by);
   if (!first) return aj({ ok: false, error: "Add the customer's first name." }, 400);
   const email = oneLine(clean(b.email, 120)).toLowerCase();
   if (email && !reviewReqValid(email)) return aj({ ok: false, error: 'That email does not look right.' }, 400);
@@ -840,7 +847,7 @@ async function apiPhoto(req, env, ctx, c, url) {
     .bind(c.client_id, new Date(Date.now() - 86400000).toISOString()).first();
   if (n && n.n >= PHOTOS_PER_DAY) return aj({ ok: false, error: 'That is the most photos for one day. Send more tomorrow.' }, 429);
   const note = clean(url.searchParams.get('note'), 300);
-  const by = oneLine(clean(url.searchParams.get('by'), 40)) || 'Owner';
+  const by = whoBy(c, url.searchParams.get('by'));
   const id = token(32), at = new Date().toISOString();
   await env.DB.prepare("INSERT INTO app_photos (id, client_id, at, note, by, mime, size, data, status, hq_synced) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'new', 0)")
     .bind(id, c.client_id, at, note, by, type, buf.byteLength, buf).run();
@@ -857,16 +864,19 @@ async function apiDevice(req, env, c) {
     await env.DB.prepare('DELETE FROM app_devices WHERE token = ?1 AND client_id = ?2').bind(tok, c.client_id).run();
     return aj({ ok: true, removed: true });
   }
+  await ensureDeviceLinks(env);
   // Live Activity tokens: 'start' (push-to-start, one per phone) or 'update' (one per running activity, tied to a call).
   if (b.live === 'start' || b.live === 'update') {
     await ensureLive(env);
-    await env.DB.prepare("INSERT INTO app_live (token, client_id, kind, call_sid, env, updated) VALUES (?1,?2,?3,?4,?5,?6) ON CONFLICT(token) DO UPDATE SET client_id = ?2, kind = ?3, call_sid = ?4, env = ?5, updated = ?6")
-      .bind(tok, c.client_id, b.live, String(b.call || '').slice(0, 64), b.env === 'sandbox' ? 'sandbox' : 'production', new Date().toISOString()).run();
+    await env.DB.prepare("INSERT INTO app_live (token, client_id, kind, call_sid, env, updated, code_hash) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(token) DO UPDATE SET client_id = ?2, kind = ?3, call_sid = ?4, env = ?5, updated = ?6, code_hash = ?7")
+      .bind(tok, c.client_id, b.live, String(b.call || '').slice(0, 64), b.env === 'sandbox' ? 'sandbox' : 'production', new Date().toISOString(), c.linkHash || '').run();
     return aj({ ok: true });
   }
   const now = new Date().toISOString();
-  await env.DB.prepare("INSERT INTO app_devices (token, client_id, platform, env, created, last_seen) VALUES (?1, ?2, 'ios', ?3, ?4, ?4) ON CONFLICT(token) DO UPDATE SET client_id = ?2, env = ?3, last_seen = ?4")
-    .bind(tok, c.client_id, b.env === 'sandbox' ? 'sandbox' : 'production', now).run();
+  // The phone is tied to the link it signed in with: when HQ removes that staff member, replaces a leaked code or turns
+  // the client off, that phone stops getting this business's notifications (devicesFor).
+  await env.DB.prepare("INSERT INTO app_devices (token, client_id, platform, env, created, last_seen, code_hash) VALUES (?1, ?2, 'ios', ?3, ?4, ?4, ?5) ON CONFLICT(token) DO UPDATE SET client_id = ?2, env = ?3, last_seen = ?4, code_hash = ?5")
+    .bind(tok, c.client_id, b.env === 'sandbox' ? 'sandbox' : 'production', now, c.linkHash || '').run();
   await env.DB.prepare('DELETE FROM app_devices WHERE client_id = ?1 AND token NOT IN (SELECT token FROM app_devices WHERE client_id = ?1 ORDER BY last_seen DESC LIMIT 20)')
     .bind(c.client_id).run();
   return aj({ ok: true });
@@ -988,7 +998,7 @@ export async function appCron(env, at) {
     for (const cid of Object.keys(byClient)) {
       const g = byClient[cid];
       if (ready) {
-        const devs = ((await env.DB.prepare('SELECT token, env FROM app_devices WHERE client_id = ?1').bind(cid).all()).results) || [];
+        const devs = await devicesFor(env, cid);
         if (devs.length) {
           const notes = [];
           // Up to 3 waiting items each get their own notification with an Approve button; more than that, one summary.
@@ -1026,20 +1036,23 @@ function eastern(ms) {
 }
 
 async function remindFollowups(env, now, today) {
-  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount, consent FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(today).all();
+  await ensureAuto(env);
+  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount, consent, auto_conf, auto_rem, auto_fu FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(today).all();
   const by = {};
   for (const r of (due.results || [])) (by[r.client_id] = by[r.client_id] || []).push(r);
-  // Customers who said yes to texts get ours (autotext.js), so the owner isn't asked to send the same one.
+  // Customers who said yes to texts get ours (autotext.js), so the owner isn't asked to send the same one. One we
+  // couldn't send (they opted out, the text failed) comes back to the owner here, and the app says why (autoFail).
+  const ours = x => +x.consent && !autoFail(x);
   for (const cid of Object.keys(by)) {
-    if (!by[cid].some(x => +x.consent)) continue;
+    if (!by[cid].some(ours)) continue;
     const cl = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
-    if (cl && await autoReady(env, cl).catch(() => false)) { by[cid] = by[cid].filter(x => !+x.consent); if (!by[cid].length) delete by[cid]; }
+    if (cl && await autoReady(env, cl).catch(() => false)) { by[cid] = by[cid].filter(x => !ours(x)); if (!by[cid].length) delete by[cid]; }
   }
   const ready = !!(env.APNS_KEY && env.APNS_KEY_ID);
   for (const cid of Object.keys(by)) {
     const list = by[cid];
     if (ready) {
-      const devs = ((await env.DB.prepare('SELECT token, env FROM app_devices WHERE client_id = ?1').bind(cid).all()).results) || [];
+      const devs = await devicesFor(env, cid);
       const one = list[0], label = (({ quote: 'Quote', invoice: 'Invoice', appointment: 'Appointment' })[one.kind] || 'Follow-up') + ' for ' + one.name + (one.amount ? ' (' + one.amount + ')' : '');
       const note = list.length === 1 ? { aps: { alert: { title: 'Follow up today', body: label + '. Tap to text them.' }, sound: 'default', 'thread-id': 'followups' }, screen: 'home' }
         : { aps: { alert: { title: list.length + ' follow-ups due', body: label + ' and ' + (list.length - 1) + ' more. Tap to see them.' }, sound: 'default', 'thread-id': 'followups' }, screen: 'home' };
@@ -1084,11 +1097,39 @@ async function apnsSend(env, dev, payload) {
   } catch (e) { /* one bad send never stops the rest */ }
 }
 
-let liveReady = false;
+const liveReady = new WeakSet();
 async function ensureLive(env) {
-  if (liveReady) return;
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_live (token TEXT PRIMARY KEY, client_id TEXT NOT NULL, kind TEXT NOT NULL, call_sid TEXT DEFAULT '', env TEXT DEFAULT 'production', updated TEXT)").run();
-  liveReady = true;
+  if (liveReady.has(env.DB)) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_live (token TEXT PRIMARY KEY, client_id TEXT NOT NULL, kind TEXT NOT NULL, call_sid TEXT DEFAULT '', env TEXT DEFAULT 'production', updated TEXT, code_hash TEXT DEFAULT '')").run();
+  liveReady.add(env.DB);
+}
+// Phone tokens remember the link (code hash) they signed in with. Only phones whose link still opens this business get
+// its notifications: the owner's current link, a staff link HQ hasn't removed, or the owner's link of another location in
+// the same group. A client that is turned off gets none. Tokens from before this was kept have no link and get none
+// until the app opens once and sends its token again.
+const devReady = new WeakSet();
+async function ensureDeviceLinks(env) {
+  if (devReady.has(env.DB)) return;
+  await ensureLive(env);
+  await ensureLocations(env);
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_staff (code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, name TEXT, created TEXT)').run();
+  for (const t of ['app_devices', 'app_live']) { try { await env.DB.prepare('ALTER TABLE ' + t + " ADD COLUMN code_hash TEXT DEFAULT ''").run(); } catch (e) { /* already there */ } }
+  devReady.add(env.DB);
+}
+const LINK_OK = "d.code_hash != '' AND c.active = 1 AND (d.code_hash = c.code_hash" +
+  ' OR EXISTS (SELECT 1 FROM app_staff s WHERE s.code_hash = d.code_hash AND s.client_id = d.client_id)' +
+  ' OR EXISTS (SELECT 1 FROM app_clients o JOIN app_locations lo ON lo.client_id = o.client_id JOIN app_locations ld ON ld.group_id = lo.group_id WHERE o.code_hash = d.code_hash AND o.active = 1 AND ld.client_id = d.client_id))';
+async function devicesFor(env, cid) {
+  try {
+    await ensureDeviceLinks(env);
+    return ((await env.DB.prepare('SELECT d.token, d.env FROM app_devices d JOIN app_clients c ON c.client_id = d.client_id WHERE d.client_id = ?1 AND ' + LINK_OK).bind(cid).all()).results) || [];
+  } catch (e) { return []; }
+}
+async function liveFor(env, cid, kind, callSid) {
+  try {
+    await ensureDeviceLinks(env);
+    return ((await env.DB.prepare('SELECT d.token, d.env FROM app_live d JOIN app_clients c ON c.client_id = d.client_id WHERE d.client_id = ?1 AND d.kind = ?2' + (callSid == null ? '' : ' AND d.call_sid = ?3') + ' AND ' + LINK_OK).bind(...(callSid == null ? [cid, kind] : [cid, kind, callSid])).all()).results) || [];
+  } catch (e) { return []; }
 }
 // Live Activity push (lock screen and Dynamic Island while Max is on a call). event: start | update | end.
 async function liveSend(env, dev, event, state, attrs, alert, dismissAt) {
@@ -1107,7 +1148,7 @@ async function liveSend(env, dev, event, state, attrs, alert, dismissAt) {
 export async function liveCallStart(env, cid, callId, business, callerText) {
   if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
   await ensureLive(env);
-  const devs = ((await env.DB.prepare("SELECT token, env FROM app_live WHERE client_id = ?1 AND kind = 'start'").bind(cid).all()).results) || [];
+  const devs = await liveFor(env, cid, 'start');
   for (const d of devs) await liveSend(env, d, 'start', { name: '', reason: 'Max has the call', caller: callerText || '', status: 'live' }, { business: business || '', callId }, { title: 'Max has a call', body: (callerText ? 'From ' + callerText + '. ' : '') + 'Keep going.' });
   return devs.length;
 }
@@ -1115,7 +1156,7 @@ export async function liveCallStart(env, cid, callId, business, callerText) {
 export async function liveCallEnd(env, cid, callId, name, reason, summary, outcome) {
   if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
   await ensureLive(env);
-  const devs = ((await env.DB.prepare("SELECT token, env FROM app_live WHERE client_id = ?1 AND kind = 'update' AND call_sid = ?2").bind(cid, callId).all()).results) || [];
+  const devs = await liveFor(env, cid, 'update', callId);
   const st = { name: name || '', reason: reason || '', caller: '', status: outcome === 'hangup' ? 'hungup' : (outcome === 'failed' ? 'failed' : 'done'), summary: String(summary || '').slice(0, 240) };
   for (const d of devs) await liveSend(env, d, 'end', st, null, null, Date.now() + 10 * 60e3);
   await env.DB.prepare("DELETE FROM app_live WHERE kind = 'update' AND call_sid = ?1").bind(callId).run().catch(() => {});
@@ -1125,7 +1166,7 @@ export async function liveCallEnd(env, cid, callId, name, reason, summary, outco
 // For the AI phone line: push a note to every phone signed in to this client's app. Returns how many phones.
 export async function pushClient(env, cid, note) {
   if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
-  const devs = ((await env.DB.prepare('SELECT token, env FROM app_devices WHERE client_id = ?1').bind(cid).all()).results) || [];
+  const devs = await devicesFor(env, cid);
   for (const d of devs) await apnsSend(env, d, note);
   return devs.length;
 }
@@ -1230,6 +1271,8 @@ async function readJson(req, max) {
   try { const o = JSON.parse(t); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (e) { return null; }
 }
 function changed(r) { return !!(r && r.meta && r.meta.changes); }
+// Who did it: a staff link is always its own name, whatever the body says; the owner may type theirs.
+function whoBy(c, by) { return (c && c.staff) || oneLine(clean(by, 40)) || 'Owner'; }
 // Month tiles are numbers (or null for "not known yet"). Anything else in stats (an HQ-written label, say) is dropped, because the
 // iPhone app reads stats as numbers only and one string there used to make it throw the whole screen away.
 function numbersOnly(o) {

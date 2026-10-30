@@ -177,8 +177,8 @@ Two separate things share one Meta app:
 
 - The owner can: Max tab, the switch at the top. Callers then ring through to the transfer number or hear a short
   message.
-- You can, for any line, with the ops key: the HQ phone line card, or in D1: `UPDATE voice_lines SET hq_on = 0
-  WHERE client_id = '<id>'` (the owner sees "paused on our side" and cannot turn it back on until `hq_on = 1`).
+- You can, for any line, with the ops key: the HQ phone line card, or in D1: `UPDATE voice_lines SET on_air = 0
+  WHERE client_id = '<id>'` (the owner sees "paused on our side" and cannot turn it back on until `on_air = 1`).
 - If Twilio itself must stop: Twilio console, the number, set Voice to the fallback URL only.
 
 ## How to put the site in a "we're having trouble" state

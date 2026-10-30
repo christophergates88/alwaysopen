@@ -297,12 +297,30 @@ function needName(cb){
 function sheet(html){var s=$('#scrim');s.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';s.hidden=false;}
 function close(){var s=$('#scrim');s.hidden=true;s.innerHTML='';}
 
-function load(quiet){
+/* Automatic refreshes (every minute, every few seconds during a live call, coming back to the app) rebuild the page,
+   so they wait while the owner is typing: any field on the page that has focus, or that they changed and haven't
+   saved. Works for every field, whatever it is called; a refresh they ask for (the button, pull down) still runs. */
+var TOUCHED=[];
+function unsaved(el){
+  if(el.tagName==='SELECT'){var d=null;for(var i=0;i<el.options.length;i++)if(el.options[i].defaultSelected){d=el.options[i];break;}d=d||el.options[0];return !!d&&!d.selected;}
+  if(el.type==='checkbox'||el.type==='radio')return el.checked!==el.defaultChecked;
+  if(el.type==='file')return !!(el.files&&el.files.length);
+  return el.value!==el.defaultValue;
+}
+function editing(){
+  var a=document.activeElement;
+  if(a&&a!==document.body&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(button|submit|reset|hidden)$/i.test(a.type||''))return true;
+  for(var i=0;i<TOUCHED.length;i++){var el=TOUCHED[i];if(document.contains(el)&&unsaved(el))return true;}
+  return false;
+}
+function autoLoad(){if(document.visibilityState!=='visible'||editing()){livePoll();return;}load(true,true);}
+function load(quiet,auto){
   if(LOADING)return;LOADING=true;
   var r=$('#refresh');r.classList.add('spin');
   api('state').then(function(res){
     LOADING=false;r.classList.remove('spin');$('#offline').hidden=true;
     if(!res.j.ok){if(res.status===404||res.status===429){$('#view').innerHTML='<div class="empty"><b>This link is not working</b><span>'+esc(res.j.error||'')+'</span></div>';}else if(!quiet)toast(res.j.error||'Could not load. Try again.');return;}
+    if(auto&&editing()){livePoll();return;}   /* they started typing while it loaded: keep what they typed */
     S=res.j;if(S.client&&S.client.business)$('#biz').textContent=S.client.business;
     if(!MONTH&&S.months&&S.months.length)MONTH=S.months[0].month;
     render();
@@ -323,6 +341,7 @@ function render(){
   // what they were typing survives a refresh
   var keep={},act=document.activeElement;KEEP.forEach(function(k){var el=document.getElementById(k);if(el)keep[k]={v:el.value,f:act===el};});
   $('#view').innerHTML=sampleBar()+v();
+  TOUCHED=TOUCHED.filter(function(el){return document.contains(el);});
   KEEP.forEach(function(k){var el=document.getElementById(k);if(!el||!keep[k])return;if(k==='msg'||DIRTY)el.value=keep[k].v;if(keep[k].f)el.focus({preventScroll:true});});
   if(TAB==='ask'){var th=$('.thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
   var si=$('#sidx');if(si){var hs=document.querySelectorAll('#view h2, #view .feature>h3');var out='';for(var j=0;j<hs.length;j++){var hd=hs[j],tt=hd.textContent.trim();if(!tt||tt.length>28)continue;hd.id=hd.id||('s-'+j);out+='<a href="#'+hd.id+'" data-a="jump" data-to="'+hd.id+'">'+esc(tt)+'</a>';}si.innerHTML=out;}
@@ -330,7 +349,7 @@ function render(){
   livePoll();
 }
 var LASTB=null,LIVET=null;
-function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.live.length)?6000:(TAB==='home'&&SEG==='today'?30000:0);if(ms)LIVET=setTimeout(function(){if(!document.hidden)load(true);else livePoll();},ms);}
+function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.live.length)?6000:(TAB==='home'&&SEG==='today'?30000:0);if(ms)LIVET=setTimeout(autoLoad,ms);}
 
 /* ---------- Home ---------- */
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
@@ -595,7 +614,9 @@ function fuCard(x){
   var due=isDue(x);
   return '<article class="card fu'+(due?' due':'')+'" id="fu-'+esc(x.id)+'"><div class="ch"><span class="chip'+(due?' urgent':'')+'">'+esc(FUK[x.kind]||'Follow-up')+'</span><span class="who">'+esc(dueText(x))+'</span></div>'+
     '<div class="fu-t"><b>'+esc(x.name)+'</b>'+(x.amount?'<span>'+esc(x.amount)+'</span>':'')+'</div>'+(x.note?'<p class="fine">'+esc(x.note)+'</p>':'')+
-    (x.texted?'<p class="fine"><b>'+esc(x.texted)+'</b> from your business number.</p>':(x.consent&&S.autoText?'<p class="fine">They said yes to texts, so we text them for you.</p>':''))+
+    (x.texted?'<p class="fine"><b>'+esc(x.texted)+'</b> from your business number.</p>':'')+
+    (x.notTexted?'<p class="fine"><b>Not texted.</b> '+esc(x.notTexted)+'</p>':'')+
+    (!x.texted&&!x.notTexted&&x.consent&&S.autoText?'<p class="fine">They said yes to texts, so we text them for you.</p>':'')+
     '<div class="acts">'+(x.phone?'<a class="btn ok" href="'+esc(smsHref(x.phone,fuText(x)))+'">Text them</a><a class="btn line" href="tel:'+esc(x.phone)+'">Call</a>':'<button class="btn line" type="button" data-a="fu-copy" data-id="'+esc(x.id)+'">Copy a text</button>')+
     '<button class="btn ghost" type="button" data-a="fu-done" data-id="'+esc(x.id)+'">Done</button></div></article>';
 }
@@ -712,10 +733,18 @@ function vMax(){
     if(L.booking)h+=bookCard(L);
     if(S.after)h+=afterCard(L);
   } else h+='<p class="lede">Calls your phone line answered.</p>';
-  if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p><p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p></div>':
+  if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p>'+textbackNote()+'</div>':
     '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   if(f.calls)h+='<h2>Calls</h2>'+callsList();
   return h;
+}
+// Whether texts can go out now comes from the server (S.after.canText: texting on, and this business's registration
+// approved); without the After the call card, the texting registration status is the next best answer.
+function textbackNote(){
+  var A=S.after,can=A?!!A.canText:!!((S.texting&&S.texting.status==='approved')||S.autoText);
+  if(!can)return '<p class="fine"><span class="chip">Waiting on carrier approval</span> Texting turns on once carriers approve your number, usually about two weeks.</p>';
+  if(A&&!A.textback)return '<p class="fine"><span class="chip">Off</span> Turn on \\u201cText after a missed call\\u201d under After the call.</p>';
+  return '<p class="fine"><span class="chip ok">On</span> Texts go out from your business number.</p>';
 }
 function hhmm(m){m=+m||0;var h=Math.floor(m/60),mm=m%60;return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm;}
 // A Google connection Google refused: one card with the button, until it is connected again.
@@ -1024,8 +1053,9 @@ document.addEventListener('click',function(e){
   else if(a&&/^(bz|fm|fw)-/.test(a))bizAct(a,id,t);
   else if(a&&a.indexOf('pc-')===0)pastAct(a,id,t);
 });
-document.addEventListener('input',function(e){var t=e.target;if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
-document.addEventListener('change',function(e){var t=e.target;if(t&&t.id==='lw')DIRTY=true;});
+function touch(t){if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&TOUCHED.indexOf(t)<0)TOUCHED.push(t);}
+document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
+document.addEventListener('change',function(e){var t=e.target;touch(t);if(t&&t.id==='lw')DIRTY=true;});
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#scrim').hidden)close();});
 $('#refresh').addEventListener('click',function(){load();});
@@ -1049,8 +1079,8 @@ $('#refresh').addEventListener('click',function(){load();});
   document.addEventListener('touchend',function(){if(on){ptr.textContent='Refreshing\\u2026';load();setTimeout(function(){ptr.classList.remove('on');ptr.textContent='Pull to refresh';},900);}y0=null;on=false;});
 })();
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();DEFER=e;if(S)render();});
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')load(true);});
-setInterval(function(){if(document.visibilityState==='visible'&&$('#scrim').hidden&&!Object.keys(EDIT).length&&!DIRTY)load(true);},60000);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&!editing())load(true,true);});
+setInterval(function(){if(document.visibilityState==='visible'&&$('#scrim').hidden&&!Object.keys(EDIT).length&&!DIRTY&&!editing())load(true,true);},60000);
 var OLD={month:'home',record:'approve',reviews:'approve',calls:'max'},TABS=['home','approve','max','ask'];
 function fromHash(){var h=(location.hash||'').slice(1);if(OLD[h])h=OLD[h];return TABS.indexOf(h)>-1?h:'';}
 window.addEventListener('hashchange',function(){var h=fromHash();if(h&&h!==TAB){TAB=h;render();window.scrollTo(0,0);}});

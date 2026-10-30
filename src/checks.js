@@ -71,19 +71,33 @@ const ownerOf = async (env, cid) => env.DB.prepare("SELECT b.email, b.code, b.ow
 const firstName = o => String((o && (o.owner_first || String(o.owner || '').split(/\s+/)[0])) || '').trim();
 
 // ---------- approvals ----------
+// Each waiting item keeps its own level (app_items.nudge): a 2-star review that comes in after an older post was nudged
+// still gets its own 6-hour reminder. One push per business covers everything due at once, and a business that just
+// had one waits a few hours for the next, unless a low review is among what is due.
+const NUDGE_GAP = 4 * H;
+const isLow = it => it.kind === 'reply' && +it.stars >= 1 && +it.stars <= 3;
+function nudgeWant(it, now) {
+  const age = now - Date.parse(it.created);
+  return age >= 3 * DAY ? 2 : ((age >= DAY || (isLow(it) && age >= 6 * H)) ? 1 : 0);
+}
 export async function approvalNudges(env, now, h) {
   now = now || Date.now(); h = h || {};
   if (!daytime(now)) return { skipped: 'night' };
-  const rows = ((await env.DB.prepare("SELECT client_id, MIN(created) AS oldest, COUNT(*) AS n, MAX(nudge) AS level, SUM(CASE WHEN kind = 'reply' AND stars BETWEEN 1 AND 3 THEN 1 ELSE 0 END) AS low, MIN(CASE WHEN kind = 'reply' AND stars BETWEEN 1 AND 3 THEN created END) AS low_at, MIN(CASE WHEN kind = 'reply' AND stars BETWEEN 1 AND 3 THEN stars END) AS stars FROM app_items WHERE status = 'pending' GROUP BY client_id").all()).results) || [];
+  const items = ((await env.DB.prepare("SELECT id, client_id, kind, stars, created, nudge, nudged_at FROM app_items WHERE status = 'pending' ORDER BY created").all()).results) || [];
+  const byClient = {};
+  for (const it of items) if (!INTERNAL.has(it.client_id) && Date.parse(it.created)) (byClient[it.client_id] = byClient[it.client_id] || []).push(it);
   const out = [];
-  for (const r of rows) {
-    if (INTERNAL.has(r.client_id)) continue;
-    const age = now - Date.parse(r.oldest), lowAge = r.low_at ? now - Date.parse(r.low_at) : 0, level = +r.level || 0;
-    let want = 0;
-    if (age >= 3 * DAY) want = 2; else if (age >= DAY || (r.low && lowAge >= 6 * H)) want = 1;
-    if (want <= level) continue;
+  for (const cid of Object.keys(byClient)) {
+    const all = byClient[cid];
+    const due = all.filter(it => nudgeWant(it, now) > (+it.nudge || 0));
+    if (!due.length) continue;
+    const lowDue = due.filter(isLow);
+    const last = all.reduce((m, it) => Math.max(m, Date.parse(it.nudged_at || '') || 0), 0);
+    if (!lowDue.length && last && now - last < NUDGE_GAP) continue;   // they just heard from us; this waits a little
+    const r = { client_id: cid, oldest: all[0].created, stars: lowDue.length ? Math.min(...lowDue.map(it => +it.stars)) : 0 };
+    const want = Math.max(...due.map(it => nudgeWant(it, now)));
     const o = await ownerOf(env, r.client_id);
-    const n = +r.n, low = +r.low;
+    const n = all.length, low = lowDue.length;
     const title = low ? 'A ' + r.stars + '-star review is waiting for your OK' : (n === 1 ? 'Something is waiting for your OK' : n + ' things are waiting for your OK');
     const body = (low ? 'Our reply is ready. Answering it today shows people reading your reviews that you care. ' : '') +
       (n > 1 || !low ? plural(n, 'reply or post', 'replies and posts') + ' waiting, the oldest from ' + dayName(r.oldest) + '. ' : '') +
@@ -93,7 +107,8 @@ export async function approvalNudges(env, now, h) {
       const hi = firstName(o) ? 'Hi ' + firstName(o) + ',\n\n' : '';
       via = (await mailOwner(env, h, o.email, title, hi + body.replace('Open the app', 'Open your Always Open app (' + SITE + '/app/' + o.code + ')') + '\n\nAlways Open\n' + (env.BUSINESS_ADDRESS || ''))) === 'sent' ? 'email' : '';
     }
-    await env.DB.prepare("UPDATE app_items SET nudge = ?1, nudged_at = ?2 WHERE client_id = ?3 AND status = 'pending'").bind(want, new Date(now).toISOString(), r.client_id).run();
+    const at = new Date(now).toISOString();
+    await env.DB.batch(due.map(it => env.DB.prepare("UPDATE app_items SET nudge = ?1, nudged_at = ?2 WHERE id = ?3 AND client_id = ?4 AND status = 'pending'").bind(nudgeWant(it, now), at, it.id, cid)));
     out.push({ client: r.client_id, level: want, via: via || 'none' });
   }
   return { nudged: out };
