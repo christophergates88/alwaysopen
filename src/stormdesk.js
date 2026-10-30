@@ -24,6 +24,40 @@ export async function ensureStormDesk(env) {
   ready.add(env.DB);
 }
 const ugcOf = url => String(url || '').split('/').pop();
+// The storm-day posts (the same wording as HQ's settings/storm-templates), by kind of business and kind of storm.
+export const TEMPLATES = {
+  general: { flood: 'Flooding in our area today. Please stay off flooded roads and stay safe. We will post any changes to our hours here, and you can reach us at {phone}.',
+    freeze: 'Freezing temperatures tonight. Stay warm and check on your neighbors. We will post any changes to our hours here, and you can reach us at {phone}.',
+    severe: 'Severe weather in our area today. Please stay safe. We will post any changes to our hours here, and you can reach us at {phone}.' },
+  insurance: { flood: 'Turn around, don\'t drown: never drive through water on the road. If water gets into your home or car, take photos before you clean up and call our office at {phone} with any questions.',
+    freeze: 'Hard freeze tonight. Let faucets on outside walls drip, open the cabinet doors under sinks, and know where your main water shut-off is. If a pipe bursts, shut off the water, take photos and call our office at {phone}.',
+    severe: 'Stay safe today. If your home or car is damaged in this storm, take photos and video before you clean up, keep receipts for emergency repairs, and call our office at {phone}. We are here to help.' },
+  trades: { flood: 'If water got in, we are taking calls at {phone}. Stay out of standing water near outlets, take photos, and we will help you sort out next steps.',
+    freeze: 'Freezing temperatures tonight. Let faucets on outside walls drip and open the cabinet doors under sinks. If a pipe bursts, shut off your main water valve and call us at {phone}.',
+    severe: 'Storm damage? We are taking calls at {phone}. Stay clear of downed power lines, take photos of any damage, and we will get to you as fast as we safely can.' }
+};
+export const LABELS = { flood: 'Flooding', freeze: 'Freeze', severe: 'Severe weather' };
+const TRADES = /plumb|hvac|heat|air|roof|electric|contractor|tree|restor|water|pest|garage|fenc|paint|concrete|pool|tow|auto/i;
+function fill(t, phone) {
+  const d = String(phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+  const ph = d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : '';
+  return ph ? t.replace(/\{phone\}/g, ph) : t.replace(/ at \{phone\}/g, '').replace(/,? and you can reach us\.?/g, '.').replace(/\{phone\}/g, '').replace(/\s+\./g, '.');
+}
+const rid = () => [...crypto.getRandomValues(new Uint8Array(10))].map(x => 'abcdefghjkmnpqrstuvwxyz23456789'[x % 31]).join('');
+// The post goes straight into the owner's app for their OK (like a photo post); approved, it goes up on Google. One per
+// client per kind of storm in 12 hours. A client in the old hand-set Georgia counties is left to HQ, which drafts theirs.
+async function draftFor(env, w, row, now, extra) {
+  if (/^GAC\d{3}$/.test(w.county) && extra['013' + w.county.slice(3)]) return false;
+  const recent = await env.DB.prepare("SELECT 1 AS x FROM app_items WHERE client_id = ?1 AND kind = 'post' AND context LIKE 'Storm Desk%' AND title = ?2 AND created > ?3").bind(w.client_id, 'Storm Desk: ' + LABELS[row.grp], new Date(now - 12 * 3600e3).toISOString()).first().catch(() => null);
+  if (recent) return false;
+  const line = await env.DB.prepare('SELECT industry FROM voice_lines WHERE client_id = ?1 LIMIT 1').bind(w.client_id).first().catch(() => null);
+  const ind = String((line && line.industry) || '');
+  const kind = /insurance/i.test(ind) ? 'insurance' : (TRADES.test(ind + ' ' + (w.business || '')) ? 'trades' : 'general');
+  const ts = new Date(now).toISOString();
+  await env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, hq_synced, checked, created, updated, notified, photo) VALUES (?1, ?2, 'post', ?3, ?4, 0, ?5, 'pending', 0, ?6, ?7, ?7, 0, '')")
+    .bind('phst' + rid(), w.client_id, 'Storm Desk: ' + LABELS[row.grp], 'Storm Desk: ' + row.event + ' for ' + (w.label || 'your county'), fill(TEMPLATES[kind][row.grp], w.phone), kind === 'insurance' ? 1 : 0, ts).run();
+  return true;
+}
 
 // Who Storm Desk covers: active clients on Growth or Pro (it comes with those plans), with where they are.
 async function covered(env) {
@@ -76,7 +110,7 @@ export async function stormRun(env, now, h) {
   const f = h.fetch || fetch;
   await ensureStormDesk(env);
   try { await refreshWatch(env, now, h); } catch (e) { /* matching still runs on what is known */ }
-  const watch = ((await env.DB.prepare("SELECT w.client_id, w.state, w.county, w.zone, w.label, c.business FROM storm_watch w JOIN app_clients c ON c.client_id = w.client_id WHERE w.county != '' AND c.active = 1 AND c.tier IN ('Growth', 'Pro')").all()).results) || [];
+  const watch = ((await env.DB.prepare("SELECT w.client_id, w.state, w.county, w.zone, w.label, c.business, c.phone FROM storm_watch w JOIN app_clients c ON c.client_id = w.client_id WHERE w.county != '' AND c.active = 1 AND c.tier IN ('Growth', 'Pro')").all()).results) || [];
   const extra = h.extra || {};
   const states = new Set(watch.map(w => w.state).filter(s => /^[A-Z]{2}$/.test(s)));
   if (Object.keys(extra).length) states.add('GA');
@@ -106,6 +140,9 @@ export async function stormRun(env, now, h) {
       const row = { id, at: new Date(now).toISOString(), event: p.event, grp: stormGroup(p.event), counties: counties.join('; '), clients: [...new Set(hit.map(w => w.client_id))].join(', '),
         businesses: [...new Set(hit.map(w => w.business || w.client_id))].join(', '), headline: String(p.headline || '').replace(/\s+/g, ' ').slice(0, 300), ends: p.ends || p.expires || '', link: 'https://alerts.weather.gov' };
       let sent = isUpdate ? 'update' : 'new';
+      let drafted = 0;
+      if (!isUpdate) for (const w of hit) { try { if (await draftFor(env, w, row, now, extra)) drafted++; } catch (e) { /* the push still says it */ } }
+      row.drafted = drafted;
       if (!isUpdate && sentNow < 6) {
         sentNow++;
         if (h.push) await h.push(row).catch(() => {});

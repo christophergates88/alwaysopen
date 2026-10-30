@@ -34,6 +34,11 @@ test('a Growth client in Texas is found by their town and gets a warning for the
   assert.equal(pushes.length, 1);
   assert.equal(pushes[0].counties, 'McLennan County, TX');
   assert.equal(pushes[0].clients, 'c1');
+  const post = await DB.prepare("SELECT client_id, kind, title, text, status FROM app_items WHERE client_id = 'c1'").first();
+  assert.deepEqual([post.kind, post.title, post.status], ['post', 'Storm Desk: Severe weather', 'pending'], 'the post waits in the owner’s app');
+  assert.match(post.text, /Storm damage\?/, 'a roofer gets the trades wording');
+  assert.equal(pushes[0].drafted, 1);
   await S.stormRun(env, Date.now(), h);
   assert.equal(pushes.length, 1, 'once per warning');
+  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = 'c1'").first()).n, 1);
 });

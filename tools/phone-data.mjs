@@ -230,7 +230,7 @@ export const PAGES = {
         intro: [['sys', 'New 5-star review from Dana W.'], ['draft', 'Thanks, Dana. Glad we saved you $400 on your auto policy.']],
         choices: [{ label: 'Check it with Compliance Guard', then: [['note', 'Compliance Guard · stopped', 'Names her policy and a savings claim', '“Your auto policy” says she’s a client. “Saved you $400” is a rate claim.', 'hot'], ['draft', 'Thank you for the kind words, Dana. We’re glad we could help.'], ['sys', 'Ready for your OK']] }] },
       { key: 'radar', title: 'Rate-Shock Radar', tag: TAG.every,
-        why: 'Each Monday our team counts reviews that mention rates, in the central Georgia towns we watch. When complaints show up, a reply and a post are ready.',
+        why: 'Each Monday our team counts reviews that mention rates, in your town. When complaints show up, a reply and a post are ready.',
         intro: [['sys', 'Weekly check · agencies in Eatonton'], ['note', 'Rate-Shock Radar', 'Rate complaints showing up in town', '5 reviews from the last 30 days mention rate increases.', 'hot']],
         choices: [{ label: 'See what’s ready', then: [['note', 'Ready for your OK', 'A calm reply for rate reviews', 'Already through Compliance Guard.', 'ok'], ['note', 'Ready for your OK', 'Post: what moves rates', 'Educational. No numbers, no quotes.', 'ok']] }] },
       { key: 'storm', title: 'Storm Desk', tag: TAG.growth, why: WHY.storm,
@@ -284,7 +284,7 @@ export const FOLDS = {
   },
   insurance: {
     guard: 'Write a reply and watch Compliance Guard check it.',
-    radar: 'A weekly count of reviews about rates, in the central Georgia towns we watch.',
+    radar: 'A weekly count of reviews about rates, in your town.',
     max: 'How Max takes messages after hours, and what he never discusses.',
     posts: 'Educational posts you approve, plus your profile and monthly page.',
     record: 'Every public review, reply and post, kept on file.',

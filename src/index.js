@@ -338,7 +338,7 @@ async function stormWatch(env) {
 }
 async function stormPush(env, s) {
   await phonePush(env, { title: 'Storm Desk: ' + s.event + ' - ' + s.counties, priority: 'high', tags: 'cloud_with_lightning_and_rain',
-    body: (s.businesses ? 'Clients there: ' + s.businesses + '\n' : '') + (s.headline || s.event) + '\nStorm posts for them are drafted at the next Always Open check.' });
+    body: (s.businesses ? 'Clients there: ' + s.businesses + '\n' : '') + (s.headline || s.event) + '\n' + (s.drafted ? s.drafted + (s.drafted === 1 ? ' storm post is' : ' storm posts are') + ' waiting in their app for their OK.' : 'Storm posts are drafted at the next Always Open check.') });
 }
 async function stormMail(env, s) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
@@ -605,10 +605,13 @@ async function radarTown(env, town, now) {
 }
 async function radarWatch(env) {
   if (!env.PLACES_KEY) return { ok: false, error: 'no key' };
-  const towns = String(env.RADAR_TOWNS || '').split('|').map(x => x.trim()).filter(Boolean);
+  // Every insurance client's own town, anywhere in the U.S., then the standing list (RADAR_TOWNS) for prospects.
+  let own = [];
+  try { own = (((await env.DB.prepare("SELECT DISTINCT COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || []).map(r => String(r.town || '').trim()).filter(t => /,\s*[A-Z]{2}$/.test(t)); } catch (e) { own = []; }
+  const towns = [...new Set(own.concat(String(env.RADAR_TOWNS || '').split('|').map(x => x.trim()).filter(Boolean)))];
   if (!towns.length) return { ok: false, error: 'no towns' };
   const now = Date.now(), week = isoWeek(new Date(now)), at = new Date(now).toISOString(), lines = [], out = [];
-  for (const town of towns.slice(0, 12)) {
+  for (const town of towns.slice(0, 30)) {
     try {
       const m = await radarTown(env, town, now);
       // A wave: several recent reviews about rates, or a run of recent reviews with low ratings among them (last 30 days, from this lookup).

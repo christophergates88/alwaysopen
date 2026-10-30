@@ -11,7 +11,7 @@ const CARDS = {
   grade: { h: 'How does your business <em>look</em> on Google right now?', s: 'Type your business name and town. <b>Your grade shows in a few seconds.</b> Free, no sign-up.' },
   fillweek: { h: 'A slow Thursday, <em>filled.</em>', s: 'Past customers who are due get offered the open day by text. <b>The first yes is booked.</b>' },
   caught: { h: 'What Max <em>caught</em> this week.', s: 'Real calls, real numbers, for the businesses we work for. <b>Every caller heard an answer, not voicemail.</b>' },
-  storm: { h: 'Storm warning? <em>We draft your post.</em>', s: 'In the central Georgia counties we watch, our team writes the storm-day post. <b>You approve it from anywhere.</b>' },
+  storm: { h: 'Storm warning? <em>We draft your post.</em>', s: 'When a warning hits your county, our team writes the storm-day post. <b>You approve it from anywhere.</b>' },
   tip: { h: 'One thing worth doing <em>this week.</em>', s: 'A plain tip for small business owners, from the people who answer their phones.' },
   handoff: { h: 'Not your kind of job? <em>Pass it on.</em>', s: 'Max puts the caller through to a nearby business on Always Open. <b>They send work back.</b>' },
   local: { h: 'Lake Country, Georgia. <em>Anywhere</em> in the U.S.', s: 'Calls answered. Reviews handled. Jobs followed up. <b>You approve it all from your phone.</b>' },
