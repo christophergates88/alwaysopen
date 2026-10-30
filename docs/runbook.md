@@ -154,8 +154,9 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   ones fresh and mails a color letter through Lob (lob.com) to each graded C, D or F, signed by the team, with a QR code
   to that business's private live audit (`/your-audit/<token>`). Skipped: A and B grades, clients, anyone already a
   lead, anyone mailed in the last six months, no street address on Google. Caps: 5 a day and $60 a month by default
-  (about $1.42 a letter), set by `Turn on mailed letters.command` (`POST /ops/mail-on`). Needs `LOB_KEY` (a `test_` key
-  makes letters in Lob's dashboard without mailing them) and `BUSINESS_ADDRESS` (the return address). The letter's page
+  (about $1.42 a letter), set by `Turn on mailed letters.command` (`POST /ops/mail-on`). Needs `LOB_KEY` and `BUSINESS_ADDRESS`
+  (the return address). A `test_` key makes up to three proofs in Lob's dashboard and mails nothing; their codes open
+  real audit pages, so scanning one tests the push. The live key puts those businesses back in line for a real letter. The letter's page
   exists only while Lob makes it; nothing from Google is kept. The first scan of a code pushes "X just scanned their
   letter" at high priority; the 7 AM push lists letters landing that day and any scanned. To stop it, delete the
   `enabled` row in `mail_meta` or remove `LOB_KEY`.

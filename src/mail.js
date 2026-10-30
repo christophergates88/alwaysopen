@@ -72,9 +72,11 @@ export async function turnOn(env, daily, monthlyDollars) {
   const d = Math.max(1, Math.min(25, parseInt(daily, 10) || DEFAULTS.daily));
   const m = Math.max(10, Math.min(500, parseInt(monthlyDollars, 10) || DEFAULTS.monthly / 100));
   await setMeta(env, 'enabled', 'yes'); await setMeta(env, 'daily', d); await setMeta(env, 'monthly_cents', m * 100);
-  return { on: true, daily: d, monthly: '$' + m, lob: env.LOB_KEY ? (/^test_/.test(env.LOB_KEY) ? 'test key: letters are made in Lob but not mailed' : 'live key') : 'no Lob key yet', returnAddress: fromAddress(env) ? 'set' : 'missing: set BUSINESS_ADDRESS' };
+  return { on: true, daily: d, monthly: '$' + m, lob: env.LOB_KEY ? (testKey(env) ? 'test key: up to ' + PROOFS + ' proofs in Lob, nothing mailed' : 'live key') : 'no Lob key yet', returnAddress: fromAddress(env) ? 'set' : 'missing: set BUSINESS_ADDRESS' };
 }
 
+const testKey = env => /^test_/.test(env.LOB_KEY || '');
+const PROOFS = 3;
 async function skip(env, row, why) { await env.DB.prepare("UPDATE mail_queue SET status = 'skipped', note = ?1 WHERE id = ?2").bind(why, row.id).run(); return 'skipped: ' + why; }
 
 // Someone we already know: a client, a lead, or a business we mailed in the last 180 days.
@@ -132,9 +134,10 @@ async function sendOne(env, row, now, h) {
       file: SITE + '/mail/letter/' + t, color: true, double_sided: false, address_placement: 'insert_blank_page', mail_type: 'usps_first_class', use_type: 'marketing',
       metadata: { queue: String(row.id) }
     }, 'ao-letter-' + row.id);
-    await env.DB.prepare("UPDATE mail_queue SET status = 'sent', html = '', letter_id = ?1, sent_at = ?2, expected = ?3, cost = ?4, note = ?5 WHERE id = ?6")
-      .bind(String(sent.id || ''), new Date(now).toISOString(), String(sent.expected_delivery_date || ''), COST_CENTS, /^test_/.test(env.LOB_KEY) ? 'test mode: not mailed' : '', row.id).run();
-    return 'sent';
+    const proof = testKey(env);
+    await env.DB.prepare("UPDATE mail_queue SET status = ?1, html = '', letter_id = ?2, sent_at = ?3, expected = ?4, cost = ?5, note = ?6 WHERE id = ?7")
+      .bind(proof ? 'proof' : 'sent', String(sent.id || ''), new Date(now).toISOString(), proof ? '' : String(sent.expected_delivery_date || ''), proof ? 0 : COST_CENTS, proof ? 'proof: made in Lob, not mailed' : '', row.id).run();
+    return proof ? 'proof' : 'sent';
   } catch (e) {
     await env.DB.prepare("UPDATE mail_queue SET status = 'failed', html = '', note = ?1 WHERE id = ?2").bind(String((e && e.message) || e).slice(0, 160), row.id).run();
     if (leadId) await env.DB.prepare("DELETE FROM leads WHERE id = ?1 AND origin LIKE 'letter%'").bind(leadId).run().catch(() => {});
@@ -161,23 +164,37 @@ export async function mailCron(env, now, h) {
   if (/Sat|Sun/.test(e.wd) || e.hour < 10 || e.hour >= 15) return { waiting: 'outside mailing hours' };
   // A letter stuck "sending" (the Worker stopped mid-way) is retried; Lob's idempotency key keeps it to one letter.
   await env.DB.prepare("UPDATE mail_queue SET status = 'queued', html = '' WHERE status = 'sending' AND tried_at < ?1").bind(new Date(now - 30 * 60e3).toISOString()).run().catch(() => {});
-  const daily = +(await meta(env, 'daily')) || DEFAULTS.daily, monthly = +(await meta(env, 'monthly_cents')) || DEFAULTS.monthly;
-  const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_queue WHERE status = 'sent' AND sent_at >= ?1").bind(new Date(now - 14 * 3600e3).toISOString()).first();
-  const month = await env.DB.prepare("SELECT COALESCE(SUM(cost), 0) AS c FROM mail_queue WHERE status = 'sent' AND substr(sent_at, 1, 7) = ?1").bind(new Date(now).toISOString().slice(0, 7)).first();
-  const left = Math.min(daily - (+today.n || 0), Math.floor((monthly - (+month.c || 0)) / COST_CENTS));
-  if (left <= 0) return { waiting: 'cap reached', today: +today.n || 0, month: '$' + ((+month.c || 0) / 100).toFixed(2) };
+  let left;
+  if (testKey(env)) {
+    // Test key: up to three proofs, made in Lob's dashboard and never mailed, so he can see and scan a real one.
+    const p = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_queue WHERE status = 'proof'").first();
+    left = PROOFS - (+p.n || 0);
+    if (left <= 0) return { waiting: PROOFS + ' proofs made; the live key mails' };
+  } else {
+    // Live key: proofs go back in line (their test pages are retired), then the caps.
+    const old = ((await env.DB.prepare("SELECT lead_id FROM mail_queue WHERE status = 'proof'").all()).results) || [];
+    for (const o of old) if (o.lead_id) await env.DB.prepare("DELETE FROM leads WHERE id = ?1 AND origin LIKE 'letter%'").bind(o.lead_id).run().catch(() => {});
+    if (old.length) await env.DB.prepare("UPDATE mail_queue SET status = 'queued', token = '', letter_id = '', lead_id = NULL, sent_at = '', note = '' WHERE status = 'proof'").run();
+    const daily = +(await meta(env, 'daily')) || DEFAULTS.daily, monthly = +(await meta(env, 'monthly_cents')) || DEFAULTS.monthly;
+    const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_queue WHERE status = 'sent' AND sent_at >= ?1").bind(new Date(now - 14 * 3600e3).toISOString()).first();
+    const month = await env.DB.prepare("SELECT COALESCE(SUM(cost), 0) AS c FROM mail_queue WHERE status = 'sent' AND substr(sent_at, 1, 7) = ?1").bind(new Date(now).toISOString().slice(0, 7)).first();
+    left = Math.min(daily - (+today.n || 0), Math.floor((monthly - (+month.c || 0)) / COST_CENTS));
+    if (left <= 0) return { waiting: 'cap reached', today: +today.n || 0, month: '$' + ((+month.c || 0) / 100).toFixed(2) };
+  }
   const rows = ((await env.DB.prepare("SELECT * FROM mail_queue WHERE status = 'queued' ORDER BY added LIMIT ?1").bind(Math.min(left, 3)).all()).results) || [];
   const out = [];
   for (const r of rows) out.push({ q: r.q, result: await sendOne(env, r, now, h) });
-  const sent = out.filter(x => x.result === 'sent');
+  const sent = out.filter(x => x.result === 'sent' || x.result === 'proof');
   if (sent.length && h.ping !== false) {
     const ping = h.ping || (async (t, b) => (await import('./app.js')).opsPing(env, t, b, 'default', 'envelope'));
-    const names = ((await env.DB.prepare("SELECT q, grade, expected FROM mail_queue WHERE status = 'sent' AND sent_at = ?1").bind(new Date(now).toISOString()).all()).results) || [];
-    await ping('Always Open: mailed ' + sent.length + (sent.length === 1 ? ' grade letter' : ' grade letters'), names.map(n => n.q + ' (' + n.grade + ')' + (n.expected ? ', lands about ' + n.expected : '')).join('\n') + (/^test_/.test(env.LOB_KEY) ? '\nTest mode: made in Lob, not mailed.' : '\nYou get a push the moment one of them scans their code.'));
+    const names = ((await env.DB.prepare("SELECT q, grade, expected FROM mail_queue WHERE status IN ('sent', 'proof') AND sent_at = ?1").bind(new Date(now).toISOString()).all()).results) || [];
+    const list = names.map(n => n.q + ' (' + n.grade + ')' + (n.expected ? ', lands about ' + n.expected : '')).join('\n');
+    if (testKey(env)) await ping('Always Open: ' + (sent.length === 1 ? 'a proof letter is' : sent.length + ' proof letters are') + ' ready in Lob', list + '\nNot mailed. See it in Lob\u2019s dashboard under Letters, and scan its code with your phone to test the push.');
+    else await ping('Always Open: mailed ' + sent.length + (sent.length === 1 ? ' grade letter' : ' grade letters'), list + '\nYou get a push the moment one of them scans their code.');
   }
   const failed = out.filter(x => /^failed/.test(x.result));
   if (failed.length) { try { await (await import('./ops.js')).opsAlert(env, 'mail', '', failed.map(f => f.q + ': ' + f.result).join('; ')); } catch (x) { /* noted in the queue */ } }
-  return { mailed: sent.length, results: out };
+  return { mailed: out.filter(x => x.result === 'sent').length, proofs: out.filter(x => x.result === 'proof').length, results: out };
 }
 
 // The audit page (leadmail.js) calls this on a letter's first open: the hottest moment to call them.
