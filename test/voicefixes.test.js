@@ -302,7 +302,7 @@ test('7. the disclosure is always Max\'s own sentence; a greeting that contradic
   assert.equal(V.greetingOk('Thanks for calling Quillen Plumbing! Press 0 to reach a real person.'), true, 'reaching a person is not claiming to be one');
   assert.equal(V.greetingText('X', false, 'Hey there, Bob\'s Plumbing! I’m an S.I., and this call may be recorded.'), 'Hey there, Bob\'s Plumbing! ' + V.DISCLOSURE);
   const es = V.greetingText('X', true, 'Thanks for calling Bob\'s Plumbing. SI, hablamos espanol. This call is recorded.');
-  assert.equal(once(es), 1); assert.match(es, /SI, hablamos espanol\./); assert.match(es, /Para español, oprima dos\.$/);
+  assert.equal(once(es), 1); assert.match(es, /SI, hablamos espanol\./); assert.doesNotMatch(es, /oprima/);
   // end to end: the owner saves a greeting in the app; a contradicting one is refused
   const w = await mk();
   const A = p => '/app/' + CODE + p;

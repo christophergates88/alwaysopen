@@ -1123,7 +1123,7 @@ async function diag(env) {
 function greeting(line) {
   const f = (line && parse(line.facts)) || {};
   // After the owner's own recorded greeting, Max says only the disclosure and the question.
-  if (f.greetAudio) return DISCLOSURE + (+(line && line.spanish) ? ' Para español, oprima dos.' : '') + ' What can I do for you?';
+  if (f.greetAudio) return DISCLOSURE + ' What can I do for you?';
   return greetingText((line && line.business) || 'our office', !!(line && +line.spanish), f.greeting);
 }
 // What an owner's greeting (or the lines said after it) may not say: that this is not an AI or not automated, that it is
@@ -1153,7 +1153,8 @@ export function greetingOk(g) {
   return t.length >= 10 && t.length <= 320 && !/[<>]/.test(t) && !contradicts(t);
 }
 export function greetingText(biz, spanish, custom) {
-  const sp = spanish ? ' Para español, oprima dos.' : '';
+  // No "press 2": a Spanish caller is heard and switched on their first words (spanishOpener, looksSpanish).
+  const sp = '';
   if (greetingOk(custom)) return withDisclosure(oneLine(String(custom))) + sp;
   return 'Hi, thanks for calling ' + biz + '. ' + DISCLOSURE + sp + ' What can I do for you?';
 }
