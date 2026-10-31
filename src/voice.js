@@ -1491,7 +1491,7 @@ const LEADS = {
   hear: ['Yep, I\'m here.', 'Yeah, I\'m here.'],
   hi: ['Hi.', 'Hi there.'],
   wait: ['Sure.', 'Sure, no rush.'],
-  yes: ['Great.', 'Perfect.', 'Good.'],
+  yes: ['Alright.', 'Good.', 'Got it.'],
   ask: ['Sure.', 'Alright.'],
   wh: ['Good question.', 'Sure.', 'Okay.'],
   worry: ['Fair question.', 'Good question.'],
@@ -1502,7 +1502,7 @@ const LEADS = {
   doubt: ['Fair enough.', 'That\'s fair.', 'I hear you.'],
   info: ['Sure.', 'Sure thing.', 'Okay.'],
   name: ['Nice to meet you.', 'Great, thanks.', 'Got it, thanks.'],
-  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.', 'Perfect.']
+  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.']
 };
 
 const LEADS_ES = {
@@ -1629,7 +1629,7 @@ function leadKindEn(raw, orig) {
   const core = w.replace(/^((yeah|yes|yep|so|um+|uh+|well|okay|ok|oh|hi|hey|hello|and|but|like|alright|all right|thanks|thank you|max)\s+)+/, '');
   if (/^(what|huh|sorry|pardon|pardon me|excuse me|come again|what was that|what did you say|say again)$/.test(w) ||
     has(/\b(say (that|it) again|repeat (that|it|yourself)|didn't (hear|catch)|did not (hear|catch)|couldn't hear|could not hear|can't hear you|cannot hear you|breaking up|cutting out)\b/)) return 'repeat';
-  if (has(/\b(911|fire|smoke|gas leak|smell gas|smells like gas|bleeding|hurt|injured|unconscious|not breathing|can't breathe|ambulance|chest pain|overdose|carbon monoxide|electrocuted|sparking)\b/)) return 'danger';
+  if (has(/\b(911|fire|smoke|gas leak|smell gas|smells like gas|bleeding|hurt|injured|unconscious|not breathing|can't breathe|ambulance|chest pain|overdose|carbon monoxide|electrocuted|sparking|fell|fallen|collapsed|passed out|not getting up|can't get up|won't wake up|not waking up|not responding)\b/)) return 'danger';
   // health questions are never "good question" territory (an emergency may be going on)
   if (has(/\b(aspirin|ibuprofen|tylenol|advil|medication|meds|pills?|dosage|dose|prescription|symptoms?|heart attack|stroke|seizure|allergic reaction|can't breathe|trouble breathing|emergency room|urgent care)\b/)) return 'danger';
   // trying to get Max's instructions out of him gets a grin; asking for someone's private details gets a pause, then a no
@@ -1649,6 +1649,8 @@ function leadKindEn(raw, orig) {
   // wanting a person ("Can I talk to a real person?") is not asking what Max is: it gets "I hear you." and a real answer
   if (has(/\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b/)) return 'aimad';
   if (has(UPSET)) return 'upset';
+  // turning down what was offered, hard ("Monday? Absolutely not."): heard, never "Fair question."
+  if (has(/\b(absolutely not|no way|unacceptable|not acceptable|ridiculous|not good enough|(call|calling|go to|going to|go with|find) (someone|somebody) else)\b/)) return 'upset';
   // "Are you AI?" gets a straight, playful yes right away; "Are you a real person?" a straight no
   if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(robot|bot|ai|a i|si|s i|computer|machine|automated)\b/)) return 'isai';
   if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(human|person|recording)\b|\b(are you|is this) real\b/)) return 'ishuman';
@@ -1658,7 +1660,7 @@ function leadKindEn(raw, orig) {
   // a business owner describing their work ("we fix leaks", "I run a restoration company") is not having a bad day
   const work = has(/\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize|get|take|answer|miss)\b|\b(company|business|contractor|restoration|services|customers|clients|calls|jobs|crew)\b/);
   if (!isQ && !work && has(/\b(passed away|died|funeral|cancer|in the hospital|lost my (husband|wife|mom|mother|dad|father|son|daughter))\b/)) return 'sad';
-  if (!isQ && !work && has(/\b(emergency|leak|leaking|flood|flooding|flooded|burst|broke|broken|not working|stopped working|won't start|wont start|no heat|no hot water|no ac|no air|no power|backed up|backing up|clogged|overflowing|damaged|damage|crashed|stolen|robbed|locked out)\b/)) return 'trouble';
+  if (!isQ && !work && has(/\b(emergency|leak|leaking|flood|flooding|flooded|burst|broke|broken|not working|stopped working|won't start|wont start|no heat|no hot water|no ac|no air|no power|backed up|backing up|clogged|overflowing|damaged|damage|crashed|stolen|robbed|locked out|pouring|gushing|spraying|sewage|water everywhere|no water|coming through)\b/)) return 'trouble';
   if (!isQ && has(/\b(urgent|asap|as soon as possible|right away)\b/)) return 'urgent';
   if (!isQ && has(/\b(bye|goodbye|that's all|that is all|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go)\b/)) return 'bye';
   if (n <= 6 && /^(no|nope|nah|not really|not yet|not now|not right now|not at the moment|not today|no thanks|no thank you|actually no|wrong)\b/.test(w)) return 'no';
@@ -1741,6 +1743,8 @@ export function dropRepeat(text, kind) {
   if (m) rest = rest.slice(m[0].length).replace(/^(and|but)\s+(?=\S)/i, '').replace(/^([¿¡"']?)(\p{Ll})/u, (x, p, c) => p + c.toUpperCase());
   // ...or tacks one onto the end of its first sentence: "Nice." then "A dental office, nice." -> "A dental office."
   rest = rest.replace(/^([^.!?]{3,60}?),\s*(?:nice|got it|gotcha|perfect|great|awesome|okay|ok|cool|sure|sounds good)(?=[.!?])/i, '$1');
+  // ...and a name left stranded at the front ("Got it, Timothy. Thanks." -> "Timothy. Thanks.") goes with it
+  if (m) { const nm = rest.match(/^([A-Z][a-z'’]+)[.,]\s+(?=\S)/); if (nm && !/^(Yes|No|Yeah|Yep|Nope|Good|Great|Sure|Thanks|Right|Done|Alright|Okay|Ok|Absolutely|Definitely|Exactly|Correct|Totally|Understood|Noted|Booked|Perfect|Sorry|Well|So|Now|Then|Also|Hmm|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Mike|Max)$/.test(nm[1])) rest = rest.slice(nm[0].length); }
   if (!/[a-z0-9áéíóúñ]/i.test(rest.replace(/\[[^\]]*\]?/g, ''))) return t;   // nothing left but the reaction: keep it as said
   return rest;
 }
