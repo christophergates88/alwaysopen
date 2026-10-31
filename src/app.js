@@ -227,6 +227,8 @@ export async function handleApp(req, env, ctx, url) {
       return await apiCall(req, env, c);
     } else if (sub === '/api/line' && meth === 'POST') {
       return await apiLine(req, env, ctx, c);
+    } else if (sub === '/api/max-setup' && meth === 'POST') {
+      return await apiMaxSetup(env, c);
     } else if (sub === '/api/results' && meth === 'POST') {
       await ensureSettings(env);
       let b = {}; try { b = await req.json(); } catch (e) {}
@@ -567,6 +569,20 @@ function lineOut(raw, c) {
     voice: voiceKeyOf(f.voice), voices: voicesOut(), greetingAudio: f.greetAudio ? SITE + '/a/' + f.greetAudio : ''
   };
 }
+// Max comes with every plan: an owner without a line taps Set up Max and gets a number right away, no message to us.
+async function apiMaxSetup(env, c) {
+  if (+c.regulated) return aj({ ok: false, error: 'For insurance, medical and legal offices we set Max up with you. Tap Ask us.' }, 403);
+  const extra = String(c.feats || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (extra.indexOf('calls') < 0) {
+    extra.push('calls');
+    await env.DB.prepare('UPDATE app_clients SET feats = ?1, updated = ?2 WHERE client_id = ?3').bind(extra.join(','), new Date().toISOString(), c.client_id).run();
+  }
+  const { provisionLine } = await import('./provision.js');
+  const r = await provisionLine(env, c.client_id).catch(e => ({ status: 'queued', error: String((e && e.message) || e) }));
+  if (r.status !== 'live') await opsPing(env, 'Max setup started: ' + (c.business || c.client_id), 'Status: ' + r.status + (r.error ? ' (' + r.error + ')' : '') + '. The timer keeps trying every 10 minutes.', 'default', 'telephone_receiver').catch(() => {});
+  return aj({ ok: true, status: r.status, numberText: r.numberText || '' });
+}
+
 async function apiLine(req, env, ctx, c) {
   const raw = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
   if (!raw) return aj({ ok: false, error: 'You don’t have a phone line yet. Ask us to set up Max.' }, 403);

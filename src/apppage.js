@@ -815,6 +815,7 @@ function factsCall(){
   sheet('<h2>'+esc(L.name)+' calls you</h2><p class="fine">'+esc(L.name)+' asks seven short questions and sends what he heard here for you to check. About three minutes.</p><label>Your number<input type="tel" id="iv-ph" inputmode="tel" maxlength="20" value="'+esc(S.client.phone||'')+'" placeholder="478 555 0142"></label><div class="acts"><button class="btn red" type="button" id="go">Call me now</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
   $('#go').onclick=function(){var t=this;t.disabled=true;post('line',{action:'interview',phone:$('#iv-ph').value}).then(function(res){t.disabled=false;if(res.j.ok){close();toast(res.j.message||'Calling you now.');}else toast(res.j.error||'Could not call. Try again.');}).catch(function(){t.disabled=false;toast('No connection. Try again.');});};
 }
+function maxSetup(b){if(b)b.disabled=true;toast('Getting Max a number for you\u2026');post('max-setup',{}).then(function(res){if(b)b.disabled=false;if(res.j.ok){toast(res.j.status==='live'?'Max is ready at '+res.j.numberText+'. The steps to forward your calls are on Home.':'Max\u2019s number is on its way. You get a notice here the moment it\u2019s ready.');load(true);}else toast(res.j.error||'Could not set Max up. Try again.');}).catch(function(){if(b)b.disabled=false;toast('No connection. Try again.');});}
 function lineSave(body,done){
   needName(function(by){body.by=by;post('line',body).then(function(res){if(res.j.ok){S.line=res.j.line;if(body.hours!=null)DIRTY=false;render();toast(res.j.unchanged?'Nothing changed.':'Saved. '+S.line.name+' uses it on the next call.');if(done)done();}else toast(res.j.error||'Could not save. Try again.');}).catch(function(){toast('No connection. Try again.');});});
 }
@@ -1046,7 +1047,7 @@ document.addEventListener('click',function(e){
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
-  else if(a==='ask-max')askAbout('Max','Please set up Max, my phone assistant, on my account. He comes with my plan.');
+  else if(a==='ask-max')maxSetup(t);
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
   else if(a&&a.indexOf('rv-')===0)rvAct(a,id,t);
