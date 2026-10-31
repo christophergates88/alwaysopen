@@ -603,7 +603,7 @@ export class CallRoom extends DurableObject {
     { const ia = lastOf(s.msgs, 'a'); if (ia > -1 && ia > lastOf(s.msgs, 'u') && saidGoodbye(s.msgs[ia].t) && CLOSING.test(said)) {
       this.dropSpec(); s.msgs.push({ r: 'u', t: said }); if (!s.endAt) s.endAt = Date.now() + 300; await this.keep(s); return; } }
     // A caller who speaks Spanish gets Spanish from here on (when the line answers in Spanish).
-    if (s.lang === 'en-US' && s.line && s.line.spanish && looksSpanish(said)) {
+    if (s.lang === 'en-US' && s.line && s.line.spanish && (looksSpanish(said) || (s.msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) {
       s.lang = 'es-US';
       this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
       this.mark('ES', 'auto');
@@ -1804,6 +1804,20 @@ function justSaid(text) {
 const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are the business\'s AI assistant (asistente de inteligencia artificial) and that this call may be recorded (esta llamada puede ser grabada), then answer what they said.';
 const ES_WORDS = new Set(('hola buenos buenas dias días tardes noches necesito quiero quisiera por favor gracias habla hablo español espanol usted ustedes tengo tiene mi mis casa ayuda ayudar puede pueden cuanto cuánto cuesta precio ' +
   'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí').split(' '));
+// The first words of a Spanish caller, as an English listener tends to write them down ("hola" -> "ola", "español" ->
+// "spaniel", "necesito" -> "nay say toe"). Checked only on the caller's first two turns, where a garbled opener is the
+// whole problem; later on, looksSpanish has full sentences to go on.
+const EN_COMMON = new Set('i im i\'m a an the need my is it to and you we have can do this that for with about on in at of please help hi hello yes no'.split(' '));
+export function spanishOpener(said) {
+  const w = String(said || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-záéíóúñü\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!w) return false;
+  if (/\b(espa(ñ|n|ny)ol|espaniol|es pan yol|en espa)\b/.test(w) || /\b(speak|habla|hablas|abla) spaniel\b/.test(w)) return true;
+  if (/\b(ne(s|c)e?s?s?ito|nay say toe|nessa seeto|necessito|por fa ?vor|pour fa ?vor|plo ?mero|quisiera|kiss era|me llamo|my ya mo|tengo una?|ten go una?)\b/.test(w)) return true;
+  const m = w.match(/^(hola|ola|oh la|o la|allo|al[oó]|bueno|buenos|buenas|bwenas|bueno s|oiga|disculpe|perd[oó]n|se[ñn]or|se[ñn]ora|si se[ñn]or)\b/);
+  if (!m) return false;
+  const rest = w.slice(m[0].length).trim().split(' ').filter(Boolean);
+  return rest.length <= 2 || rest.filter(x => EN_COMMON.has(x)).length < 2;
+}
 export function looksSpanish(said) {
   const w = String(said || '').toLowerCase().replace(/[^a-záéíóúñü\s]/g, ' ').split(/\s+/).filter(Boolean);
   if (!w.length) return false;
