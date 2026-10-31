@@ -1511,7 +1511,8 @@ const LEADS_ES = {
 };
 
 export function leadIn(said, lang, recent, rnd) {
-  const es = lang === 'es-US';
+  // A caller who just starts in Spanish (without pressing 2) gets Spanish reactions too, not "Got it."
+  const es = lang === 'es-US' || looksSpanish(said);
   const kind = (es ? leadKindEs : leadKindEn)(leadNorm(said), String(said || ''));
   if (!kind) return null;
   const list = (es ? LEADS_ES : LEADS)[kind] || (es ? LEADS_ES : LEADS).said;
@@ -1670,7 +1671,7 @@ function leadKindEn(raw, orig) {
   if (/^(hold on|hang on|one sec|one second|just a sec|just a second|give me a sec|give me a second|give me a minute|wait|wait a sec|wait a second|let me (check|see|think|look|find|grab|get))\b/.test(w)) return 'wait';
   if (n <= 4 && /^(yes|yeah|yep|yup|ya|yea|sure|correct|right|exactly|absolutely|definitely|of course|ok|okay|sounds good|perfect|that's right|that's correct|that works|uh huh|mm hmm|please|great|cool|awesome|sure thing|you got it|that's me|it is|i do|we do)\b/.test(w)) return 'yes';
   if (isQ) {
-    if (/^(can|could|would|will) (you|somebody|someone|chris|they) (please )?(have|get|call|text|send|email|book|schedule|put|set|give|let|pass|transfer|connect|forward|sign)\b/.test(core) ||
+    if (/^(can|could|would|will) (you|somebody|someone|chris|they|anyone|anybody|a plumber|mike) (please )?(have|get|call|text|send|email|book|schedule|put|set|give|let|pass|transfer|connect|forward|sign|come|look|stop|swing|fix|check|take)\b/.test(core) ||
       /^(can|could|may) (i|we) (get|have|speak|talk|book|schedule|leave|sign)\b/.test(core) || /\bplease\b/.test(core)) return 'ask';
     // pushback ("What about when the owner's already on a job?", "But what if it doesn't work?") is a fair point, not a "Sure."
     if (/^(what|how) about (when|if)\b/.test(core) || (/^(but|yeah but|okay but|ok but|well but|so but)\b/.test(w) && /^(what|how) (about|if)\b/.test(core))) return 'point';
