@@ -1603,6 +1603,7 @@ export function settledOnCall(msgs) {
   if (!pairs.length) return '';
   return 'Already settled on this call (never ask these again and never read them back again; if the caller asks about one, answer from here in a few words): ' + pairs.slice(-8).join('; ') + '.';
 }
+const SPOKEN_ADDR = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b(\s+\w+){0,4}\s+(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike)\b/;
 const PUSH_FAST = /\b(pretty quick|real quick|quick as|fast as|right now|right away|asap|as soon as possible|someone else|somebody else|another (plumber|company|guy)|how fast|need someone (out|here|today|now)|today)\b/;
 const DIY_ASK = /\b(fix (it|this|that )?(myself|my ?self|on my own)|(something|anything) i can (fix|do|try)|i fix (it|this|that)|do it (myself|on my own)|diy|can i (fix|do|repair|try)|how (do|can|would) i (fix|repair|stop|unclog|replace)|(just |can you |could you )?(tell|show|walk) me how)\b/;
 const CALLBACK_ASK = /\b(how (long|soon|fast|quick)|when (will|is|does|would|can) (he|she|they|mike|someone|somebody|anyone)|what time will)\b/;
@@ -1624,6 +1625,8 @@ function callerNotes(s, said) {
     const promise = String(s.line.next || '').split(/(?<=[.!?])\s+/).filter(x => /\b(\d+|one|two|five|ten|fifteen|twenty|thirty|an?) (minutes?|hours?)\b|same (night|day)/i.test(x)).join(' ');
     out.push('They need someone fast and may call someone else. ' + (promise ? 'Restate the business\'s own emergency promise, confidently and in plain words: "' + promise + '" Never say you can\'t promise how fast; this is the business\'s own word.' : 'Say the owner already has it as urgent and will call the moment he is free; do not hedge or apologize.') + ' Do not ask for or read back their number again if you already have it.');
   }
+  // A street number said as words ("eight eight twelve Main Street") can be 8812, 88-12 or 812: read it back as digits once.
+  if (SPOKEN_ADDR.test(String(said || '').toLowerCase())) out.push('They gave a street number in words, which can be heard more than one way. Read the house number back as single digits ("eight, eight, one, two Main Street?") and let them correct it. Once they say yes, never read it back again.');
   // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
   if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. No repair steps; only how to shut water or power off if something is actively leaking.');
   // When they ask how soon the owner calls: the business's own emergency callback time if it set one, otherwise a polite "as soon as he's free".
