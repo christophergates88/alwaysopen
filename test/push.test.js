@@ -87,6 +87,9 @@ test('the hourly check: fine when nothing is stuck; not fine when pushes are stu
 });
 
 test('/ops/push-queue: only with the key; the Mac takes and reports', async () => {
+  // A fixed weekday afternoon, so the result doesn't depend on the hour the tests run (quiet hours hold pushes at night).
+  const realNow = Date.now; Date.now = () => Date.parse('2026-10-29T18:00:00Z');
+  try {
   const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
   H.installFetch(world, env);
   const { default: worker } = await import('../src/index.js');
@@ -100,6 +103,7 @@ test('/ops/push-queue: only with the key; the Mac takes and reports', async () =
   const d = (await site.call('/ops/push-queue', { headers: { 'x-key': env.LEADS_KEY }, json: { done: [t.items[0].id] } })).json();
   assert.equal(d.done, 1);
   assert.equal((await DB.prepare("SELECT via FROM push_queue").first()).via, 'mac');
+  } finally { Date.now = realNow; }
 });
 
 test('a paid ntfy account: the token goes with every push; a token ntfy turns down is dropped at once and reported', async () => {

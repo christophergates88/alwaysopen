@@ -10,12 +10,14 @@ const O = await import('../src/ops.js');
 test('with the database down, the alert still goes out once (and only once)', async () => {
   const sent = [];
   const env = { DB: { prepare() { throw new Error('D1_ERROR: database unavailable'); } }, NTFY_URL: 'https://ntfy.example.test/x' };
+  // A fixed weekday afternoon: quiet hours hold some alerts at night, and a deploy at 11 PM must not fail on the clock.
+  const realNow = Date.now; Date.now = () => Date.parse('2026-10-29T18:00:00Z');
   const real = globalThis.fetch; globalThis.fetch = async (u, i) => { sent.push(String(u)); return new Response('{}'); };
   try {
     assert.equal(await O.opsAlert(env, 'health:d1-test', '', 'database did not answer'), 'sent');
     assert.equal(await O.opsAlert(env, 'health:d1-test', '', 'database did not answer'), 'limited');
     assert.equal(sent.filter(u => u.includes('ntfy.example.test')).length, 1);
-  } finally { globalThis.fetch = real; }
+  } finally { globalThis.fetch = real; Date.now = realNow; }
 });
 
 test('a Twilio error while checking numbers is "could not check", never "not in the Twilio account"', async () => {
