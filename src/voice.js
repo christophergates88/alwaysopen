@@ -1522,15 +1522,11 @@ const LEADS_ES = {
   wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Muy bien.', 'Entiendo.', 'Perfecto.']
 };
 
-const PLAIN_KINDS = new Set(['said', 'yes', 'no', 'name', 'ask', 'info', 'wh', 'yn', 'urgent']);
 export function leadIn(said, lang, recent, rnd) {
   // A caller who just starts in Spanish (without pressing 2) gets Spanish reactions too, not "Got it."
   const es = lang === 'es-US' || looksSpanish(said);
   const kind = (es ? leadKindEs : leadKindEn)(leadNorm(said), String(said || ''));
   if (!kind) return null;
-  // A canned "Got it." before every reply is what makes the line sound recorded. Plain answers get none: Max's own reply
-  // opens the way a person would. Reactions stay where feeling matters (bad news, danger, upset, thanks, hello, "what?").
-  if (PLAIN_KINDS.has(kind)) return null;
   const list = (es ? LEADS_ES : LEADS)[kind] || (es ? LEADS_ES : LEADS).said;
   const past = Array.isArray(recent) ? recent : [];
   const once = x => /question|pregunta|nice to meet you/i.test(x);   // said at most once a call
@@ -1822,7 +1818,7 @@ export function cutBizQ(text, asked) {
 }
 function turnNote(heard, msgs) {
   const asked = askedBiz(msgs);
-  return (heard ? justSaid(heard) : 'Nothing was said before your reply this time. Start the way a person would: straight in, or a short natural acknowledgement in your own words if it fits ("Got it, Tony."), never the same one twice in a row.') + (asked ? ' ' + 'You already asked what kind of business they run: do not ask it again.' : '');
+  return (heard ? justSaid(heard) : '') + (asked ? (heard ? ' ' : '') + 'You already asked what kind of business they run: do not ask it again.' : '');
 }
 function justSaid(text) {
   return 'You just said "' + text + '" out loud, the instant the caller stopped talking. Your reply is spoken right after it, so go straight to the point: do not say it again, and do not open with another reaction. One or two short sentences, like a person on the phone.';
