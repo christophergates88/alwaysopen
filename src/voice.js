@@ -1352,7 +1352,7 @@ async function claude(env, system, messages, onText, maxTokens, extra, signal) {
     // A per-turn note (which quick reaction was just said) goes after them, outside the cache.
     // Thinking is off: Claude Haiku 5.5 thinks by default, which delays the first word and, with a short limit, can use up
     // the whole reply before any words (an empty answer on the phone).
-    body: JSON.stringify({ model, max_tokens: maxTokens || 220, ...(thinkingFor(env, model) ? { thinking: thinkingFor(env, model) } : {}), system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }].concat(extra ? [{ type: 'text', text: extra }] : []), messages, stream: !!onText }) // newer Claude models refuse `temperature`
+    body: JSON.stringify({ model, max_tokens: maxTokens || 220, ...(thinkingFor(env, model) ? { thinking: thinkingFor(env, model) } : {}), ...(/^(low|medium|high)$/.test(String(env.VOICE_EFFORT || '')) ? { output_config: { effort: String(env.VOICE_EFFORT) } } : {}), system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }].concat(extra ? [{ type: 'text', text: extra }] : []), messages, stream: !!onText }) // newer Claude models refuse `temperature`
   });
   if (!r.ok) { let why = ''; try { why = (await r.text()).slice(0, 300); } catch (e) { why = ''; } throw new Error('Claude ' + r.status + ' ' + why); }
   if (!onText) {
@@ -1907,7 +1907,7 @@ export async function rehearse(env) {
   const more = greetingMore(line);
   L.heard2 = !!more;
   // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
-  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}) : env;
+  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
   let budget = 40;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
     const msgs = [{ r: 'a', t: greeting(line) }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
@@ -1933,7 +1933,7 @@ export async function rehearse(env) {
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined });
     }
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', tag: String(j.tag || '').slice(0, 40), out }), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), out }), 20000);
   }
 }
 
