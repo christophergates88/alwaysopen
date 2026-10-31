@@ -2,7 +2,7 @@
 // This text is placed inside the app page's script (apppage.js), so it can use S, esc, post, api, sheet, close, toast, render, copyText.
 export const BIZ_JS = String.raw`
 /* ---------- jobs, estimates, inbox, team (biz) ---------- */
-(function(){var st=document.createElement('style');st.textContent='.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}.chip{font:600 13px var(--body,inherit);padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:inherit;cursor:pointer}.chip[aria-pressed=true]{border-color:var(--sign);box-shadow:var(--glow)}.ob li{display:flex;gap:10px;align-items:center;padding:6px 0;list-style:none}.ob ul{padding:0;margin:8px 0}.ob .obt{display:flex;flex-direction:column;gap:2px;min-width:0}.ob .obt small{font-size:13px;line-height:1.35;opacity:.75}.ob .tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:inline-grid;place-items:center;font-size:13px;flex:none}.ob .obd .tick{background:var(--sign);border-color:var(--sign);color:#fff}.ob .obd span{text-decoration:line-through;opacity:.7}.qline{display:grid;grid-template-columns:1fr 64px 96px;gap:6px}.inb{white-space:pre-wrap}.tag{font:600 12px var(--mono,monospace);opacity:.75}.bar{height:8px;border-radius:4px;background:var(--sign);opacity:.8}';document.head.appendChild(st);})();
+(function(){var st=document.createElement('style');st.textContent='.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}.chip{font:600 13px var(--body,inherit);padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:inherit;cursor:pointer}.chip[aria-pressed=true]{border-color:var(--sign);box-shadow:var(--glow)}.ob li{display:flex;gap:10px;align-items:center;padding:6px 0;list-style:none}.ob ul{padding:0;margin:8px 0}.ob .obt{display:flex;flex-direction:column;gap:2px;min-width:0}.ob .obt small{font-size:13px;line-height:1.35;opacity:.75}.ob .tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:inline-grid;place-items:center;font-size:13px;flex:none}.ob .obd .tick{background:var(--sign);border-color:var(--sign);color:#fff}.ob .obd span{text-decoration:line-through;opacity:.7}.qline{display:grid;grid-template-columns:1fr 64px 96px;gap:6px}.inb{white-space:pre-wrap}.tag{font:600 12px var(--mono,monospace);opacity:.75}.jstat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px}.jstat div{border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--card)}.jstat b{display:block;font-size:20px}.jstat span{font-size:13px;opacity:.75}.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.pst{border:1.5px solid var(--line);background:transparent;color:inherit;border-radius:12px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;min-width:0}.pst b{font-size:18px}.pst span{font-size:12px;font-weight:600}.pst em{font-style:normal;font-size:11px;opacity:.75;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pst.z{opacity:.55}.pst[aria-pressed=true]{border-color:var(--sign);box-shadow:var(--glow);opacity:1}.bar{height:8px;border-radius:4px;background:var(--sign);opacity:.8}';document.head.appendChild(st);})();
 var STG=[['new','New'],['quoted','Quoted'],['booked','Booked'],['done','Done'],['paid','Paid']];
 var CH={request:'Request',booking:'Booking',call:'Call',facebook:'Facebook',text:'Text',google:'Google review'};
 function isTech(){return !!(S&&S.me&&S.me.role==='tech');}
@@ -32,18 +32,19 @@ function bizBlocks(){
 function jobsBlock(){
   var js=S.jobs||[],t=S.jobTotals;
   var h='<h2>Jobs</h2>';
-  if(t&&t.count)h+='<p class="note" style="margin:-4px 2px 10px">'+m2(t.paidMonth)+' paid this month · '+m2(t.booked)+' booked and not paid yet</p>';
-  var by={};STG.forEach(function(s){by[s[0]]=js.filter(function(j){return j.stage===s[0];});});
-  h+='<div class="chips" role="group" aria-label="Jobs by stage">'+STG.map(function(s){return '<button class="chip" type="button" data-a="bz-stage-f" data-id="'+s[0]+'" aria-pressed="'+(JOBF===s[0])+'">'+s[1]+' '+by[s[0]].length+'</button>';}).join('')+'</div>';
+  var by={},sum={};STG.forEach(function(s){by[s[0]]=js.filter(function(j){return j.stage===s[0];});sum[s[0]]=by[s[0]].reduce(function(n,j){return n+(+j.amount||0);},0);});
+  if(!JOBSET&&js.length){JOBSET=true;if(!by[JOBF].length){var first=STG.filter(function(s){return by[s[0]].length;})[0];if(first)JOBF=first[0];}}
+  if(t&&t.count&&!isTech())h+='<div class="jstat"><div><b>'+m2(t.paidMonth)+'</b><span>paid this month</span></div><div><b>'+m2(t.booked)+'</b><span>booked, not paid yet</span></div></div>';
+  h+='<div class="pipe" role="group" aria-label="Jobs by stage">'+STG.map(function(s){var n=by[s[0]].length;return '<button class="pst'+(n?'':' z')+'" type="button" data-a="bz-stage-f" data-id="'+s[0]+'" aria-pressed="'+(JOBF===s[0])+'"><b>'+n+'</b><span>'+s[1]+'</span>'+(sum[s[0]]&&!isTech()?'<em>'+m2(sum[s[0]])+'</em>':'')+'</button>';}).join('')+'</div>';
   var list=by[JOBF]||[];
-  h+='<div class="list" style="margin-top:8px">'+list.slice(0,25).map(function(j){
+  h+='<div class="list" style="margin-top:8px">'+list.slice(0,JOBMORE?25:8).map(function(j){
     return '<article class="card"><b>'+esc(j.name||'Customer')+'</b>'+(j.amount?'<span class="tag" style="float:right">'+m2(j.amount)+'</span>':'')+'<p class="note" style="margin:4px 0">'+esc(j.title||'')+(j.phone?' · '+esc(j.phone):'')+'</p><div class="chips">'+
       STG.map(function(s){if(isTech()&&s[0]==='paid')return '';return '<button class="chip" type="button" data-a="bz-stage" data-id="'+j.id+'" data-s="'+s[0]+'" aria-pressed="'+(j.stage===s[0])+'">'+s[1]+'</button>';}).join('')+'</div>'+
       (isTech()?'':'<div class="acts" style="margin-top:6px"><button class="btn ghost sm" type="button" data-a="bz-amt" data-id="'+j.id+'">Set amount</button>'+(j.quoteId?'':'<button class="btn line sm" type="button" data-a="bz-quote" data-id="'+j.id+'">Write estimate</button>')+(j.stage==='booked'&&j.phone?'<button class="btn ghost sm" type="button" data-a="bz-onway" data-id="'+j.id+'">Text them I\u2019m on the way</button>':'')+(j.source==='call'&&/\([^)]*\d[^)]*\)$/.test(j.title||'')&&!/cancelled\)$/.test(j.title||'')?'<button class="btn ghost sm" type="button" data-a="bz-cancelbk" data-id="'+j.id+'">Cancel visit</button>':'')+'</div>')+'</article>';}).join('')+'</div>';
   if(!list.length)h+='<div class="empty slim"><b>Nothing here</b><span>New requests, bookings and calls show up as jobs on their own.</span></div>';
-  return h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="bz-job-add">Add a job</button></div>';
+  return h+'<div class="acts" style="margin:4px 0 0">'+(list.length>8&&!JOBMORE?'<button class="btn ghost" type="button" data-a="bz-jobs-more">Show '+Math.min(25,list.length)+' of '+list.length+'</button>':'')+'<button class="btn line" type="button" data-a="bz-job-add">Add a job</button></div>';
 }
-var JOBF='new';
+var JOBF='new',JOBSET=false,JOBMORE=false;
 function quotesBlock(){
   var qs=S.quotes||[];
   var h='<h2>Estimates</h2><div class="list">'+qs.slice(0,15).map(function(q){
@@ -74,10 +75,13 @@ function teamBlock(){
   return h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="bz-act">See who did what</button></div>';
 }
 function setBlock(){
-  var h='<h2>Settings</h2><div class="card"><label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
+  var g1='',g2='',gT='',g3='',h='<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
   if(S.line)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-es"'+(S.line.spanish?' checked':'')+'> <span>'+esc(S.line.name)+' answers Spanish-speaking callers in Spanish</span></label>';
+  g1=h;h='';
   if(S.map)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-map"'+(S.map.show?' checked':'')+'> <span>Show me on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+esc(mapNote())+' <button class="btn line sm" type="button" data-a="bz-map" style="margin-top:6px">Edit what it shows</button></p>';
+  g2=h;h='';
   if(S.texting&&!S.texting.regulated){var T=S.texting;h+='<p class="note" style="margin:14px 0 4px"><b>Texting under your business name</b></p><p class="note" style="margin:0">'+esc(T.label)+(T.error?'. '+esc(T.error):'')+'</p>'+(T.status==='none'||T.status==='needs_fix'?'<div class="acts" style="margin-top:6px"><a class="btn line sm" href="'+BASE+'/texting">'+(T.status==='needs_fix'?'Fix and send again':'Register for texting')+'</a></div>':'');}
+  gT=h;h='';
   if(S.fullMax&&S.fullMax.allowed){var F=S.fullMax;
     h+='<p class="note" style="margin:14px 0 4px"><b>Full Max</b></p>';
     if(!F.on)h+='<p class="note" style="margin:0">Off. Everything is a draft until you approve it. Turn it on and the categories you pick send on their own, only when Compliance Guard passes them.</p><div class="acts" style="margin-top:8px"><button class="btn line sm" type="button" data-a="fm-agree">Turn Full Max on</button></div>';
@@ -94,13 +98,17 @@ function setBlock(){
     else if(!W.on)h+='<p class="note" style="margin:0">Off. Turn it on and when your calendar has an open day coming up, past customers who agreed to hear from you get one text offering it. The first YES is booked on your calendar.</p><div class="acts" style="margin-top:8px"><button class="btn line sm" type="button" data-a="fw-agree">Turn Fill my week on</button></div>';
     else h+='<p class="note" style="margin:0">On. '+(W.last?'Last time: '+W.last.offers+(W.last.offers===1?' offer':' offers')+' for '+esc(W.last.day)+', '+W.last.booked+' booked.':'It checks your calendar each weekday morning.')+' Each customer gets at most one offer in 90 days.</p><div class="acts" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-a="fw-run">Fill my next open day now</button><button class="btn ghost sm" type="button" data-a="fw-off">Turn it off</button></div>';
   }
+  g3=h;h='';
   if(S.answer){var A=S.answer;h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ans"'+(A.show?' checked':'')+'> <span>Show my after-hours answer rate on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+(A.publicLine?'Showing: "'+esc(A.publicLine)+'". ':'Shows once a month has '+A.minCalls+' or more after-hours calls. ')+'After hours means evenings, nights and weekends. Real calls, counted, never estimated.'+(A.paste?' <button class="btn line sm" type="button" data-a="bz-ans-copy" style="margin-top:6px">Copy a line for your Google profile</button>':'')+'</p>';}
+  g2=g2+h;h='';
   if(S.checkins){h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ci"'+(S.checkins.on?' checked':'')+'> <span>Check-in calls: three days after a job, Max calls the customer once to ask if the work held up. Only customers who said a call is OK. A yes becomes the review ask; a no reaches you first.</span></label>';}
   if(S.handoff){var H=S.handoff;h+='<p class="note" style="margin:14px 0 4px"><b>Hand-offs between Always Open businesses</b></p>'+
     '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:4px"><input type="checkbox" id="bz-ho-give"'+(H.give?' checked':'')+'> <span>When a caller needs work we don\u2019t do, Max may put them through to a nearby Always Open business that does</span></label>'+
     '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ho-take"'+(H.take?' checked':'')+'> <span>Take callers that nearby Always Open businesses pass to us</span></label>'+
     '<p class="note" style="margin:4px 0 0">'+(H.give?(H.nearby?H.nearby+' nearby business'+(H.nearby===1?'':'es')+' can take hand-offs right now.':'No nearby business takes hand-offs yet. Max will not offer any.'):'Off.')+(H.given||H.taken?' This month: sent '+H.given+', took '+H.taken+'.':'')+' Nearest first, never by plan. Only businesses on Always Open.</p>';}
-  return h+'</div>';
+  g3=g3+h;
+  var card=function(t,x){return x?'<h2>'+t+'</h2><div class="card">'+x+'</div>':'';};
+  return card('Your preferences',g1)+card('Public listing',g2)+card('Texting',gT)+card('Automation',g3);
 }
 function mapNote(){var m=S.map;if(!m)return '';if(!m.show)return m.regulated?'Off. Regulated businesses are only listed if they turn it on.':'Off. You are not on the public map.';
   return 'Shows your name, type and town'+(m.phone?', '+m.phone:'')+(m.address?', '+m.address:'')+'. The list is sorted by distance only.';}
@@ -172,10 +180,11 @@ function bizAct(a,id,t){
   else if(a==='bz-map')mapSheet();
   else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{show:$('#mp-show').checked,phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Map listing saved.');load(true);}else toast(res.j.error||'Could not save.');});}
   else if(a==='bz-ob-all'){OBALL=!OBALL;render();}
-  else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
+  else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';MSEG='answer';try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}
-  else if(a==='bz-ob-teach'){TAB='max';try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
+  else if(a==='bz-jobs-more'){JOBMORE=true;render();}
+  else if(a==='bz-ob-teach'){TAB='max';MSEG='teach';try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
   else if(a==='bz-onway'){needName(function(by){t.disabled=true;post('work',{action:'onway',id:+id,by:by}).then(function(res){t.disabled=false;toast(res.j.ok?res.j.message:(res.j.error||'Could not send.'));});});}
   else if(a==='bz-cancelbk'){t.disabled=true;post('work',{action:'cancel-booking',id:+id}).then(function(res){t.disabled=false;if(res.j.ok){toast(res.j.told?'Cancelled. We texted them.':'Cancelled. The time is open again.');load(true);}else toast(res.j.error||'Could not cancel.');});}
   else if(a==='bz-ob-max'){if(S.line)location.href='tel:'+S.line.number;}

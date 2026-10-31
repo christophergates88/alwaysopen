@@ -133,7 +133,7 @@ a.btn{color:inherit}
 .banner .x{border:0;background:none;color:var(--slate);font-size:22px;width:36px;height:36px;line-height:1}
 .months{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 -2px 10px;scrollbar-width:none}
 .months::-webkit-scrollbar{display:none}
-.seg{display:flex;gap:6px;margin:4px 0 18px;padding:4px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);position:sticky;top:0;z-index:5}.segb{flex:1;min-width:0;border:0;background:transparent;border-radius:10px;padding:9px 4px;font-weight:600;font-size:14.5px;color:inherit;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}.segb[aria-selected=true]{background:var(--ink);color:var(--paper)}.segn{font-style:normal;font-size:12px;min-width:18px;padding:1px 5px;border-radius:99px;background:#D92D20;color:#fff}@media(max-width:360px){.segb{font-size:13px}}
+.seg{display:flex;gap:6px;margin:4px 0 18px;padding:4px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);position:sticky;top:0;z-index:5}.segb{flex:1;min-width:0;border:0;background:transparent;border-radius:10px;padding:9px 4px;font-weight:600;font-size:14.5px;color:inherit;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}.segb[aria-selected=true]{background:var(--ink);color:var(--paper)}.msg{overflow-x:auto;scrollbar-width:none}.msg::-webkit-scrollbar{display:none}.msg .segb{flex:none;padding:9px 13px;white-space:nowrap}.segn{font-style:normal;font-size:12px;min-width:18px;padding:1px 5px;border-radius:99px;background:#D92D20;color:#fff}@media(max-width:360px){.segb{font-size:13px}}
 .mchip{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:7px 14px;font-weight:600;font-size:14.5px}
 .mchip[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -813,11 +813,25 @@ function vReviews(){
 
 /* ---------- Max (the phone line) ---------- */
 function sel(a,b){return a===b?' selected':'';}
+var MSEG='answer';
+function mSegBar(L,f){
+  var tabs=[['answer','Answering'],['teach','Teach '+L.name]];
+  if(L.booking)tabs.push(['book','Booking']);
+  if(S.after)tabs.push(['after','After the call']);
+  if(f.calls)tabs.push(['calls','Calls']);
+  if(!tabs.some(function(x){return x[0]===MSEG;}))MSEG='answer';
+  return '<div class="seg msg" role="tablist" aria-label="'+esc(L.name)+'">'+tabs.map(function(x){return '<button type="button" role="tab" class="segb" data-mseg="'+x[0]+'" aria-selected="'+(x[0]===MSEG)+'">'+esc(x[1])+'</button>';}).join('')+'</div>';
+}
 function vMax(){
   var L=S.line,f=S.features||{};
   var h='<h1>'+esc(L?L.name:'Calls')+'</h1>';
-  if(L){
-    h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>';
+  if(!L){
+    h+='<p class="lede">Calls your phone line answered.</p>'+textbackCard();
+    if(f.calls)h+='<h2>Calls</h2>'+callsList();
+    return h;
+  }
+  h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>'+mSegBar(L,f);
+  if(MSEG==='answer'){
     h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?' is answering':' is off')+'</b><span>'+(L.onAir?'Every call, day and night.':(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
@@ -830,15 +844,23 @@ function vMax(){
       '<label>Put callers through to that number<select id="lw"><option value="never"'+sel(L.transferWhen,'never')+'>Never, just take a message</option><option value="urgent"'+sel(L.transferWhen,'urgent')+'>Only if it\\u2019s urgent</option><option value="asked"'+sel(L.transferWhen,'asked')+'>When they ask, or it\\u2019s urgent</option></select></label>'+
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
-    h+=teachCard(L);
     if(L.voices)h+=voiceCard(L);
-    if(L.booking)h+=bookCard(L);
-    if(S.after)h+=afterCard(L);
-  } else h+='<p class="lede">Calls your phone line answered.</p>';
-  if(!S.client.regulated)h+=f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p>'+textbackNote()+'</div>':
-    '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
-  if(f.calls)h+='<h2>Calls</h2>'+callsList();
+  } else if(MSEG==='teach'){
+    h+=teachCard(L)||'<div class="empty slim"><b>Nothing to teach here</b><span>'+esc(L.name)+' answers from your hours and notes on the Answering tab.</span></div>';
+  } else if(MSEG==='book'){
+    h+=bookCard(L);
+  } else if(MSEG==='after'){
+    h+=afterCard(L)+textbackCard();
+  } else if(MSEG==='calls'){
+    h+='<h2>Calls</h2>'+callsList();
+  }
   return h;
+}
+function textbackCard(){
+  var f=S.features||{};
+  if(S.client.regulated)return '';
+  return f.textback?'<div class="feature"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else.</p>'+textbackNote()+'</div>':
+    '<div class="feature locked"><h3>Missed-call text-back</h3><p>When someone hangs up before anyone can help, we text them back so the job doesn\\u2019t go to someone else. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
 }
 // Whether texts can go out now comes from the server (S.after.canText: texting on, and this business's registration
 // approved); without the After the call card, the texting registration status is the next best answer.
@@ -1090,7 +1112,8 @@ ${PAST_JS}
 ${RIVALS_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg]');if(!t)return;
+  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg],[data-mseg]');if(!t)return;
+  if(t.dataset.mseg){MSEG=t.dataset.mseg;render();window.scrollTo(0,0);return;}
   if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
   if(t.dataset.go){var g=t.dataset.go;if(g==='up'||g==='map'){TAB='home';SEG=g==='up'?'results':'customers';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var jt=document.getElementById(g==='up'?'upgrades':'map');if(jt)jt.scrollIntoView({behavior:'smooth',block:'start'});return;}if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
   if(t.dataset.close){close();return;}
