@@ -23,3 +23,11 @@ test('the prompt still fits its size cap', () => {
   const L = lineView({ client_id: 'c1', business: 'Mike’s Plumbing', facts: '{}' });
   assert.ok(systemPrompt(L, '+14785550142', 'en-US', false).length <= 14000);
 });
+
+test('no model is ever sent a thinking setting it refuses (Opus refused "disabled" on Oct 30)', async () => {
+  const { thinkingFor } = await import('../src/voice.js');
+  assert.deepEqual(thinkingFor({}, 'claude-haiku-5-5'), { type: 'disabled' });
+  assert.equal(thinkingFor({}, 'claude-opus-5-5'), null);
+  assert.equal(thinkingFor({}, 'claude-sonnet-5-5'), null);
+  assert.deepEqual(thinkingFor({ VOICE_THINKING: 'adaptive' }, 'claude-opus-5-5'), { type: 'adaptive' });
+});
