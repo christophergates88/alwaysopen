@@ -760,6 +760,8 @@ export class CallRoom extends DurableObject {
       const n = await startHandoff(this.env, cur.cid, cur.sid, cur.caller, sp.flags.handoff, cur.neighbors, '').catch(() => null);
       if (n) { cur.handoff = { id: n.id, number: n.number, business: n.business }; cur.endAt = Date.now() + speakMs(spoken) + 400; }
     }
+    // Max said goodbye but forgot [END]: hang up anyway, so a caller's "thank you" never starts a second round of goodbyes.
+    if (!sp.flags.end && !sp.flags.transfer && saidGoodbye(spoken)) sp.flags.end = true;
     if (sp.flags.transfer && cur.line.canTransfer) { cur.transfer = true; cur.endAt = Date.now() + speakMs(spoken) + 400; }
     else if (sp.flags.end || sp.flags.transfer) cur.endAt = Date.now() + speakMs(spoken) + 700;
     await this.keep(cur);
@@ -1178,6 +1180,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- Callers do not know the team. The first time you mention someone by name, say who they are, like "Chris, who runs the business".',
     '- When something is actively going wrong: say a short, genuine line of concern once ("Oh no, okay, let\'s get someone out to you."), ask whether they have already made it safe before telling them to (for a leaking water heater: is the water shut off, and the power or gas to the heater off), praise it in a few words if they did, then offer the soonest time first and say why ("since it\'s leaking, I\'d grab today if you can"). If they ask whether it can be handled today or sooner, offer the soonest open time again rather than deferring. Tell them the owner is being told right now that it is urgent.',
     '- Read-backs and goodbyes are short and natural, like a person: "So Saturday at ten for the water heater, sound right?" Say the weekday and time, never the month and date, and never read the same time back more than once. The goodbye is one or two short sentences; do not repeat the booking there.',
+    '- When you ask a question, stop right there. Never add a tip or explanation after the question; callers answer the question and talk over the rest.',
     '- Vary your acknowledgments and skip them when they add nothing; never start two replies in a row with the same word (Okay, Got it, Great, Alright).',
     '- Never sound like a script or a phone menu, and do not repeat what they said back word for word unless you are checking a name or a number.',
     '- Never write laughter like "ha" or "haha"; it sounds strange spoken. If something is funny, say it dry and flat, in the same even voice, and never act amused.',
@@ -1257,7 +1260,7 @@ async function summarize(env, line, msgs, caller) {
     'Answer with JSON only, no other text, with exactly these keys: ' +
     '"name" (the caller\'s name as they said it, or ""), "callback" (the best callback number in +1XXXXXXXXXX form if they gave or confirmed one, or ""), ' +
     '"reason" (what they want, at most 8 words), "details" (the useful details: address or town, what is going on, at most 40 words), ' +
-    '"when" (the day or time they asked for, or ""), "urgent" (true only if they said it is urgent or an emergency), ' +
+    '"when" (the day or time they asked for, or ""), "urgent" (true if they said it is urgent, an emergency, or as soon as possible, or something is actively going wrong right now, like water leaking, no heat, no power or a breakdown), ' +
     '"callback_wanted" (true only if they asked the owner to call them back), "callback_at" (the agreed call-back time as "today HH:MM" or "tomorrow HH:MM" in 24-hour time, or ""), ' +
     '"booked" ("yes" if they booked, asked for a callback or want to go ahead; "no" if they decided not to go ahead; "" if unclear), ' +
     '"lost" (only when booked is "no": the reason they gave, one of "price", "timing", "distance", "not what we do", "other", or "" if they gave none), "lost_note" (their own words for it, at most 12 words, or ""), ' +
@@ -1432,6 +1435,8 @@ export class Speaker {
   stop() { this.stopped = true; }
 }
 
+export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s)[.!\s]*$/i.test(String(t || '').trim()); }
+
 // ---------- the quick reaction ----------
 // What a person says the instant someone stops talking, while they think of the real answer. Picked to fit what the caller
 // said, never one of the last few used, and "good question" at most once a call. Each is short and complete, so Twilio can
@@ -1439,7 +1444,7 @@ export class Speaker {
 const LEADS = {
   repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
-  urgent: ['Okay.', 'Okay, got it.'],
+  urgent: ['Alright.', 'Got it.'],
   sad: ['I\'m sorry to hear that.'],
   trouble: ['Oh no, okay.', 'Oh, I\'m sorry, okay.'],
   upset: ['I hear you.', 'I understand.'],
@@ -1454,13 +1459,13 @@ const LEADS = {
   brag: ['I\'d like to think so.'],
   dare: ['You\'re on.', 'Challenge accepted.'],
   bye: ['Alright.', 'Okay.'],
-  no: ['Okay.', 'Okay, no problem.', 'Gotcha.'],
+  no: ['No problem.', 'Gotcha.', 'Alright.'],
   thanks: ['Of course.', 'Sure thing.', 'You bet.'],
   hear: ['Yep, I\'m here.', 'Yeah, I\'m here.'],
   hi: ['Hi.', 'Hi there.'],
   wait: ['Sure.', 'Sure, no rush.'],
-  yes: ['Great.', 'Okay.', 'Okay, great.'],
-  ask: ['Okay.', 'Alright.'],
+  yes: ['Great.', 'Perfect.', 'Good.'],
+  ask: ['Sure.', 'Alright.'],
   wh: ['Good question.', 'Sure.', 'Okay.'],
   worry: ['Fair question.', 'Good question.'],
   yn: ['Good question.', 'Fair question.', 'Okay.'],
@@ -1470,7 +1475,7 @@ const LEADS = {
   doubt: ['Fair enough.', 'That\'s fair.', 'I hear you.'],
   info: ['Sure.', 'Sure thing.', 'Okay.'],
   name: ['Nice to meet you.', 'Great, thanks.', 'Got it, thanks.'],
-  said: ['Got it.', 'Okay.', 'Gotcha.', 'Okay, got it.', 'Alright.']
+  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.', 'Perfect.']
 };
 
 const LEADS_ES = {
