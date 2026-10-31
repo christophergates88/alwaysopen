@@ -34,7 +34,7 @@ async function mk(o) {
   env.CALLROOM = H.makeNamespace(V.CallRoom, env);
   await CB.ensureLineTz(env);
   await setBrand(env, 'c1', 'MG' + 'c'.repeat(32), 'approved');
-  await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, review_link) VALUES ('c1', ?1, 'Quillen Plumbing', ?2, ?3)")
+  await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, review_link, tier) VALUES ('c1', ?1, 'Quillen Plumbing', ?2, ?3, 'Pro')")
     .bind(createHash('sha256').update(CODE).digest('hex'), o.active === 0 ? 0 : 1, o.review || '').run();
   await DB.prepare("INSERT INTO app_devices (token, client_id) VALUES ('tok1', 'c1')").run();
   await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, town, transfer_to, transfer_when, updated, owner_set, tz) VALUES (?1, 'c1', 'Quillen Plumbing', 1, 'plumbing', 'Eatonton, GA', ?2, ?3, '2026-10-01', ?4, ?5)")
@@ -229,7 +229,7 @@ test('5. each line has its own time zone: from its state or phone at sign-up, wo
 
 test('5. a new line gets its zone when it is bought', async () => {
   const w = await mk();
-  await w.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, phone) VALUES ('c9', 'h9', 'Hill Country Roofing', 1, '')").run();
+  await w.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, phone, tier) VALUES ('c9', 'h9', 'Hill Country Roofing', 1, '', 'Pro')").run();
   await w.DB.prepare("INSERT INTO billing (client_id, business, phone, town, type, email, status) VALUES ('c9', 'Hill Country Roofing', '512-555-0144', 'Austin, TX', 'Contractor or trade', 'x@example.com', 'active')").run();
   const r = await (await import('../src/provision.js')).provisionLine(w.env, 'c9');
   assert.equal(r.status, 'live');
@@ -491,7 +491,7 @@ test('14. no hand-offs to a business whose owner paused Max', async () => {
   const { neighborsFor } = await import('../src/handoff.js');
   for (const [cid, biz, ind, num, os, lat] of [['c1', 'Quillen Plumbing', 'plumbing', LINE, '{}', 33.32], ['c2', 'Lane Electric', 'electrical', '+14785552002', '{"off":true}', 33.33], ['c3', 'Oconee Roofing', 'roofing', '+14785552003', '{}', 33.34]]) {
     if (cid !== 'c1') {
-      await w.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES (?1, ?2, ?3, 1)").bind(cid, 'h' + cid, biz).run();
+      await w.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, tier) VALUES (?1, ?2, ?3, 1, 'Pro')").bind(cid, 'h' + cid, biz).run();
       await w.DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, owner_set) VALUES (?1, ?2, ?3, 1, ?4, ?5)").bind(num, cid, biz, ind, os).run();
     }
     await w.DB.prepare('INSERT INTO map_listing (client_id, show, lat, lng) VALUES (?1, 1, ?2, -83.39)').bind(cid, lat).run();

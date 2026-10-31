@@ -243,6 +243,7 @@ export async function handleApp(req, env, ctx, url) {
       const r = await env.DB.prepare('UPDATE app_leads SET status = ?1, done_at = ?2 WHERE id = ?3 AND client_id = ?4').bind(done ? 'done' : 'new', done ? new Date().toISOString() : null, id, c.client_id).run();
       return aj({ ok: changed(r) }, changed(r) ? 200 : 404);
     } else if (sub === '/api/invoice' && meth === 'POST') {
+      if (!features(c).invoices) return aj({ ok: false, error: 'Invoice reminders come with the Pro plan.' }, 403);
       return await apiInvoice(req, env, c);
     } else if (sub === '/api/followup' && meth === 'POST') {
       return await apiFollowup(req, env, ctx, c);
@@ -263,8 +264,10 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub === '/api/prefs' && meth === 'POST') {
       return await apiPrefs(req, env, c);
     } else if (sub === '/api/import' && meth === 'POST') {
+      if (!features(c).past) return aj({ ok: false, error: 'Past-customer reminders come with the Pro plan.' }, 403);
       return await apiImport(req, env, c);
     } else if (sub === '/api/revive' && meth === 'POST') {
+      if (!features(c).past) return aj({ ok: false, error: 'Past-customer reminders come with the Pro plan.' }, 403);
       return await apiRevive(req, env, c);
     } else if (sub === '/api/versions' && meth === 'POST') {
       return await apiVersions(req, env, c);
@@ -425,8 +428,8 @@ async function apiState(env, c, ctx) {
     calendar: c.staff ? null : await gcalStatus(env, c.client_id),
     quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '',
     bookLink: c.ref ? SITE + '/b/' + encodeURIComponent(c.ref) : '',
-    invoices: inv.invoices,
-    unpaid: inv.unpaid,
+    invoices: f.invoices ? inv.invoices : [],
+    unpaid: f.invoices ? inv.unpaid : 0,
     meta: c.staff ? null : await metaStatus(env, cid),
     calls: f.calls ? rows(9).map(callOut) : []
   };
@@ -442,8 +445,10 @@ async function apiState(env, c, ctx) {
   out.referrals = c.staff ? null : await referralState(env, c);
   try { out.lost = (c.regulated || tech) ? null : await lostState(env, cid); } catch (e) { out.lost = null; }
   try { out.callbacks = await callbackState(env, cid); } catch (e) { out.callbacks = null; }
-  try { out.handoff = (c.regulated || c.staff) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
-  try { out.checkins = c.regulated ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
+  // Hand-offs need Max answering; check-in calls need a logged job (Growth and Pro) and Max's line to call from.
+  try { out.handoff = (c.regulated || c.staff || !line) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
+  try { out.checkins = (c.regulated || !line || !f.jobs) ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
+  if (!f.past) delete out.past;
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   // Calls Max is on right now, for the live card on Today.
   try {
@@ -561,6 +566,7 @@ function lineOut(raw, c) {
   return {
     number: l.number, numberText: fmtNum(l.number), onAir: !!l.on_air, paused: !l.hq_on, name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30) || 'Max',
     hours: oneLine(String(f.hours || '')), owner: String(f.owner || ''), greeting: oneLine(String(f.greeting || '')), spanish: !!+l.spanish,
+    closedUntil: (() => { try { const x = JSON.parse(raw.owner_set || '{}').closed; return x && Date.parse(x.until) > Date.now() ? x.until : ''; } catch (e) { return ''; } })(),
     defaultGreeting: 'Hi, thanks for calling ' + biz + '! ' + DISCLOSURE + ' What can I do for you?',
     transferTo: l.transfer_to, transferText: fmtNum(l.transfer_to), transferWhen: l.transfer_when === 'urgent' || l.transfer_when === 'asked' ? l.transfer_when : 'never',
     updated: [l.updated || '', l.owner_at || ''].sort().pop(),
@@ -788,6 +794,15 @@ async function apiMessage(req, env, ctx, c) {
   if (n && n.n >= MSG_PER_HOUR) return aj({ ok: false, error: 'That is a lot of messages in an hour. Please call or email us instead.' }, 429);
   if (kind === 'hours') text = 'Hours change: ' + text;
   const at = new Date().toISOString();
+  // Closed today: Max tells callers right away (until the end of the owner's day), while we update Google.
+  if (kind === 'hours' && (b.closedUntil || b.reopen)) {
+    const until = Date.parse(b.closedUntil || '');
+    const set = b.reopen ? null : (until > Date.now() && until - Date.now() < 36 * 3600e3 ? { until: new Date(until).toISOString(), why: clean(b.why, 200) } : undefined);
+    if (set !== undefined) {
+      const lines = (await env.DB.prepare('SELECT number, owner_set FROM voice_lines WHERE client_id = ?1').bind(c.client_id).all()).results || [];
+      for (const ln of lines) { let o = {}; try { o = JSON.parse(ln.owner_set || '{}') || {}; } catch (e) { o = {}; } if (set) o.closed = set; else delete o.closed; await env.DB.prepare('UPDATE voice_lines SET owner_set = ?1 WHERE number = ?2').bind(JSON.stringify(o), ln.number).run(); }
+    }
+  }
   const ins = await env.DB.prepare("INSERT INTO app_messages (client_id, at, by, text, hq_synced, dir, notified) VALUES (?1, ?2, ?3, ?4, 0, 'in', 1)")
     .bind(c.client_id, at, by, text).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
@@ -1277,7 +1292,9 @@ export function features(c) {
   const has = k => extra.indexOf(k) > -1;
   // follow-ups and text-back reach a business's own customers, so never for regulated clients (they never hand over customer data)
   return { jobs: growth && !reg, photos: growth && !reg, qr: /^https:\/\//.test(c.review_link || ''), hours: true, refer: true, calls: has('calls'),
-    competitors: growth, followups: (pro || has('followups')) && !reg, textback: (pro || has('textback')) && !reg, tier: c.tier || '' };
+    competitors: growth, followups: (pro || has('followups')) && !reg, textback: (pro || has('textback')) && !reg,
+    // what the site sells as Pro: invoice reminders and past-customer reminders
+    invoices: pro || has('followups'), past: (pro || has('followups')) && !reg, tier: c.tier || '' };
 }
 function qrOut(q) {
   const m = String(q || '').match(/^(\d{2,3})\|([Mhvz0-9 .-]+)$/);

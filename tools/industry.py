@@ -204,7 +204,7 @@ PAGES = {
          ('<span>One tap opens Messages with the text ready, from your own phone</span>', '<span>One tap to call back or text, from your own phone</span>'),
          ('<span>Invoice and payment reminders, so money doesn’t sit</span>', '<span>No treatment, insurance or billing details taken, ever</span>'),
          ('Three days after the job, Max calls the customer: did it hold up? A no reaches you right away, and every customer still gets the review request', 'Appointment confirmations the day before, with the text written for you'),
-         ('Storm Desk: our team drafts a storm-day post when a warning hits yours', 'Our team drafts a weather-closure post when a warning hits your county'),
+         ('Storm Desk: a storm-day post is ready when a warning hits yours', 'Our team drafts a weather-closure post when a warning hits your county'),
          ('<span>Every customer asked, not just the happy ones</span>', '<span>Replies never confirm that someone is a patient</span>'),
          ('Posts for Google, Facebook and Instagram from your job photos<span class="soon" data-launch="meta">Coming soon</span>', 'Holiday hours and closures posted on Google, after your OK')],
  ),

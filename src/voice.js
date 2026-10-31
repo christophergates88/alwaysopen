@@ -1049,7 +1049,10 @@ async function writeUp(env, sid, s, why) {
   // Missed-call text-back: they hung up or the line failed, so the business texts them once, right away. Not on regulated lines.
   if ((outcome === 'hangup' || outcome === 'failed') && TEXTING_ON && line && !+line.regulated && E164.test(call.caller || '') && !(s && s.noTextback)) {
     const os = (() => { try { return JSON.parse(line.owner_set || '{}'); } catch (e) { return {}; } })();
-    if (os.textback !== false) {
+    // Missed-call text-back is a Pro feature (or one added to the account).
+    let tbPlan = false;
+    try { const pc = await env.DB.prepare('SELECT tier, feats FROM app_clients WHERE client_id = ?1').bind(call.client_id).first(); tbPlan = !!pc && (pc.tier === 'Pro' || /(^|,)\s*textback\s*(,|$)/.test(pc.feats || '')); } catch (e) { tbPlan = false; }
+    if (os.textback !== false && tbPlan) {
       const biz = line.business || 'the business';
       const tb = await sendText(env, { clientId: call.client_id, to: call.caller, kind: 'textback',
         body: 'Sorry we missed you. This is ' + biz + '. Reply here with what you need, or call back any time and Max will take it. Reply STOP to end texts.' });
@@ -1161,6 +1164,12 @@ export function greetingText(biz, spanish, custom) {
   return 'Hi, thanks for calling ' + biz + '. ' + DISCLOSURE + sp + ' What can I do for you?';
 }
 
+// The owner tapped Closed today in the app: Max says so first, until the end of the owner's day.
+export function closedToday(line, now) {
+  try { const c = JSON.parse(line.owner_set || '{}').closed; if (c && Date.parse(c.until) > (now || Date.now())) return 'CLOSED TODAY' + (c.why ? ' (' + oneLine(String(c.why)).slice(0, 200) + ')' : '') + '; take a message and say the owner will get back to them when they reopen. Regular hours: '; } catch (e) {}
+  return '';
+}
+
 export function lineView(line) {
   const f = parse(line.facts) || {};
   const pick = k => oneLine(String(f[k] || '')).slice(0, 3000);
@@ -1168,7 +1177,7 @@ export function lineView(line) {
     business: line.business || 'the business', town: line.town || '', regulated: !!+line.regulated, industry: line.industry || '', spanish: !!+line.spanish,
     own: line.client_id === OWN_ID, lostOff: (() => { try { return JSON.parse(line.owner_set || '{}').lostAsk === false; } catch (e) { return false; } })(),
     canTransfer: E164.test(line.transfer_to || '') && line.transfer_when !== 'never', transferWhen: line.transfer_when || 'never',
-    services: pick('services'), area: pick('area'), hours: pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake') || tradeDefaults(line.industry).intake,
+    services: pick('services'), area: pick('area'), hours: closedToday(line) + pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake') || tradeDefaults(line.industry).intake,
     urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
     greeting: oneLine(String(f.greeting || '')).slice(0, 320), greeting2: greetingOk(f.greeting) ? moreText(f.greeting2) : '', name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30), goal: pick('goal'),
     aiJoke: moreText(f.aiJoke), owner: oneLine(String(f.owner || '')).replace(/[\[\]<>{}]/g, '').slice(0, 800),

@@ -62,7 +62,7 @@ main{max-width:680px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-rig
 h1{font:850 1.75rem/1.05 var(--display);font-stretch:92%;margin:4px 0 6px;letter-spacing:-.01em}
 h2{font:800 1.15rem/1.2 var(--display);font-stretch:92%;margin:26px 0 10px}
 .lede{color:var(--slate);margin:0 0 16px}
-.lede .tier{color:var(--sign);font-weight:700;text-shadow:0 0 6px rgba(255,106,94,.9),0 0 14px rgba(255,90,77,.55)}
+.lede .tier{font-weight:700;color:inherit;border:1px solid var(--line);border-radius:999px;padding:1px 9px;font-size:.9em}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px;display:grid;gap:12px}
 .ch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .chip{font:600 12.5px var(--body);background:var(--panel);border-radius:99px;padding:3px 10px}
@@ -646,6 +646,7 @@ function fuSheet(){
 function money(n){return '$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:2});}
 function invBlock(){
   var inv=S.invoices||[],open=inv.filter(function(x){return x.status==='open';});
+  if(!S.features.invoices)return '<h2>Money waiting</h2><div class="feature locked"><h3>Invoice reminders</h3><p>Add an invoice and we draft a friendly reminder 3 and 7 days after it\u2019s due, with your pay link. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   var h='<h2>Money waiting</h2>';
   if(open.length)h+='<p class="note" style="margin:-4px 2px 10px">'+money(S.unpaid)+' unpaid across '+open.length+(open.length===1?' invoice':' invoices')+'</p>';
   h+='<div class="list">'+inv.map(function(x){return '<article class="card"><b>'+esc(x.name)+(x.number?' \\u00b7 #'+esc(x.number):'')+'</b><p class="note" style="margin:4px 0">'+esc(x.amountText)+(x.status==='paid'?' \\u00b7 Paid':' \\u00b7 due '+esc(x.due))+'</p><div class="acts">'+
@@ -771,9 +772,9 @@ function afterCard(L){
   var sw=function(k,title,sub){return '<div class="sw"><div><b>'+title+'</b><span>'+sub+'</span></div><button class="switch" type="button" role="switch" aria-checked="'+(A[k]?'true':'false')+'" data-a="after-'+k+'" aria-label="'+title+'"><i></i></button></div>';};
   return '<h2>After the call</h2><div class="card">'+
     sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
-    sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.')+
-    sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.')+
-    (A.canText?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>';
+    (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
+    (S.features.jobs?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
+    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>';
 }
 function voiceCard(L){
   return '<h2>Voice and greeting</h2><div class="card form">'+
@@ -940,21 +941,21 @@ function vAsk(){
   h+='<div class="compose"><label class="lbl" for="msg" style="margin:0">Message</label><textarea id="msg" maxlength="1000" placeholder="Type your message"></textarea>'+(reg?'<p class="fine">Please don\\u2019t include client names, policy or account numbers, or claim details.</p>':'')+'<div class="acts"><button class="btn red" type="button" data-a="send">Send</button></div></div>';
   return h;
 }
-function send(kind,text,after){
+function send(kind,text,after,extra){
   needName(function(by){
-    post('message',{kind:kind,text:text,by:by}).then(function(res){
-      if(res.j.ok){S.messages=(S.messages||[]).concat([{id:res.j.id,at:res.j.at,by:by,text:res.j.text||text,dir:'in'}]);if(after)after();toast('Sent to the Always Open team.');render();}
+    post('message',Object.assign({kind:kind,text:text,by:by},extra||{})).then(function(res){
+      if(res.j.ok){S.messages=(S.messages||[]).concat([{id:res.j.id,at:res.j.at,by:by,text:res.j.text||text,dir:'in'}]);toast('Sent to the Always Open team.');render();if(after)after();}
       else toast(res.j.error||'Could not send. Try again.');
     }).catch(function(){toast('No connection. Try again.');});
   });
 }
 function today(){return new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});}
 function closedSheet(){
-  sheet('<h2>Closed today?</h2><p class="fine">We\\u2019ll mark '+esc(S.client.business)+' closed for '+esc(today())+' on Google.</p><label>Reason, if you want customers to know (optional)<input type="text" id="why" maxlength="120" placeholder="For example: weather, family emergency"></label><div class="acts"><button class="btn red" type="button" id="go">Send</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
-  $('#go').onclick=function(){var w=$('#why').value.trim();send('hours','Closed today ('+today()+')'+(w?'. Reason: '+w:'')+'.',close);};
+  sheet('<h2>Closed today?</h2><p class="fine">'+(S.line?esc(S.line.name||'Max')+' tells callers you\\u2019re closed today and takes a message. ':'')+'We mark '+esc(S.client.business)+' closed for '+esc(today())+' on Google.</p><label>Reason, if you want customers to know (optional)<input type="text" id="why" maxlength="120" placeholder="For example: weather, family emergency"></label><div class="acts"><button class="btn red" type="button" id="go">Send</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+  $('#go').onclick=function(){var w=$('#why').value.trim(),e=new Date();e.setHours(23,59,0,0);send('hours','Closed today ('+today()+')'+(w?'. Reason: '+w:'')+'.',function(){close();if(S.line){S.line.closedUntil=e.toISOString();render();}toast(S.line?(S.line.name||'Max')+' is telling callers you\u2019re closed today. We\u2019ll update Google.':'Sent. We\u2019ll mark you closed on Google.');},{closedUntil:e.toISOString(),why:w});};
 }
-function hoursSheet(){
-  sheet('<h2>Holiday or new hours</h2><label>Which days?<input type="text" id="hd" maxlength="120" placeholder="For example: Nov 27 and 28, or every Saturday"></label><label>What hours?<input type="text" id="hh" maxlength="160" placeholder="For example: closed, or 9 to 1"></label><div class="acts"><button class="btn red" type="button" id="go">Send</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
+function hoursSheet(title){
+  sheet('<h2>'+esc(title||'Holiday or new hours')+'</h2><label>Which days?<input type="text" id="hd" maxlength="120" placeholder="For example: Nov 27 and 28, or every Saturday"></label><label>What hours?<input type="text" id="hh" maxlength="160" placeholder="For example: closed, or 9 to 1"></label><div class="acts"><button class="btn red" type="button" id="go">Send</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>');
   $('#go').onclick=function(){var d=$('#hd').value.trim(),t=$('#hh').value.trim();if(!d||!t){toast('Add the days and the hours.');return;}send('hours',d+': '+t+'.',close);};
 }
 function jobSheet(){

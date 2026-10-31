@@ -311,6 +311,8 @@ test('a call comes in: Max answers with the disclosure, the owner sees it live, 
 });
 
 test('a caller who hangs up with nothing said is logged, and no text goes out until the business has its own texting registration', async () => {
+  // Missed-call text-back is Pro (or added to the account); this Growth business has it added.
+  await DB.prepare("UPDATE app_clients SET feats = 'calls,textback' WHERE client_id = ?1").bind(cid).run();
   const { sid, r } = await startCall('+14785550177');
   assert.match(r.text, /ConversationRelay/);
   await openRoom(sid, '+14785550177');

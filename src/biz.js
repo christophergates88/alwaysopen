@@ -714,7 +714,7 @@ export async function bizCron(env, at) {
       if (!p.weeklyOff && p.weeklySent !== lp.day) {
         await env.DB.prepare("INSERT INTO biz_prefs (client_id, weekly_sent) VALUES (?1, ?2) ON CONFLICT(client_id) DO UPDATE SET weekly_sent = excluded.weekly_sent").bind(c.client_id, lp.day).run();
         const wn = await weeklyNumbers(env, c.client_id, at);
-        try { wn.revive = await buildRevive(env, c.client_id, at); } catch (e) { /* the weekly note still goes */ }
+        try { const pc = await env.DB.prepare('SELECT tier, feats, regulated FROM app_clients WHERE client_id = ?1').bind(c.client_id).first(); const pro = pc && (pc.tier === 'Pro' || /(^|,)\s*followups\s*(,|$)/.test(pc.feats || '')) && !+pc.regulated; if (pro) wn.revive = await buildRevive(env, c.client_id, at); } catch (e) { /* the weekly note still goes */ }
         try { const ac = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(c.client_id).first(); wn.rivals = await rivalLine(env, ac, at); } catch (e) { /* so does this */ }
         const line = weeklyLine(wn);
         await pushClient(env, c.client_id, { aps: { alert: { title: 'Your week at ' + (c.business || 'your business'), body: line }, sound: 'default', 'thread-id': 'weekly' }, screen: 'home' }).catch(() => {});

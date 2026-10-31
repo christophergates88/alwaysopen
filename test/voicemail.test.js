@@ -19,7 +19,7 @@ async function setup(transcripts) {
   const env = H.makeEnv(world, DB, { AI: { run: async model => { if (/turbo/.test(model)) last = transcripts.shift(); if (last instanceof Error) throw last; return { text: last || '' }; } } });
   H.installFetch(world, env);
   await (await import('../src/sms.js')).setBrand(env, 'c1', 'MG' + 'c'.repeat(32), 'approved');
-  await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES ('c1', 'h1', 'Quillen Plumbing', 1)").run();
+  await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, tier) VALUES ('c1', 'h1', 'Quillen Plumbing', 1, 'Pro')").run();
   await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, updated) VALUES (?1, 'c1', 'Quillen Plumbing', 1, 'plumbing', '2026-10-01')").bind(LINE).run();
   world.aiNote = { name: 'Dana Reyes', callback: '+14785550142', reason: 'Leaking water heater', details: 'Water pooling in the garage', when: '', urgent: false, callback_wanted: false, booked: '', spam: false, summary: 'Dana Reyes has a leaking water heater and wants a call back.' };
   return { world, DB, env };

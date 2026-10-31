@@ -4,6 +4,7 @@ export const PAST_JS = String.raw`
 /* ---------- past customers ---------- */
 var PCSV='',PMAP=null,PSEARCH='';
 function pastBlock(){
+  if(!S.client.regulated&&!isTech()&&S.features&&!S.features.past)return '<h2>Past customers</h2><div class="feature locked"><h3>Find money in your old jobs</h3><p>Upload your past customers and every Monday we show you who looks ready to hear from you again, with a message written for each. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-pro">Ask about Pro</button></div></div>';
   var p=S.past;if(!p||S.client.regulated||isTech())return '';
   var rv=p.revive||{},n=rv.count||0;
   var h='<h2>Past customers</h2><div class="card">';
