@@ -605,7 +605,7 @@ test('hard callers: a robocall is ended in one line, two asks for a person get a
   world.aiNote = { name: 'Gus', callback: '+14785550182', reason: 'No call back about a leak', details: '', when: '', urgent: false, callback_wanted: true, booked: '', spam: false, summary: 'Gus is upset nobody called back.', upset: true };
   await say(u.sid, 'This is the third time I have called and nobody ever calls me back. This is ridiculous.');
   const first = wsOf(u.sid).ws.sent.filter(m => m.type === 'text')[0].token;
-  assert.match(first, /^(I hear you\.|I understand\.)$/);
+  assert.match(first, /^(I hear you|I understand)[.,]$/);
   assert.match(extraOf(), /caller is upset/);
   await hook('after', { CallSid: u.sid, SessionDuration: '50', SessionStatus: 'ended' }); await site.settle();
   assert.equal((await get('SELECT urgency FROM app_calls WHERE id = ?1', u.sid)).urgency, 'urgent');

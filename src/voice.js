@@ -665,7 +665,7 @@ export class CallRoom extends DurableObject {
     const sp = mine.sp;
     this.live = mine; this.cur = mine;
     if (opts && opts.early) { const n = qNorm(said); this.early = { L: mine, norm: n, words: n.split(' ').length, cancelled: false }; }
-    if (lead) { this.out(textMsg(lead.text, true, s.lang)); s.leads = (s.leads || []).concat(lead.text).slice(-12); this.mark('L', lead.text); }
+    if (lead) { this.out(textMsg(leadSpoken(lead.text), true, s.lang)); s.leads = (s.leads || []).concat(lead.text).slice(-12); this.mark('L', lead.text); }
     s.last = Date.now() + 60000; // the AI is thinking: no "are you still there" while it does
     await this.keep(s);
     // The start of the answer is held until its first sentence is in (or enough of a long one), so a repeated "Got it" or
@@ -1483,9 +1483,9 @@ export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s|tal
 const LEADS = {
   repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
-  urgent: ['Alright.', 'Got it.'],
+  urgent: ['Alright.', 'Got it.', 'Okay, right.'],
   sad: ['I\'m sorry to hear that.'],
-  trouble: ['Oh no, okay.', 'Oh, I\'m sorry, okay.'],
+  trouble: ['Oh no, okay.', 'Oh, I\'m sorry, okay.', 'Oh no.', 'Oh, okay.'],
   upset: ['I hear you.', 'I understand.'],
   aiq: ['Fair question.'],
   isai: ['Guilty.', 'Yep.'],
@@ -1498,23 +1498,23 @@ const LEADS = {
   brag: ['I\'d like to think so.'],
   dare: ['You\'re on.', 'Challenge accepted.'],
   bye: ['Alright.', 'Okay.'],
-  no: ['No problem.', 'Gotcha.', 'Alright.'],
+  no: ['No problem.', 'Gotcha.', 'Alright.', 'Okay, no worries.'],
   thanks: ['Of course.', 'Sure thing.', 'You bet.'],
   hear: ['Yep, I\'m here.', 'Yeah, I\'m here.'],
   hi: ['Hi.', 'Hi there.'],
   wait: ['Sure.', 'Sure, no rush.'],
-  yes: ['Alright.', 'Good.', 'Got it.'],
-  ask: ['Sure.', 'Alright.'],
-  wh: ['Good question.', 'Sure.', 'Okay.'],
+  yes: ['Alright.', 'Good.', 'Got it.', 'Okay.', 'Sure.', 'Great.'],
+  ask: ['Sure.', 'Alright.', 'Yeah, of course.', 'Absolutely.'],
+  wh: ['Good question.', 'Sure.', 'Okay, so.', 'Let me see.', 'Yeah, so.'],
   worry: ['Fair question.', 'Good question.'],
-  yn: ['Good question.', 'Fair question.', 'Okay.'],
+  yn: ['Good question.', 'Fair question.', 'Okay.', 'Let me see.', 'Yeah, so.'],
   point: ['Fair point.', 'Good point.'],
   biz: ['Nice.', 'Okay, nice.'],
   pet: ['Nice.', 'That\'s great.'],
   doubt: ['Fair enough.', 'That\'s fair.', 'I hear you.'],
-  info: ['Sure.', 'Sure thing.', 'Okay.'],
+  info: ['Sure.', 'Sure thing.', 'Okay.', 'Yeah.'],
   name: ['Nice to meet you.', 'Great, thanks.', 'Got it, thanks.'],
-  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.']
+  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.', 'Okay.', 'Right.', 'Okay, so.', 'Sure.']
 };
 
 const LEADS_ES = {
@@ -1522,6 +1522,9 @@ const LEADS_ES = {
   wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Muy bien.', 'Entiendo.', 'Perfecto.']
 };
 
+// Spoken with the pitch held up ("Got it," not "Got it."), so the reaction flows into the answer like one breath instead
+// of sounding like a finished, recorded line. Questions and exclamations are left alone.
+export function leadSpoken(t) { return String(t || '').replace(/\.\s*$/, ','); }
 export function leadIn(said, lang, recent, rnd) {
   // A caller who just starts in Spanish (without pressing 2) gets Spanish reactions too, not "Got it."
   const es = lang === 'es-US' || looksSpanish(said);
@@ -1636,6 +1639,8 @@ function callerNotes(s, said) {
     const promise = String(s.line.next || '').split(/(?<=[.!?])\s+/).filter(x => /\b(\d+|one|two|five|ten|fifteen|twenty|thirty|an?) (minutes?|hours?)\b|same (night|day)/i.test(x)).join(' ');
     out.push('They need someone fast and may call someone else. ' + (promise ? 'Restate the business\'s own emergency promise, confidently and in plain words: "' + promise + '" Never say you can\'t promise how fast; this is the business\'s own word.' : 'Say the owner already has it as urgent and will call the moment he is free; do not hedge or apologize.') + ' Do not ask for or read back their number again if you already have it.');
   }
+  // Once the address was checked, it is settled for the rest of the call, wrap-up included.
+  { const us = (s.msgs || []).filter(m => m.r === 'u'); if (us.slice(0, -1).some(m => SPOKEN_ADDR.test(String(m.t || '').toLowerCase()))) out.push('The address is already confirmed. Never say it again, not even in the wrap-up; say "that address" if you must.'); }
   // A street number said as words ("eight eight twelve Main Street") can be 8812, 88-12 or 812: read it back as digits once.
   if (SPOKEN_ADDR.test(String(said || '').toLowerCase())) out.push('They gave a street number in words, which can be heard more than one way. Check it the casual way a person would, digits run together, street short: "Eight-eight-one-two Main, right?" Never add the town or "Is that right?" on top. Once they say yes, never read it back again.');
   // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
