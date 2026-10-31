@@ -55,11 +55,15 @@ async function mk(o) {
   const send = (x, m) => x.room.webSocketMessage(x.ws, JSON.stringify(m));
   const say = (x, words) => send(x, { type: 'prompt', voicePrompt: words, last: true });
   const said = x => x.ws.sent.filter(m => m.type === 'text').map(m => m.token).join('');
-  const pushes = () => world.calls.filter(c => /push\.apple\.com\/3\/device\/tok1$/.test(c.url)).map(c => JSON.parse(c.body));
+  const allPushes = () => world.calls.filter(c => /push\.apple\.com\/3\/device\/tok1$/.test(c.url)).map(c => JSON.parse(c.body));
+  // The live "urgent call happening now" alert is its own push, checked on its own; the rest are the after-call notes.
+  const isLive = p => /Urgent call happening now/.test((p.aps && p.aps.alert && p.aps.alert.title) || '');
+  const pushes = () => allPushes().filter(p => !isLive(p));
+  const livePushes = () => allPushes().filter(isLive);
   const row = sid => DB.prepare('SELECT * FROM app_calls WHERE id = ?1').bind(sid).first();
   // Let the call's "end" go out (the alarm after its end time), then Twilio closes the socket.
   const endCall = async x => { const real = Date.now; Date.now = () => real() + 15000; try { await x.room.alarm(); } finally { Date.now = real; } await x.room.webSocketClose(x.ws, 1000); };
-  return { world, DB, env, site, hook, room, send, say, said, pushes, row, endCall };
+  return { world, DB, env, site, hook, room, send, say, said, pushes, livePushes, row, endCall };
 }
 // The harness unrefs every setTimeout; a test that waits only on Max's own timers needs something keeping Node awake.
 async function awake(fn) { const k = setInterval(() => {}, 1000); try { return await fn(); } finally { clearInterval(k); } }
@@ -108,6 +112,7 @@ test('2. a caller put through to the owner is written up after the dial: no hang
   await V.voiceCron(w.env);
   assert.equal((await w.row(sid)).outcome, 'live');
   assert.deepEqual(w.world.texts, []); assert.deepEqual(w.pushes(), []);
+  assert.equal(w.livePushes().length, 1, 'a burst pipe alerts the owner once, live, while Max is still on the call');
   // The owner picks up and they talk for 200 seconds.
   await w.hook('dial', { CallSid: sid, DialCallStatus: 'completed', DialCallDuration: '200' });
   r = await w.row(sid);

@@ -23,7 +23,9 @@ import { slotsFor, bookFor } from './availability.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
-const CLAUDE_MODEL = 'claude-haiku-5-5';
+// Opus: the strongest model, for judgment on live calls (urgency, not sounding scripted). The quick reaction ("Got it.")
+// is spoken the instant the caller stops, so the extra thinking time is covered. VOICE_MODEL overrides it per deploy.
+const CLAUDE_MODEL = 'claude-opus-5-5';
 const CF_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const FILLER_MS = 2200;          // if the AI is unusually slow and has said nothing by then, Max bridges the gap ("Let's see.")
 const BRIDGES = ['Let\'s see.', 'One sec.', 'Let me think.'];
@@ -588,6 +590,9 @@ export class CallRoom extends DurableObject {
     // Max already said he is putting them through (or ended a robocall): their words ("okay, thanks") are noted, and the
     // transfer or the goodbye goes ahead. A new answer here would cancel it.
     if (s.transfer || s.robo) { this.dropSpec(); s.msgs.push({ r: 'u', t: said }); await this.keep(s); return; }
+    // Max already said goodbye and they answer "thank you" or "bye": that is the end of the call, never a second goodbye.
+    { const ia = lastOf(s.msgs, 'a'); if (ia > -1 && ia > lastOf(s.msgs, 'u') && saidGoodbye(s.msgs[ia].t) && CLOSING.test(said)) {
+      this.dropSpec(); s.msgs.push({ r: 'u', t: said }); if (!s.endAt) s.endAt = Date.now() + 300; await this.keep(s); return; } }
     // A caller who speaks Spanish gets Spanish from here on (when the line answers in Spanish).
     if (s.lang === 'en-US' && s.line && s.line.spanish && looksSpanish(said)) {
       s.lang = 'es-US';
@@ -631,6 +636,13 @@ export class CallRoom extends DurableObject {
     }
     if (WANT_PERSON.test(said.toLowerCase())) s.wantPerson = (s.wantPerson || 0) + 1;
     if (UPSET.test(said.toLowerCase())) s.upset = true;
+    // Something is going wrong right now, or they said it can't wait: the owner hears about it during the call, not after.
+    if (s.mode !== 'interview' && !s.urgent && activeProblem(said)) {
+      s.urgent = true;
+      this.mark('U', said.slice(0, 40));
+      const sent = alertUrgent(this.env, s, said).catch(e => vlog(this.env, 'urgent-alert-error', String((e && e.message) || e)).catch(() => {}));
+      try { if (this.ctx && this.ctx.waitUntil) this.ctx.waitUntil(sent); } catch (e) { /* it runs anyway */ }
+    }
     if (elapsed > MAX_CALL_MS || s.turn > MAX_TURNS) { this.dropSpec(); return this.sayAndEnd(s, s.lang === 'es-US' ? 'Tengo que despedirme, pero el equipo tiene su mensaje y le devolverá la llamada. Adiós.' : 'I need to let you go now, but the team has your message and will call you back. Goodbye.'); }
     if (spec && spec.skip !== skipLead) { this.dropSpec(); spec = null; }
     // Right away, a quick reaction that fits what they said ("Got it.", "Good question.", "Oh no."), like a person gives while
@@ -787,7 +799,7 @@ export class CallRoom extends DurableObject {
     if (i >= 0) s.msgs[i].t = cutText(s.msgs[i].lead, u, s.msgs[i].t);
     // A transfer is only ever set once the line saying it was fully written ("One moment, let me reach him."): talking over
     // it does not undo it. A goodbye is different: a caller who talks over it ("wait, my number changed") keeps the call.
-    if (!s.transfer && !s.handoff) s.endAt = 0;
+    if (!s.transfer && !s.handoff && !(s.endAt && CLOSING.test(u.trim()))) s.endAt = 0;   // "thanks, bye" over his goodbye keeps the hang-up
     s.last = Date.now();
     await this.keep(s);
   }
@@ -977,6 +989,7 @@ async function writeUp(env, sid, s, why) {
   if (why === 'handoff' && s && s.handoff) { outcome = 'handoff'; try { await logAct(env, { client_id: call.client_id, staff: 'Max' }, 'Sent a caller to ' + s.handoff.business); await logAct(env, { client_id: s.handoff.id, staff: 'Max' }, 'Took a caller from ' + ((line && line.business) || 'a nearby business')); } catch (e) {} }
   if (note && note.wrongNumber) { note.spam = true; note.reason = 'Wrong number'; }
   if (note && note.upset) note.urgent = true;
+  if (note && s && s.urgent) note.urgent = true;   // heard live: an active problem or "as soon as possible"
   if (note && note.spam) outcome = 'spam';
   const relay = call.relay_seconds || (s && s.started ? Math.round((Date.now() - s.started) / 1000) : 0);
   const callback = note && E164.test(note.callback || '') ? note.callback : (E164.test(call.caller || '') ? call.caller : '');
@@ -1521,6 +1534,17 @@ export function quickQuestion(t) {
 
 // Callers who want a person, and callers who are upset: counted per call (callerNotes) as well as reacted to.
 const WANT_PERSON = /\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real|someone|somebody|the owner|a manager|chris)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b|\b(real|live|actual) (person|human)\b/;
+// An active problem, or a caller who says it can't wait. A business owner describing their trade ("we fix leaks") is not one.
+const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no hot water|no (ac|a c|air)|no power|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|gas smell|smell gas|water everywhere|pouring)\b/;
+const OWN_TRADE = /\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize in)\b|\b(my|our) (company|business|customers|clients)\b/;
+export function activeProblem(t) { const w = String(t || '').toLowerCase(); return ACTIVE.test(w) && !OWN_TRADE.test(w); }
+export const CLOSING = /^\W*((ok(ay)?|alright|all right|yeah|yes|sure|great|perfect|you too|thanks|thank you( so much| very much)?|thank ya|bye( bye| now)?|good-?bye|have a (good|great|nice) (one|day|night|evening)|take care|appreciate (it|you|that))[\s.,!]*)+$/i;
+async function alertUrgent(env, s, said) {
+  const biz = (s.line && s.line.business) || 'your business';
+  const who = s.caller ? spokenNumber(s.caller, true) : 'a caller';
+  await pushClient(env, s.cid, { aps: { alert: { title: (s.test ? 'Test call: ' : '') + 'Urgent call happening now', body: (who + ' on the line with Max: "' + String(said).slice(0, 200) + '"').slice(0, 300) }, sound: 'default', 'interruption-level': 'time-sensitive', 'thread-id': 'calls' }, screen: 'calls', call: s.sid });
+  await vlog(env, 'urgent-alert', JSON.stringify({ sid: s.sid, cid: s.cid, biz }));
+}
 const UPSET = /\b(ridiculous|unacceptable|furious|pissed( off)?|fed up|third time|fourth time|(nobody|no one) (ever )?(calls?|called) (me )?back|been waiting (for )?(days|weeks|hours|all day)|this is (crazy|insane|a joke)|terrible service|worst (service|company)|rip ?off|ripped (me )?off|you people|i want (a|my) refund|i'?m (so )?(angry|upset|mad))\b/;
 // Robocalls and sales pitches, by their first words: Max says one line and hangs up instead of chatting with them. Only on
 // words a customer would not say ("press one", "this is a recorded message", a listing "about to be suspended"), or on two
@@ -1558,6 +1582,8 @@ function callerNotes(s, said) {
     : s.line.canTransfer
       ? 'The caller has asked for a person twice. ' + (s.line.transferQuiet ? 'It is after hours, so the owner' : 'The owner') + ' only takes calls put through when it is urgent' + (s.line.urgent ? ' (urgent means: ' + s.line.urgent + ')' : '') + '. If it is urgent, say one short line that you are connecting them now and end that reply with [TRANSFER]. If not, stop trying to help them yourself: ' + back
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
+  if (s.urgent) out.push('This is urgent: something is going wrong for them right now or they need it as soon as possible. ' + 'The owner was just sent an urgent alert about this call' + '. Sound like you care that it gets fixed today, in your own words, not a script. Make sure it is safe first. If they ask for anything sooner than the soonest open time, do not just repeat that time: say the owner knows it is urgent and will call them back as soon as he can to see if he can get there sooner, and get the best number.');
+  if (s.msgs.some(m => m.r === 'a' && /\b(zero|one|two|three|four|five|six|seven|eight|nine)(,? (zero|one|two|three|four|five|six|seven|eight|nine)){2,}\b/i.test(m.t))) out.push('You already read their phone number back. Never read it out again; call it "that number".');
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');
   return out.length ? ' ' + out.join(' ') : '';
@@ -1872,6 +1898,8 @@ export async function rehearse(env) {
   const L = lineView(line);
   const more = greetingMore(line);
   L.heard2 = !!more;
+  // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
+  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }) : env;
   let budget = 40;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
     const msgs = [{ r: 'a', t: greeting(line) }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
@@ -1885,17 +1913,19 @@ export async function rehearse(env) {
       const t0 = Date.now();
       // Claude itself, never the fallback model: a rehearsal checks Claude's replies, and a failure here is not a live
       // call failing, so it is written down instead of alarming anyone.
-      const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', 'en-US', false), extra = turnNote(lead ? lead.text : '', msgs);
+      // The same per-turn notes a live call gets (urgent, number already read back, upset, asked for a person).
+      const rs = { msgs, line: L, urgent: msgs.some(m => m.r === 'u' && activeProblem(m.t)), upset: msgs.some(m => m.r === 'u' && UPSET.test(m.t.toLowerCase())), wantPerson: msgs.filter(m => m.r === 'u' && WANT_PERSON.test(m.t.toLowerCase())).length };
+      const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', 'en-US', false), extra = turnNote(lead ? lead.text : '', msgs) + callerNotes(rs, said);
       const fixed = fixedReply(L, lead, msgs);
       if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
-      else try { r = env.ANTHROPIC_API_KEY ? await claude(env, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(env, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
+      else try { r = env.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
       const sp = new Speaker(() => {}, 'en-US');
       sp.push(cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs)));
       const spoken = sp.end();
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined });
     }
-    await vlog(env, 'rehearse', JSON.stringify(out), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, tag: String(j.tag || '').slice(0, 40), out }), 20000);
   }
 }
 
