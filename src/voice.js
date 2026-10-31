@@ -1602,6 +1602,8 @@ export function settledOnCall(msgs) {
   if (!pairs.length) return '';
   return 'Already settled on this call (never ask these again and never read them back again; if the caller asks about one, answer from here in a few words): ' + pairs.slice(-8).join('; ') + '.';
 }
+const DIY_ASK = /\b(fix (it|this|that) (myself|my ?self|on my own)|do it (myself|on my own)|diy|can i (fix|do|repair|try)|how (do|can|would) i (fix|repair|stop|unclog|replace)|(just |can you |could you )?(tell|show|walk) me how)\b/;
+const CALLBACK_ASK = /\b(how (long|soon|fast|quick)|when (will|is|does|would|can) (he|she|they|mike|someone|somebody|anyone)|what time will)\b/;
 function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -1614,6 +1616,10 @@ function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
+  if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. No repair steps; only how to shut water or power off if something is actively leaking.');
+  // When they ask how soon the owner calls: the business's own emergency callback time if it set one, otherwise a polite "as soon as he's free".
+  if (CALLBACK_ASK.test(String(said || '').toLowerCase())) out.push('They asked how soon they will hear back. ' + (s.urgent ? 'If what you know about the business gives an emergency callback time, say exactly that. If it does not, say politely that the owner (by name if you know it) will call as soon as they are available, and already knows it is urgent.' : 'If what you know about the business gives a callback time, say that; otherwise say politely that the owner (by name if you know it) will call as soon as they are available.') + ' Never guess a number of minutes.');
   if (s.urgent) out.push('This is urgent: something is going wrong for them right now or they need it as soon as possible. ' + 'The owner was just sent an urgent alert about this call' + '. Sound like you care that it gets fixed today, in your own words, not a script. Make sure it is safe first. If what you know about the business says how emergencies are handled (same night, a quick callback), say that first, in those words, instead of offering a calendar time. Otherwise, if they ask for anything sooner than the soonest open time, do not just repeat that time: say the owner knows it is urgent and will call them back as soon as he can to see if he can get there sooner, and get the best number.');
   if (s.msgs.some(m => m.r === 'a' && /\b(zero|one|two|three|four|five|six|seven|eight|nine)(,? (zero|one|two|three|four|five|six|seven|eight|nine)){2,}\b/i.test(m.t))) out.push('You already read their phone number back. Never read it out again; call it "that number".');
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
