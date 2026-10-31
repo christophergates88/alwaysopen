@@ -8,11 +8,17 @@ var CH={request:'Request',booking:'Booking',call:'Call',facebook:'Facebook',text
 function isTech(){return !!(S&&S.me&&S.me.role==='tech');}
 function isOwner(){return !!(S&&S.me&&S.me.role==='owner');}
 function m2(n){return n==null?'':'$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:2});}
+var OBALL=false;
 function bizTop(){
   var o=S.onboarding;if(!o||!o.show)return '';
-  return '<div class="card ob"><b>Your first hour</b><p class="note" style="margin:4px 0 0">'+o.left+(o.left===1?' step':' steps')+' left. Each one ticks itself when it’s done.</p><ul>'+o.steps.map(function(s){
+  var total=o.steps.length,done=total-o.left,pct=Math.round(done/Math.max(1,total)*100);
+  var todo=o.steps.filter(function(s){return !s.done;}),list=OBALL?o.steps:todo.slice(0,3);
+  var li=function(s){
     var go={hours:'bz-ob-hours',calendar:'bz-ob-cal',facebook:'bz-ob-fb',stripe:'bz-stripe',max:'bz-ob-max',teach:'bz-ob-teach',share:'bz-ob-share',map:'bz-map'}[s.key]||(s.help?'bz-ob-help':'');
-    return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><div class="obt"><span>'+esc(s.label)+'</span>'+(s.hint&&!s.done?'<small>'+esc(s.hint)+'</small>':'')+'</div>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'"'+(s.help?' data-id="'+esc(s.help)+'"':'')+' style="margin-left:auto;white-space:nowrap;flex:none">'+(s.help?'Open':'Do it')+'</button>')+'</li>';}).join('')+'</ul><div class="acts"><button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
+    return '<li class="'+(s.done?'obd':'')+'"><span class="tick" aria-hidden="true">'+(s.done?'✓':'')+'</span><div class="obt"><span>'+esc(s.label)+'</span>'+(s.hint&&!s.done?'<small>'+esc(s.hint)+'</small>':'')+'</div>'+(s.done?'':'<button class="btn line sm" type="button" data-a="'+go+'"'+(s.help?' data-id="'+esc(s.help)+'"':'')+' style="margin-left:auto;white-space:nowrap;flex:none">'+(s.help?'Open':'Do it')+'</button>')+'</li>';};
+  return '<div class="card ob"><div class="obh"><b>Getting set up</b><span>'+done+' of '+total+' done</span></div><div class="obbar" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100"><i style="width:'+pct+'%"></i></div>'+
+    (OBALL?'':'<p class="note" style="margin:0">Next up. Each step ticks itself when it’s done.</p>')+'<ul>'+list.map(li).join('')+'</ul><div class="acts">'+
+    (total>list.length||OBALL?'<button class="btn ghost sm" type="button" data-a="bz-ob-all">'+(OBALL?'Show less':'See all '+total+' steps')+'</button>':'')+'<button class="btn ghost sm" type="button" data-a="bz-ob-hide">Hide this list</button></div></div>';
 }
 function bizBlocks(){
   var h='';
@@ -165,6 +171,7 @@ function bizAct(a,id,t){
   else if(a==='bz-ans-copy'){var tx=S.answer&&S.answer.paste||'';if(tx&&navigator.clipboard)navigator.clipboard.writeText(tx).then(function(){toast('Copied.');},function(){toast(tx);});else toast(tx||'Nothing to copy yet.');}
   else if(a==='bz-map')mapSheet();
   else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{show:$('#mp-show').checked,phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Map listing saved.');load(true);}else toast(res.j.error||'Could not save.');});}
+  else if(a==='bz-ob-all'){OBALL=!OBALL;render();}
   else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}

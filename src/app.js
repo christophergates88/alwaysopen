@@ -209,6 +209,10 @@ export async function handleApp(req, env, ctx, url) {
       // The same numbers for the iPhone app: months oldest first, the running totals, and the plain-words lines.
       const t = await (await import('./trends.js')).trendsFor(env, c);
       return new Response(JSON.stringify({ ok: true, months: t.months, since: t.since, lines: t.lines, avgJob: t.noMoney ? 0 : t.avgJob, page: '/year' }), { headers: { ...H, 'content-type': 'application/json', 'cache-control': 'no-store' } });
+    } else if (sub === '/api/pulse' && meth === 'GET') {
+      if (c.role === 'tech') return aj({ ok: false, error: 'Owners and managers see Results.' }, 403);
+      const { pulseState } = await import('./pulse.js');
+      return aj({ ok: true, pulse: await pulseState(env, c) });
     } else if (sub === '/api/state' && meth === 'GET') {
       return await apiState(env, c, ctx);
     } else if (sub === '/api/decide' && meth === 'POST') {

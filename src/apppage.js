@@ -365,7 +365,7 @@ function flCard(){
   var h='<div class="feature fl">';
   if(FL.found){h+='<p class="fine">Your first look</p><h3>Your score: '+FL.score+' ('+esc(FL.grade)+')</h3>'+(FL.finding?'<p><b>What holds you back most:</b> '+esc(FL.finding.title)+'. '+esc(FL.finding.saw)+'</p><p class="fine">'+esc(FL.finding.fix)+'</p>':'<p>Nothing big is holding you back. We keep it that way.</p>')+'<p class="gm">Google Maps</p>';}
   var t=FL.today||{};
-  h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><p class="fine">The one thing we\u2019ll do today</p><h3>'+esc(t.title||'')+'</h3><p>'+esc(t.detail||'')+'</p>'+(t.link?'<p class="fine" style="word-break:break-all">'+esc(t.link)+'</p>':'')+'</div>';
+  h+='<div'+(FL.found?' style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"':'')+'><p class="fine">The one thing we\u2019ll do today</p><h3>'+esc(t.title||'')+'</h3><p>'+esc(t.detail||'')+'</p>'+(t.link?'<p class="fine" style="word-break:break-all">'+esc(t.link)+'</p>':'')+'</div>';
   h+='<div class="acts">'+(t.help?'<a class="btn line" href="'+BASE+t.help+'">Show me how</a>':'')+'<button class="btn ghost" type="button" data-a="fl-done">Got it</button></div></div>';
   return h;
 }
@@ -386,6 +386,105 @@ function fwCard(){
   var W=S.fillWeek;if(!W||!W.on||!W.ready)return '';
   return '<div class="feature"><h3>Fill my week</h3><p>'+(W.last?'Last time: '+W.last.offers+(W.last.offers===1?' offer':' offers')+', '+W.last.booked+' booked. ':'')+'An open day coming up? Offer it to past customers who are due, and the first YES is booked.</p><div class="acts"><button class="btn sm" type="button" data-a="fw-run">Fill my next open day</button></div></div>';
 }
+// ---------- Today: what needs you first, then Max, then what to do ----------
+function closedBanner(){
+  var L=S.line;if(!L||!L.closedUntil||Date.parse(L.closedUntil)<Date.now())return '';
+  return '<div class="feature closedb"><h3>Closed today</h3><p>'+esc(L.name||'Max')+' is telling callers you’re closed today and taking a message for each one.</p><div class="acts"><button class="btn line sm" type="button" data-a="reopen">We’re open after all</button></div></div>';
+}
+function isAfter(d){var h=d.getHours(),w=d.getDay();return w===0||w===6||h<8||h>=18;}
+function todayStrip(){
+  if(!S.line)return '';
+  var t=new Date().toDateString(),cs=(S.calls||[]).filter(function(c){return c.at&&new Date(c.at).toDateString()===t;});
+  var after=cs.filter(function(c){return isAfter(new Date(c.at));}).length,urg=cs.filter(function(c){return c.urgent;}).length;
+  var cell=function(n,l){return '<div><b>'+n+'</b><span>'+l+'</span></div>';};
+  return '<div class="tstrip" aria-label="Today so far">'+cell(cs.length,cs.length===1?'call today':'calls today')+cell(after,'after hours')+cell(urg,'urgent')+'</div>';
+}
+function needsRows(){
+  var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
+  var due=(S.followups||[]).filter(isDue).length,leads=(S.leads||[]).filter(function(l){return l.status==='new';}).length;
+  var att=[];
+  if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' call to look at':' calls to look at'),'Who called and what they need'));
+  if(leads)att.push('<button class="row" type="button" data-a="go-leads">'+ICON.job+'<div><b>'+leads+(leads===1?' new request':' new requests')+'</b><span>From your request and booking page</span></div>'+ICON.chev+'</button>');
+  if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
+  if(due)att.push(row('fu',ICON.cal,due+(due===1?' follow-up':' follow-ups')+' due','Tap to text them'));
+  return att;
+}
+// ---------- Results: the last 30 days ----------
+var PULSE=null,PULSE_AT=0;
+(function(){var st=document.createElement('style');st.textContent=
+'.tstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}.tstrip div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:2px}.tstrip b{font:800 1.5rem/1 var(--display)}.tstrip span{color:var(--slate);font-size:12.5px}'+
+'.closedb{border-color:var(--warn)}.closedb h3{color:var(--warn)}'+
+'.pulse{gap:14px}.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kt{background:var(--panel);border-radius:14px;padding:12px;display:grid;gap:3px;align-content:start}.kt span{color:var(--slate);font-size:12.5px}.kt b{font:800 1.9rem/1 var(--display);letter-spacing:-.01em}.kt small{color:var(--slate);font-size:12px}.kt em{font-style:normal;font-size:12px;font-weight:600;color:var(--slate)}.kt em.up{color:var(--ok)}'+
+'.bars{display:flex;align-items:flex-end;gap:2px;height:120px;padding-top:6px;border-bottom:1px solid var(--line)}.bars .bc{flex:1;display:flex;flex-direction:column-reverse;min-width:0;height:100%}.bars .bc span{display:block;background:#3A4458;border-radius:2px 2px 0 0}.bars .bc span.a{background:var(--sign);border-radius:2px 2px 0 0}.bars .bc span.n{border-radius:0}'+
+'.bax{display:flex;justify-content:space-between;color:var(--slate);font:500 11px var(--mono);margin-top:4px}.legend{display:flex;gap:14px;color:var(--slate);font-size:12px;flex-wrap:wrap}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}'+
+'.heat{display:grid;grid-template-columns:34px repeat(6,1fr);gap:3px;font:500 11px var(--mono);color:var(--slate)}.heat b{font:inherit;display:flex;align-items:center}.heat u{text-decoration:none;text-align:center}.heat .hc{display:block;aspect-ratio:1.6;border-radius:4px;background:var(--sign)}.heat .hc.o{background:var(--panel)}'+
+'.fun{display:grid;gap:8px}.fun div{display:grid;grid-template-columns:110px 1fr 40px;align-items:center;gap:8px;font-size:13.5px}.fun div>span:first-child{color:var(--slate)}.fun .fb{display:block;height:14px;border-radius:4px;background:var(--sign);min-width:3px}.fun b{text-align:right;font-variant-numeric:tabular-nums}.fun small{grid-column:2/4;color:var(--slate);font-size:11.5px;margin-top:-6px}'+
+'.sp{display:grid;grid-template-columns:1fr auto;gap:8px 12px;font-size:14px}.sp span{color:var(--slate)}.sp b{text-align:right}'+
+'.chipr{display:flex;flex-wrap:wrap;gap:6px}.chipr span{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12.5px;color:var(--slate)}.chipr b{color:var(--ink)}'+
+'.ilist{margin:0;padding-left:18px;display:grid;gap:6px}.nexts{border-left:3px solid var(--sign);padding:4px 0 4px 10px;margin:0}'+
+'.ob .obh{display:flex;justify-content:space-between;align-items:baseline}.ob .obh span{color:var(--slate);font-size:13px}.obbar{height:6px;border-radius:3px;background:var(--panel);overflow:hidden}.obbar i{display:block;height:100%;background:var(--sign);border-radius:3px}';
+document.head.appendChild(st);})();
+function pulseLoad(){
+  if(isTech())return;
+  if(PULSE&&Date.now()-PULSE_AT<300000)return;
+  if(PULSE_AT&&Date.now()-PULSE_AT<15000)return;
+  PULSE_AT=Date.now();
+  api('pulse').then(function(res){if(res.j&&res.j.ok){PULSE=res.j.pulse;PULSE_AT=Date.now();if(TAB==='home'&&SEG==='results')render();}}).catch(function(){});
+}
+function md(day){var p=String(day).split('-');return (+p[1])+'/'+(+p[2]);}
+function dchg(ch){if(ch==null)return '';if(ch===0)return '<em>Same as the 30 days before</em>';return '<em class="'+(ch>0?'up':'')+'">'+(ch>0?'▲ ':'▼ ')+Math.abs(ch)+' vs the 30 days before</em>';}
+function pulseBlock(){
+  if(isTech())return '';
+  pulseLoad();
+  var nm=esc(S.line?S.line.name:'Max');
+  if(!PULSE)return '<h2>Your last 30 days</h2><div class="card pulse"><p class="fine">Adding up your last 30 days…</p></div>';
+  var P=PULSE,k=P.kpi;
+  if(!k.calls.n&&!k.leads.n)return '<h2>Your last 30 days</h2><div class="card pulse"><b>Nothing to count yet</b><p class="note" style="margin:0">After '+nm+'’s first calls, this shows how many came in, when your phone rings most, what they wanted, and how many became work.'+(S.line?' Call '+esc(S.line.numberText)+' to try it.':'')+'</p></div>';
+  var tile=function(l,n,sub,ch){return '<div class="kt"><span>'+l+'</span><b>'+n+'</b>'+(sub?'<small>'+sub+'</small>':'')+dchg(ch)+'</div>';};
+  var h='<h2>Your last 30 days</h2><div class="card pulse"><div class="kgrid">'+
+    tile('Calls answered',k.calls.n,'',k.calls.ch)+
+    tile('After hours',k.after.n,k.after.pct+'% of calls',k.after.ch)+
+    tile('Real leads',k.leads.n,'calls and requests with a real need',k.leads.ch)+
+    (k.won.amount?tile('Work won','$'+Math.round(k.won.amount).toLocaleString('en-US'),k.won.n+(k.won.n===1?' job':' jobs')+' booked, done or paid',null):tile('Booked',k.booked.n,'visits booked by '+nm+' or Fill my week',k.booked.ch))+
+    '</div></div>';
+  // calls each day
+  var mx=1;P.days.forEach(function(d){if(d.calls>mx)mx=d.calls;});
+  var busiest=P.days.slice().sort(function(a,b){return b.calls-a.calls;})[0];
+  h+='<div class="card"><b>Calls each day</b><div class="bars" role="img" aria-label="Calls each day for the last 30 days">'+P.days.map(function(d){
+    var tot=Math.round(d.calls/mx*100),af=d.calls?Math.round(d.after/mx*100):0;
+    return '<span class="bc" title="'+md(d.d)+': '+d.calls+(d.calls===1?' call':' calls')+(d.after?', '+d.after+' after hours':'')+'">'+(tot-af>0?'<span class="'+(af?'n':'')+'" style="height:'+(tot-af)+'%"></span>':'')+(af?'<span class="a" style="height:'+af+'%"></span>':'')+'</span>';}).join('')+'</div>'+
+    '<div class="bax"><span>'+md(P.days[0].d)+'</span><span>'+md(P.days[14].d)+'</span><span>Today</span></div>'+
+    '<div class="legend"><span><i style="background:#3A4458"></i>Business hours</span><span><i style="background:var(--sign)"></i>After hours and weekends</span></div>'+
+    (busiest&&busiest.calls?'<p class="note" style="margin:0">Busiest day: '+esc(busiest.wd)+' '+md(busiest.d)+', '+busiest.calls+(busiest.calls===1?' call':' calls')+'.</p>':'')+'</div>';
+  // when the phone rings
+  var hm=0;P.heat.forEach(function(r){r.forEach(function(v){if(v>hm)hm=v;});});
+  var WDL=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],BL=['6–9a','9–12','12–3','3–6','6–9p','Night'];
+  h+='<div class="card"><b>When your phone rings</b><div class="heat" role="img" aria-label="Calls by day of week and time of day"><span></span>'+BL.map(function(b){return '<u>'+b+'</u>';}).join('')+
+    P.heat.map(function(r,i){return '<b>'+WDL[i]+'</b>'+r.map(function(v,j){return v?'<span class="hc" style="opacity:'+(0.18+0.82*v/hm).toFixed(2)+'" title="'+WDL[i]+' '+BL[j]+': '+v+(v===1?' call':' calls')+'"></span>':'<span class="hc o" title="'+WDL[i]+' '+BL[j]+': none"></span>';}).join('');}).join('')+'</div>'+
+    (P.peak?'<p class="note" style="margin:0">Most calls come on '+esc(P.peak.day)+'s, '+esc(P.peak.band)+'. That’s when '+nm+' matters most.</p>':'')+'</div>';
+  // from call to job
+  var f0=Math.max(1,P.funnel[0][1]);
+  h+='<div class="card"><b>From call to job</b><div class="fun">'+P.funnel.map(function(s,i){
+    var prev=i?P.funnel[i-1][1]:0,pc=i&&prev?Math.round(s[1]/prev*100):null;
+    return '<div><span>'+esc(s[0])+'</span><span class="fb" style="width:'+Math.min(100,Math.round(s[1]/f0*100))+'%"></span><b>'+s[1]+'</b>'+(pc!=null?'<small>'+pc+'% of the step above</small>':'')+'</div>';}).join('')+'</div>'+
+    (P.funnel[3][1]===0&&P.funnel[2][1]>0?'<p class="note" style="margin:0">Log finished jobs from Customers and this line fills in.</p>':'')+'</div>';
+  // speed and care
+  var sp=P.speed,rows=[];
+  if(sp.callbacks)rows.push(['Call-backs kept on time',sp.callbacks.kept+' of '+sp.callbacks.set+' ('+sp.callbacks.pct+'%)']);
+  if(sp.avgSec)rows.push(['Average call with '+nm,Math.floor(sp.avgSec/60)+':'+('0'+(sp.avgSec%60)).slice(-2)]);
+  if(sp.reviews)rows.push(['New reviews',sp.reviews+(sp.rating?' · '+sp.rating+' stars on average':'')]);
+  if(sp.replyRate!=null)rows.push(['Reviews replied to',sp.replyRate+'%'+(sp.replyHrs!=null?' · in about '+(sp.replyHrs<1?'under an hour':Math.round(sp.replyHrs)+(Math.round(sp.replyHrs)===1?' hour':' hours')):'')]);
+  if(rows.length)h+='<div class="card"><b>How fast you answer</b><div class="sp">'+rows.map(function(r){return '<span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b>';}).join('')+'</div></div>';
+  // why callers didn't book
+  if(P.lost&&P.lost.n){var lm=Math.max(1,P.lost.top[0]?P.lost.top[0].n:1);
+    h+='<div class="card"><b>Why callers didn’t book</b><div class="fun">'+P.lost.top.map(function(x){return '<div><span>'+esc((function(s){s=s.replace(/^said /,'');return s.charAt(0).toUpperCase()+s.slice(1);})(x.label))+'</span><span class="fb" style="width:'+Math.round(x.n/lm*100)+'%"></span><b>'+x.n+'</b></div>';}).join('')+'</div><p class="note" style="margin:0">'+nm+' asks once, when a caller decides not to book. '+P.lost.n+(P.lost.n===1?' caller':' callers')+' answered.</p></div>';}
+  // the rest, as chips
+  var e=P.extra,ch=[];
+  if(e.spanish)ch.push(['Spanish calls',e.spanish]);if(e.urgent)ch.push(['Urgent',e.urgent]);if(e.weekend)ch.push(['Weekend calls',e.weekend]);if(e.transferred)ch.push(['Put through to you',e.transferred]);if(e.textback)ch.push(['Missed-call texts',e.textback]);if(e.handIn)ch.push(['Callers passed to you',e.handIn]);if(e.handOut)ch.push(['Callers you passed on',e.handOut]);if(e.checkinsNo)ch.push(['Problems caught on check-ins',e.checkinsNo]);
+  if(ch.length)h+='<div class="chipr">'+ch.map(function(c){return '<span>'+esc(c[0])+' <b>'+c[1]+'</b></span>';}).join('')+'</div>';
+  if((P.insights&&P.insights.length)||P.next)h+='<h2>What it means</h2><div class="card">'+(P.insights&&P.insights.length?'<ul class="ilist">'+P.insights.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'')+(P.next?'<p class="nexts"><b>One thing to try:</b> '+esc(P.next)+'</p>':'')+'</div>';
+  return h;
+}
 function vHome(){
   var f=S.features||{},first=S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
@@ -397,25 +496,27 @@ function vHome(){
     return h;
   }
   if(SEG==='results'){
-    h+=moneyCard()+monthBlock()+(f.competitors?rivalCard():'')+insightsBlock()+lostCard()+shareCard()+(isTech()?'':upCard())+referCard();
+    h+=pulseBlock()+moneyCard()+monthBlock()+(f.competitors?rivalCard():'')+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+shareCard()+(isTech()?'':upCard())+referCard();
     return h;
   }
   if(SEG==='settings'){
     h+='<div class="sidx" id="sidx"></div>'+(isOwner()?setBlock()+teamBlock():'')+metaBlock()+guardCard();
     return h;
   }
-  // The month leads Home once there is anything in it; a brand-new account sees its setup list first.
+  // Today, in order: anything live, what needs you, Max, today so far, quick actions, setup, then the month.
   var mn=S.monthNow,busy=mn&&((+mn.calls||0)+(+mn.reviews||0)+(+mn.booked||0)+(+mn.followups||0))>0;
-  h+=install()+flCard()+(busy?monthNowCard():'')+bizTop()+liveCard()+(busy?'':monthNowCard())+heroCard()+moneyCard()+homeRefer();
-  var att=[];
-  if(items)att.push(row('approve',ICON.check,items+(items===1?' thing':' things')+' to approve','Review replies and posts waiting for your OK'));
-  if(calls)att.push(row('max',ICON.phone,calls+(calls===1?' new call':' new calls'),'Who called and what they need'));
-  if(due)att.push(row('fu',ICON.cal,due+(due===1?' follow-up':' follow-ups')+' due','Tap to text them'));
-  h+=att.length?'<h2>Needs you</h2><div class="list">'+att.join('')+'</div>':'<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now</b><span>We’ll buzz your phone when something does.</span></div>';
-  h+=moreCard();
-  h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
-    (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today','We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
-  h+=cbCard()+fuBlock()+fwCard();
+  var att=needsRows();
+  h+=install()+closedBanner()+liveCard();
+  if(att.length)h+='<h2>Needs you</h2><div class="list">'+att.join('')+'</div>';
+  var quick='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
+    (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
+  // A brand-new account: Max, then setup. Once calls come in: call-backs, Max, today so far, then quick actions.
+  var fresh=!busy&&!(S.calls||[]).length;
+  if(fresh)h+=heroCard()+flCard()+bizTop()+quick;
+  else h+=cbCard()+heroCard()+todayStrip()+quick+flCard()+bizTop();
+  if(busy)h+=monthNowCard()+moneyCard();
+  if(!att.length&&busy)h+='<div class="empty slim">'+ICON.check+'<b>All caught up</b><span>We’ll buzz your phone when something needs you.</span></div>';
+  h+=(f.followups||busy?fuBlock():'')+fwCard()+moreCard()+(busy?homeRefer():'');
   return h;
 }
 var UPALL=false;
@@ -1049,6 +1150,8 @@ document.addEventListener('click',function(e){
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
   else if(a==='ask-max')maxSetup(t);
+  else if(a==='go-leads'){SEG='customers';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();window.scrollTo(0,0);}
+  else if(a==='reopen')send('hours','Open after all today ('+today()+').',function(){if(S.line)S.line.closedUntil='';render();toast('Got it. '+(S.line?(S.line.name||'Max')+' is back to your regular hours.':'We’ll update Google.'));},{reopen:true});
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
   else if(a&&a.indexOf('rv-')===0)rvAct(a,id,t);
