@@ -9,7 +9,7 @@ const WHY = {
   max: 'Max answers in your business’s name, gives the prices you’ve approved, and sends you the job.',
   handoff: 'A caller needs work you don’t do. Max puts them through to a business nearby on Always Open, and theirs can send you work back.',
   check: 'Three days after the job, Max calls: did it hold up? A no reaches you right away, so you can make it right. Every customer gets the review request, whatever they answer.',
-  cb: 'No more “someone will call you.” Max names a time from your calendar. If you miss it, he calls them to set a new one.',
+  cb: 'No more “someone will call you.” Max names a set time inside your hours. If you miss it, he calls them to set a new one.',
   fill: 'A day is wide open. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.',
   storm: 'When a weather warning hits your county, our team drafts a storm-day post. You approve it from wherever you are.',
   ai: 'Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.'

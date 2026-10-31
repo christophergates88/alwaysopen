@@ -46,7 +46,7 @@ export function renderMonthPage(v) {
     (a.rivals ? '<li>' + (a.rivals.leaderIsYou ? 'Most reviews of the <b>' + a.rivals.of + '</b> businesses near you' : '<b>' + ordinal(a.rivals.rank) + '</b> of ' + a.rivals.of + ' nearby on rating') + '</li>' : '') + '</ul>' : '<p class="sub">No new reviews this month.</p>') + '</section>';
   const chk = w.checkins || {}, hand = w.handoffs || {}, cb = c.callbacks || {};
   const other = [
-    cb.set ? '<li><b>Call-backs:</b> ' + pl(cb.set, 'caller', 'callers') + ' got a call-back time from your calendar' + ((cb.kept || 0) === cb.set ? (cb.set === 1 ? ', and it was kept' : ', and all ' + cb.set + ' were kept') : ', ' + (cb.kept || 0) + ' kept') + (cb.missed ? ', ' + cb.missed + ' reset' : '') + '.</li>' : '',
+    cb.set ? '<li><b>Call-backs:</b> ' + pl(cb.set, 'caller', 'callers') + ' got a set call-back time' + ((cb.kept || 0) === cb.set ? (cb.set === 1 ? ', and it was kept' : ', and all ' + cb.set + ' were kept') : ', ' + (cb.kept || 0) + ' kept') + (cb.missed ? ', ' + cb.missed + ' reset' : '') + '.</li>' : '',
     hand.out || hand.in ? '<li><b>Hand-offs:</b> ' + (hand.out ? pl(hand.out, 'caller', 'callers') + ' sent to a member nearby' : '') + (hand.out && hand.in ? ', ' : '') + (hand.in ? pl(hand.in, 'caller', 'callers') + ' sent to you' : '') + '.</li>' : '',
     c.textback ? '<li><b>Missed-call texts:</b> ' + pl(c.textback, 'caller', 'callers') + ' who hung up got a text back right away.</li>' : '',
     c.transferred ? '<li><b>Rung through to you:</b> ' + pl(c.transferred, 'urgent call', 'urgent calls') + '.</li>' : '',

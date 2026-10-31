@@ -30,7 +30,7 @@ test('a lead from the Spanish page: answered in Spanish, kept as Spanish, flagge
   assert.equal(missing.status, 400); assert.match(missing.text, /Por favor agregue su nombre y un correo electrónico válido\./);
 });
 
-test('that owner’s Max line starts in Spanish; an English lead’s does not', async () => {
+test('every new Max line answers Spanish-speaking callers in Spanish, whichever page the owner came from', async () => {
   for (const [cid, email] of [['salon-ana', 'ANA2@salon.example'], ['plain-co', 'ana@salon.example']]) {
     await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, phone, active) VALUES (?1, ?2, ?3, '+14785550131', 1)").bind(cid, 'h-' + cid, cid).run();
     await DB.prepare("INSERT INTO billing (client_id, session_id, business, email, phone, town, type, status, created) VALUES (?1, ?2, ?3, ?4, '(478) 555-0131', 'Eatonton, GA', 'Salon, spa or fitness', 'active', ?5)").bind(cid, 's-' + cid, cid, email, new Date().toISOString()).run();
@@ -39,7 +39,7 @@ test('that owner’s Max line starts in Spanish; an English lead’s does not', 
   }
   const es = await DB.prepare("SELECT spanish FROM voice_lines WHERE client_id = 'salon-ana'").first();
   const en = await DB.prepare("SELECT spanish FROM voice_lines WHERE client_id = 'plain-co'").first();
-  assert.equal(es.spanish, 1); assert.equal(en.spanish, 0);
+  assert.equal(es.spanish, 1); assert.equal(en.spanish, 1);
 });
 
 test('a yes in Spanish books the offer; words that only start like one do not', () => {

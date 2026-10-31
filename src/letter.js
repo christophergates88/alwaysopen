@@ -80,7 +80,7 @@ function onePage(L) {
     '<p class="lead">This is how ' + esc(L.name) + ' looks to someone searching Google for what you do, checked ' + (L.mailed ? 'on ' + esc(L.date) : 'this morning') + '. ' + (L.fixes.length ? 'Here ' + (L.fixes.length === 1 ? 'is the ' : 'are the ') + things(L.fixes.length) + (L.mailed ? ' we' : ' I') + ' would fix first.' : 'There is nothing major to fix, which is rare.') + '</p>' +
     (L.fixes.length ? '<ol class="fx">' + L.fixes.map(f => '<li><b>' + esc(f.title) + '.</b> ' + esc(f.saw) + ' <span>' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '') +
     (L.fine.length ? '<p class="fine">Already good: ' + L.fine.map(esc).join('; ') + '.</p>' : '') +
-    '<h2>What Always Open does for a business like yours</h2><p>' + esc(L.pitch) + ' You approve everything from your phone; nothing goes out in your name without your OK.</p>' +
+    '<h2>What Always Open does for a business like yours</h2><p>' + esc(L.pitch) + ' You approve everything from your phone; nothing goes out in your name until you approve it or turn it on.</p>' +
     '<div class="offer"><b>' + esc(L.offer) + '</b></div>' +
     (L.qr ? '<div class="qrrow">' + L.qr + '<p><b>Your full audit, checked live</b><span>Point your phone’s camera at the code, or type</span><code>' + esc(L.qrLink || '') + '</code></p></div>' : '') +
     '<p class="contact">' + esc(L.contact) + '</p>' +

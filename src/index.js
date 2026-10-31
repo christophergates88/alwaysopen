@@ -624,8 +624,26 @@ async function radarWatch(env) {
     }
   }
   await radarMail(env, week, lines);
+  // Each insurance client whose own town shows a wave hears it on their phone the same morning (counts only, nothing from Google kept).
+  try {
+    const mine = ((await env.DB.prepare("SELECT DISTINCT c.client_id AS cid, COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || [];
+    for (const n of radarNotes(mine, out)) await pushClient(env, n.cid, n.note).catch(() => 0);
+  } catch (e) { /* the email above still went out */ }
   if (out.some(x => x.wave)) await phonePush(env, { title: 'Rate-Shock Radar: complaints rising', priority: 'default', tags: 'chart_with_upwards_trend', body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' recent reviews about rates').join('\n') });
   return { ok: true, week, towns: out };
+}
+// Which insurance clients get a Rate-Shock push: those whose own town had a wave this week. Pure, so it can be tested.
+export function radarNotes(clients, towns) {
+  const waves = new Map((towns || []).filter(x => x && x.wave).map(x => [String(x.town).trim().toLowerCase(), x]));
+  const out = [];
+  for (const c of clients || []) {
+    const w = waves.get(String((c && c.town) || '').trim().toLowerCase());
+    if (!w) continue;
+    const body = w.rate >= 2 ? w.rate + ' recent reviews of agencies in ' + w.town + ' mention rate increases. Good week to call your renewals before they shop.'
+      : w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days. Good week to check in with your renewals.';
+    out.push({ cid: c.cid, note: { aps: { alert: { title: 'Rate-Shock Radar: ' + w.town, body }, 'thread-id': 'radar' }, screen: 'home' } });
+  }
+  return out;
 }
 async function radarMail(env, week, lines) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO || !lines.length) return;

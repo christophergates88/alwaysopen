@@ -120,11 +120,12 @@ export async function provisionLine(env, cid) {
   await ensureLineTz(env);
   const tz = lineZone({ town, phone: (b && b.phone) || c.phone, number: bought.number });
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set, tz) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, '{}', '', 'never', 0, ?7, '{}', ?8)")
+    env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set, tz) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, '{}', '', 'never', 1, ?7, '{}', ?8)")
       .bind(bought.number, cid, business, +c.regulated ? 1 : 0, industryOf(business, b && b.type), town, at, tz),
     env.DB.prepare("UPDATE provision SET status = 'live', number = ?1, number_sid = ?2, error = '', updated = ?3 WHERE client_id = ?4").bind(bought.number, bought.sid, at, cid)
   ]);
-  // An owner who wrote to us from the Spanish page gets a line that answers Spanish-speaking callers in Spanish from day one.
+  // Every line answers Spanish-speaking callers in Spanish (the site sells it on every plan); the owner can turn it off.
+  // Kept for lines made before that default: an owner who wrote from the Spanish page always gets it.
   try { if (b && b.email) await env.DB.prepare("UPDATE voice_lines SET spanish = 1 WHERE number = ?1 AND EXISTS (SELECT 1 FROM leads WHERE lang = 'es' AND lower(email) = lower(?2))").bind(bought.number, String(b.email)).run(); } catch (e) { /* older leads table without lang: the owner can turn it on */ }
   const text = pretty(bought.number);
   try {
