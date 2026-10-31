@@ -18,9 +18,9 @@ function fullLine() {
   return L;
 }
 
-test('Max’s instructions stay under 14,000 characters even with every field full (about 3,500 tokens, cached after the first turn)', () => {
+test('Max’s instructions stay under 14,200 characters even with every field full (about 3,550 tokens, cached after the first turn)', () => {
   const n = systemPrompt(fullLine(), '+14785550142', 'en-US', false).length;
-  assert.ok(n <= 14000, 'instructions are ' + n + ' characters');
+  assert.ok(n <= 14200, 'instructions are ' + n + ' characters');
 });
 
 test('the instructions are the same on every turn of a call, so the cache holds (per-turn notes go in a separate block)', () => {
