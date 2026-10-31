@@ -31,3 +31,25 @@ test('no model is ever sent a thinking setting it refuses (Opus refused "disable
   assert.equal(thinkingFor({}, 'claude-sonnet-5-5'), null);
   assert.deepEqual(thinkingFor({ VOICE_THINKING: 'adaptive' }, 'claude-opus-5-5'), { type: 'adaptive' });
 });
+
+test('after a question Max stops talking (the Joe call: "...shut off under that sink? The valves are usually...")', async () => {
+  const { Speaker } = await import('../src/voice.js');
+  const out = []; const sp = new Speaker(m => out.push(m.token), 'en-US');
+  for (const t of ['Before anything else, is the water ', 'shut off under that sink?', ' The valves are usually on the pipes', ' right under it. [END]']) sp.push(t);
+  const said = sp.end();
+  assert.equal(said, 'Before anything else, is the water shut off under that sink?');
+  assert.equal(sp.flags.end, true, 'control tags after the question still count');
+  const sp2 = new Speaker(() => {}, 'en-US'); sp2.push('Got it, Saturday at eight. The team will text to confirm. Goodbye. [END]');
+  assert.equal(sp2.end(), 'Got it, Saturday at eight. The team will text to confirm. Goodbye.');
+});
+
+test('what the call already settled is handed to Max every turn, so he never re-asks or re-reads it', async () => {
+  const { settledOnCall } = await import('../src/voice.js');
+  const msgs = [{ r: 'a', t: 'Hi, thanks for calling. What can I do for you?' }, { r: 'u', t: 'Kitchen sink leak, need it asap.' },
+    { r: 'a', t: 'Oh no. Is the water shut off?' }, { r: 'u', t: 'Yes, whole house.' },
+    { r: 'a', t: 'Good. What is the best number for Mike to reach you?' }, { r: 'u', t: 'four seven eight two one two two six two nine' }];
+  const n = settledOnCall(msgs);
+  assert.match(n, /Is the water shut off\?" -> "Yes, whole house\./);
+  assert.match(n, /best number for Mike to reach you\?" -> "four seven eight/);
+  assert.equal(settledOnCall([{ r: 'a', t: 'Hello.' }]), '');
+});

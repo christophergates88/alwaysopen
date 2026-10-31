@@ -1417,7 +1417,7 @@ async function sse(body, onData) {
 // Turns the AI's text stream into what Twilio speaks: strips the [END]/[TRANSFER] controls and anything
 // that should not be read aloud, and marks the last piece of each reply.
 export class Speaker {
-  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null, handoff: '' }; this.stopped = false; }
+  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null, handoff: '' }; this.stopped = false; this.asked = false; }
   push(tok) {
     if (this.stopped) return;
     this.buf += String(tok || '');
@@ -1438,6 +1438,11 @@ export class Speaker {
   emit(t) {
     t = String(t).replace(/[*_#`~|<>{}¡]/g, '').replace(/!+/g, '.').replace(/\.{2,}|…/g, '.').replace(/\s+[—–]\s+|[—–]/g, ', ').replace(/\s*\n+\s*/g, ' ');
     if (!t) return;
+    // Once Max has asked a question, he stops and lets them answer: anything written after it ("...shut off? The valves
+    // are usually...") is dropped, so he never talks over the answer. Control tags are read before this and still count.
+    if (this.asked) return;
+    const q = t.indexOf('?');
+    if (q >= 0) { this.asked = true; t = t.slice(0, q + 1); }
     if (!t.trim()) { this.pending += t; return; }   // keep spaces with the words, so the last piece is never just a space
     if (this.pending) { this.send(this.msg(this.pending, false)); this.spoken += this.pending; }
     this.pending = t;
@@ -1580,6 +1585,20 @@ export function looksRobo(t) {
 }
 const wordsOf = t => String(t || '').split(/\s+/).filter(w => /[a-z0-9]/i.test(w)).length;
 // What Max is told this turn about this caller, on top of the reaction he just said.
+// What this call has already settled: each question Max asked and the caller's answer. Max never asks these again or
+// reads them back again, and answers from here if the caller asks ("who will text me?" -> "the team, at that number").
+export function settledOnCall(msgs) {
+  const pairs = [];
+  for (let i = 0; i < (msgs || []).length - 1; i++) {
+    const a = msgs[i], u = msgs[i + 1];
+    if (a.r !== 'a' || u.r !== 'u' || !/\?/.test(a.t)) continue;
+    const upto = a.t.slice(0, a.t.indexOf('?') + 1), start = Math.max(upto.lastIndexOf('. '), upto.lastIndexOf('! ')) + 1;
+    const q = upto.slice(start).trim(), ans = String(u.t || '').trim();
+    if (q && ans) pairs.push('"' + q.slice(-140) + '" -> "' + ans.slice(0, 140) + '"');
+  }
+  if (!pairs.length) return '';
+  return 'Already settled on this call (never ask these again and never read them back again; if the caller asks about one, answer from here in a few words): ' + pairs.slice(-8).join('; ') + '.';
+}
 function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -1590,6 +1609,8 @@ function callerNotes(s, said) {
     : s.line.canTransfer
       ? 'The caller has asked for a person twice. ' + (s.line.transferQuiet ? 'It is after hours, so the owner' : 'The owner') + ' only takes calls put through when it is urgent' + (s.line.urgent ? ' (urgent means: ' + s.line.urgent + ')' : '') + '. If it is urgent, say one short line that you are connecting them now and end that reply with [TRANSFER]. If not, stop trying to help them yourself: ' + back
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
+  const done = settledOnCall(s.msgs);
+  if (done) out.push(done);
   if (s.urgent) out.push('This is urgent: something is going wrong for them right now or they need it as soon as possible. ' + 'The owner was just sent an urgent alert about this call' + '. Sound like you care that it gets fixed today, in your own words, not a script. Make sure it is safe first. If they ask for anything sooner than the soonest open time, do not just repeat that time: say the owner knows it is urgent and will call them back as soon as he can to see if he can get there sooner, and get the best number.');
   if (s.msgs.some(m => m.r === 'a' && /\b(zero|one|two|three|four|five|six|seven|eight|nine)(,? (zero|one|two|three|four|five|six|seven|eight|nine)){2,}\b/i.test(m.t))) out.push('You already read their phone number back. Never read it out again; call it "that number".');
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
