@@ -32,6 +32,7 @@ export function thinkingFor(env, model) {
   if (t === 'omit') return null;
   if (t === 'adaptive') return { type: 'adaptive' };
   if (t === 'disabled') return { type: 'disabled' };
+  if (t === 'between_tools') return { type: 'between_tools' };   // Sonnet/Opus 5.5: the lowest thinking setting (they refuse "disabled")
   return /haiku/.test(model) ? { type: 'disabled' } : null;
 }
 const CF_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
@@ -1928,7 +1929,7 @@ export async function rehearse(env) {
   const more = greetingMore(line);
   L.heard2 = !!more;
   // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
-  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
+  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
   let budget = 40;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
     const msgs = [{ r: 'a', t: greeting(line) }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
