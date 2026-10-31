@@ -378,7 +378,7 @@ function shareCard(){
 var SEG='today';try{var sv=localStorage.getItem('ao-seg');if(sv&&/^(today|customers|results|settings)$/.test(sv))SEG=sv;}catch(x){}
 function segBar(n){
   var L=[['today','Today'],['customers','Customers'],['results','Results'],['settings','Settings']];
-  if(isTech())L=L.filter(function(x){return x[0]!=='settings';});
+  if(isTech())L=L.filter(function(x){return x[0]!=='settings'&&x[0]!=='results';});
   return '<div class="seg" role="tablist" aria-label="Home">'+L.map(function(x){var on=x[0]===SEG;return '<button type="button" role="tab" class="segb" data-seg="'+x[0]+'" aria-selected="'+on+'">'+x[1]+(x[0]==='today'&&n?'<i class="segn">'+(n>99?'99+':n)+'</i>':'')+'</button>';}).join('')+'</div>';
 }
 function inboxRow(){return '<h2>Inbox</h2><div class="list"><button class="row" type="button" data-a="bz-inbox">'+ICON.check+'<div><b>All your messages in one place</b><span>Requests, bookings, calls, texts and Google reviews</span></div>'+ICON.chev+'</button></div>';}
@@ -486,13 +486,13 @@ function pulseBlock(){
   return h;
 }
 function vHome(){
-  var f=S.features||{},first=S.client.first||'';
+  var f=S.features||{},first=(S.me&&S.me.name)||S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
   var due=(S.followups||[]).filter(isDue).length;
-  if(isTech()&&SEG==='settings')SEG='today';
+  if(isTech()&&(SEG==='settings'||SEG==='results'))SEG='today';
   var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1><p class="lede">Here’s '+esc(S.client.business||'your business')+' today.'+(S.client.tier?' You’re on <b class="tier">'+esc(S.client.tier)+'</b>.':'')+'</p>'+reconnectCards()+segBar(items+calls+due);
   if(SEG==='customers'){
-    h+=inboxRow()+jobsBlock()+(isTech()?'':quotesBlock()+payBlock()+invBlock())+pastBlock()+linkBlock()+mapCard();
+    h+=inboxRow()+jobsBlock()+(isTech()?'':(S.client.regulated?'':quotesBlock()+payBlock())+invBlock())+pastBlock()+linkBlock()+mapCard();
     return h;
   }
   if(SEG==='results'){
@@ -514,7 +514,7 @@ function vHome(){
   var fresh=!busy&&!(S.calls||[]).length;
   if(fresh)h+=heroCard()+flCard()+bizTop()+quick;
   else h+=cbCard()+heroCard()+todayStrip()+quick+flCard()+bizTop();
-  if(busy)h+=monthNowCard()+moneyCard();
+  if(busy&&!isTech())h+=monthNowCard()+moneyCard();
   if(!att.length&&busy)h+='<div class="empty slim">'+ICON.check+'<b>All caught up</b><span>We’ll buzz your phone when something needs you.</span></div>';
   h+=(f.followups||busy?fuBlock():'')+fwCard()+moreCard()+(busy?homeRefer():'');
   return h;
@@ -655,7 +655,7 @@ function heroCard(){
     var on=L.onAir;
     if(on&&SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back to '+esc(L.name))+'<div class="hero-t">'+signBack(L)+'</div></div>';
     return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+(on?'Your office is open':(L.paused?'Calls are paused':'Calls are off'))+'</b><span>'+officeLine()+'</span><span class="sm">'+esc(L.name)+' \\u00b7 '+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
-      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+'<button class="btn ghost sm" type="button" data-tab="max">Settings</button></div></div></div>';
+      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+''+(isTech()?'':'<button class="btn ghost sm" type="button" data-tab="max">Settings</button>')+'</div></div></div>';
   }
   if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
   return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Your office is open</b><span>'+officeLine()+(f.calls||S.client.regulated?'':' Max, your phone line, comes with your plan.')+'</span>'+
@@ -825,6 +825,7 @@ function mSegBar(L,f){
 function vMax(){
   var L=S.line,f=S.features||{};
   var h='<h1>'+esc(L?L.name:'Calls')+'</h1>';
+  if(L&&isTech()){return h+'<p class="lede">Calls '+esc(L.name)+' answered.</p>'+(f.calls?callsList():'');}
   if(!L){
     h+='<p class="lede">Calls your phone line answered.</p>'+textbackCard();
     if(f.calls)h+='<h2>Calls</h2>'+callsList();
