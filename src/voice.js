@@ -783,6 +783,8 @@ export class CallRoom extends DurableObject {
     }
     // Max said goodbye but forgot [END]: hang up anyway, so a caller's "thank you" never starts a second round of goodbyes.
     if (!sp.flags.end && !sp.flags.transfer && saidGoodbye(spoken)) sp.flags.end = true;
+    // ...but never hang up on a caller who just answered a question ("Yes."): that is the middle of a call, not the end.
+    if (sp.flags.end && earlyEnd(cur.msgs, spoken)) sp.flags.end = false;
     if (sp.flags.transfer && cur.line.canTransfer) { cur.transfer = true; cur.endAt = Date.now() + speakMs(spoken) + 400; }
     else if (sp.flags.end || sp.flags.transfer) cur.endAt = Date.now() + speakMs(spoken) + 700;
     await this.keep(cur);
@@ -1463,6 +1465,15 @@ export class Speaker {
   stop() { this.stopped = true; }
 }
 
+export function earlyEnd(msgs, spoken) {
+  const u = [...(msgs || [])].reverse().find(m => m.r === 'u');
+  const t = String(u && u.t || '').toLowerCase().replace(/[^a-z' ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/\b911\b|nine one one/i.test(String(spoken || ''))) return false;
+  // "No." to "anything else I can help with?" is the caller finishing: that goodbye hangs up.
+  const ui = (msgs || []).lastIndexOf(u), prev = ui > 0 ? (msgs || []).slice(0, ui).reverse().find(m => m.r === 'a') : null;
+  if (prev && /anything else|that all|all set/i.test(String(prev.t || ''))) return false;
+  return /^(yes|yeah|yep|yup|uh huh|mm hmm|correct|right|it is|it's still|still|no|nope|not yet)( (it is|it's still|sir|ma'am|still))?$/.test(t);
+}
 export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s|talk (?:to you )?soon|take care)[.!\s]*$/i.test(String(t || '').trim()); }
 
 // ---------- the quick reaction ----------
