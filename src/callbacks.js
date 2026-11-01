@@ -98,18 +98,20 @@ export function lineLive(row) { return !!(row && +row.on_air && !ownerOff(row.ow
 
 // What a customer said to a yes-or-no question on an outbound call (check-ins, call-back times): 'yes', 'no', 'stop',
 // 'unclear' (both, or neither), or '' (nothing at all). "No problems", "not a single issue" and "nothing wrong" are yeses.
-const ANS_STOP = /\b(stop calling|stop (these|the) calls|don'?t call|do not call|no more calls|remove me|take me off|unsubscribe|opt out)\b|^\s*(please )?stop( please| it)?\s*$/;
+// Any way of saying stop, in English or Spanish, anywhere in the answer: "no no no stop", "yes please stop", "remove my number".
+// ("it won't stop leaking" and "stopped working" are answers about the work, not requests.)
+const ANS_STOP = /\b(stop calling|stop (these|the) calls|stop (texting|contacting|bothering|harassing)|don'?t (call|contact|ring)|dont call|do not (call|contact)|never call|no more (calls|texts)|remove (me|my (number|name|info))|delete (me|my (number|name|info))|take me off|take my number off|get me off|unsubscribe|opt ?-?out|put me on (the |your )?(do not call|dnc)|(?<!won'?t |wont |doesn'?t |can'?t |cannot |not |never |didn'?t )\bstop\b(?! (leaking|working|dripping|running|holding|raining|flowing|the leak))|no me llam\w*|no llam\w*|no mas llamadas|quiten mi numero|saquen mi numero|dejen de llamar|dejenme en paz|\bpare\b|\bparen\b)\b|\bstop\b(?! (leaking|working|dripping|running|holding|raining|flowing|the leak))/;
 const ANS_FINE = /\b(no|not any|not a single|not one|zero|never had any|haven'?t had any|hasn'?t had any|didn'?t have any|without any)\s+(real\s+|more\s+)?(problems?|issues?|complaints?|trouble|troubles|leaks?|drips?|worries)\b|\bnothing('?s| is| was| went)?\s+(wrong|broken|leaking)\b|\bnot (a |one )?(problem|issue)\b|\bnot bad\b|\bcan'?t complain\b|\b(couldn'?t|could not|never) (be |been )?better\b|\bno worries\b/g;
 const ANS_BAD = /\b(not|isn'?t|wasn'?t|aren'?t|ain'?t|never|hasn'?t|haven'?t|hadn'?t)\s+(\w+\s+)?(working|worked|holding( up)?|held( up)?|right|good|great|fixed|fine|ok|okay)\b|\b(doesn'?t|didn'?t|won'?t|does not|did not|will not|can'?t|cannot)\s+(\w+\s+)?(work|hold|seem|stop)\b|\b(stopped|quit) working\b/g;
 const ANS_UNSURE = /\b(not sure|unsure|don'?t know|do not know|dunno|maybe|say (that|it) again|repeat that|what was that|who is this)\b/;
-const ANS_YES = /\b(yes|yeah|yep|yup|ya|yea|sure|ok|okay|fine|good|great|perfect|excellent|awesome|works|working|worked|held|holding|it did|it has|absolutely|definitely|correct|right|that works|sounds good)\b/;
-const ANS_NO = /\b(no|nope|nah|not|problems?|issues?|wrong|leaks?|leaking|leaked|drips?|dripping|broke|broken|bad|worse|terrible|awful|sooner|asap|soon as)\b/;
+const ANS_YES = /\b(yes|yeah|yep|yup|ya|yea|sure|ok|okay|fine|good|great|perfect|excellent|awesome|works|working|worked|held|holding|it did|it has|absolutely|definitely|correct|right|that works|sounds good|si|claro|bueno|vale|esta bien|por supuesto|perfecto|correcto|esta perfecto|funciona|funciono)\b/;
+const ANS_NO = /\b(no|nope|nah|not|problems?|issues?|wrong|leaks?|leaking|leaked|drips?|dripping|broke|broken|bad|worse|terrible|awful|sooner|asap|soon as|problemas?|nada|nunca|mal|peor|no funciona)\b/;
 export function readAnswer(digits, speech) {
   const d = String(digits == null ? '' : digits).trim();
   if (d === '9') return 'stop';
   if (d === '1') return 'yes';
   if (d === '2') return 'no';
-  let t = String(speech == null ? '' : speech).toLowerCase().replace(/[’‘]/g, '\'').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  let t = String(speech == null ? '' : speech).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘]/g, '\'').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!t) return d ? 'unclear' : '';
   if (ANS_STOP.test(t)) return 'stop';
   t = t.replace(ANS_FINE, ' fine ').replace(ANS_BAD, ' broken ');

@@ -1579,9 +1579,18 @@ export function quickQuestion(t) {
 // Callers who want a person, and callers who are upset: counted per call (callerNotes) as well as reacted to.
 const WANT_PERSON = /\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real|someone|somebody|the owner|a manager|chris)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b|\b(real|live|actual) (person|human)\b/;
 // An active problem, or a caller who says it can't wait. A business owner describing their trade ("we fix leaks") is not one.
-const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no hot water|no (ac|a c|air)|no power|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|gas smell|smell gas|water everywhere|pouring)\b/;
+const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no heating|no cooling|no hot water|no water|no (ac|a c|air)|no power|no electricity|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|on fire|fire|burning|carbon monoxide|gas smell|smell gas|smells? (like )?gas|water everywhere|pouring|sewage|sewer|caving in|caved in|collapsed|collapsing|fell (on|through)|broke into|broken into|broke in|break-?in|burglar(y|ized)?|robbed|accident|crashed|wrecked|totaled|stranded|locked out|can't breathe|on oxygen|(furnace|heater|heat pump|boiler|water heater|ac|a c|compressor|pump|freezer|fridge|refrigerator) (died|is dead|quit|is out|went out|is down|broke|stopped|won't (start|turn on|work|run)|not (working|starting|running)|isn't (working|running|starting))|broke down|stopped working|(fuga|fugas|inunda|inundo|inundado|inundacion|inundando|emergencia|urgente|incendio|humo|ladrones|robaron|choque|accidente|reventado|reviento|tubo roto|se rompio|derrumb\w*|no tengo (calefaccion|agua|luz|aire|electricidad|gas)|sin calefaccion|sin agua|sin luz|sin aire|sin electricidad|huele a gas|olor a gas|hay gas|aguas negras|drenaje tapado))\b/;
 const OWN_TRADE = /\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize in)\b|\b(my|our) (company|business|customers|clients)\b/;
-export function activeProblem(t) { const w = String(t || '').toLowerCase(); return ACTIVE.test(w) && !OWN_TRADE.test(w); }
+const PAST = /\b(was|were|had been|used to|last (year|month|week|winter|summer|time)|(years?|months?|weeks?) ago|a while ago|got fixed|was fixed|is fixed|fixed it|thank(s| you)|in case (of )?|if (there'?s|there is|we have|i have) an? (emergency|leak))\b/;
+const NOW_WORDS = /\b(now|currently|right now|today|tonight|still|again|just|this (morning|afternoon|evening))\b/;
+const BENIGN = /\b(emergency|24[- ]?hour) (generator|generators|service|services|plumbing|plumber|repair|repairs|number|line|lighting|kit|room|contact|fund|call|calls|work|hvac|locksmith)\b|\bleak(s)? (detection|detector|sensor|repair)\b/g;
+// A live problem is in the present. "The leak was fixed last year, thanks" and "quote for an emergency generator" are not.
+export function activeProblem(t) {
+  const w = String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘]/g, "'");
+  if (OWN_TRADE.test(w)) return false;
+  const clauses = w.replace(BENIGN, ' ').split(/[.;!?,]+|\s+but\s+|\s+and then\s+/);
+  return clauses.some(c => ACTIVE.test(c) && !(PAST.test(c) && !NOW_WORDS.test(c)));
+}
 export const CLOSING = /^\W*((ok(ay)?|alright|all right|yeah|yes|sure|great|perfect|you too|thanks|thank you( so much| very much)?|thank ya|bye( bye| now)?|good-?bye|have a (good|great|nice) (one|day|night|evening)|take care|appreciate (it|you|that))[\s.,!]*)+$/i;
 async function alertUrgent(env, s, said) {
   const biz = (s.line && s.line.business) || 'your business';
