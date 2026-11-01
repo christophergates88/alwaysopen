@@ -14,15 +14,15 @@ const GRACE_MIN = 20;      // how long after the promised time before it counts 
 const NUDGE_MIN = 10;      // owner nudge this long before the promised time
 const CRON_MIN = 10;       // the worker cron runs every 10 minutes
 
-let ready = false;
+const readyDBs = new WeakSet();
 export async function ensureCallbacks(env) {
-  if (ready) return;
+  if (readyDBs.has(env.DB)) return;
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS callbacks (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, call_sid TEXT DEFAULT '', phone TEXT NOT NULL, name TEXT DEFAULT '', reason TEXT DEFAULT '', due_at TEXT NOT NULL, status TEXT DEFAULT 'pending', created TEXT, nudged_at TEXT DEFAULT '', attempts INTEGER DEFAULT 0, last_result TEXT DEFAULT '', urgent INTEGER DEFAULT 0, note TEXT DEFAULT '')"),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS callbacks_due ON callbacks (status, due_at)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS call_optout (client_id TEXT NOT NULL, phone10 TEXT NOT NULL, at TEXT, PRIMARY KEY (client_id, phone10))'),
   ]);
-  ready = true;
+  readyDBs.add(env.DB);
 }
 
 export function ph10(s) { let d = String(s == null ? '' : s).replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 ? d : ''; }

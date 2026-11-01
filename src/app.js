@@ -19,6 +19,7 @@ import { lostState } from './lost.js';
 import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
+import { apiOutcalls, outcallsState } from './outcalls.js';
 import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
 import { upgradesState } from './upgrades.js';
@@ -292,6 +293,10 @@ export async function handleApp(req, env, ctx, url) {
     } else if (sub === '/api/checkins' && meth === 'POST') {
       const r = await apiCheckins(req, env, c);
       return aj(r, r.ok ? 200 : 400);
+    } else if (sub === '/api/outcalls' && meth === 'POST') {
+      if (c.staff) return aj({ ok: false, error: 'Only the owner can change this.' }, 403);
+      const r = await apiOutcalls(req, env, c);
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/handoff' && meth === 'POST') {
       const r = await apiHandoff(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -452,6 +457,7 @@ async function apiState(env, c, ctx) {
   // Hand-offs need Max answering; check-in calls need a logged job (Growth and Pro) and Max's line to call from.
   try { out.handoff = (c.regulated || c.staff || !line) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
   try { out.checkins = (c.regulated || !line || !f.jobs) ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
+  try { out.outcalls = (c.regulated || !line || c.role === 'tech') ? null : await outcallsState(env, c); } catch (e) { out.outcalls = null; }
   if (!f.past) delete out.past;
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   // Calls Max is on right now, for the live card on Today.

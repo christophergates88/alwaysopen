@@ -12,6 +12,7 @@ import { recordLost } from './lost.js';
 import { slotForLine, createCallback, outboundTwiml, outboundGather, outboundStatus, tzFor, callHoursOk } from './callbacks.js';
 import { neighborsFor, neighborsText, startHandoff, handedFrom, markHandoff } from './handoff.js';
 import { checkinTwiml, checkinGather, checkinStatus } from './checkin.js';
+import { outcallTwiml, outcallGather, outcallStatus, ringOwner } from './outcalls.js';
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
@@ -103,6 +104,9 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'ci') return await checkinTwiml(env, url, form);
     if (kind === 'cig') return await checkinGather(env, url, form);
     if (kind === 'cistatus') return await checkinStatus(env, url, form);
+    if (kind === 'oc') return await outcallTwiml(env, url, form);
+    if (kind === 'ocg') return await outcallGather(env, url, form);
+    if (kind === 'ocstatus') return await outcallStatus(env, url, form);
     if (kind === 'out') return await outboundTwiml(env, url, form);
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
@@ -1584,6 +1588,7 @@ async function alertUrgent(env, s, said) {
   const who = s.caller ? spokenNumber(s.caller, true) : 'a caller';
   await pushClient(env, s.cid, { aps: { alert: { title: (s.test ? 'Test call: ' : '') + 'Urgent call happening now', body: (who + ' on the line with Max: "' + String(said).slice(0, 200) + '"').slice(0, 300) }, sound: 'default', 'interruption-level': 'time-sensitive', 'thread-id': 'calls' }, screen: 'calls', call: s.sid });
   await vlog(env, 'urgent-alert', JSON.stringify({ sid: s.sid, cid: s.cid, biz }));
+  if (!s.test) await ringOwner(env, s.cid, s.sid, 'A caller says: ' + String(said).slice(0, 140));
 }
 const UPSET = /\b(ridiculous|unacceptable|furious|pissed( off)?|fed up|third time|fourth time|(nobody|no one) (ever )?(calls?|called) (me )?back|been waiting (for )?(days|weeks|hours|all day)|this is (crazy|insane|a joke)|terrible service|worst (service|company)|rip ?off|ripped (me )?off|you people|i want (a|my) refund|i'?m (so )?(angry|upset|mad))\b/;
 // Robocalls and sales pitches, by their first words: Max says one line and hangs up instead of chatting with them. Only on

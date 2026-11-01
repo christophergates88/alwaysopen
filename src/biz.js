@@ -179,6 +179,7 @@ export async function apiWork(req, env, c) {
     const mins = Math.round(+b.minutes || 0);
     const { sendText } = await import('./sms.js');
     const r = await sendText(env, { clientId: c.client_id, to: '+1' + d, kind: 'onway', body: who + ' from ' + (c.business || 'us') + ' is on the way' + (mins >= 5 && mins <= 240 ? ', about ' + mins + ' minutes out.' : '.') + ' Reply STOP to end texts.' });
+    if (r.ok || /registered|not set up|texting/.test(r.why || '')) { try { const oc = await import('./outcalls.js'); await oc.queueOnWay(env, c, j, who, mins); } catch (e) {} }
     return aj(r.ok ? { ok: true, message: 'Texted ' + (j.name || 'them') + '.' } : { ok: false, error: /registered|not set up|texting/.test(r.why || '') ? 'Texting turns on once your texting registration is approved.' : (r.why === 'opted out' ? 'They asked not to get texts.' : 'Could not send. Try again.') }, r.ok ? 200 : 409);
   }
   if (b.action === 'cancel-booking') {

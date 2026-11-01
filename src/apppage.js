@@ -898,7 +898,12 @@ function afterCard(L){
     sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
     (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
     (S.features.jobs?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
-    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>';
+    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>'+outCard(L);
+}
+function outCard(L){
+  var O=S.outcalls;if(!O||!O.list)return '';
+  var one=function(x){return '<label class="opt" style="display:flex;gap:10px;align-items:flex-start;margin-top:10px"><input type="checkbox" data-oc="'+esc(x.key)+'"'+(O.on[x.key]?' checked':'')+' style="margin-top:3px"> <span><b>'+esc(x.label)+'</b><br><span class="fine">'+esc(x.sub)+'</span></span></label>';};
+  return '<h2>Calls '+esc(L.name)+' makes</h2><div class="card"><p class="fine" style="margin-top:0">To you, or to customers who already agreed to hear from you when you logged the appointment, estimate or job. Nobody is asked twice. Never between 9 PM and 8 AM, and anyone who says stop is never called again.</p>'+O.list.map(one).join('')+'</div>';
 }
 function voiceCard(L){
   return '<h2>Voice and greeting</h2><div class="card form">'+
