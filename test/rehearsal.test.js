@@ -384,7 +384,9 @@ test('a forged call webhook (bad Twilio signature) is refused', async () => {
 });
 
 // ---------- the first monthly report ----------
-test('next month, the first report is written once, from what actually happened, and the client is told', async () => {
+// Between midnight UTC and 4 AM UTC on the 1st it is still the old month in New York, where the test's business is: skip then.
+const MONTH_EDGE = new Date().getUTCMonth() !== new Date(Date.now() - 5 * 3600e3).getUTCMonth();
+test('next month, the first report is written once, from what actually happened, and the client is told', { skip: MONTH_EDGE && 'month boundary between UTC and New York' }, async () => {
   const { monthReportCron } = await import('../src/report.js');
   const d = new Date(), at = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 3, 15);
   const first = await monthReportCron(env, at);
