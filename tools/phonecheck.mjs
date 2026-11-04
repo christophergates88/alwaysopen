@@ -58,7 +58,7 @@ for (const w of WIDTHS) {
       const out = { small: [], tiny: [] };
       const vis = el => { const s = getComputedStyle(el); const b = el.getBoundingClientRect(); return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0 && !el.closest('[hidden],[aria-hidden="true"]'); };
       out.docW = document.documentElement.scrollWidth; out.winW = innerWidth; out.h = document.documentElement.scrollHeight;
-      const g = document.getElementById('go-grade'); out.gradeTop = g ? g.getBoundingClientRect().top + scrollY : -1;
+      const g = document.getElementById('check'); out.auditTop = g ? g.getBoundingClientRect().top + scrollY : -1;
       const rail = document.querySelector('.aos'); out.strip = rail ? Math.round(document.querySelector('.aos-rail').getBoundingClientRect().height + (document.querySelector('.aos .ao-dots') || { getBoundingClientRect: () => ({ height: 0 }) }).getBoundingClientRect().height) : -1;
       // Tap targets: links and buttons that stand on their own. A link inside a sentence is exempt (it is part of the text).
       document.querySelectorAll('a[href],button,summary,input:not([type=hidden]),select,textarea').forEach(el => {
@@ -86,12 +86,12 @@ for (const w of WIDTHS) {
       }
       return out;
     });
-    const row = { page: name, height: r.h, gradeTop: Math.round(r.gradeTop), strip: r.strip, smallTaps: r.small.length, smallText: r.tiny.length };
+    const row = { page: name, height: r.h, auditTop: Math.round(r.auditTop), strip: r.strip, smallTaps: r.small.length, smallText: r.tiny.length };
     report.push(row);
     if (r.docW > r.winW) problems.push(name + ': scrolls sideways (' + r.docW + ' > ' + r.winW + ')');
     if (r.h > maxH) problems.push(name + ': ' + r.h + ' px tall with sections folded (limit ' + maxH + ')');
     // The grade check sits at the end of "Tap to try it" since Nov 4, 2026 (the feature wall took its spot up top): it only has to be there.
-    if (r.gradeTop < 0) problems.push(name + ': the grade check is missing');
+    if (name === '/' && r.auditTop < 0) problems.push(name + ': the audit form is missing');
     // 572: the cards' wording on every plan (Max included with Starter) is one line longer on some phones (Oct 30).
     if (r.strip > 572) problems.push(name + ': the cards are ' + r.strip + ' px tall (limit 572)');
     r.small.forEach(x => problems.push(name + ': small tap target ' + x));
@@ -136,10 +136,11 @@ for (const w of WIDTHS) {
         return bad;
       });
       folds.forEach(x => problems.push(name + ': fold ' + x));
-      // The grade check answers on the page.
-      await page.fill('#g-q', 'Sample Plumbing'); await page.fill('#g-town', 'Eatonton, GA');
-      await page.click('.aog-go');
-      await page.waitForSelector('.aog-res', { timeout: 3000 }).catch(() => problems.push(name + ': the grade did not show'));
+      // The audit form's instant check answers on the page.
+      if (await page.$('#check')) { await page.evaluate(() => { const s = document.getElementById('audit'); const b = s && s.querySelector(':scope > .ao-foldbar'); if (b && !s.classList.contains('ao-open')) b.click(); });
+        await page.waitForTimeout(200); await page.fill('#c-q', 'Sample Plumbing'); await page.fill('#c-town', 'Eatonton, GA');
+      const sb = page.locator('#check button[type=submit]'); await sb.scrollIntoViewIfNeeded(); const bb = await sb.boundingBox(); await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);   // a real tap: a locator click in touch mode taps the pre-scroll spot
+      await page.waitForFunction(() => (document.getElementById('check-out') || {}).textContent.trim().length > 0, null, { timeout: 3000 }).catch(() => problems.push(name + ': the instant check did not answer')); }
       // Spanish: every swap finds its place, the switch is a full tap, nothing scrolls sideways, English comes back.
       const es = await page.evaluate(() => {
         const btn = document.querySelector('[data-lang-t]'); if (!btn) return ['no ES/EN switch'];
@@ -157,7 +158,7 @@ for (const w of WIDTHS) {
         return bad;
       });
       es.forEach(x => problems.push(name + ': Spanish ' + x));
-      if (SHOTS) { await page.locator('#go-grade').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(SHOTS, name + '-grade.png') }); await page.screenshot({ path: path.join(SHOTS, name + '-full.png'), fullPage: true }); }
+      if (SHOTS) { if (await page.$('#check')) { await page.locator('#check').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(SHOTS, name + '-audit.png') }); } await page.screenshot({ path: path.join(SHOTS, name + '-full.png'), fullPage: true }); }
     }
   }
   await ctx.close();
