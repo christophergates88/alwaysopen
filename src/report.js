@@ -112,7 +112,7 @@ export async function monthReportCron(env, at) {
   const m = monthOf(now);
   const { DEMO_ID } = await import('./demo.js');
   await ensureRuns(env);
-  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.regulated, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
+  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.regulated, c.owner_first, (SELECT email FROM billing b WHERE b.client_id = c.client_id LIMIT 1) AS email, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
   const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
   let made = 0;
   for (const c of clients) {
@@ -125,6 +125,7 @@ export async function monthReportCron(env, at) {
     await done(c.client_id, hasNews(data) ? 'made' : 'made, quiet month');
     if (!hasNews(data)) continue;
     try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: (data.stats && data.stats.afterHours ? data.note.split('. ')[0].replace(/\.$/, '') + '. ' : '') + 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
+    if (c.email) { try { const { sendNeon, reportEmail } = await import('./clientmail.js'); await sendNeon(env, c.email, reportEmail(c, m.label, data)); } catch (e) { /* the report is there either way */ } }
   }
   return { made, month: m.key };
 }

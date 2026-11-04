@@ -113,7 +113,7 @@ test('the hourly text ceiling holds automatic texts, never what an owner types',
   for (let i = 0; i < 60; i++) await DB.prepare("INSERT INTO sms_log (client_id, to10, at, kind, status) VALUES ('c1', '4785550142', ?1, 'textback', 'queued')").bind(iso(Date.now() - i * 30e3)).run();
   const held = await S.sendText(env, { clientId: 'c1', to: '+14785550199', body: 'Sorry we missed you.', kind: 'textback' });
   assert.deepEqual(held, { ok: false, why: 'held: hourly ceiling', retry: true });
-  assert.ok(world.pushes.some(p => /text-ceiling/.test(p.title)), 'Christopher hears about it');
+  assert.ok(world.pushes.some(p => /safety limit/.test(p.title)), 'Christopher hears about it');
   const typed = await S.sendText(env, { clientId: 'c1', to: '+14785550199', body: 'On my way.', kind: 'reply' });
   assert.equal(typed.ok, true);
 });
@@ -178,7 +178,7 @@ test('a chargeback reaches Christopher the same day with the deadline and the cl
   try {
     await B.dispute(env, 'charge.dispute.created', { charge: 'ch_1', amount: 29900, reason: 'product_not_received', evidence_details: { due_by: Math.floor(Date.parse('2026-11-07T17:00:00Z') / 1000) } }, {});
   } finally { globalThis.fetch = real; }
-  const p = world.pushes.find(x => /stripe-dispute/.test(x.title));
+  const p = world.pushes.find(x => /disputed a charge/.test(x.title));
   assert.ok(p, 'alerted');
   assert.match(p.body, /Chargeback: Quillen Plumbing disputed \$299\.00\. Reason given: product not received\. Answer by Saturday, November 7 in the Stripe dashboard/);
   assert.match(p.body, /3 calls answered by Max, 0 replies and posts they approved, 3 months as a client/);

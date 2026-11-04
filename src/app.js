@@ -16,6 +16,7 @@ import { apiInvoice, invoicesFor, metaStatus, sendInvoiceReminder, metaPublish }
 import { apiImport, apiRevive, pastState } from './past.js';
 import { apiRivals, rivalsState } from './rivals.js';
 import { lostState } from './lost.js';
+import { dutiesOut } from './duties.js';
 import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
@@ -471,6 +472,7 @@ async function apiState(env, c, ctx) {
   try { out.maxStats = (f.calls && line) ? await (await import('./grades.js')).ownerStats(env, cid) : null; } catch (e) { out.maxStats = null; }
   try { out.minutes = (f.calls && line && !c.staff) ? await (await import('./minutes.js')).meterFor(env, cid) : null; } catch (e) { out.minutes = null; }
   try { out.money = (f.calls && line && !tech) ? await (await import('./money.js')).moneyState(env, cid) : null; } catch (e) { out.money = null; }
+  try { out.timecard = (f.calls && line && !c.staff) ? await (await import('./timecard.js')).timecardState(env, cid) : null; } catch (e) { out.timecard = null; }
   try { out.reconnect = c.staff ? [] : await (await import('./connections.js')).brokenFor(env, cid); } catch (e) { out.reconnect = []; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
@@ -582,7 +584,8 @@ function lineOut(raw, c) {
     updated: [l.updated || '', l.owner_at || ''].sort().pop(),
     ...knowOut(raw.facts, raw.owner_set),
     booking: +raw.regulated ? null : bookingOut(l),
-    voice: voiceKeyOf(f.voice), voices: voicesOut(), greetingAudio: f.greetAudio ? SITE + '/a/' + f.greetAudio : ''
+    voice: voiceKeyOf(f.voice), voices: voicesOut(), greetingAudio: f.greetAudio ? SITE + '/a/' + f.greetAudio : '',
+    duties: c && c.staff ? null : dutiesOut(raw)
   };
 }
 // Max comes with every plan: an owner without a line taps Set up Max and gets a number right away, no message to us.
@@ -650,6 +653,22 @@ async function apiLine(req, env, ctx, c) {
   if (b.booking && typeof b.booking === 'object' && !+raw.regulated) {
     const nb = cleanBooking(b.booking, o.book);
     if (JSON.stringify(nb) !== JSON.stringify(o.book || {})) { o.book = nb; changes.push('booking: ' + ({ book: 'Max books open times', hold: 'Max pencils in a time for you to confirm', off: 'Max takes a message' })[nb.mode || 'hold'] + ', ' + (nb.slotMin || 60) + '-minute visits'); }
+  }
+  // Max's job description (duties.js): owner only.
+  if (b.duties && typeof b.duties === 'object') {
+    if (c.staff) return aj({ ok: false, error: 'Only the owner can change Max’s job description.' }, 403);
+    const { cleanDuties, dutyChanges } = await import('./duties.js');
+    const nd = cleanDuties(b.duties, o.duties), dc = dutyChanges(o.duties || {}, nd);
+    if (dc.length) { o.duties = nd; changes.push(...dc); }
+  }
+  // "Tell Max": one line that goes straight into what Max tells callers, dated (duties.js tellMax).
+  if (b.action === 'tell') {
+    if (c.role === 'tech') return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
+    const { tellMax } = await import('./duties.js');
+    const r = await tellMax(env, c.client_id, String(b.text || ''), by);
+    if (!r.ok) return aj(r, 422);
+    const fresh = await env.DB.prepare('SELECT * FROM voice_lines WHERE number = ?1').bind(raw.number).first();
+    return aj({ ok: true, said: r.text, line: lineOut(fresh || raw, c) });
   }
   if (b.facts && typeof b.facts === 'object') {
     const nf = cleanFacts(b.facts), cur = parse(withOwner(raw).facts) || {};
@@ -1228,20 +1247,26 @@ export async function pushClient(env, cid, note) {
   for (const d of devs) await apnsSend(env, d, note);
   return devs.length;
 }
-// Mail to Chris only (calls to Always Open's own number). Returns 'sent', 'off' or 'failed: ...'.
-export async function mailOwner(env, subject, text) {
+// Mail to Chris only. Every email to him is a neon Always Open email (neonmail.js): a sign with the state, one "Do this",
+// a few short lines. neon: a neonEmail spec for a hand-made one; without it the plain text is turned into one.
+// keepText (or no spec): the plain-text part is the caller's text, word for word, because the Always Open check reads
+// "Lead ID:", "Name:" lines out of the plain part. Returns 'sent', 'off' or 'failed: ...'.
+export async function mailOwner(env, subject, text, neon, fromName) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const raw = [
-    'From: "Always Open phone line" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + encodeHeader(oneLine(subject).slice(0, 140)),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'
-  ].join('\r\n') + '\r\n\r\n' + text;
+  const raw = await neonRaw(env, fromName || 'Always Open phone line', subject, text, neon);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; } catch (e) {
     const why = String((e && e.message) || e).slice(0, 180);
     try { await (await import('./ops.js')).opsAlert(env, 'mail-send', '', 'An email to you could not be sent: ' + why); } catch (x) {}
     return 'failed: ' + why;
   }
+}
+async function neonRaw(env, fromName, subject, text, neon) {
+  const N = await import('./neonmail.js');
+  let e;
+  try { e = neon && typeof neon === 'object' ? N.neonEmail(Object.assign({ title: oneLine(subject).replace(/^Always Open:\s*/i, '') }, neon)) : N.neonFromText(oneLine(subject).replace(/^Always Open:\s*/i, ''), text); }
+  catch (x) { e = null; }
+  const plain = !e ? text : (neon && typeof neon === 'object' && !neon.keepText ? e.text : text);
+  return N.rawEmail({ fromName, from: env.MAIL_FROM, to: env.MAIL_TO, subject: oneLine(subject), replyTo: neon && neon.replyTo }, String(plain || ''), e ? e.html : '');
 }
 // loud: true only for the few things worth waking up for (push.js lets everything else arrive silently at night).
 export async function opsPing(env, title, body, priority, tags, click, loud) { return ntfy(env, title, body, priority, tags, click, loud); }
@@ -1283,14 +1308,9 @@ export async function mailTo(env, to, subject, text, biz, opts) {
   ].join('\r\n') + '\r\n\r\n' + text;
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, to, raw)); return 'sent'; } catch (e) { await opsAlert(env, 'mail-send', '', 'A customer email could not be sent: ' + String((e && e.message) || e).slice(0, 200)); return 'failed'; }
 }
-async function mail(env, subject, text) {
+async function mail(env, subject, text, neon) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return;
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const raw = [
-    'From: "Always Open app" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + encodeHeader(oneLine(subject).slice(0, 140)),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'
-  ].join('\r\n') + '\r\n\r\n' + text;
+  const raw = await neonRaw(env, 'Always Open app', subject, text, neon);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); } catch (e) { /* the push still went */ }
 }
 

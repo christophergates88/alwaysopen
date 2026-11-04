@@ -2,6 +2,9 @@
 // Goes out by the phone push (NTFY_URL) and an email to MAIL_TO. Never includes keys, codes or customer details.
 import { EmailMessage } from 'cloudflare:email';
 import { push, isNight } from './push.js';
+import { rawEmail } from './neonmail.js';
+import { explainAlert, alertEmail } from './plainalerts.js';
+export { explainAlert, alertEmail };
 // The same problem alerts again at most every 3 hours, with a count of the ones held back (it used to be 15 minutes,
 // which meant a push every 20 minutes all night for anything that stayed broken).
 const GAP_MS = 3 * 3600e3;
@@ -46,19 +49,20 @@ export async function opsAlert(env, type, who, detail) {
       MEMO.set(key, now); row = { n: 0, prev: 0 };
     }
     if (!row || +row.n !== 0) return 'limited';   // held back: n counts the ones since the last push
-    const more = row.prev ? ' (' + row.prev + ' more since the last alert)' : '';
-    const title = 'Always Open problem: ' + key;
-    const body = 'What broke: ' + scrub(detail).slice(0, 600) + more + (who ? '\nClient: ' + one(who).slice(0, 40) : '') + '\nTime: ' + new Date(now).toISOString();
+    const ex = explainAlert(key, detail);
+    const more = row.prev ? row.prev + ' more like this since the last alert' : '';
+    const title = ex.title;
+    // The push: what happened, then exactly what to do. The detail is in the email.
+    const det = scrub(detail).slice(0, 420);
+    const body = ex.what + '\nDo this: ' + ex.doThis + (det && det !== ex.what ? '\nDetails: ' + det : '') + (who ? ' (client ' + one(who).slice(0, 40) + ')' : '') + (more ? '\n(' + more + ')' : '');
     const jobs = [];
     // At night it arrives silently (push.js) and waits in ops_night for the 7 AM push; the email goes either way.
     const loud = NIGHT_LOUD.has(key);
     if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), key, scrub(detail).slice(0, 200)).run().catch(() => {});
     if (env.NTFY_URL) jobs.push(push(env, { title, body, priority: 'high', tags: 'warning', loud }).catch(() => {}));
     if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
-      const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-      const raw = ['From: "Always Open alerts" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + enc(title.slice(0, 120)),
-        'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + body;
+      const e = alertEmail(ex, { detail: scrub(detail).slice(0, 600), who: one(who).slice(0, 40), more, at: now });
+      const raw = rawEmail({ fromName: 'Always Open alerts', from: env.MAIL_FROM, to: env.MAIL_TO, subject: (ex.urgent ? 'BROKEN: ' : '') + title }, e.text, e.html);
       jobs.push((async () => env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)))().catch(() => {}));
     }
     if (!jobs.length) return 'off';

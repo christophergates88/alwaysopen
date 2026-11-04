@@ -815,7 +815,8 @@ function vReviews(){
 function sel(a,b){return a===b?' selected':'';}
 var MSEG='answer';
 function mSegBar(L,f){
-  var tabs=[['answer','Answering'],['teach','Teach '+L.name]];
+  var tabs=[['answer','Answering'],['job','Job description'],['teach','Teach '+L.name]];
+  if(!L.duties)tabs.splice(1,1);
   if(L.booking)tabs.push(['book','Booking']);
   if(S.after)tabs.push(['after','After the call']);
   if(f.calls)tabs.push(['calls','Calls']);
@@ -837,6 +838,7 @@ function vMax(){
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
     if(S.maxStats&&S.maxStats.calls)h+='<p class="fine" style="margin:8px 2px 0">Last 30 days: '+S.maxStats.calls+(S.maxStats.calls===1?' call':' calls')+', '+S.maxStats.booked+' booked, '+S.maxStats.hungUp+' hung up early.</p>';
+    h+=timecardCard();
     if(S.minutes){var mm=S.minutes,pc=Math.min(100,mm.pct||0);h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>Minutes this month</b><span class="fine">'+mm.used+' of '+mm.included+'</span></div><div style="height:8px;border-radius:99px;background:var(--panel);margin:8px 0 6px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(mm.over?'var(--sign)':pc>=80?'var(--warn,#F2C46B)':'var(--ok)')+'"></div></div><p class="fine">'+(mm.over?mm.over+' minutes past your plan so far, $'+(mm.overCents/100).toFixed(2)+' at 25¢ a minute on your next invoice. Max keeps answering.':pc>=80?'Getting close. Past '+mm.included+', minutes are 25¢ each. Max keeps answering.':'Every plan comes with 300 minutes of Max a month.')+'</p></div>';}
     h+='<h2>What '+esc(L.name)+' knows</h2><div class="card form">'+
       '<label>Your hours<input type="text" id="lh" maxlength="300" value="'+esc(L.hours)+'" placeholder="For example: Mon to Fri 8 to 5, Sat 9 to 1"></label>'+
@@ -846,6 +848,8 @@ function vMax(){
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     if(L.voices)h+=voiceCard(L);
+  } else if(MSEG==='job'){
+    h+=jobCard(L);
   } else if(MSEG==='teach'){
     h+=teachCard(L)||'<div class="empty slim"><b>Nothing to teach here</b><span>'+esc(L.name)+' answers from your hours and notes on the Answering tab.</span></div>';
   } else if(MSEG==='book'){
@@ -856,6 +860,39 @@ function vMax(){
     h+='<h2>Calls</h2>'+callsList();
   }
   return h;
+}
+// Max's timecard: last week, Monday to Sunday (timecard.js). Also texted to the owner every Monday morning.
+function timecardCard(){
+  var T=S.timecard;if(!T)return '';
+  var d=function(n){return '$'+Math.round(+n||0).toLocaleString('en-US');};
+  var row=function(k,v){return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span class="fine" style="margin:0">'+k+'</span><b>'+v+'</b></div>';};
+  return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px"><b>'+esc(T.name)+'\\u2019s timecard</b><span class="fine">'+esc(T.label)+'</span></div>'+
+    row('On the clock',T.hours+' hours')+row('Answered',T.calls+(T.calls===1?' call':' calls'))+(T.booked?row('Booked',T.booked):'')+(T.due?row('Call-backs kept',T.kept+' of '+T.due):'')+
+    (T.caught?row('Caught after hours','about '+d(T.caught)):(T.leads?row('After-hours leads',T.leads):''))+(T.cost?row('Cost you',d(T.cost)):'')+
+    '<p class="fine" style="margin:8px 0 0">'+(T.calls?'':'Quiet week. He was there anyway. ')+'Texted to you every Monday morning.</p></div>';
+}
+// Max's job description (duties.js) and "Tell Max": owner only (the server sends duties only to the owner).
+function jobCard(L){
+  var J=L.duties;if(!J)return '';
+  var v=J.values||{};
+  var h='<h2>Tell '+esc(L.name)+' something</h2><div class="card form"><label>Say it like you would to your crew<input type="text" id="tm-text" maxlength="280" placeholder="Closed Friday. No jobs in Macon this week."></label><div class="acts"><button class="btn red" type="button" data-a="tell-go">Tell '+esc(L.name)+'</button></div>'+
+    '<p class="fine">Or text it from your phone to '+esc(L.numberText)+'. Text UNDO to take the last one back. It goes into What '+esc(L.name)+' knows, with the date.</p></div>';
+  h+='<h2>Job description</h2><div class="card form"><p class="fine" style="margin-top:0">What '+esc(L.name)+' may do on a call. Changes apply to the next call.</p>'+J.list.map(function(d){
+    return '<label class="opt" style="display:flex;gap:10px;align-items:flex-start;margin-top:10px"><input type="checkbox" data-duty="'+esc(d.key)+'"'+(v[d.key]?' checked':'')+' style="margin-top:3px"> <span><b>'+esc(d.label)+'</b><br><span class="fine">'+esc(d.sub)+'</span></span></label>'+
+      (d.text?'<label style="margin:6px 0 0 30px">'+esc(d.textLabel)+'<input type="text" data-dtext="'+esc(d.text)+'" maxlength="400" value="'+esc(v[d.text]||'')+'" placeholder="'+esc(d.textHint)+'"></label>':'');
+  }).join('')+'<div class="acts"><button class="btn red" type="button" data-a="duty-save">Save</button></div>'+
+    '<p class="fine">Booking, call-backs and the calls '+esc(L.name)+' makes have their own switches under Booking and After the call.</p></div>';
+  return h;
+}
+function dutySave(){
+  var dd={};Array.prototype.forEach.call(document.querySelectorAll('[data-duty]'),function(x){dd[x.getAttribute('data-duty')]=!!x.checked;});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dtext]'),function(x){dd[x.getAttribute('data-dtext')]=x.value;});
+  lineSave({duties:dd});
+}
+function tellMax(){
+  var el=$('#tm-text'),tv=el?String(el.value||''):'';
+  if(tv.trim().length<3){toast('Type what '+(S.line?S.line.name:'Max')+' should know.');return;}
+  needName(function(by){post('line',{action:'tell',text:tv,by:by}).then(function(res){if(res.j.ok){S.line=res.j.line;render();toast(res.j.said||'Saved.');}else toast(res.j.error||'Could not save. Try again.');}).catch(function(){toast('No connection. Try again.');});});
 }
 function textbackCard(){
   var f=S.features||{};
@@ -1175,6 +1212,8 @@ document.addEventListener('click',function(e){
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});
+  else if(a==='duty-save')dutySave();
+  else if(a==='tell-go')tellMax();
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');

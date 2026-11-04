@@ -45,12 +45,12 @@ test('problem alerts: silent and listed for the morning at night, loud only when
     assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'limited', 'not again 40 minutes later');
     Date.now = () => NIGHT + 3 * 3600e3 + 60e3;
     assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'sent', 'again after 3 hours, with the count');
-    assert.match(world.pushes[3].body, /\(1 more since the last alert\)/);
+    assert.match(world.pushes[3].body, /\(1 more like this since the last alert\)/);
     const night = await M.nightList(env);
     assert.deepEqual(night.map(r => [r.type, r.n]), [['health:backup', 2], ['crash:/app/*', 1]], 'the loud one is not repeated in the morning list');
     assert.deepEqual(await M.nightList(env), [], 'cleared once read');
     const t = M.morningText({ ok: true, checks: [] }, { calls: 3, leads: 1, booked: 1, errors: 0, drafts: 2 }, night);
-    assert.match(t.body, /Overnight, quietly: health:backup \(2\), crash:\/app\/\*\. They are in your email\.$/);
+    assert.match(t.body, /Overnight, quietly: The weekly backup didn't happen \(2\), Part of the website crashed\. They are in your email\.$/);
     assert.doesNotMatch(M.morningText({ ok: true, checks: [] }, { calls: 0, leads: 0, booked: 0, errors: 0, drafts: 0 }, []).body, /Overnight/);
   } finally { Date.now = real; }
 });

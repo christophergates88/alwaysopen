@@ -6,6 +6,7 @@
 const UA = 'AlwaysOpen Storm Desk (hello@alwaysopenoffice.com)';
 const NWS = 'https://api.weather.gov';
 const SKIP = new Set(['demo-plumbing', 'always-open']);
+import { neonEmail } from './neonmail.js';
 export const STORM_EVENTS = /^(Tornado Warning|Severe Thunderstorm Warning|Flash Flood Warning|Flood Warning|Hurricane Warning|Tropical Storm Warning|High Wind Warning|Extreme Wind Warning|Ice Storm Warning|Winter Storm Warning|Blizzard Warning|Hard Freeze Warning|Freeze Warning|Extreme Cold Warning|Excessive Heat Warning|Extreme Heat Warning|Red Flag Warning|Storm Surge Warning)$/;
 export function stormGroup(ev) {
   if (/Flood|Surge/.test(ev)) return 'flood';
@@ -37,6 +38,26 @@ export const TEMPLATES = {
     severe: 'Storm damage? We are taking calls at {phone}. Stay clear of downed power lines, take photos of any damage, and we will get to you as fast as we safely can.' }
 };
 export const LABELS = { flood: 'Flooding', freeze: 'Freeze', severe: 'Severe weather' };
+// The neon email for a new warning (to Christopher). Pure, so it can be tested. s: the storms row from stormRun.
+const SIGN = { flood: 'FLOOD WARNING', freeze: 'FREEZE TONIGHT', severe: 'STORM WARNING' };
+export function stormEmail(s) {
+  const when = (() => { const t = Date.parse(s.ends || ''); return t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' ET' : ''; })();
+  const biz = String(s.businesses || '').split(',').map(x => x.trim()).filter(Boolean);
+  const n = neonEmail({
+    tone: 'bad', sign: SIGN[s.grp] || 'STORM WARNING', who: 'Storm Desk',
+    title: s.event + ' for ' + (String(s.counties || '').split(';')[0].trim() || 'a client\u2019s county') + '.',
+    doThis: [],
+    linesTitle: 'Nothing to do: ' + (s.drafted ? (s.drafted === 1 ? 'a storm post is' : s.drafted + ' storm posts are') + ' waiting for the client\u2019s OK' : 'posts get drafted at the next check'),
+    stats: [{ n: String(biz.length || 0), label: biz.length === 1 ? 'client there' : 'clients there', tone: 'bad' }, { n: String(s.drafted || 0), label: s.drafted === 1 ? 'post drafted' : 'posts drafted' }],
+    lines: [{ k: 'Warning', v: s.event, bad: true }, { k: 'Where', v: s.counties }, biz.length ? { k: 'Clients', v: biz.join(', ') } : null, when ? { k: 'Ends', v: when } : null, s.headline ? { v: s.headline } : null].filter(Boolean),
+    button: { text: 'See the warning', url: s.link || 'https://alerts.weather.gov' },
+    note: 'From the National Weather Service. Storm ID ' + s.id + '.',
+    // The "Always Open check" scheduled task reads these exact lines from the plain-text part. Keep them.
+    extraText: ['Storm ID: ' + s.id, 'Event: ' + s.event, 'Group: ' + s.grp, 'Counties: ' + s.counties, 'Clients: ' + (s.clients || ''), 'Ends: ' + s.ends, 'Headline: ' + s.headline, 'Source: ' + s.link].join('\n')
+  });
+  return { subject: (SIGN[s.grp] ? SIGN[s.grp].charAt(0) + SIGN[s.grp].slice(1).toLowerCase() : 'Storm warning') + ': ' + (biz.slice(0, 2).join(', ') || s.counties), html: n.html, text: n.text };
+}
+
 const TRADES = /plumb|hvac|heat|air|roof|electric|contractor|tree|restor|water|pest|garage|fenc|paint|concrete|pool|tow|auto/i;
 function fill(t, phone) {
   const d = String(phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');

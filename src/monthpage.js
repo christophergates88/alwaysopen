@@ -3,6 +3,7 @@
 // The owner opens it from the app (/app/<code>/month/<YYYY-MM> or /month/now), saves it as a PDF or forwards it.
 // /sample-report on the website is the same page with a made-up plumber. Pure renderer: renderMonthPage(view).
 import { insights, nextStep, BANDS } from './insights.js';
+import { review } from './timecard.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
@@ -62,6 +63,12 @@ export function renderMonthPage(v) {
   const peakBand = c.n ? c.byBand.indexOf(Math.max(...c.byBand)) : -1, peakDay = c.n ? c.byDay.indexOf(Math.max(...c.byDay)) : -1;
   const when = c.n ? '<section><h2>When your phone rang</h2><p class="sub">' + (c.peak ? 'Busiest on ' + esc(c.peak.day) + 's, and ' + esc(c.peak.band) + '. ' : '') + (c.avgSec ? 'Calls ran about ' + Math.max(1, Math.round(c.avgSec / 60)) + (Math.round(c.avgSec / 60) <= 1 ? ' minute' : ' minutes') + '.' : '') + '</p>' +
     '<div class="when">' + bars(c.byBand, BANDS.map(b => b.replace(' to ', '–').replace(' AM', 'a').replace(' PM', 'p').replace('noon', '12p')), peakBand, 'Calls by time of day') + bars(c.byDay, DAYS, peakDay, 'Calls by day of the week') + '</div></section>' : '';
+  // Max's month, reviewed: what went well, what slipped, one change (timecard.js review).
+  const rvw = c.n ? review(a, v.maxName || 'Max') : null;
+  const perf = rvw && rvw.any ? '<section class="perf"><h2>' + esc(v.maxName || 'Max') + '’s month, reviewed</h2>' +
+    (rvw.good.length ? '<p class="sub">Did well</p><ul class="list">' + rvw.good.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+    (rvw.missed.length ? '<p class="sub" style="margin-top:8px">Missed</p><ul class="list">' + rvw.missed.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+    (rvw.change ? '<p style="margin:8px 0 0"><b>One change:</b> ' + esc(rvw.change) + '</p>' : '') + '</section>' : '';
   const title = (v.business || 'Your business') + ' · ' + (v.label || '') + (v.mtd ? ' so far' : '');
   const actions = v.sample
     ? '<a class="btn" href="/#contact">Get this page for your business</a><a class="btn ghost" href="/">Back to Always Open</a>'
@@ -81,6 +88,7 @@ export function renderMonthPage(v) {
     (lost || rv ? '<div class="two">' + (lost || '') + rv + '</div>' : '') +
     (other ? '<section><h2>Also this month</h2><ul class="list">' + other + '</ul></section>' : '') +
     google +
+    perf +
     (ins.length ? '<section class="means"><h2>What it means</h2><ol>' + ins.map(x => '<li>' + esc(x.t) + '</li>').join('') + '</ol></section>' : '') +
     '<section class="next"><h2>One thing for next month</h2><p>' + esc(next) + '</p></section>' +
     (v.since ? '<section class="since"><h2>Since you joined</h2><p>' + esc(v.since) + (v.year ? ' <a href="' + esc(v.year) + '">See your year</a>' : '') + '</p></section>' : '') +

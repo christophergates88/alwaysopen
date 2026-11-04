@@ -1,6 +1,7 @@
 // The owner's weekly checklist: what only Christopher can do this week. Page at /ops (key or the link in the Monday email)
 // and a Monday email. Reads our own tables only; nothing here changes a client's data.
 import { EmailMessage } from 'cloudflare:email';
+import { neonEmail, rawEmail } from './neonmail.js';
 import { metaReady } from './extras.js';
 import { TEXTING_ON, textingReady } from './sms.js';
 import { LABELS as LOST_LABELS } from './lost.js';
@@ -153,6 +154,29 @@ function mapSection(rows) {
     '</span></div><button type="button" data-map="' + esc(r.id) + '" data-show="' + (r.listed ? '0' : '1') + '">' + (r.listed ? 'Take off' : 'Put on') + '</button></div>').join('') + '</section>';
 }
 
+// The Monday email as one neon page: the sign says how many things are his this week, each one is a Do-this line,
+// the status and money lines are short rows, one button opens the checklist.
+const INFO = /^(sys:|lost:|caught:|err:)/;
+const cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; };
+export function boardEmail(items, link, numbersLink, drift) {
+  const todo = items.filter(x => !INFO.test(x.key)), info = items.filter(x => INFO.test(x.key));
+  const errs = items.filter(x => x.key.startsWith('err:')).length;
+  const lines = [];
+  if (drift) lines.push({ k: 'Clients', v: cut(drift, 220), bad: true });
+  info.filter(x => x.key.startsWith('caught:')).slice(0, 3).forEach(x => lines.push({ k: x.title, v: cut(x.detail, 140), ok: true }));
+  info.filter(x => x.key.startsWith('sys:')).slice(0, 5).forEach(x => lines.push({ k: x.title, v: cut(x.detail, 140), bad: /bad|URGENT|low|late|STOPPED|fail/i.test(x.detail) }));
+  if (todo.length > 5) lines.push({ k: 'And', v: (todo.length - 5) + ' more on the checklist' });
+  return {
+    tone: todo.length ? 'bad' : 'ok', sign: todo.length ? (todo.length === 1 ? '1 THING' : todo.length + ' THINGS') : 'ALL CLEAR',
+    title: todo.length ? 'Only you can do ' + (todo.length === 1 ? 'this' : 'these') + ' this week' : 'Nothing is waiting on you this week',
+    who: 'your week', preheader: todo[0] ? todo[0].title + ': ' + cut(todo[0].detail, 80) : 'All clear this week.',
+    doThis: todo.slice(0, 5).map(x => x.title + ': ' + cut(x.detail, 160)),
+    stats: [{ n: String(todo.length), label: 'for you to do', tone: todo.length ? 'bad' : '' }, { n: String(errs), label: 'page errors', tone: errs ? 'bad' : '' }],
+    linesTitle: lines.length ? 'How things stand' : '', lines,
+    button: { text: 'Open this week\'s checklist', url: link }, note: numbersLink ? 'Revenue, costs and margin: ' + numbersLink : ''
+  };
+}
+
 export function boardText(items, link) {
   if (!items.length) return 'Nothing waiting on you this week.\n\n' + link;
   let t = 'What only you can do this week:\n';
@@ -223,10 +247,10 @@ export async function boardWeekly(env, at) {
   const items = await boardItems(env);
   const link = 'https://alwaysopenoffice.com/ops?t=' + await boardToken(env);
   let dl = ''; try { dl = driftText(await driftRows(env)); } catch (e) { dl = ''; }
-  const body = (dl ? dl + '\n\n' : '') + boardText(items, link) + '\nThe numbers (revenue, funnel, costs, margin): https://alwaysopenoffice.com/ops/numbers?t=' + await boardToken(env) + '\n';
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const n = items.filter(x => !x.key.startsWith('sys:')).length;
-  const raw = ['From: "Always Open week" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + (n ? 'Your week: ' + n + (n === 1 ? ' thing' : ' things') + ' only you can do' : 'Your week: all clear'),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + body;
+  const numbers = 'https://alwaysopenoffice.com/ops/numbers?t=' + await boardToken(env);
+  const body = (dl ? dl + '\n\n' : '') + boardText(items, link) + '\nThe numbers (revenue, funnel, costs, margin): ' + numbers + '\n';
+  const n = items.filter(x => !INFO.test(x.key)).length;
+  const e = neonEmail(boardEmail(items, link, numbers, dl));
+  const raw = rawEmail({ fromName: 'Always Open week', from: env.MAIL_FROM, to: env.MAIL_TO, subject: n ? 'Your week: ' + n + (n === 1 ? ' thing' : ' things') + ' only you can do' : 'Your week: all clear' }, body, e.html);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; } catch (e) { return 'failed'; }
 }

@@ -86,7 +86,7 @@ export async function askCron(env, now, h) {
     const text = askText(c, words.text, 'https://alwaysopenoffice.com/r/' + token, c.second);
     let by = '';
     if (c.phone10 && h && h.send) { const r = await h.send({ to: c.phone10, body: text, tz }); if (r && r.ok) by = 'text'; }
-    if (!by && c.email && h && h.mail) { const r = await h.mail(c.email, 'A month with Always Open', text.replace(/ just reply here\.$/, ' just reply to this email.')); if (r === 'sent' || (r && r.ok)) by = 'email'; }
+    if (!by && c.email && h && h.mail) { const { askEmail } = await import('./clientmail.js'); const r = await h.mail(c.email, 'A month with Always Open', text.replace(/ just reply here\.$/, ' just reply to this email.'), askEmail(c, words.text, 'https://alwaysopenoffice.com/r/' + token, c.second)); if (r === 'sent' || (r && r.ok)) by = 'email'; }
     await env.DB.prepare('UPDATE our_review_asks SET by = ?1 WHERE client_id = ?2').bind(by || 'failed', c.client_id).run();
     if (by) { asked++; left--; }
   }

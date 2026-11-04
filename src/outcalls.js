@@ -17,7 +17,9 @@ export const KINDS = {
   noshow: { def: 1, label: 'Rebook missed visits', sub: 'If a customer misses a visit, Max calls once to offer a new time.' },
   onway: { def: 1, label: 'On-my-way call', sub: 'When you tap On my way on a job, Max calls the customer as well as texting.' },
   quote: { def: 0, label: 'Follow up on estimates', sub: 'Three days after an estimate with no answer, Max calls once to ask if they want a call from you.' },
-  due: { def: 0, label: 'Due-for-service calls', sub: 'Six months after a job, Max calls customers who said calls are OK to offer to set up the next visit.' }
+  due: { def: 0, label: 'Due-for-service calls', sub: 'Six months after a job, Max calls customers who said calls are OK to offer to set up the next visit.' },
+  // Not calls, but switches the owner flips in the same place: Max's behavior toward the owner.
+  summary: { owner: true, setting: true, def: 1, label: 'Text me after every call', sub: 'Within a minute of each call: who called, what they need, how urgent, and their number to tap. Between 9 PM and 8 AM only urgent calls are texted; the rest are waiting in the app in the morning.' }
 };
 const KEYS = Object.keys(KINDS);
 
@@ -55,7 +57,7 @@ export async function apiOutcalls(req, env, c) {
 }
 export async function outcallsState(env, c) {
   const on = await prefsOf(env, c.client_id, +c.regulated);
-  return { on, list: KEYS.map(x => ({ key: x, owner: !!KINDS[x].owner, label: KINDS[x].label, sub: KINDS[x].sub })) };
+  return { on, list: KEYS.map(x => ({ key: x, owner: !!KINDS[x].owner, setting: !!KINDS[x].setting, label: KINDS[x].label, sub: KINDS[x].sub })) };
 }
 
 async function lineOf(env, cid) { return await env.DB.prepare('SELECT number, business, regulated, on_air, owner_set, transfer_to FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null); }

@@ -262,7 +262,7 @@ export async function advance(env, cid) {
     if ((+row.tries || 0) >= 5 || (e.status && e.status < 500 && e.status !== 429)) {
       // The EIN is never kept once a registration stops, whichever way it stops.
       await env.DB.prepare("UPDATE a2p_reg SET status = 'failed', error = ?1, form = ?2 WHERE client_id = ?3").bind(String(e.message || e).slice(0, 300), JSON.stringify(Object.assign({}, f, { ein: '' })), cid).run();
-      await opsPing(env, 'Texting registration stuck: ' + ((c && c.business) || cid), 'Step ' + row.step + ': ' + String(e.message || e).slice(0, 300), 'high', 'warning');
+      await opsPing(env, 'Texting registration stuck: ' + ((c && c.business) || cid), 'Carriers\' registration stopped partway, so this client can\'t text yet.\nDo this: Tell Claude: "texting registration for ' + ((c && c.business) || cid).replace(/"/g, '') + ' is stuck."\nDetails: step ' + row.step + ', ' + String(e.message || e).slice(0, 240), 'high', 'warning');
       return 'failed';
     }
     return row.status;
@@ -271,13 +271,13 @@ export async function advance(env, cid) {
   if (r.fix) {
     await save('needs_fix', '', r.fix, Object.assign({}, f, { ein: '' }));
     await pushClient(env, cid, { aps: { alert: { title: 'Texting registration needs a fix', body: r.fix.slice(0, 200) }, sound: 'default' }, screen: 'home' });
-    await opsPing(env, 'Texting registration needs a fix: ' + ((c && c.business) || cid), r.fix, 'default', 'warning');
+    await opsPing(env, 'Texting registration needs a fix: ' + ((c && c.business) || cid), 'Carriers sent it back. The owner was asked in their app.\nDo this: Nothing unless they ask for help. What carriers said: ' + r.fix, 'default', 'warning');
     return 'needs_fix';
   }
   if (r.done) {
     await save('approved', 'done', '', f);
     await pushClient(env, cid, { aps: { alert: { title: 'Texting is on', body: 'Carriers approved texting for your business. Missed-call text-back and reminders go out from your Always Open number now.' }, sound: 'default' }, screen: 'home' });
-    await opsPing(env, 'Texting approved: ' + ((c && c.business) || cid), 'Their number is in its own Messaging Service.', 'default', 'white_check_mark');
+    await opsPing(env, 'Texting approved: ' + ((c && c.business) || cid), 'Carriers approved it. Their texts go out now. Nothing for you to do.', 'default', 'white_check_mark');
     return 'approved';
   }
   if (r.tell) {
@@ -337,7 +337,7 @@ export async function textingPage(env, c, base, req) {
       await env.DB.prepare("INSERT INTO a2p_reg (client_id, status, step, form, sids, error, tries, created, updated) VALUES (?1,'submitted',?2,?3,'{}','',0,?4,?4) ON CONFLICT(client_id) DO UPDATE SET status = excluded.status, step = excluded.step, form = excluded.form, sids = '{}', error = '', tries = 0, updated = excluded.updated")
         .bind(c.client_id, f.noEin ? 'sp_profile' : 'profile', JSON.stringify(f), now()).run();
       try { const { markOnboard } = await import('./biz.js'); await markOnboard(env, c.client_id, 'texting'); } catch (e) {}
-      await opsPing(env, 'Texting registration sent: ' + (c.business || c.client_id), (f.noEin ? 'Sole proprietor (no EIN). ' : '') + 'The registration runs on its own; HQ shows each step.', 'default', 'memo');
+      await opsPing(env, 'Texting registration sent: ' + (c.business || c.client_id), (f.noEin ? 'Sole proprietor (no EIN). ' : '') + 'It runs on its own and takes a few days. Nothing for you to do; you\'ll hear when it\'s approved or stuck.', 'default', 'memo');
       const msg = f.noEin ? '<h1>Sent.</h1><p class="sub">Without an EIN, carriers use a simpler sole-proprietor registration. Once they approve it, the carriers’ registry texts your cell from ' + OTP_FROM + '. <b>Reply YES to that text</b> within 24 hours to finish. We’ll remind you in the app when it arrives.</p>'
         : '<h1>Sent.</h1><p class="sub">Carriers review every business that texts. It usually takes a few days, sometimes a couple of weeks. You’ll get a note in the app when it’s approved, or if anything needs fixing. Calls, Max and email all work in the meantime.</p>';
       return new Response(shell('Texting', msg + back), { headers: H });

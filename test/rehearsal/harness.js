@@ -62,7 +62,8 @@ export class World {
     this.unmocked = [];
     this.mail = [];         // emails the worker sent (from EmailMessage)
     this.pushes = [];       // phone pushes to Christopher (ntfy)
-    this.texts = [];        // texts sent through Twilio
+    this.texts = [];        // texts sent through Twilio (to customers)
+    this.ownerTexts = [];   // Max's after-call texts to the owner (voice.js callTextBody), kept apart so customer counts stay exact
     this.dialed = [];       // outbound calls placed through Twilio
     this.aiSeen = [];       // every streamed request to Claude (to read the instructions Max was given)
     this.bought = [];       // phone numbers bought through Twilio
@@ -156,7 +157,7 @@ export function installFetch(world, env) {
       vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.json$/);
       if (vm && method === 'DELETE') { (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
       if (/\/Messages\.json$/.test(path) && method === 'GET') return json({ messages: world.twMsgs || [], next_page_uri: null });
-      if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(); world.texts.push(Object.fromEntries(f)); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
+      if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(), t = Object.fromEntries(f); (/^[A-Z][\w .'-]{0,30}: (New call|URGENT call|Booked|Missed call|Upset caller) from /.test(t.Body || '') ? world.ownerTexts : world.texts).push(t); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);
     }
     if (host === 'messaging.twilio.com' || host === 'trusthub.twilio.com') { world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404); }

@@ -29,6 +29,7 @@ import { gbpCron } from './gbp.js';
 import { provisionCron } from './provision.js';
 import { autoCron } from './autotext.js';
 import { aiCheckCron } from './aicheck.js';
+import { neonEmail, rawEmail } from './neonmail.js';
 import { monthReportCron } from './report.js';
 import { fillCron } from './fillweek.js';
 import { weeklyGrade, queueSet } from './grades.js';
@@ -314,7 +315,7 @@ export default {
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   async scheduled(event, env, ctx) {
     if (event && event.cron === RADAR_CRON) { ctx.waitUntil(watched(env, 'radar', radarWatch(env))); ctx.waitUntil(watched(env, 'rivals', rivalsWeekly(env))); ctx.waitUntil(watched(env, 'board', boardWeekly(env))); ctx.waitUntil(watched(env, 'silence', silenceWeekly(env, Date.now(), (type, who, detail) => opsAlert(env, type, who, detail)))); ctx.waitUntil(watched(env, 'maxweek', weeklyGrade(env, Date.now(), (t, b) => opsPing(env, t, b, 'default', 'telephone_receiver')))); }
-    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'numbers', (async () => (await import('./numbers.js')).numbersDaily(env))())); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(watched(env, 'calls-out', (async () => (await import('./outcalls.js')).outCallsCron(env))())); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'lead-follow-ups', (async () => (await import('./leadmail.js')).followCron(env))())); ctx.waitUntil(watched(env, 'phone-push', (async () => (await import('./push.js')).pushCron(env))())); ctx.waitUntil(watched(env, 'voicemail', (async () => (await import('./voicemail.js')).vmSweep(env))())); ctx.waitUntil(watched(env, 'missed-texts', (async () => (await import('./sms.js')).smsSweep(env))())); ctx.waitUntil(watched(env, 'test-call', (async () => (await import('./drill.js')).drillCron(env))())); ctx.waitUntil(watched(env, 'checks', (async () => (await import('./checks.js')).checksCron(env))())); ctx.waitUntil(watched(env, 'mailed-letters', (async () => (await import('./mail.js')).mailCron(env))())); ctx.waitUntil(watched(env, 'audit-retry', (async () => (await import('./leadmail.js')).auditRetryCron(env, Date.now(), { ping: (t, b) => opsPing(env, t, b, 'high', 'mag') }))())); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text) => (async () => (await import('./app.js')).mailTo(env, to, subj, text, 'Always Open', { replyTo: 'hello@alwaysopenoffice.com' }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
+    else { ctx.waitUntil(watched(env, 'storm', stormWatch(env))); ctx.waitUntil(watched(env, 'numbers', (async () => (await import('./numbers.js')).numbersDaily(env))())); ctx.waitUntil(watched(env, 'app', appCron(env))); ctx.waitUntil(watched(env, 'invoices', invoiceCron(env))); ctx.waitUntil(watched(env, 'map', mapCron(env))); ctx.waitUntil(watched(env, 'business', bizCron(env))); ctx.waitUntil(watched(env, 'referrals', referralCron(env, { stripe: stripeCall, notify: (t, b) => opsPing(env, t, b, 'default', 'gift'), alert: (type, subject, body) => opsAlert(env, type, subject, body) }))); ctx.waitUntil(watched(env, 'callbacks', callbackCron(env))); ctx.waitUntil(watched(env, 'checkins', checkinCron(env))); ctx.waitUntil(watched(env, 'calls-out', (async () => (await import('./outcalls.js')).outCallsCron(env))())); ctx.waitUntil(watched(env, 'max-timecard', (async () => (await import('./timecard.js')).timecardCron(env))())); ctx.waitUntil(purgeGoogle(env).catch(() => {})); ctx.waitUntil(watched(env, 'fullmax', fullMaxCron(env))); ctx.waitUntil(watched(env, 'texting-registration', a2pCron(env))); ctx.waitUntil(watched(env, 'funding', fundingCron(env))); ctx.waitUntil(watched(env, 'launch-watch', launchCron(env))); ctx.waitUntil(watched(env, 'google-profile', gbpCron(env))); ctx.waitUntil(watched(env, 'max-line-setup', provisionCron(env))); ctx.waitUntil(watched(env, 'texts-for-owners', autoCron(env))); ctx.waitUntil(watched(env, 'assistants-check', aiCheckCron(env))); ctx.waitUntil(watched(env, 'monthly-report', monthReportCron(env))); ctx.waitUntil(watched(env, 'fill-my-week', fillCron(env))); ctx.waitUntil(watched(env, 'google-connections', connectionsCron(env, Date.now(), { refresh: (kind, cid) => kind === 'calendar' ? gcalRefresh(env, cid) : gbpRefresh(env, cid), push: (cid, n) => pushClient(env, cid, n), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'lead-follow-ups', (async () => (await import('./leadmail.js')).followCron(env))())); ctx.waitUntil(watched(env, 'phone-push', (async () => (await import('./push.js')).pushCron(env))())); ctx.waitUntil(watched(env, 'voicemail', (async () => (await import('./voicemail.js')).vmSweep(env))())); ctx.waitUntil(watched(env, 'missed-texts', (async () => (await import('./sms.js')).smsSweep(env))())); ctx.waitUntil(watched(env, 'test-call', (async () => (await import('./drill.js')).drillCron(env))())); ctx.waitUntil(watched(env, 'checks', (async () => (await import('./checks.js')).checksCron(env))())); ctx.waitUntil(watched(env, 'mailed-letters', (async () => (await import('./mail.js')).mailCron(env))())); ctx.waitUntil(watched(env, 'audit-retry', (async () => (await import('./leadmail.js')).auditRetryCron(env, Date.now(), { ping: (t, b) => opsPing(env, t, b, 'high', 'mag') }))())); ctx.waitUntil(watched(env, 'slow-checks', slowCron(env))); ctx.waitUntil(watched(env, 'backup', backupCron(env))); ctx.waitUntil(watched(env, 'morning', morningCron(env, Date.now(), { health: () => healthStatus(env), ping: (t, b, pr, tag) => opsPing(env, t, b, pr, tag) }))); ctx.waitUntil(watched(env, 'minutes', minutesCron(env, Date.now(), { push: (cid, n) => pushClient(env, cid, n), stripe: stripeCall, alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'social', socialCron(env, Date.now(), { ping: (t, b, pr, tag, click) => opsPing(env, t, b, pr, tag, click), alert: (type, who, detail) => opsAlert(env, type, who, detail), boardToken: () => boardToken(env) }))); ctx.waitUntil(watched(env, 'photo-posts', photoPostCron(env, Date.now(), { alert: (type, who, detail) => opsAlert(env, type, who, detail) }))); ctx.waitUntil(watched(env, 'our-review-asks', (async () => (await import('./ourreviews.js')).askCron(env, Date.now(), { send: o => sendText(env, { clientId: 'always-open', to: o.to, body: o.body, kind: 'review-ask', tz: o.tz }), mail: (to, subj, text, neon) => (async () => neon ? (await import('./clientmail.js')).sendNeon(env, to, neon) : (await import('./app.js')).mailTo(env, to, subj, text, 'Always Open', { replyTo: 'hello@alwaysopenoffice.com' }))() }))())); ctx.waitUntil(watched(env, 'hear-max', (async () => (await import('./hearmax.js')).hearMaxCron(env, Date.now(), { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click), alert: (type, who, detail) => opsAlert(env, type, who, detail) }))())); ctx.waitUntil(healthCron(env).catch(() => {})); if (env.CALLROOM) ctx.waitUntil(watched(env, 'voice', voiceCron(env))); }
   }
 };
 
@@ -337,19 +338,14 @@ async function stormWatch(env) {
   return stormRun(env, Date.now(), { extra: stormCounties(env), push: s => stormPush(env, s), mail: s => stormMail(env, s) });
 }
 async function stormPush(env, s) {
-  await phonePush(env, { title: 'Storm Desk: ' + s.event + ' - ' + s.counties, priority: 'high', tags: 'cloud_with_lightning_and_rain',
-    body: (s.businesses ? 'Clients there: ' + s.businesses + '\n' : '') + (s.headline || s.event) + '\n' + (s.drafted ? s.drafted + (s.drafted === 1 ? ' storm post is' : ' storm posts are') + ' waiting in their app for their OK.' : 'Storm posts are drafted at the next Always Open check.') });
+  await phonePush(env, { title: s.event + ': ' + (s.businesses || s.counties), priority: 'high', tags: 'cloud_with_lightning_and_rain',
+    body: (s.drafted ? 'Nothing to do: ' + s.drafted + (s.drafted === 1 ? ' storm post is' : ' storm posts are') + ' waiting in their app for their OK.' : 'Nothing to do: storm posts get drafted at the next check.') + '\nWhere: ' + s.counties });
 }
 async function stormMail(env, s) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const text = ['National Weather Service warning where a Storm Desk client is.', '',
-    'Storm ID: ' + s.id, 'Event: ' + s.event, 'Group: ' + s.grp, 'Counties: ' + s.counties, 'Clients: ' + (s.clients || ''), 'Ends: ' + s.ends, 'Headline: ' + s.headline, 'Source: ' + s.link, '',
-    'The Always Open check drafts storm posts for the clients listed (and any HQ client in these counties). Nothing posts until the client approves it.'].join('\r\n');
-  const raw = ['From: "Always Open Storm Desk" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>',
-    'Subject: ' + encodeHeader('Always Open storm alert: ' + s.event + ': ' + s.counties),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(),
-    'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + text;
+  const { stormEmail } = await import('./stormdesk.js');
+  const m = stormEmail(s);
+  const raw = rawEmail({ fromName: 'Always Open Storm Desk', from: env.MAIL_FROM, to: env.MAIL_TO, subject: m.subject }, m.text, m.html);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); return 'sent'; }
   catch (e) { return 'failed: ' + String((e && e.message) || e).slice(0, 180); }
 }
@@ -469,7 +465,28 @@ async function push(env, f, id) {
   if (!env.NTFY_URL) return;
   const body = [f.name + (f.business ? ', ' + f.business : ''), [f.phone, f.email].filter(Boolean).join(' · '),
     [f.town, f.type, f.plan].filter(Boolean).join(' · '), f.lang === 'es' ? 'Wrote in Spanish: answer in Spanish' : '', f.referredBy ? 'Referred by: ' + f.referredBy : '', f.notes ? 'Note: ' + f.notes.slice(0, 300) : '', f.quiet || (f.hold ? 'Note: ' + f.hold : '')].filter(Boolean).join('\n');
-  await phonePush(env, { title: (f.quiet ? 'Always Open lead to check: ' : 'Always Open lead: ') + (f.business || f.name), priority: f.quiet ? 'low' : 'high', tags: 'telephone_receiver', body });   // the email and the daily check still catch it
+  await phonePush(env, { title: (f.quiet ? 'Always Open lead to check: ' : 'Always Open lead: ') + (f.business || f.name), priority: f.quiet ? 'low' : 'high', tags: 'telephone_receiver', body: 'Do this: ' + leadStep(f) + '\n' + body });   // the email and the daily check still catch it
+}
+
+// What to do about a website lead, in one line.
+function leadStep(f) {
+  const first = String(f.name || '').split(/\s+/)[0] || 'them';
+  if (f.quiet) return 'Look it over. If it\'s a real business, send the free audit by hand and call ' + first + '.';
+  if (f.hold) return 'Send the free audit by hand, then call ' + first + (f.phone ? ' at ' + f.phone : '') + '.';
+  return 'Call ' + first + (f.phone ? ' at ' + f.phone : '') + ' today. Their free audit already went to their inbox.';
+}
+export function leadEmail(f, id, at) {
+  const lines = [
+    { k: 'Business', v: f.business || '(not given)' }, { k: 'Phone', v: f.phone || '(not given)' }, { k: 'Email', v: f.email || '(not given)' },
+    { k: 'Town', v: f.town || '' }, { k: 'Type', v: f.type || '' }, { k: 'Plan', v: f.plan || 'Not sure yet' }
+  ].filter(l => l.v);
+  if (f.lang === 'es') lines.push({ k: 'Language', v: 'Spanish: answer in Spanish', bad: true });
+  if (f.referredBy) lines.push({ k: 'Referred by', v: f.referredBy, ok: true });
+  if (f.notes) lines.push({ k: 'Their note', v: String(f.notes).replace(/\s+/g, ' ').slice(0, 220) });
+  if (f.quiet || f.hold) lines.push({ k: 'Audit email', v: f.quiet || f.hold, bad: true });
+  else lines.push({ k: 'Audit email', v: 'sent automatically', ok: true });
+  return { tone: f.quiet ? 'bad' : 'info', sign: 'NEW LEAD', title: (f.name || 'Someone') + (f.business ? ' from ' + f.business : '') + ' asked for the free audit', who: 'website',
+    doThis: [leadStep(f)], lines, note: 'Reply to this email to answer them directly. It also lands in Always Open HQ, Pipeline.', preheader: leadStep(f) };
 }
 
 async function mail(env, f, id, at) {
@@ -483,19 +500,10 @@ async function mail(env, f, id, at) {
     'Sent at: ' + at, '',
     'Reply to this email to answer them directly. It also goes into Always Open HQ, Pipeline, at the next Always Open check.'
   ].join('\r\n');
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const headers = [
-    'From: "Always Open website" <' + env.MAIL_FROM + '>',
-    'To: <' + env.MAIL_TO + '>',
-    'Subject: ' + encodeHeader(subject),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>',
-    'Date: ' + new Date().toUTCString(),
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: 8bit'
-  ];
-  if (EMAIL_RE.test(f.email)) headers.splice(2, 0, 'Reply-To: <' + f.email + '>');
-  const raw = headers.join('\r\n') + '\r\n\r\n' + text;
+  // The plain part stays exactly as it was: the Always Open check reads "Lead ID:", "Name:" lines out of it.
+  // The HTML part is the neon page: who it is, the one thing to do, the details in short rows.
+  const e = neonEmail(leadEmail(f, id, at));
+  const raw = rawEmail({ fromName: 'Always Open website', from: env.MAIL_FROM, to: env.MAIL_TO, subject, replyTo: EMAIL_RE.test(f.email) ? f.email : '' }, text, e.html);
   try {
     await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw));
     return 'sent';
@@ -621,16 +629,17 @@ async function radarWatch(env) {
         ' | Average rating: ' + m.avg + ' | Recent reviews about rates: ' + m.rate + ' | Recent 1-2 star: ' + m.low + ' | Wave: ' + (wave ? 'yes' : 'no'));
     } catch (e) {
       lines.push('Town: ' + town + ' | Week: ' + week + ' | Error: ' + String((e && e.message) || e).slice(0, 120));
+      out.push({ town, week, error: String((e && e.message) || e).slice(0, 120) });
     }
   }
-  await radarMail(env, week, lines);
+  await radarMail(env, week, out.filter(x => !x.error), out.filter(x => x.error));
   // Each insurance client whose own town shows a wave hears it on their phone the same morning (counts only, nothing from Google kept).
   try {
     const mine = ((await env.DB.prepare("SELECT DISTINCT c.client_id AS cid, COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || [];
     for (const n of radarNotes(mine, out)) await pushClient(env, n.cid, n.note).catch(() => 0);
   } catch (e) { /* the email above still went out */ }
-  if (out.some(x => x.wave)) await phonePush(env, { title: 'Rate-Shock Radar: complaints rising', priority: 'default', tags: 'chart_with_upwards_trend', body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' recent reviews about rates').join('\n') });
-  return { ok: true, week, towns: out };
+  if (out.some(x => x.wave)) await phonePush(env, { title: 'Rates rising in ' + out.filter(x => x.wave).length + (out.filter(x => x.wave).length === 1 ? ' town' : ' towns'), priority: 'default', tags: 'chart_with_upwards_trend', body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' reviews about rates').join('\n') + '\nDo: tell the agents there to call their renewals this week.' });
+  return { ok: true, week, towns: out.filter(x => !x.error) };
 }
 // Which insurance clients get a Rate-Shock push: those whose own town had a wave this week. Pure, so it can be tested.
 export function radarNotes(clients, towns) {
@@ -639,20 +648,36 @@ export function radarNotes(clients, towns) {
   for (const c of clients || []) {
     const w = waves.get(String((c && c.town) || '').trim().toLowerCase());
     if (!w) continue;
-    const body = w.rate >= 2 ? w.rate + ' recent reviews of agencies in ' + w.town + ' mention rate increases. Good week to call your renewals before they shop.'
-      : w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days. Good week to check in with your renewals.';
-    out.push({ cid: c.cid, note: { aps: { alert: { title: 'Rate-Shock Radar: ' + w.town, body }, 'thread-id': 'radar' }, screen: 'home' } });
+    const body = w.rate >= 2 ? 'Do this: call your renewals this week, before they shop. ' + w.rate + ' recent reviews of agencies in ' + w.town + ' mention rate increases.'
+      : 'Do this: check in with your renewals this week. ' + w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days.';
+    out.push({ cid: c.cid, note: { aps: { alert: { title: 'Rates rising in ' + w.town, body }, 'thread-id': 'radar' }, screen: 'home' } });
   }
   return out;
 }
-async function radarMail(env, week, lines) {
-  if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO || !lines.length) return;
-  const domain = env.MAIL_FROM.split('@')[1] || 'localhost';
-  const text = ['Weekly Rate-Shock Radar. Counts only: no agency names, no reviewer names, no review text.', '', ...lines, '',
-    'Source: Google Maps. Looked up for this email and not kept anywhere, so there is no week-to-week comparison. Please don\u2019t copy these numbers into a spreadsheet or HQ.'].join('\r\n');
-  const raw = ['From: "Always Open Radar" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: ' + encodeHeader('Always Open radar: ' + week),
-    'Message-ID: <' + crypto.randomUUID() + '@' + domain + '>', 'Date: ' + new Date().toUTCString(), 'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit'].join('\r\n') + '\r\n\r\n' + text;
+// The weekly radar email to Christopher: one neon page, the towns with a wave first, counts only. Pure, so it can be tested.
+export function radarEmail(week, towns, errors) {
+  towns = towns || []; errors = errors || [];
+  const waves = towns.filter(x => x.wave).sort((a, b) => b.rate - a.rate || b.low - a.low);
+  const calm = towns.filter(x => !x.wave);
+  const rateSum = towns.reduce((a, x) => a + (+x.rate || 0), 0), lowSum = towns.reduce((a, x) => a + (+x.low || 0), 0);
+  const lines = waves.map(x => ({ k: x.town, v: x.rate + ' about rates, ' + x.low + ' at 1-2 stars (' + x.recent + ' recent reviews)', bad: true }))
+    .concat(calm.slice(0, Math.max(0, 8 - waves.length)).map(x => ({ k: x.town, v: 'quiet: ' + x.rate + ' about rates, ' + x.recent + ' recent reviews', ok: true })));
+  if (calm.length > 8 - waves.length && 8 - waves.length >= 0) lines.push({ v: (calm.length - Math.max(0, 8 - waves.length)) + ' more quiet towns' });
+  if (errors.length) lines.push({ k: 'Not checked', v: errors.map(e => e.town).join(', '), bad: true });
+  const n = neonEmail({
+    tone: waves.length ? 'bad' : 'ok', sign: waves.length ? 'RATES RISING' : 'ALL QUIET', who: 'Rate-Shock Radar · ' + week,
+    title: waves.length ? 'Complaints about rates are up in ' + (waves.length === 1 ? waves[0].town : waves.length + ' towns') + '.' : 'No town shows a wave of rate complaints this week.',
+    doThis: waves.length ? ['Insurance clients in ' + waves.map(x => x.town).join(', ') + ' got a push this morning. Use it in outreach: agents there should call their renewals this week.'] : [],
+    stats: [{ n: String(towns.length), label: 'towns checked' }, { n: String(waves.length), label: waves.length === 1 ? 'wave' : 'waves', tone: waves.length ? 'bad' : '' }, { n: String(rateSum), label: 'reviews about rates', tone: rateSum ? 'bad' : '' }, { n: String(lowSum), label: '1-2 star reviews' }],
+    linesTitle: 'Town by town (last 30 days)', lines,
+    note: 'Counts only, from Google Maps, looked up for this email and not kept. No agency names, reviewer names or review text, and no week-to-week history.'
+  });
+  return { subject: waves.length ? 'Rates rising: ' + waves.map(x => x.town).slice(0, 3).join(', ') : 'Rate-Shock Radar: all quiet (' + week + ')', html: n.html, text: n.text };
+}
+async function radarMail(env, week, towns, errors) {
+  if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO || !(towns.length || errors.length)) return;
+  const m = radarEmail(week, towns, errors);
+  const raw = rawEmail({ fromName: 'Always Open Radar', from: env.MAIL_FROM, to: env.MAIL_TO, subject: m.subject }, m.text, m.html);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); } catch (e) {}
 }
 async function radarRun(req, env, url) {

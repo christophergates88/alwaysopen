@@ -719,7 +719,7 @@ export async function bizCron(env, at) {
         try { const ac = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(c.client_id).first(); wn.rivals = await rivalLine(env, ac, at); } catch (e) { /* so does this */ }
         const line = weeklyLine(wn);
         await pushClient(env, c.client_id, { aps: { alert: { title: 'Your week at ' + (c.business || 'your business'), body: line }, sound: 'default', 'thread-id': 'weekly' }, screen: 'home' }).catch(() => {});
-        if (c.email) await mailTo(env, c.email, 'Your week at ' + (c.business || 'your business'), (c.owner_first ? 'Hi ' + c.owner_first + ',\n\n' : '') + line + '\n\nOpen the Always Open app for the details.\n\nYou can turn this weekly note off in the app under Settings.', 'Always Open').catch(() => {});
+        if (c.email) { try { const { sendNeon, weeklyEmail } = await import('./clientmail.js'); await sendNeon(env, c.email, weeklyEmail(c, wn, LOST_LABELS)); } catch (e) { /* the push went */ } }
         // A text version goes out only once texting is approved and switched on.
         weekly++;
       }

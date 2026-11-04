@@ -15,14 +15,29 @@ test('sent once in the 7 AM hour, with the counts from the database', async () =
   const h = { health: async () => ({ ok: true, checks: [{ name: 'd1', ok: true }] }), ping: async (t, b) => pings.push(t + ' | ' + b) };
   assert.deepEqual(await morningCron(env, Date.parse('2026-10-29T10:30:00Z'), h), { skipped: 'not the hour' }, '6:30 AM is too early');
   assert.deepEqual(await morningCron(env, sevenET, h), { sent: true, ok: true });
-  assert.deepEqual(pings, ['Always Open: all good | All checks green. Yesterday: 3 calls, 1 lead, 0 jobs booked. 1 draft waiting.']);
+  assert.deepEqual(pings, ['Always Open: all good | Everything is working. Yesterday: 3 calls, 1 lead, 0 jobs booked. 1 draft waiting for owners.']);
   assert.deepEqual(await morningCron(env, sevenET + 20 * 60000, h), { skipped: 'sent today' });
   assert.equal(pings.length, 1);
 });
 
 test('a red check leads the message', () => {
   const t = morningText({ ok: false, checks: [{ name: 'stripe', ok: false }, { name: 'cron', ok: false }] }, { calls: 0, leads: 0, drafts: 0, booked: 2, errors: 4 });
-  assert.equal(t.title, 'Always Open: 2 checks are red');
-  assert.equal(t.body, 'Needs a look: stripe, cron. Yesterday: 0 calls, 0 leads, 2 jobs booked, 4 errors. 0 drafts waiting.');
+  assert.equal(t.title, 'Always Open: 2 things need you');
+  assert.equal(t.body, "Needs you: Payments can't be checked; Always Open's background jobs stopped. Yesterday: 0 calls, 0 leads, 2 jobs booked, 4 errors. 0 drafts waiting for owners.");
   assert.deepEqual(eastern(Date.parse('2026-12-15T12:05:00Z')), { day: '2026-12-15', hour: 7 }, 'standard time: 12:05 UTC is 7:05 AM Eastern');
+});
+
+test('the morning email: a sign, plain Do-this steps for red checks, big numbers', async () => {
+  const { morningEmail } = await import('../src/morning.js');
+  const { neonEmail } = await import('../src/neonmail.js');
+  const good = morningEmail({ ok: true, checks: [{ name: 'd1', ok: true }] }, { calls: 3, leads: 1, drafts: 0, booked: 2, errors: 0 }, [], '');
+  assert.equal(good.sign, 'ALL GOOD'); assert.equal(good.tone, 'ok'); assert.equal(good.doThis.length, 0);
+  assert.deepEqual(good.stats.map(s => s.n), ['3', '1', '2', '0']);
+  const bad = morningEmail({ ok: false, checks: [{ name: 'ntfy', ok: false, why: 'refused' }] }, { calls: 0, leads: 0, drafts: 2, booked: 0, errors: 1 }, [{ type: 'health:stripe', n: 2 }], 'Test call at 4 AM: passed.');
+  assert.equal(bad.sign, '1 THING');
+  assert.match(bad.doThis[0], /phone alerts aren't getting through.*Set ntfy token/);
+  assert.ok(bad.lines.some(l => /Payments can't be checked \(2 times\)/.test(l.v || '')), 'overnight problems in plain words');
+  const e = neonEmail(bad);
+  assert.match(e.html, /1 THING/); assert.match(e.text, /DO THIS/);
+  assert.doesNotMatch(e.text, /health:|cron|\bD1\b|webhook|refresh token/i, 'no jargon in the email');
 });

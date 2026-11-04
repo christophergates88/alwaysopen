@@ -182,14 +182,16 @@ function footer(env, stop, es) {
   const who = 'Always Open, a service of Lake Country Foam Party, LLC' + (addr ? ', ' + addr : '') + '.';
   const out = es ? 'No quiero más correos' : 'Don’t email me again';
   return {
-    html: '<p style="margin:22px 0 0;font-size:12px;line-height:1.5;color:#6B7280">' + esc(why) + ' ' + esc(who) + '<br><a href="' + esc(stop) + '" style="color:#6B7280">' + esc(out) + '</a></p>',
+    html: '<p style="margin:22px 0 0;font-size:12px;line-height:1.5;color:#7A8396">' + esc(why) + ' ' + esc(who) + '<br><a href="' + esc(stop) + '" style="color:#7A8396">' + esc(out) + '</a></p>',
     text: '\n\n--\n' + why + ' ' + who + '\n' + out + ': ' + stop
   };
 }
-const shell = inner => '<!doctype html><html><body style="margin:0;padding:0;background:#F4F4F2"><div style="max-width:600px;margin:0 auto;padding:24px 18px;font:16px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#171B26">' +
-  '<p style="margin:0 0 18px;font-weight:800;font-size:15px;color:#D92D20;letter-spacing:.02em">Always Open</p>' + inner + '</div></body></html>';
-const btn = (href, label) => '<p style="margin:22px 0"><a href="' + esc(href) + '" style="display:inline-block;background:#D92D20;color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:10px">' + esc(label) + '</a></p>';
-const GC = { A: '#1C6B54', B: '#1C6B54', C: '#B7791F', D: '#C4271B', F: '#C4271B' };
+// Dark, neon, like the Always Open sign: a glowing header, then the audit.
+const NEON_TXT = c => 'text-shadow:0 0 2px #fff,0 0 8px ' + c + ',0 0 18px ' + c + ';';
+const shell = inner => '<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><link href="https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#0F131B" bgcolor="#0F131B"><div style="max-width:600px;margin:0 auto;padding:24px 18px;font:16px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#ECEEF3">' +
+  '<p style="margin:0 0 18px;text-align:center;border:2px solid #FF6A5E;border-radius:16px;padding:16px 10px;background:#0A0D13;box-shadow:0 0 8px #FF6A5E,0 0 22px rgba(255,106,94,.4),inset 0 0 12px rgba(255,106,94,.25);font:400 30px/1.1 \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#fff;' + NEON_TXT('#FF6A5E') + '">ALWAYS OPEN</p>' + inner + '</div></body></html>';
+const btn = (href, label) => '<p style="margin:22px 0;text-align:center"><a href="' + esc(href) + '" style="display:inline-block;background:#FF6A5E;color:#1A0605;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:12px;box-shadow:0 0 14px #FF6A5E,0 0 30px rgba(255,106,94,.4)">' + esc(label) + '</a></p>';
+const GC = { A: '#5CC9A4', B: '#5CC9A4', C: '#FF8A5E', D: '#FF6A5E', F: '#FF6A5E' };
 
 // Spanish for what the audit can find. The details in "saw" carry numbers in English, so the Spanish email uses titles and fixes.
 const ES = {
@@ -217,7 +219,7 @@ export function auditMail(lead, a, stop, env, via, go) {
   go = go || {};
   const es = lead.lang === 'es', b = a.business || {}, first = firstName(lead.name), name = one(b.name) || plain(lead.business) || (es ? 'su negocio' : 'your business');
   const fixes = topThree(a), pitch = pitchFor(b.name, b.type || lead.type);
-  const ft = footer(env || {}, stop, es), gc = GC[a.grade] || '#C4271B', start = startLink(lead.plan);
+  const ft = footer(env || {}, stop, es), gc = GC[a.grade] || '#FF6A5E', start = startLink(lead.plan);
   const own = b.reviews ? (es ? b.rating.toFixed(1) + ' estrellas de ' + b.reviews + ' reseñas en Google hoy' : b.rating.toFixed(1) + ' stars from ' + b.reviews + (b.reviews === 1 ? ' review' : ' reviews') + ' on Google today')
     : (es ? 'todavía sin reseñas en Google' : 'no Google reviews yet');
   const areas = (a.areas || []).map(x => ({ label: es ? (AREA_ES[x.label] || x.label) : x.label, grade: x.grade }));
@@ -247,18 +249,18 @@ export function auditMail(lead, a, stop, env, via, go) {
   const pitchText = es ? 'Contestamos cada reseña con un borrador para su visto bueno, mantenemos su perfil de Google al día y contestamos cada llamada a su nombre, de día y de noche, con Max, nuestra línea telefónica. Después de cada trabajo llamamos para ver si todo quedó bien, damos seguimiento a cotizaciones y facturas, y llenamos los días libres con sus propios clientes.' : pitch.text;
   const inner = (
     '<p style="margin:0 0 12px">' + esc(T.hi) + '</p><p style="margin:0 0 18px">' + esc(T.intro) + '</p>' +
-    '<div style="border:2px solid ' + gc + ';border-radius:14px;padding:14px 18px;margin:0 0 14px"><p style="margin:0;font-size:13px;color:#586075">' + esc(name) + ' · ' + esc(T.gradeLab) + '</p>' +
-    '<p style="margin:4px 0 0;font-size:40px;line-height:1;font-weight:800;color:' + gc + '">' + esc(a.grade) + ' <span style="font-size:15px;font-weight:600;color:#586075">' + a.score + (es ? ' de 100' : ' of 100') + '</span></p>' +
-    (areas.length ? '<p style="margin:10px 0 0;font-size:14px">' + areas.map(x => '<b style="color:' + (GC[x.grade] || '#C4271B') + '">' + esc(x.grade) + '</b> ' + esc(x.label)).join(' &nbsp;·&nbsp; ') + '</p>' : '') +
-    '<p style="margin:6px 0 0;font-size:14px;color:#586075">' + esc(own) + '</p></div>' +
-    '<h2 style="font-size:18px;margin:22px 0 8px">' + esc(T.fixH) + '</h2>' +
-    (items.length ? '<ol style="margin:0;padding-left:22px">' + items.map(f => '<li style="margin:0 0 10px"><b>' + esc(f.title) + '.</b> ' + esc(f.saw) + '<br><span style="color:#1C6B54;font-weight:600">' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '<p style="margin:0">' + esc(T.none) + '</p>') +
-    ((a.fine || []).length && !es ? '<p style="margin:8px 0 0;color:#1C6B54;font-size:14px">' + esc(T.fine + a.fine.slice(0, 4).join('; ') + '.') + '</p>' : '') +
-    '<h2 style="font-size:18px;margin:24px 0 8px">' + esc(T.doH) + '</h2><p style="margin:0">' + esc(pitchText + T.approve) + '</p>' +
-    '<p style="margin:12px 0 0">' + esc(T.page) + ' <a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#D92D20">' + SITE.replace('https://', '') + '/sample-report</a></p>' +
+    '<div style="border:2px solid ' + gc + ';border-radius:14px;padding:14px 18px;margin:0 0 14px;background:#171C27;box-shadow:0 0 8px ' + gc + ',0 0 20px ' + gc + '55,inset 0 0 12px ' + gc + '33"><p style="margin:0;font-size:13px;color:#A3ACBF">' + esc(name) + ' · ' + esc(T.gradeLab) + '</p>' +
+    '<p style="margin:4px 0 0;font:400 48px/1 \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#fff;' + NEON_TXT(gc) + '">' + esc(a.grade) + ' <span style="font-size:15px;font-weight:600;color:#A3ACBF">' + a.score + (es ? ' de 100' : ' of 100') + '</span></p>' +
+    (areas.length ? '<p style="margin:10px 0 0;font-size:14px">' + areas.map(x => '<b style="color:' + (GC[x.grade] || '#FF6A5E') + '">' + esc(x.grade) + '</b> ' + esc(x.label)).join(' &nbsp;·&nbsp; ') + '</p>' : '') +
+    '<p style="margin:6px 0 0;font-size:14px;color:#A3ACBF">' + esc(own) + '</p></div>' +
+    '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:22px 0 8px;color:#fff;' + NEON_TXT('#FF6A5E') + '">' + esc(T.fixH) + '</h2>' +
+    (items.length ? '<ol style="margin:0;padding-left:22px">' + items.map(f => '<li style="margin:0 0 10px"><b>' + esc(f.title) + '.</b> ' + esc(f.saw) + '<br><span style="color:#5CC9A4;font-weight:600">' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '<p style="margin:0">' + esc(T.none) + '</p>') +
+    ((a.fine || []).length && !es ? '<p style="margin:8px 0 0;color:#5CC9A4;font-size:14px">' + esc(T.fine + a.fine.slice(0, 4).join('; ') + '.') + '</p>' : '') +
+    '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:24px 0 8px;color:#fff;' + NEON_TXT('#5CC9A4') + '">' + esc(T.doH) + '</h2><p style="margin:0">' + esc(pitchText + T.approve) + '</p>' +
+    '<p style="margin:12px 0 0">' + esc(T.page) + ' <a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#FF6A5E">' + SITE.replace('https://', '') + '/sample-report</a></p>' +
     btn(go.start || start, T.start) + '<p style="margin:0 0 14px;font-weight:600">' + esc(T.promise) + '</p>' +
     '<p style="margin:0 0 14px">' + esc(T.max) + '</p><p style="margin:0">' + esc(T.q) + '</p><p style="margin:16px 0 0">Always Open</p>' +
-    '<p style="margin:18px 0 0;font-size:12px;color:#6B7280">' + esc(T.src) + '</p>');
+    '<p style="margin:18px 0 0;font-size:12px;color:#7A8396">' + esc(T.src) + '</p>');
   const html = shell(inner + ft.html);
   const text = [T.hi, '', T.intro, '', name + ': ' + a.grade + ' (' + a.score + (es ? ' de 100' : ' of 100') + '), ' + T.gradeLab + '.',
     areas.map(x => x.label + ' ' + x.grade).join(' · '), own, '', T.fixH + ':',
@@ -283,7 +285,7 @@ export function missMail(lead, stop, env, go) {
     (asked ? 'We looked on Google for ' + asked : 'We looked for your business on Google') + ' and couldn’t find an exact match. Reply with the name as it shows on Google, or a link to your profile, and your audit comes right back. Otherwise Katie will look it up by hand and send it within one business day.',
     'In the meantime, here’s the one page you’d get every month: ' + SITE + '/sample-report',
     'Want to hear how your calls would be answered? Call Max, our phone line, at ' + MAX + '.', 'Always Open'];
-  const html = shell(lines.slice(0, -1).map(l => '<p style="margin:0 0 14px">' + esc(l).replace(SITE + '/sample-report', '<a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#D92D20">' + SITE.replace('https://', '') + '/sample-report</a>') + '</p>').join('') +
+  const html = shell(lines.slice(0, -1).map(l => '<p style="margin:0 0 14px">' + esc(l).replace(SITE + '/sample-report', '<a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#FF6A5E">' + SITE.replace('https://', '') + '/sample-report</a>') + '</p>').join('') +
     btn(go.start || start, es ? 'Empezar mi primer mes' : 'Start my first month') + '<p style="margin:0">Always Open</p>' + ft.html);
   return { subject, html, text: lines.join('\n\n') + '\n\n' + (es ? 'Empezar' : 'Start') + ': ' + start + ft.text };
 }
@@ -308,7 +310,7 @@ export function copyMail(lead, link, stop, env, go) {
     'Your full audit, looked up fresh each time you open it: ' + link,
     'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee: ' + start,
     'Questions? Reply to this email, or call Max at ' + MAX + ' any hour. Katie answers, usually the same business day.', 'Always Open'];
-  const linkify = l => esc(l).replace(esc(link), '<a href="' + esc(go.audit || link) + '" style="color:#D92D20">' + esc(link.replace('https://', '')) + '</a>').replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#D92D20">' + esc(start.replace('https://', '')) + '</a>');
+  const linkify = l => esc(l).replace(esc(link), '<a href="' + esc(go.audit || link) + '" style="color:#FF6A5E">' + esc(link.replace('https://', '')) + '</a>').replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#FF6A5E">' + esc(start.replace('https://', '')) + '</a>');
   const html = shell(lines.map(l => '<p style="margin:0 0 14px">' + linkify(l) + '</p>').join('') + ft.html);
   return { subject, html, text: lines.join('\n\n') + ft.text };
 }
@@ -333,7 +335,7 @@ export function followMail(lead, n, stop, env, top, go) {
       : [first ? 'Hi ' + first + ',' : 'Hi,', 'Last note from us. If reviews, calls and follow-ups are piling up, we take them off your plate, and on the 2nd of every month you get one page showing what we did and what it was worth.',
       'Try it for a month. If it’s not worth it, you don’t pay for it: ' + start, 'Or call Max at ' + MAX + ' to hear how your calls would be answered. Either way, the audit is yours to keep.', 'Always Open'];
   }
-  const linkify = l => esc(l).replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#D92D20">' + esc(start.replace('https://', '')) + '</a>');
+  const linkify = l => esc(l).replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#FF6A5E">' + esc(start.replace('https://', '')) + '</a>');
   const html = shell(lines.map(l => '<p style="margin:0 0 14px">' + linkify(l) + '</p>').join('') + ft.html);
   return { subject, html, text: lines.join('\n\n') + ft.text };
 }
@@ -505,7 +507,7 @@ export async function textAudit(env, id, to, lead, h) {
 
 const PAGE_CSS = 'body{margin:0;background:radial-gradient(800px 420px at 85% -10%,rgba(217,45,32,.28),transparent 60%),linear-gradient(170deg,#161C2A,#0D1017 60%) fixed #0D1017;color:#ECEEF3;font:16px/1.55 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif}' +
   '.wrap{max-width:640px;margin:0 auto;padding:18px 16px 48px}.top{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;margin:4px 0 16px;color:#FF8C82;text-shadow:0 0 10px rgba(255,106,94,.5)}' +
-  '.card{background:#FBFAF7;color:#171B26;border-radius:18px;padding:22px 20px;box-shadow:0 0 0 1px rgba(255,106,94,.3),0 0 34px rgba(255,90,77,.3),0 30px 60px -30px rgba(0,0,0,.9)}.card>div{max-width:none!important;padding:0!important}' +
+  '.card{background:#171C27;color:#ECEEF3;border:1.5px solid rgba(255,106,94,.55);border-radius:18px;padding:22px 20px;box-shadow:0 0 0 1px rgba(255,106,94,.3),0 0 34px rgba(255,90,77,.3),0 30px 60px -30px rgba(0,0,0,.9)}.card>div{max-width:none!important;padding:0!important}' +
   '.copy{margin:18px 0 0;padding:16px;border:1.5px solid rgba(255,106,94,.5);border-radius:14px;background:rgba(255,90,77,.06)}.copy b{display:block;margin-bottom:8px}' +
   '.copy form{display:flex;gap:8px;flex-wrap:wrap}.copy input{flex:1 1 220px;min-height:46px;padding:10px 12px;border-radius:10px;border:1.5px solid #3A4459;background:#0F131B;color:#ECEEF3;font:inherit}' +
   '.copy button{min-height:46px;padding:10px 18px;border:0;border-radius:10px;background:#FF5A4D;color:#1A0605;font-weight:700;font-size:16px;cursor:pointer}.note{color:#A3ACBF;font-size:14px;margin:14px 0 0}.ok{color:#7EE0BE}';
@@ -602,5 +604,5 @@ export async function handleAuditPage(req, env, url, h) {
     return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(one(lead.business)) + (es ? ' sacó una ' : ' got a ') + '<b>' + esc(lead.grade) + '</b>' + (es ? ' en su auditoría.' : ' on its audit.') + '</p><p style="margin:0">' + (es ? 'Pida una copia por correo y se la mandamos con todo el detalle.' : 'Ask for a copy by email and we’ll send it with every detail.') + '</p></div>' + copyBox, es);
   }
   if (h.ping && lead.audit === 'texted') { await h.ping('Audit needs a hand: ' + one(lead.business), 'A caller asked for their audit by text and Google had no match for "' + one(lead.business) + (lead.town ? ', ' + one(lead.town) : '') + '". Call them back.'); await env.DB.prepare("UPDATE leads SET audit = 'missed' WHERE id = ?1").bind(lead.id).run(); }
-  return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(es ? 'Buscamos ' + (one(lead.business) || 'su negocio') + ' en Google y no encontramos una coincidencia exacta. Responda a nuestro mensaje con el nombre como aparece en Google, y Katie le manda la auditoría hoy.' : 'We looked for ' + (one(lead.business) || 'your business') + ' on Google and couldn’t find an exact match. ' + (letter ? 'Call (706) 460-2226 and tell Max the name as it shows on Google, and Katie will send your audit today.' : 'Reply to our text with the name as it shows on Google, and Katie will send your audit today.')) + '</p><p style="margin:0">' + esc(es ? 'Mientras tanto, así se ve la página de cada mes: ' : 'Meanwhile, here’s the one page you’d get every month: ') + '<a style="color:#D92D20" href="/sample-report">alwaysopenoffice.com/sample-report</a></p></div>' + copyBox, es);
+  return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(es ? 'Buscamos ' + (one(lead.business) || 'su negocio') + ' en Google y no encontramos una coincidencia exacta. Responda a nuestro mensaje con el nombre como aparece en Google, y Katie le manda la auditoría hoy.' : 'We looked for ' + (one(lead.business) || 'your business') + ' on Google and couldn’t find an exact match. ' + (letter ? 'Call (706) 460-2226 and tell Max the name as it shows on Google, and Katie will send your audit today.' : 'Reply to our text with the name as it shows on Google, and Katie will send your audit today.')) + '</p><p style="margin:0">' + esc(es ? 'Mientras tanto, así se ve la página de cada mes: ' : 'Meanwhile, here’s the one page you’d get every month: ') + '<a style="color:#FF6A5E" href="/sample-report">alwaysopenoffice.com/sample-report</a></p></div>' + copyBox, es);
 }

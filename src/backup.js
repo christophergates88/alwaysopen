@@ -2,6 +2,7 @@
 // gzip JSON lines: to the BACKUPS bucket (R2) when one is bound, otherwise as an attachment on an email to Christopher.
 // Tokens, keys and device tokens are never exported. D1's own 30-day point-in-time restore is the first line of
 // recovery; this is the copy that survives the account. The drill that proves a restore works is in docs/restore.md.
+import { neonEmail } from './neonmail.js';
 import { EmailMessage } from 'cloudflare:email';
 export const TABLES = ['app_clients', 'app_staff', 'app_locations', 'voice_lines', 'app_calls', 'call_grades', 'leads', 'app_leads', 'app_items', 'app_followups', 'app_messages', 'app_months',
   'biz_jobs', 'biz_customers', 'biz_quotes', 'biz_pay', 'biz_prefs', 'app_invoices', 'line_bookings', 'billing', 'callbacks', 'checkins', 'checkin_prefs', 'fillweek', 'fillweek_offers',
@@ -53,8 +54,14 @@ export async function runBackup(env, now, h) {
     const boundary = 'ao' + crypto.randomUUID().replace(/-/g, '');
     const raw = ['From: "Always Open backups" <' + env.MAIL_FROM + '>', 'To: <' + env.MAIL_TO + '>', 'Subject: Always Open weekly backup ' + new Date(now).toISOString().slice(0, 10),
       'Message-ID: <' + crypto.randomUUID() + '@' + (env.MAIL_FROM.split('@')[1] || 'localhost') + '>', 'Date: ' + new Date(now).toUTCString(), 'MIME-Version: 1.0',
-      'Content-Type: multipart/mixed; boundary="' + boundary + '"', '', '--' + boundary, 'Content-Type: text/plain; charset=utf-8', '',
+      'Content-Type: multipart/mixed; boundary="' + boundary + '"', '', '--' + boundary, 'Content-Type: multipart/alternative; boundary="' + boundary + 'a"', '',
+      '--' + boundary + 'a', 'Content-Type: text/plain; charset=utf-8', '',
       'The weekly copy of the Always Open data: ' + d.tables + ' tables, ' + d.rows + ' rows, ' + Math.round(gz.length / 1024) + ' KB. Keep this email. How to restore from it is in docs/restore.md in the repo. Turn on R2 in Cloudflare and these go to a bucket instead.', '',
+      '--' + boundary + 'a', 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '',
+      b64(new TextEncoder().encode(neonEmail({ tone: 'ok', sign: 'BACKED UP', title: 'This week\'s copy of the Always Open data is attached', who: 'backups',
+        doThis: ['Keep this email. Nothing else to do.'], stats: [{ n: String(d.tables), label: 'tables' }, { n: String(d.rows), label: 'rows' }, { n: Math.round(gz.length / 1024) + ' KB', label: 'size' }],
+        lines: [{ k: 'If you ever need it', v: 'Tell Claude: "restore Always Open from the backup email." The steps are in docs/restore.md.' }] }).html)).replace(/(.{76})/g, '$1\r\n'), '',
+      '--' + boundary + 'a--', '',
       '--' + boundary, 'Content-Type: application/gzip; name="' + name + '"', 'Content-Transfer-Encoding: base64', 'Content-Disposition: attachment; filename="' + name + '"', '',
       b64(gz).replace(/(.{76})/g, '$1\r\n'), '--' + boundary + '--', ''].join('\r\n');
     await (h && h.send ? h.send(raw) : env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)));

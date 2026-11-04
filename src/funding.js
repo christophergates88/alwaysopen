@@ -7,7 +7,7 @@
 //   Google Maps (Places lookups): card billing. A billing or quota refusal on any lookup sends a push.
 //   Yearly renewals (domain, Apple Developer): RENEWALS in wrangler.toml, reminders 30, 7 and 1 days before.
 const pushOps = async (...a) => { try { return await (await import('./app.js')).opsPing(...a); } catch (e) { return 0; } };
-const mailOps = async (env, subject, text) => { try { return await (await import('./app.js')).mailOwner(env, subject, text); } catch (e) { return 'off'; } };
+const mailOps = async (env, subject, text, neon) => { try { return await (await import('./app.js')).mailOwner(env, subject, text, neon, 'Always Open money watch'); } catch (e) { return 'off'; } };
 
 const TWILIO_WARN_DAYS = 10, TWILIO_URGENT_DAYS = 3, TWILIO_WARN_USD = 25, TWILIO_URGENT_USD = 10;
 const WARN_EVERY = 24 * 3600e3, URGENT_EVERY = 4 * 3600e3;
@@ -36,8 +36,11 @@ export async function fundAlert(env, key, level, title, body, opts) {
   const loud = key === 'twilio' && level === 'urgent';
   // At night it arrives silently, so it also goes on the list the 7 AM push reads out.
   try { const { isNight } = await import('./push.js'); if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), 'funding:' + key, String(title).slice(0, 200)).run(); } catch (e) { /* the push still goes */ }
-  await pushOps(env, title, body, level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag', '', loud);
-  await mailOps(env, title, body);
+  // The push says what happened, then exactly what to do; the email is the same on one neon page.
+  const doThis = opts && opts.doThis;
+  await pushOps(env, title, body + (doThis ? '\nDo this: ' + doThis : ''), level === 'urgent' ? 'urgent' : 'high', level === 'urgent' ? 'rotating_light' : 'moneybag', '', loud);
+  await mailOps(env, title, body + (doThis ? '\n\nDo this: ' + doThis : ''), { tone: 'bad', sign: level === 'urgent' ? 'ACT NOW' : '1 THING', title: String(title).replace(/^Always Open:\s*/, ''), who: 'money watch',
+    doThis: doThis ? [doThis] : [], stats: opts && opts.stats, lines: [{ k: 'What happened', v: body, bad: true }], preheader: doThis || body });
   return 'sent';
 }
 
@@ -62,7 +65,7 @@ const daysText = d => !isFinite(d) ? 'no spending yet to measure' : (d < 1 ? 'le
 async function twilio(env) {
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return null;
   const r = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Balance.json', { headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
-  if (!r.ok) { await fundAlert(env, 'twilio-read', 'warn', 'Always Open: could not read the Twilio balance', 'Twilio answered ' + r.status + ' when we asked for the balance. If this keeps happening, check the account at console.twilio.com.'); return null; }
+  if (!r.ok) { await fundAlert(env, 'twilio-read', 'warn', 'Always Open: couldn\'t read the Twilio balance', 'Twilio didn\'t answer when we checked the balance (code ' + r.status + ').', { doThis: 'Nothing if this is the only one. If it comes again tomorrow, log in at console.twilio.com and check the account is active.' }); return null; }
   const j = await r.json();
   const balance = +j.balance;
   if (!isFinite(balance)) return null;
@@ -70,9 +73,10 @@ async function twilio(env) {
   await env.DB.prepare('INSERT OR REPLACE INTO funding_log (at, service, value) VALUES (?1, ?2, ?3)').bind(at, 'twilio', balance).run();
   const rows = ((await env.DB.prepare("SELECT at, value FROM funding_log WHERE service = 'twilio' AND at > ?1 ORDER BY at").bind(new Date(Date.now() - 7 * 864e5).toISOString()).all()).results) || [];
   const perDay = burnPerDay(rows), lv = twilioLevel(balance, perDay);
-  const body = 'Twilio balance: ' + usd(balance) + ', spending about ' + usd(perDay) + ' a day, so ' + daysText(lv.daysLeft) + '. Calls, Max, texts and carrier fees all draw from it. Add funds or turn on auto-recharge: console.twilio.com, Billing.';
+  const body = 'Twilio has ' + usd(balance) + ' left. At about ' + usd(perDay) + ' a day, that\'s ' + daysText(lv.daysLeft) + '. Calls, Max and texts all stop when it hits zero.';
   if (lv.level === 'ok') await fundAlert(env, 'twilio', 'ok');
-  else await fundAlert(env, 'twilio', lv.level, lv.level === 'urgent' ? 'Always Open: Twilio is almost out of money' : 'Always Open: Twilio balance is getting low', body);
+  else await fundAlert(env, 'twilio', lv.level, lv.level === 'urgent' ? 'Always Open: Twilio is almost out of money' : 'Always Open: Twilio balance is getting low', body,
+    { doThis: 'Add money at console.twilio.com (Billing), or turn on auto-recharge so this never happens again.', stats: [{ n: usd(balance), label: 'left', tone: 'bad' }, { n: usd(perDay), label: 'a day' }, { n: isFinite(lv.daysLeft) ? String(Math.floor(lv.daysLeft)) : '–', label: 'days left', tone: 'bad' }] });
   return { balance, perDay, daysLeft: lv.daysLeft, level: lv.level };
 }
 
@@ -80,7 +84,7 @@ async function twilio(env) {
 export function isCreditError(msg) { return /credit balance|billing|insufficient|quota|payment required/i.test(String(msg || '')); }
 export async function claudeProblem(env, msg) {
   if (!isCreditError(msg)) return;
-  await fundAlert(env, 'claude', 'urgent', 'Always Open: Claude credits are out', 'Claude answered: "' + String(msg).slice(0, 160) + '". Max switched to the backup model and calls are still answered, but he sounds less natural. Add credits or turn on auto-reload at console.anthropic.com, Billing.');
+  await fundAlert(env, 'claude', 'urgent', 'Always Open: Max\'s Claude credits ran out', 'Max switched to his backup and calls are still answered, but he sounds less natural until credits are added. (Claude said: "' + String(msg).slice(0, 120) + '")', { doThis: 'Add credits at console.anthropic.com (Billing), and turn on auto-reload.' });
 }
 async function claudeHourly(env) {
   try {
@@ -97,7 +101,8 @@ async function claudeHourly(env) {
 export async function googleProblem(env, status, text) {
   if (status !== 403 && status !== 429 && !/billing|quota|exceeded/i.test(String(text || ''))) return;
   await fundAlert(env, 'google', status === 429 ? 'warn' : 'urgent', status === 429 ? 'Always Open: Google lookups hit a limit' : 'Always Open: Google stopped our lookups',
-    'Google answered ' + status + ' (' + String(text || '').slice(0, 160) + '). Free audits and competitor checks stop until it’s fixed. Check billing and quotas at console.cloud.google.com.');
+    'Free audits and Competitor Watch stop until it’s fixed. (Google said ' + status + ': ' + String(text || '').slice(0, 120) + ')',
+    { doThis: status === 429 ? 'Nothing if it clears in an hour. If not, raise the daily limit at console.cloud.google.com (APIs, Places, Quotas).' : 'Check the card on file at console.cloud.google.com (Billing).' });
 }
 
 // "alwaysopenoffice.com:2027-10-24|Apple Developer:2027-04-02"
@@ -132,7 +137,9 @@ async function checkHeartbeat(env) {
   if (lv.level === 'unknown') return { check: 'no heartbeat yet' };
   if (lv.level === 'ok') { await fundAlert(env, 'check-run', 'ok'); return { check: 'ok' }; }
   await fundAlert(env, 'check-run', lv.level, lv.level === 'urgent' ? 'Always Open: the review check has stopped' : 'Always Open: the review check hasn’t run lately',
-    'The Always Open check last ran ' + etTime(r.at) + ' (' + Math.floor(lv.hours) + ' hours ago). Until it runs, new Google reviews aren’t drafted and website and phone leads aren’t filed in HQ. The usual cause is the Claude plan’s usage limit; it runs again on its own once that resets. Check the scheduled task list at claude.ai.');
+    'The Always Open check last ran ' + etTime(r.at) + ' (' + Math.floor(lv.hours) + ' hours ago). Until it runs, new Google reviews aren’t drafted and leads aren’t filed in HQ.',
+    { doThis: 'Open claude.ai, Scheduled tasks, and make sure "Always Open check" is turned on. If it says your usage limit was reached, it starts again on its own when your Claude usage resets.',
+      stats: [{ n: String(Math.floor(lv.hours)), label: 'hours since it ran', tone: 'bad' }] });
   return { check: lv.level };
 }
 export async function checkRunLine(env) {
@@ -151,7 +158,7 @@ export async function fundingCron(env) {
   const hb = await checkHeartbeat(env).catch(() => null);
   for (const r of renewalsDue(env.RENEWALS, Date.now())) {
     await fundAlert(env, 'renew:' + r.name + ':' + r.date + ':' + r.bucket, r.days <= 1 ? 'urgent' : 'warn', 'Always Open: ' + r.name + ' renews ' + (r.days <= 1 ? 'tomorrow' : 'in ' + r.days + ' days'),
-      r.name + ' renews on ' + r.date + '. Make sure the card on file works, or service stops.', { once: true });
+      r.name + ' renews on ' + r.date + '. If the payment fails, it stops working.', { once: true, doThis: 'Make sure the card on file for ' + r.name + ' still works.' });
   }
   return { twilio: t, claude: c, check: hb };
 }

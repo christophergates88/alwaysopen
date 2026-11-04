@@ -63,7 +63,8 @@ test('a crash anywhere: one row, one alert per route, and a page or TwiML that t
     assert.equal(rows.length, 5);
     assert.equal(rows[0].route, '/app/*/calls', 'the code is stripped from the route');
     assert.equal(pings.length, 1, 'five crashes on one route: one push');
-    assert.match(pings[0], /crash:\/app\/\*\/calls/);
+    assert.match(pings[0], /Part of the website crashed.*\/app\/\*\/calls/s);
+    assert.match(pings[0], /Do this: /, 'every alert says what to do');
     assert.doesNotMatch(pings[0], /sk_live/, 'keys are scrubbed from alerts');
     assert.match(rows[0].message, /\[key\] should not leak/);
     const page = crashed(req('/app/x'), env, ctx, new Error('boom'));
@@ -136,7 +137,7 @@ test('the hourly checks: Apple push key, ntfy, numbers on our webhook, Google; e
     r = await slowCron(env, now + 61 * 60000, { fetch: f, apnsJwt: async () => 'jwt' });
     assert.deepEqual(r.bad, ['apple-push'], 'fixed, not a problem');
     assert.equal(world.voice_url, 'https://alwaysopenoffice.com/voice/in/vk'); assert.equal(world.sms_url, 'https://alwaysopenoffice.com/voice/sms/vk');
-    assert.deepEqual(pings, ['Always Open: pointed a number back at Max', 'Always Open problem: health:apple-push']);
+    assert.deepEqual(pings, ['Always Open: pointed a number back at Max', "Owners aren't getting iPhone alerts"]);
     // Twilio refusing to let us point it back is the one thing still worth an alert.
     world.voice_url = 'https://old.example.com/x'; world.setStatus = 403;
     await env.DB.prepare("DELETE FROM health_slow WHERE name = 'ran'").run();

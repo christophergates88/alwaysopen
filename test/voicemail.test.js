@@ -127,5 +127,5 @@ test('a call our code fails to answer gets the voicemail, not "call back later"'
     assert.match(r.text, /recordingStatusCallback="https:\/\/alwaysopenoffice\.com\/voice\/vm\//);
     assert.doesNotMatch(r.text, /call back in a few minutes/);
   } finally { DB.prepare = prep; }
-  assert.ok(world.pushes.some(p => /max-call/.test(p.title)), 'Christopher still hears about it');
+  assert.ok(world.pushes.some(p => /call to Max went wrong/.test(p.title)), 'Christopher still hears about it');
 });

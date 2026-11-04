@@ -7,7 +7,7 @@
 //   meta:   reads the app's approved permissions with the app's own token; on once pages_manage_posts is live.
 // GBP_ON or META_ON in the worker's settings force a switch on, for testing or if a check ever misreads.
 const pushOps = async (...a) => { try { return await (await import('./app.js')).opsPing(...a); } catch (e) { return 0; } };
-const mailOps = async (...a) => { try { return await (await import('./app.js')).mailOwner(...a); } catch (e) { return 'off'; } };
+const mailOps = async (env, subject, text, neon) => { try { return await (await import('./app.js')).mailOwner(env, subject, text, neon, 'Always Open launch watch'); } catch (e) { return 'off'; } };
 
 export const FEATURES = ['google', 'meta'];
 const HOUR = 3600e3;
@@ -83,16 +83,21 @@ async function checkMeta(env) {
   return readMeta(j.data);
 }
 
+// [title, body, the one thing to do (or ''), what turned on]
 const NOTE = {
   google: ['Always Open: Google approved the Business Profile access',
-    'Google approved it, so it is on now. Review replies and posts that owners approve go to Google on their own, new reviews get drafted even when the email check is down, and the monthly report fills in calls, direction requests and website clicks. Nothing for you to do.'],
+    'Google approved it, so it is on now. Nothing for you to do.', '',
+    ['Approved replies and posts go to Google on their own', 'New reviews get drafted even when the email check is down', 'The monthly report shows calls, direction requests and website clicks']],
   meta: ['Always Open: Meta approved the app',
-    'Meta approved posting, so it is on now. The website no longer says Coming soon for Facebook and Instagram, owners can connect their Page in the app, and approved photo posts go there too. One check: at developers.facebook.com, open the Always Open app and make sure the App Mode switch at the top says Live.']
+    'Meta approved posting, so it is on now.', 'At developers.facebook.com, open the Always Open app and make sure the App Mode switch at the top says Live.',
+    ['The website no longer says Coming soon for Facebook and Instagram', 'Owners can connect their Page in the app', 'Approved photo posts go there too']]
 };
 async function turnedOn(env, k, detail) {
-  const [title, body] = NOTE[k];
-  await pushOps(env, title, body + (detail ? '\n' + detail : ''), 'high', 'tada');
-  await mailOps(env, title, body + (detail ? '\n\n' + detail : ''));
+  const [title, body, todo, on] = NOTE[k];
+  const text = body + (todo ? ' Do this: ' + todo : '') + (detail ? '\n' + detail : '');
+  await pushOps(env, title, text, 'high', 'tada');
+  await mailOps(env, title, text, { tone: 'ok', sign: 'APPROVED', title: title.replace(/^Always Open:\s*/, ''), who: 'launch watch', doThis: todo ? [todo] : [],
+    linesTitle: 'What turned on', lines: on.map(v => ({ v, ok: true })).concat(detail ? [{ k: 'Note', v: detail }] : []), note: todo ? '' : body });
   if (k === 'meta') await tellOwners(env).catch(() => {});
   if (k === 'google') { try { await (await import('./gbp.js')).mapLocations(env); } catch (e) { /* the hourly pass maps them */ } }
 }
@@ -116,7 +121,8 @@ async function askToConnect(env, st) {
   const link = 'https://alwaysopenoffice.com/google/gbp-hq?t=' + t;
   const body = 'Tap here, sign in with the Google account that clients invite as Manager (hello@alwaysopenoffice.com), and tap Allow. It only lets the site see when Google approves the access and then post what owners approve. One time.';
   await pushOps(env, 'Always Open: connect Google (one time)', body, 'high', 'link', link);
-  await mailOps(env, 'Always Open: connect Google (one time)', body + '\n\n' + link);
+  await mailOps(env, 'Always Open: connect Google (one time)', body + '\n\n' + link, { tone: 'bad', sign: '1 TAP', title: 'Connect Google (one time)', who: 'launch watch',
+    doThis: ['Tap the button, sign in as hello@alwaysopenoffice.com, and tap Allow.'], note: 'It only lets the site see when Google approves the access, then post what owners approve.', button: { text: 'Connect Google', url: link } });
   await env.DB.prepare("INSERT INTO launch (k, on_, at, state, detail, checked) VALUES ('google_ask', 0, '', 'sent', '', ?1) ON CONFLICT(k) DO UPDATE SET checked = excluded.checked").bind(new Date().toISOString()).run();
 }
 

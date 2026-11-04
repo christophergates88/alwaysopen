@@ -152,6 +152,17 @@ export async function handleSms(req, env, form, sigOk) {
   // STOP, START and HELP only when they are the whole text. Whatever it is, the text is saved for the owner below.
   let key = keywordOf(body), reply = '', mark = '';
   if (key === 'start' && !(await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).first().catch(() => null))) key = '';
+  // The owner texting their own business line is telling Max something ("closed Friday", "no jobs in Macon", or UNDO):
+  // it goes into what Max tells callers, and the owner gets one line back. It never lands in their own inbox.
+  if (!key && cid !== OWN) {
+    const own = await env.DB.prepare('SELECT phone FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
+    if (own && ph10(own.phone) === from10) {
+      const { tellMax } = await import('./duties.js');
+      const r = await tellMax(env, cid, body, 'Owner (text)').catch(() => ({ ok: false, error: 'That didn’t save. Try it in the app, on the Max tab.' }));
+      const say = String(r.text || r.error || '').replace(/[<&>]/g, '');
+      return xml(say ? '<Message>' + say + '</Message>' : '');
+    }
+  }
   if (key === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO sms_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, from10, now).run();
     await env.DB.prepare('UPDATE biz_customers SET optout = 1, agreed = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
