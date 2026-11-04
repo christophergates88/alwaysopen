@@ -2229,25 +2229,39 @@ async function claudeCheck(env) {
 // A rehearsal: scripted caller lines go through the same instructions, quick reactions and clean-up as a real call, and
 // Max's replies are written to voice_log, so a change to how he talks can be checked before anyone calls. It is asked for
 // with a voice_log row of kind 'rehearse-request' (only reachable with database access) and run by the 10-minute timer.
+// A rehearsal set (test/rehearsal/calls.json, tools/maxrehearse.mjs) is several requests: up to four are run per timer
+// tick, within six minutes, so 40 calls are done in about half an hour instead of most of an evening.
 export async function rehearse(env) {
+  const t0 = Date.now();
+  for (let k = 0; k < 4 && Date.now() - t0 < 6 * 60e3; k++) { if (!(await rehearseOne(env))) return; }
+}
+// What a rehearsal may set on the line it borrows, to try another kind of business (a marina, an insurance agency)
+// without a real line for it. Rehearsals only: a live call never reads this.
+const REHEARSE_KEYS = ['business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner'];
+async function rehearseOne(env) {
   let req = null;
-  try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return; }
-  if (!req) return;
+  try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return false; }
+  if (!req) return false;
   await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = ?1").bind(req.id).run();
   const j = parse(req.detail) || {};
   const line = await lineFor(env, String(j.number || ''));
-  if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return; }
+  if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
   const L = lineView(line);
+  if (j.line && typeof j.line === 'object') for (const k of REHEARSE_KEYS) if (j.line[k] != null) L[k] = k === 'regulated' ? !!j.line[k] : oneLine(String(j.line[k])).slice(0, 600);
+  if (j.line && j.line.industry && !j.line.intake) L.intake = tradeDefaults(L.industry).intake;
+  if (j.line && j.line.industry && !j.line.urgent) L.urgent = tradeDefaults(L.industry).urgent;
   if (line.client_id !== OWN_ID) await addDuties(L, line);
   const more = greetingMore(line);
   L.heard2 = !!more;
   // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
   const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
-  let budget = 40;
+  let budget = 80;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
     const msgs = [{ r: 'a', t: greeting(line) }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
     let leads = [], rlang = 'en-US', esTold = false;
-    for (const said of (Array.isArray(script) ? script : []).slice(0, 8)) {
+    const turns = Array.isArray(script) ? script : (script && Array.isArray(script.turns) ? script.turns : []);
+    const callId = script && !Array.isArray(script) ? String(script.id || '').slice(0, 40) : '';
+    for (const said of turns.slice(0, 8)) {
       if (budget-- <= 0) break;
       msgs.push({ r: 'u', t: String(said).slice(0, 400) });
       // the same switch to Spanish a live call makes (a Spanish line, a caller speaking Spanish)
@@ -2270,8 +2284,9 @@ export async function rehearse(env) {
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
     }
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), out }), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, out }), 20000);
   }
+  return true;
 }
 
 export async function voiceCron(env) {
