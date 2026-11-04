@@ -10,17 +10,26 @@ const V = await import('../src/voice.js');
 const G = await import('../src/grades.js');
 
 const line = (o) => Object.assign({ client_id: 'c1', business: 'Harbor Point Marina', industry: 'marina', town: 'Eatonton', spanish: 1, facts: '{}' }, o || {});
+const v2 = (L) => Object.assign(L, { style: 'v2' });
 
-test('the prompt shows the manner with examples, in the trade’s words, and message-only examples for regulated offices', () => {
+test('live calls get the wording that won the blind test; the rewrite only under style v2', () => {
   const p = V.systemPrompt(V.lineView(line()), '+14785550142', 'en-US', false);
+  assert.match(p, /Is the water off\? \.\.\. Good\. I'm getting Mike on this now/);
+  assert.match(p, /give the instruction as its own short statement and only then ask/);
+  assert.doesNotMatch(p, /How it sounds/);
+  assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, "there's water coming through my kitchen ceiling like a lot of it"), /They just mentioned/);
+});
+
+test('style v2: the manner with examples, in the trade’s words, and message-only examples for regulated offices', () => {
+  const p = V.systemPrompt(v2(V.lineView(line())), '+14785550142', 'en-US', false);
   assert.match(p, /How it sounds/);
   assert.match(p, /Which slip is it in\?/, 'a marina example');
   assert.match(p, /never into water or touch power or gas/);
   assert.ok(p.length <= 14000, p.length + ' characters');
-  const reg = V.systemPrompt(V.lineView(line({ business: 'Haskell Insurance', industry: 'insurance', regulated: 1 })), '', 'en-US', false);
+  const reg = V.systemPrompt(v2(V.lineView(line({ business: 'Haskell Insurance', industry: 'insurance', regulated: 1 }))), '', 'en-US', false);
   assert.match(reg, /I can't speak to coverage/);
   assert.doesNotMatch(reg, /depends on the house|Which slip/);
-  assert.match(V.systemPrompt(V.lineView(line({ industry: 'plumbing' })), '', 'en-US', false), /All over the garage\. Is it gas or electric/);
+  assert.match(V.systemPrompt(v2(V.lineView(line({ industry: 'plumbing' }))), '', 'en-US', false), /All over the garage\. Is it gas or electric/);
 });
 
 test('what the caller named this turn, and nothing for names, addresses, numbers or a plain yes', () => {
@@ -30,12 +39,12 @@ test('what the caller named this turn, and nothing for names, addresses, numbers
   assert.deepEqual(V.mentioned("it's Tom, Tom Becker, 88 Pine Hill Road"), []);
   assert.deepEqual(V.mentioned('four seven eight five five five zero one nine nine is my number'), []);
   assert.deepEqual(V.mentioned('yes'), []);
-  const notes = V.callerNotes({ line: {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, "there's water coming through my kitchen ceiling like a lot of it");
+  const notes = V.callerNotes({ line: { style: 'v2' }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, "there's water coming through my kitchen ceiling like a lot of it");
   assert.match(notes, /They just mentioned: water, kitchen ceiling\. Let your first few words show you caught one/);
 });
 
-test('cut off mid-sentence: Max is told what they heard, and not to say it again', () => {
-  const s = { line: {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'leak' }, { r: 'a', t: 'Okay, so Saturday at eight —' }, { r: 'u', t: 'wait my number changed' }] };
+test('style v2, cut off mid-sentence: Max is told what they heard, and not to say it again', () => {
+  const s = { line: { style: 'v2' }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'leak' }, { r: 'a', t: 'Okay, so Saturday at eight —' }, { r: 'u', t: 'wait my number changed' }] };
   assert.match(V.callerNotes(s, 'wait my number changed'), /They cut you off after "Okay, so Saturday at eight"\. Do not say that part again/);
   assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [{ r: 'a', t: 'Saturday at eight work?' }, { r: 'u', t: 'yes' }] }, 'yes'), /cut you off/);
 });

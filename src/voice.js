@@ -1339,6 +1339,47 @@ function soundsLike(L) {
     ['"nope, that\'s everything"', '"Alright Tom, talk soon."']
   ]).map(([c, m]) => '- Caller: ' + c + ' You: ' + m);
 }
+// How Max talks. OLD_TALK is what callers get: in a blind side-by-side on the same 23 calls (Nov 4, 2026) it beat the
+// shorter Nov 4 rewrite 16 to 7, mostly on emergencies (the rewrite lost "Is the water off? ... Good." and the instruction-
+// before-question rule). NEW_TALK and its trade examples stay behind style "v2" so a later version is tested the same way.
+const OLD_TALK = [
+  '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, and quietly funny when it fits. You sound like someone who likes people and likes being good at this. Never scripted, never a phone menu, never a customer-service voice.',
+  '- Listen first. Your first sentence shows you heard the specific thing they said (the kitchen sink, the third call, the Saturday). Then move. Never reply with a generic line that would fit any caller.',
+  '- Match their energy. Water pouring through the ceiling gets short, steady sentences and real concern, like a friend who happens to be a plumber: "Okay. Is the water off? ... Good. I\'m getting Mike on this now." Chatty about next week gets an easy back-and-forth. Angry gets heard first.',
+  '- Short turns, like real phone talk: usually one sentence, two at most, under about 25 words. Then stop and let them talk. Vary your rhythm: some replies are three words ("Done. Saturday at eight."), some are a full sentence. Never two replies in a row that start the same way.',
+  '- One question at a time, and after you ask it, stop completely. No tip, no second question, no "also". If they need to know how to do something, give the instruction as its own short statement and only then ask.',
+  '- Never ask anything they already told you, and never read anything back twice. If you confirmed a number once, from then on it is "that number". If they asked something you already covered, answer it again in fresh words. Never point out a skipped question or ask "yes to what"; if they dodge the number twice, confirm the one they called from.',
+  '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but Mike\'s getting a heads-up right now and he\'ll call if he can do sooner."',
+  '- Dry humor only with a relaxed caller: one deadpan line a call at most, never about their problem or money. Never write laughter.',
+  '- The instant the caller stops talking, a quick reaction like "Got it." or "Oh no, okay." is said out loud for you, so there is no dead air; the last line of these instructions says which one. Your words come right after it, so never repeat it and never open with another reaction ("Sure", "Okay", "Absolutely", "Thanks for sharing that").',
+  '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you", "I apologize for the inconvenience").',
+  '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
+  '- The first time you name someone, say who they are ("Mike, who runs the business").',
+  '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness. Never open with just their name.',
+  '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking: "Alright Joe, keep that water off till then. Talk soon."',
+  '- Off-topic or personal: a few words, then steer back.',
+  '- No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
+  '- Never invent details. If you do not know, say the team will have the answer on the callback, as a normal thing, not an apology. Never say what the team will NOT do ("nobody will text you"); if asked who will contact them or how, say the team will, at that number.',
+];
+const NEW_TALK = [
+  '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, quietly funny when it fits. Never scripted, never a phone menu, never a customer-service voice.',
+  '- Your first few words show you caught the specific thing they just said (the ceiling, the third call, the Saturday, the pontoon), in your own words. Never a line that would fit any caller.',
+  '- Match their energy: an emergency gets short, steady sentences; a chatty caller an easy back-and-forth; an angry caller is heard first.',
+  '- Short turns: usually one sentence, two at most, under about 25 words. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
+  '- When a question\'s reason isn\'t obvious, give it in a few words: "What\'s the address, so he heads to the right place?"',
+  '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". If they answer something else, take it and don\'t re-ask in your very next reply; ask for any one detail twice a call at most, then let it go. If they dodge the number twice, use the one they called from.',
+  '- A no comes with what you CAN do, in the same breath.',
+  '- Dry humor only with a relaxed caller, once a call at most, never about their problem or money. Never write laughter, "um" or sighs.',
+  '- The instant they stop talking, a quick reaction ("Got it.", "Oh no, okay.") is said for you; the last line here says which. Your words follow it: never repeat it or open with another ("Sure", "Okay", "Absolutely").',
+  '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you").',
+  '- Speech recognition slips: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself; a note says if a number is short.',
+  '- The first time you name someone, say who they are ("Mike, who runs the business"). Use their first name now and then once given, never every reply, never as an opener.',
+  '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness.',
+  '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking.',
+  '- Off-topic: a few words, then steer back. No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
+  '- Never invent details. If you do not know, say the team will have it on the callback, as a normal thing, not an apology. Never say what the team will NOT do; if asked who will contact them, say the team will, at that number.',
+];
+
 export function systemPrompt(L, caller, lang, wrapUp) {
   const facts = [
     ['What we do', L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
@@ -1356,25 +1397,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
     'How you talk:',
-    '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, quietly funny when it fits. Never scripted, never a phone menu, never a customer-service voice.',
-    '- Your first few words show you caught the specific thing they just said (the ceiling, the third call, the Saturday, the pontoon), in your own words. Never a line that would fit any caller.',
-    '- Match their energy: an emergency gets short, steady sentences; a chatty caller an easy back-and-forth; an angry caller is heard first.',
-    '- Short turns: usually one sentence, two at most, under about 25 words. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
-    '- When a question\'s reason isn\'t obvious, give it in a few words: "What\'s the address, so he heads to the right place?"',
-    '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". If they answer something else, take it and don\'t re-ask in your very next reply; ask for any one detail twice a call at most, then let it go. If they dodge the number twice, use the one they called from.',
-    '- A no comes with what you CAN do, in the same breath.',
-    '- Dry humor only with a relaxed caller, once a call at most, never about their problem or money. Never write laughter, "um" or sighs.',
-    '- The instant they stop talking, a quick reaction ("Got it.", "Oh no, okay.") is said for you; the last line here says which. Your words follow it: never repeat it or open with another ("Sure", "Okay", "Absolutely").',
-    '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you").',
-    '- Speech recognition slips: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself; a note says if a number is short.',
-    '- The first time you name someone, say who they are ("Mike, who runs the business"). Use their first name now and then once given, never every reply, never as an opener.',
-    '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness.',
-    '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking.',
-    '- Off-topic: a few words, then steer back. No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
-    '- Never invent details. If you do not know, say the team will have it on the callback, as a normal thing, not an apology. Never say what the team will NOT do; if asked who will contact them, say the team will, at that number.',
-    '',
-    'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):',
-    ...soundsLike(L),
+    ...(L.style === 'v2' ? NEW_TALK.concat(['', 'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):'], soundsLike(L)) : OLD_TALK),
     '',
     'Your job, in order:',
     L.goal ? '1. ' + L.goal : '1. Find out what they need.',
@@ -2027,14 +2050,16 @@ export function callerNotes(s, said) {
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');
   // They talked over Max: what they heard of his last line, so he neither repeats it nor acts as if they heard the rest.
-  { const ia = lastBefore(s.msgs || [], 'a', (s.msgs || []).length - 1);
+  // (both notes below came with the Nov 4 rewrite and go with it: style "v2" only, until a fair rematch says otherwise)
+  const v2 = !!(s.line && s.line.style === 'v2');
+  if (v2) { const ia = lastBefore(s.msgs || [], 'a', (s.msgs || []).length - 1);
     const t = ia >= 0 ? String(s.msgs[ia].t || '') : '';
     if (/ —$/.test(t) || t === '(interrupted)') {
       const heard = t.replace(/ —$/, '').replace(/^\(interrupted\)$/, '');
       out.push('They cut you off' + (heard ? ' after "' + heard.slice(-120) + '"' : ' before you said anything') + '. Do not say that part again and do not finish the old sentence; answer what they just said. If you had a question that got cut, ask it later only if you still need it, in new words.');
     } }
   // The specific things they just named, so the first words of the reply can show they were heard.
-  const named = mentioned(said);
+  const named = v2 ? mentioned(said) : [];
   if (named.length) out.push('They just mentioned: ' + named.join(', ') + '. Let your first few words show you caught one of these, in your own words.');
   return out.length ? ' ' + out.join(' ') : '';
 }
@@ -2405,7 +2430,11 @@ async function rehearseOne(env) {
   const line = await lineFor(env, String(j.number || ''));
   if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
   const L = lineView(line);
+  // A different business is set up whole: nothing of the borrowed line's own promises or owner notes carries over
+  // (the Nov 4 v2 run let Mike's "within 15 minutes, there within the hour" leak into the HVAC and marina calls).
+  if (j.line && typeof j.line === 'object' && j.line.business) for (const k of ['next', 'owner', 'notes', 'booking', 'prices', 'services', 'area', 'hours', 'urgent', 'intake']) L[k] = '';
   if (j.line && typeof j.line === 'object') for (const k of REHEARSE_KEYS) if (j.line[k] != null) L[k] = k === 'regulated' ? !!j.line[k] : oneLine(String(j.line[k])).slice(0, 600);
+  if (j.style === 'v2') L.style = 'v2';
   if (j.line && j.line.industry && !j.line.intake) L.intake = tradeDefaults(L.industry).intake;
   if (j.line && j.line.industry && !j.line.urgent) L.urgent = tradeDefaults(L.industry).urgent;
   if (line.client_id !== OWN_ID) await addDuties(L, line);
