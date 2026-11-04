@@ -1286,7 +1286,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- Dry humor only with a relaxed caller: one deadpan line a call at most, never about their problem or money. Never write laughter.',
     '- The instant the caller stops talking, a quick reaction like "Got it." or "Oh no, okay." is said out loud for you, so there is no dead air; the last line of these instructions says which one. Your words come right after it, so never repeat it and never open with another reaction ("Sure", "Okay", "Absolutely", "Thanks for sharing that").',
     '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you", "I apologize for the inconvenience").',
-    '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a number or name is truly unclear, or a number is not a real 10-digit US number (like all one digit).',
+    '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
     '- The first time you name someone, say who they are ("Mike, who runs the business").',
     '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness. Never open with just their name.',
     '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking: "Alright Joe, keep that water off till then. Talk soon."',
@@ -1600,7 +1600,7 @@ const LEADS = {
 
 const LEADS_ES = {
   repeat: ['Perdón.'], danger: ['Entiendo.'], thanks: ['Con gusto.', 'De nada.'], hi: ['Hola.'],
-  wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Muy bien.', 'Entiendo.', 'Perfecto.']
+  wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Entiendo.', 'Ajá.']
 };
 
 // Spoken with the pitch held up ("Got it," not "Got it."), so the reaction flows into the answer like one breath instead
@@ -1767,6 +1767,54 @@ export function addrReadback(said) {
   }
   return null;
 }
+// A phone number the caller said, counted by code ("four seven eight five five five zero one nine nine" -> 10 digits).
+// The stronger model miscounts spoken digits and told callers a complete number was "a digit short", so Max never
+// counts: he is told the count and the exact read-back. Returns null when nothing in what they said looks like one.
+const ES_DIGIT = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
+export function phoneReadback(said) {
+  const ws = String(said || '').toLowerCase().replace(/[()+.;:]/g, ' ').replace(/,/g, ' , ').replace(/(\d)-(?=\d)/g, '$1').replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+  const isNum = w => /^\d+$/.test(w) || isNumWord(w) || w in ES_DIGIT || /^(double|triple|dash)$/.test(w);
+  const seg = run => {   // one comma-free stretch of number words and digits -> its digits ('' if it doesn't parse)
+    let d = '', words = [], bad = false;
+    const end = () => { if (words.length) { const x = wordsToDigits(words); if (x === '') bad = true; else d += x; words = []; } };
+    for (let i = 0; i < run.length; i++) {
+      const w = run[i];
+      if (/^\d+$/.test(w)) { end(); d += w; continue; }
+      if (w in ES_DIGIT) { end(); d += String(ES_DIGIT[w]); continue; }
+      if ((w === 'double' || w === 'triple') && run[i + 1] in NUM_UNIT) { end(); d += String(NUM_UNIT[run[i + 1]]).repeat(w === 'double' ? 2 : 3); i++; continue; }
+      if (w === 'dash') { end(); continue; }
+      words.push(w);
+    }
+    end();
+    return bad ? '' : d;
+  };
+  const cands = [];
+  let segs = [], cur = [];
+  const close = () => {
+    if (cur.length) segs.push(seg(cur)); cur = [];
+  };
+  const finish = () => {
+    close();
+    if (!segs.length) return;
+    // a number followed by a house number ("... zero one two three, 90 Elm Street"): stop where the commas make ten
+    let acc = '', hit = '';
+    for (const g of segs) { acc += g; if (acc.length === 10 || (acc.length === 11 && acc[0] === '1')) { hit = acc; break; } }
+    cands.push(hit || segs.join(''));
+    segs = [];
+  };
+  for (const w of ws) {
+    if (w === ',') { close(); continue; }
+    if (isNum(w)) cur.push(w); else finish();
+  }
+  finish();
+  const ten = cands.find(c => c.length === 10 || (c.length === 11 && c[0] === '1'));
+  const best = ten || cands.sort((x, y) => y.length - x.length)[0] || '';
+  if (best.length < 7 || best.length > 12) return null;
+  const d = best.length === 11 && best[0] === '1' ? best.slice(1) : best;
+  const say = d.length === 10 ? [d.slice(0, 3), d.slice(3, 6), d.slice(6)].map(g => g.split('').map(x => DIGIT_WORD[+x].replace('oh', 'zero')).join(' ')).join(', ') : '';
+  return { digits: d, n: d.length, say };
+}
+const N_WORD = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const NOT_OUR_WORK = /\b(we don'?t do|we do not do|isn'?t something we do|is not something we do|not something we (do|handle)|we'?re (a |just a |only a )?[a-z]+ (company|business|shop|office)|we can'?t (send anyone|do electrical|do that work))\b/i;
 const DANGER_CALL = /\b(smoke|smoking|sparks?|sparking|fire|flames?|burning smell|smells? (like )?(gas|burning)|gas leak|carbon monoxide|co alarm|electrocut\w*|huele a gas|humo|chispas|fuego|incendio)\b/;
 const WATER_ELECTRIC = /\b(water|flood\w*|wet|leak\w*)\b.{0,80}\b(outlets?|panel|breakers?|electric\w*|wires?|wiring|plugs?|power)\b|\b(outlets?|panel|breakers?|electric\w*|wires?|wiring|plugs?)\b.{0,80}\b(water|wet|flood\w*)\b/;
@@ -1801,6 +1849,13 @@ export function callerNotes(s, said) {
       ? 'They gave a street number in words. Check it once with exactly these words, nothing added: "' + rb.say + ', right?" Use this read-back, never a different number or street, never an address from anywhere else. Never add the town or "Is that right?" on top. Once they say yes, never read it back again.'
       : 'They gave a street number in words. Check it once, digit by digit, using only the number and street name they just said, never a different one or one from anywhere else. Never add the town. Once they say yes, never read it back again.');
   }
+  // A phone number they just said: counted by code, never by Max.
+  { const ph = phoneReadback(said);
+    if (ph) out.push(ph.n === 10
+      ? 'They just gave a phone number. Code counted it: ten digits, complete. If you check it, say exactly "' + ph.say + '". It is complete and correct: never say it is short, missing a digit or different from the number they are calling from, and never ask for it again.'
+      : ph.n === 7
+        ? 'They gave a seven-digit phone number with no area code (code counted it). Ask once, briefly, for just the area code.'
+        : 'Code counted ' + N_WORD[ph.n] + ' digits in the phone number they gave, so a digit may be ' + (ph.n < 10 ? 'missing' : 'extra') + '. Ask them once, kindly, to say the whole number again.'); }
   // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
   if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. No repair steps; at most, closing a water valve that is easy and safe to reach if something is actively leaking. Never anything electrical or gas.');
   // When they ask how soon the owner calls: the business's own emergency callback time if it set one, otherwise a polite "as soon as he's free".
@@ -1896,7 +1951,7 @@ function leadKindEs(raw) {
   if (!w || /^(eh+|em+|este|mm+|pues|bueno|o sea)$/.test(w)) return '';
   const at = re => re.test(w);
   if (/^(qué|que|cómo|como|perdón|perdon|mande)$/.test(w) || at(/(no (le |te )?(escuché|escuche|oí|oi|entendí|entendi)|repita|repítalo|se corta)/)) return 'repeat';
-  if (at(/(emergencia|urgente|herid|fuego|incendio|sangr|911|ambulancia|no respira)/)) return 'danger';
+  if (at(/(emergencia|urgente|herid|fuego|incendio|sangr|911|ambulancia|no respira|gas|humo|chispa|inund|fuga|se sale el agua|se está saliendo)/)) return 'danger';
   if (!q && at(/gracias/)) return 'thanks';
   if (/^(hola|buenos días|buenos dias|buenas tardes|buenas noches|buenas|aló|alo)$/.test(w)) return 'hi';
   if (q || /^(qué|cómo|cuándo|dónde|cuánto|cuánta|cuántos|cuántas|por qué|quién|cuál|puede|pueden|tiene|tienen|hay|hacen|trabajan)(\s|$)/.test(w)) return 'wh';
