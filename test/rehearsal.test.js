@@ -341,6 +341,9 @@ test('once the business’s texting registration is approved, a hang-up gets one
   assert.match(world.texts[0].Body, /Sinclair Plumbing/); assert.match(world.texts[0].Body, /STOP/);
   const row = await get('SELECT summary FROM app_calls WHERE id = ?1', sid);
   assert.match(row.summary, /We texted them back/, 'the owner’s note says a text went out');
+  const ot = world.ownerTexts.at(-1);
+  assert.ok(ot && ot.To === '+14785550101', 'the owner gets the after-call text on their own phone');
+  assert.match(ot.Body, /^Max: Missed call from \(478\) 555-0166\.\nThey hung up before leaving a message\.\nCall back: \(478\) 555-0166$/);
 });
 
 test('a number the owner listed as a tester is marked as a test: no live card, not counted', async () => {
