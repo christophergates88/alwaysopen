@@ -33,11 +33,15 @@ function reviveSheet(){
   if(done.length)h+='<h2>Recent</h2><div class="list">'+done.slice(0,8).map(function(i){return '<p class="note" style="margin:4px 0"><b>'+esc(i.name)+'</b>: '+esc(pcWhen(i))+'</p>';}).join('')+'</div>';
   sheet(h+'<div class="acts"><button class="btn ghost" type="button" data-close="1">Close</button></div>');
 }
+var HOWTO=[['QuickBooks Online','Sales, then Customers. Tap the Export icon above the list (Export to Excel). Open the file and save it as CSV.'],['Jobber','Clients, then More Actions, then Export. It downloads as a CSV.'],['Housecall Pro','Customers, then the Export button above the list.'],['Square','Customers, then Directory, then Import / Export, then Export customers.'],['Google Contacts','contacts.google.com, then Export, then Google CSV.'],['A spreadsheet','Google Sheets: File, Download, Comma-separated values. Excel: File, Save As, CSV.'],['Your phone','Not easy from a phone. Email us your list in any form and we’ll do it.']];
 var PF=[['name','Name'],['phone','Phone'],['email','Email'],['work','What was done'],['date','Date'],['amount','Amount']];
 function importSheet(res){
   var h='<h2>Import your customers</h2>';
   if(!res){
-    h+='<p class="fine">Export your customer or job list from your invoicing software or spreadsheet as a CSV file, then choose it here. We look for name, phone, email, what was done, the date and the amount. Nothing is sent to anyone.</p><label>CSV file<input type="file" id="pc-file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label><div class="acts"><button class="btn ghost" type="button" data-close="1">Cancel</button></div>';
+    h+='<p class="fine">Save your customer or job list as a CSV file, then choose it here. We look for name, phone, email, what was done, the date and the amount. Nothing is sent to anyone.</p><label>CSV file<input type="file" id="pc-file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label>'+
+      '<details class="howto" style="margin:10px 0"><summary><b>How do I get that file?</b></summary>'+HOWTO.map(function(x){return '<p class="note" style="margin:8px 0 0"><b>'+x[0]+'</b>: '+x[1]+'</p>';}).join('')+
+      '<p class="fine" style="margin-top:10px">Menus move around between versions. Can’t find it, or rather not deal with it? Email the file to <b>hello@alwaysopenoffice.com</b> and we’ll import it for you, usually the same day.</p></details>'+
+      '<div class="acts"><button class="btn ghost" type="button" data-close="1">Cancel</button></div>';
     return sheet(h);
   }
   h+='<p class="note" style="margin:0"><b>'+res.valid+'</b> of '+res.total+' rows can be used, for <b>'+res.customers+'</b> customers.'+(res.skipped?' '+res.skipped+' skipped.':'')+'</p>';

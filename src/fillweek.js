@@ -16,6 +16,7 @@ let ready = false;
 export async function ensureFill(env) {
   if (ready) return;
   await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS fillweek_cache (client_id TEXT PRIMARY KEY, at TEXT, day TEXT, say TEXT)'),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek (client_id TEXT PRIMARY KEY, on_ INTEGER DEFAULT 0, agreed_at TEXT DEFAULT '', agreed_by TEXT DEFAULT '', updated TEXT DEFAULT '')"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, day TEXT, created TEXT, by TEXT DEFAULT '', offers INTEGER DEFAULT 0, booked INTEGER DEFAULT 0)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_offers (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, client_id TEXT NOT NULL, phone10 TEXT NOT NULL, name TEXT DEFAULT '', job TEXT DEFAULT '', day TEXT DEFAULT '', status TEXT DEFAULT 'sent', at TEXT, result TEXT DEFAULT '')"),
@@ -33,7 +34,7 @@ const clean = s => String(s || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ')
 
 // Who gets an offer. customers: [{name, phone10, agreed, optout}]; jobs: [{phone, title, at}];
 // recent: phone10s offered in the last 90 days; stopped: phone10s that opted out of texts.
-export function pickCandidates(customers, jobs, recent, stopped, now) {
+export function pickCandidates(customers, jobs, recent, stopped, now, limit) {
   const last = new Map();
   for (const j of jobs) {
     const p = ph10(j.phone), t = Date.parse(j.at || '');
@@ -54,7 +55,7 @@ export function pickCandidates(customers, jobs, recent, stopped, now) {
     skip.add(p);
   }
   out.sort((a, b) => (b.amount - a.amount) || (a.lastAt - b.lastAt));
-  return out.slice(0, MAX_OFFERS);
+  return out.slice(0, limit || MAX_OFFERS);
 }
 
 export function whenText(lastAt, now) {
@@ -96,6 +97,17 @@ export function openDays(slots, tz, now) {
 }
 
 // Run once for one client. day: 'YYYY-MM-DD' (optional; the first open day otherwise).
+// Everyone who could get an offer: customers OK to contact, their jobs, who got one lately, who said STOP.
+async function people(env, cid, now) {
+  const all = async (sql, ...p) => { try { return ((await env.DB.prepare(sql).bind(...p).all()).results) || []; } catch (e) { return []; } };
+  const customers = await all('SELECT name, phone, phone10, agreed, optout FROM biz_customers WHERE client_id = ?1 AND agreed = 1 AND optout = 0 AND phone10 != \'\' LIMIT 5000', cid);
+  const jobs = (await all("SELECT phone, title, amount, CASE WHEN source = 'import' THEN created ELSE COALESCE(NULLIF(updated, ''), created) END AS at FROM biz_jobs WHERE client_id = ?1 AND (stage IN ('done', 'paid') OR source = 'import') LIMIT 8000", cid))
+    .concat(await all('SELECT phone, job AS title, 0 AS amount, at FROM app_jobs WHERE client_id = ?1 LIMIT 8000', cid));
+  const recent = (await all('SELECT phone10 FROM fillweek_offers WHERE client_id = ?1 AND at > ?2', cid, new Date(now - GAP_DAYS * 864e5).toISOString())).map(r => r.phone10);
+  const stopped = (await all('SELECT phone10 FROM sms_optout WHERE client_id = ?1', cid)).map(r => r.phone10);
+  return { customers, jobs, recent, stopped };
+}
+
 export async function runFill(env, c, opts) {
   await ensureFill(env);
   const now = (opts && opts.now) || Date.now();
@@ -110,12 +122,7 @@ export async function runFill(env, c, opts) {
   const days = openDays(open.slots, open.tz, now);
   const pick = (opts && opts.day) ? days.find(d => d.day === opts.day) : days[0];
   if (!pick) return { ok: false, error: 'No weekday in the next week has a few open hours on your calendar.' };
-  const all = async (sql, ...p) => { try { return ((await env.DB.prepare(sql).bind(...p).all()).results) || []; } catch (e) { return []; } };
-  const customers = await all('SELECT name, phone, phone10, agreed, optout FROM biz_customers WHERE client_id = ?1 AND agreed = 1 AND optout = 0 AND phone10 != \'\' LIMIT 5000', c.client_id);
-  const jobs = (await all("SELECT phone, title, amount, CASE WHEN source = 'import' THEN created ELSE COALESCE(NULLIF(updated, ''), created) END AS at FROM biz_jobs WHERE client_id = ?1 AND (stage IN ('done', 'paid') OR source = 'import') LIMIT 8000", c.client_id))
-    .concat(await all('SELECT phone, job AS title, 0 AS amount, at FROM app_jobs WHERE client_id = ?1 LIMIT 8000', c.client_id));
-  const recent = (await all('SELECT phone10 FROM fillweek_offers WHERE client_id = ?1 AND at > ?2', c.client_id, new Date(now - GAP_DAYS * 864e5).toISOString())).map(r => r.phone10);
-  const stopped = (await all('SELECT phone10 FROM sms_optout WHERE client_id = ?1', c.client_id)).map(r => r.phone10);
+  const { customers, jobs, recent, stopped } = await people(env, c.client_id, now);
   const cands = pickCandidates(customers, jobs, recent, stopped, now);
   if (!cands.length) return { ok: false, error: 'Nobody is due right now: no past customer who agreed to hear from you had their last job 6 months to 3 years ago, or they already got an offer lately.' };
   const ins = await env.DB.prepare('INSERT INTO fillweek_runs (client_id, day, created, by) VALUES (?1, ?2, ?3, ?4)').bind(c.client_id, pick.day, new Date(now).toISOString(), (opts && opts.by) || 'Always Open').run();
@@ -227,12 +234,41 @@ export async function apiFill(req, env, c) {
   return { ok: false, error: 'Bad request' };
 }
 
-// For the app.
-export async function fillState(env, c) {
+// For the app: the five steps with what is done, how many past customers are due right now, and the next open day.
+// The calendar is read at most every 30 minutes per business (the app reloads every minute).
+export async function fillState(env, c, now) {
   if (+c.regulated || c.staff) return null;
+  now = now || Date.now();
+  await ensureFill(env);
   const r = await row(env, c.client_id);
-  const ready = await readiness(env, c).catch(() => ({ ok: false, why: '' }));
+  const pro = c.tier === 'Pro' || String(c.feats || '').split(',').map(x => x.trim()).includes('fillweek');
+  let texting = false, calendar = false;
+  try { const { senderFor, TEXTING_ON } = await import('./sms.js'); texting = !!(TEXTING_ON && await senderFor(env, c.client_id)); } catch (e) { texting = false; }
+  try { calendar = !!(await (await import('./gcal.js')).gcalStatus(env, c.client_id)).connected; } catch (e) { calendar = false; }
+  const { customers, jobs, recent, stopped } = await people(env, c.client_id, now);
+  const due = pickCandidates(customers, jobs, recent, stopped, now, 100000).length;
+  let nextDay = null;
+  if (calendar) {
+    const cached = await env.DB.prepare('SELECT at, day, say FROM fillweek_cache WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
+    if (cached && now - Date.parse(cached.at) < 30 * 60e3) nextDay = cached.day ? { day: cached.day, say: cached.say } : null;
+    else {
+      try {
+        const open = await (await import('./gcal.js')).openSlots(env, c.client_id, now, 12);
+        const d = open ? openDays(open.slots, open.tz, now)[0] : null;
+        nextDay = d ? { day: d.day, say: shortSlot(d.slots[0].say) } : null;
+        await env.DB.prepare('INSERT OR REPLACE INTO fillweek_cache (client_id, at, day, say) VALUES (?1, ?2, ?3, ?4)').bind(c.client_id, new Date(now).toISOString(), nextDay ? nextDay.day : '', nextDay ? nextDay.say : '').run();
+      } catch (e) { nextDay = null; }
+    }
+  }
+  const steps = [
+    { k: 'pro', label: 'On the Pro plan', done: pro },
+    { k: 'texting', label: 'Texting approved for your business number', done: texting },
+    { k: 'calendar', label: 'Google Calendar connected', done: calendar },
+    { k: 'customers', label: customers.length ? customers.length + (customers.length === 1 ? ' past customer' : ' past customers') + ' OK to contact' : 'Past customers imported', done: customers.length > 0 },
+    { k: 'on', label: 'Turned on', done: !!r.on }
+  ];
+  const ready = pro && texting && calendar;
   const last = await env.DB.prepare('SELECT day, created, offers, booked FROM fillweek_runs WHERE client_id = ?1 ORDER BY id DESC LIMIT 1').bind(c.client_id).first().catch(() => null);
-  return { on: r.on, ready: ready.ok, why: ready.ok ? '' : ready.why, agreement: AGREEMENT,
+  return { on: r.on, ready, why: ready ? '' : (steps.find(x => !x.done && x.k !== 'customers' && x.k !== 'on') || {}).label || '', agreement: AGREEMENT, steps, due, customers: customers.length, nextDay,
     last: last ? { day: last.day, at: last.created, offers: +last.offers || 0, booked: +last.booked || 0 } : null };
 }

@@ -92,12 +92,23 @@ function setBlock(){
       h+='<div class="acts" style="margin-top:8px;gap:8px;flex-wrap:wrap">'+(F.paused?'<button class="btn sm" type="button" data-a="fm-resume">Resume</button>':'<button class="btn red sm" type="button" data-a="fm-pause">Pause everything</button>')+'<button class="btn ghost sm" type="button" data-a="fm-off">Turn Full Max off</button></div>';
     }
   }
-  if(S.fillWeek){var W=S.fillWeek;
-    h+='<p class="note" style="margin:14px 0 4px"><b>Fill my week</b></p>';
-    if(!W.ready&&W.why)h+='<p class="note" style="margin:0">When your calendar has an open day coming up, past customers who agreed to hear from you get one text offering it, and the first YES is booked. '+esc(W.why)+'</p>';
-    else if(!W.on)h+='<p class="note" style="margin:0">Off. Turn it on and when your calendar has an open day coming up, past customers who agreed to hear from you get one text offering it. The first YES is booked on your calendar.</p><div class="acts" style="margin-top:8px"><button class="btn line sm" type="button" data-a="fw-agree">Turn Fill my week on</button></div>';
-    else h+='<p class="note" style="margin:0">On. '+(W.last?'Last time: '+W.last.offers+(W.last.offers===1?' offer':' offers')+' for '+esc(W.last.day)+', '+W.last.booked+' booked.':'It checks your calendar each weekday morning.')+' Each customer gets at most one offer in 90 days.</p><div class="acts" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-a="fw-run">Fill my next open day now</button><button class="btn ghost sm" type="button" data-a="fw-off">Turn it off</button></div>';
+  if(S.fillWeek){var W=S.fillWeek,st=W.steps||[],nd=st.filter(function(x){return x.done;}).length;
+    var calUrl='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());
+    var act=function(x){if(x.done)return '';
+      if(x.k==='pro')return '<button class="btn line sm" type="button" data-go="up">See Pro</button>';
+      if(x.k==='texting')return '<span class="fine" style="margin:0">The carriers usually approve it 1 to 2 weeks after signup. Nothing for you to do.</span>';
+      if(x.k==='calendar')return '<a class="btn line sm" href="'+esc(calUrl)+'">Connect Google Calendar</a>';
+      if(x.k==='customers')return '<button class="btn line sm" type="button" data-a="pc-import">Import my customers</button>';
+      if(x.k==='on')return W.ready?'<button class="btn red sm" type="button" data-a="fw-agree">Turn Fill my week on</button>':'<span class="fine" style="margin:0">Once the steps above are done.</span>';
+      return '';};
+    h+='<p class="note" style="margin:14px 0 4px"><b>Fill my week</b>'+(st.length?' · '+nd+' of '+st.length+' ready':'')+'</p>';
+    h+='<p class="note" style="margin:0 0 8px">When your calendar has an open day coming up, past customers who are due get one text offering it. The first YES is booked on your calendar.</p>';
+    if(W.customers||W.nextDay){var bits=[];if(W.customers)bits.push(W.due?'<b>'+W.due+(W.due===1?' past customer is':' past customers are')+' due</b>':'<b>Nobody is due yet</b> (it offers days to customers whose last job was 6 months to 3 years ago)');if(W.nextDay)bits.push('<b>'+esc(W.nextDay.say)+'</b> is open');
+      h+='<p class="note" style="margin:0 0 8px;color:var(--ink)">'+bits.join(' · ')+'</p>';}
+    h+='<ul class="fwsteps" style="list-style:none;margin:0 0 8px;padding:0;display:grid;gap:8px">'+st.map(function(x){return '<li style="display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start"><span aria-hidden="true" style="font-weight:800;color:'+(x.done?'var(--ok)':'var(--slate)')+'">'+(x.done?'✓':'○')+'</span><span><span style="'+(x.done?'':'font-weight:600')+'">'+esc(x.label)+'</span>'+(x.done?'':'<span style="display:block;margin-top:4px">'+act(x)+'</span>')+'</span></li>';}).join('')+'</ul>';
+    if(W.on)h+='<p class="note" style="margin:0">'+(W.last?'Last time: '+W.last.offers+(W.last.offers===1?' offer':' offers')+' for '+esc(new Date(W.last.day+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'}))+', '+W.last.booked+' booked. ':'It checks your calendar each weekday morning. ')+'Each customer gets at most one offer in 90 days.</p><div class="acts" style="margin-top:8px;gap:8px;flex-wrap:wrap">'+(W.ready?'<button class="btn sm" type="button" data-a="fw-run">Fill my next open day now</button>':'')+'<button class="btn ghost sm" type="button" data-a="fw-off">Turn it off</button></div>';
   }
+
   g3=h;h='';
   if(S.answer){var A=S.answer;h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ans"'+(A.show?' checked':'')+'> <span>Show my after-hours answer rate on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+(A.publicLine?'Showing: "'+esc(A.publicLine)+'". ':'Shows once a month has '+A.minCalls+' or more after-hours calls. ')+'After hours means evenings, nights and weekends. Real calls, counted, never estimated.'+(A.paste?' <button class="btn line sm" type="button" data-a="bz-ans-copy" style="margin-top:6px">Copy a line for your Google profile</button>':'')+'</p>';}
   g2=g2+h;h='';
