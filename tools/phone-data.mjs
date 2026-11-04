@@ -94,7 +94,7 @@ export const PAGES = {
   index: {
     heading: 'What nobody else does. Tap to try it.',
     sub: 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.',
-    short: 'Calls, reviews, follow-ups and your Google listing, handled. On the 2nd of every month, one page shows what it did.',
+    short: 'Calls, reviews, follow-ups and your Google listing, handled. One page shows what it did, live all month and sent to you on the 2nd.',
     chips: true,
     cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sinclair Plumbing',
       ai: { q: 'What’s the number for Sinclair Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Sinclair Plumbing, 478-555-0142. They answer around the clock.' } }))

@@ -21,16 +21,19 @@ const STATES = { AL: 1, AK: 1, AZ: 1, AR: 1, CA: 1, CO: 1, CT: 1, DE: 1, DC: 1, 
 export function stateOf(town) { const m = /,\s*([A-Za-z]{2})\s*$/.exec(String(town || '').trim()); const s = m ? m[1].toUpperCase() : ''; return STATES[s] ? s : ''; }
 
 // The kind of work, for Max's instructions, hand-offs and the texting registration. The name says more than the signup box.
-const BY_NAME = [[/\bplumb/, 'plumbing'], [/\bhvac\b|\bheating\b|\bcooling\b|\bair cond|\bheat\b/, 'hvac'], [/\belectric/, 'electrical'], [/\broof/, 'roofing'], [/\blandscap|\blawn|\bmow/, 'landscaping'], [/\bpest\b|\btermite|\bexterminat/, 'pest control'],
+// Regulated kinds first, so a word like "harbor" or "auto" in a dental office's, agency's or law firm's name can never
+// make it a trade (a trade's Max books jobs; theirs only takes messages).
+const BY_NAME = [[/\bdental\b|\bdentist/, 'dental'], [/\binsurance\b/, 'insurance'], [/\blaw\b|\battorneys?\b|\blegal\b/, 'legal'], [/\bplumb/, 'plumbing'], [/\bhvac\b|\bheating\b|\bcooling\b|\bair cond|\bheat\b/, 'hvac'], [/\belectric/, 'electrical'], [/\broof/, 'roofing'], [/\blandscap|\blawn|\bmow/, 'landscaping'], [/\bpest\b|\btermite|\bexterminat/, 'pest control'],
   [/\bpools?\b/, 'pools'], [/\bpaint/, 'painting'], [/\btrees?\b/, 'tree service'], [/\bpressure wash|\bpower wash/, 'pressure washing'], [/\bclean|\bmaids?\b/, 'cleaning'], [/\bfenc/, 'fencing'], [/\bconcrete\b|\bpaving\b/, 'concrete'],
   [/\bgarage doors?\b/, 'garage doors'], [/\bseptic\b/, 'septic'], [/\bgutters?\b/, 'gutters'], [/\bfloor/, 'flooring'], [/\bremodel|\bconstruct|\bbuilders?\b|\bbuilding\b/, 'builders'], [/\bmoving\b|\bmovers\b/, 'moving'], [/\btow(ing)?\b/, 'towing'],
-  [/\bauto\b|\bautomotive\b|\btires?\b|\bmechanic|\bcollision\b|\btransmission|\bdetail/, 'auto repair'], [/\bdocks?\b/, 'docks'], [/\bmarinas?\b|\byacht club\b|\bboat rentals?\b|\bharbou?r\b/, 'marina'], [/\bmarine\b|\bboats?\b/, 'marine'], [/\bbarber/, 'barber'], [/\bsalon\b|\bhair\b|\bnails?\b|\bbeauty\b/, 'salon'], [/\bfitness\b|\bgym\b|\byoga\b|\bpilates\b/, 'fitness'],
-  [/\bgroom/, 'pet grooming'], [/\bdental\b|\bdentist/, 'dental'], [/\binsurance\b/, 'insurance'], [/\blaw\b|\battorneys?\b|\blegal\b/, 'legal'], [/\bclinic\b|\bmedical\b|\bchiropract|\btherap|\bdoctors?\b/, 'medical'], [/\brestaurant\b|\bcafe\b|\bgrill\b|\bbbq\b|\bpizza\b|\bbakery\b|\bdiner\b/, 'restaurant'], [/\bfoam\b|\bparty\b|\bparties\b|\bevents?\b|\brentals?\b/, 'party rentals']];
-const BY_TYPE = { 'Contractor or trade': 'contractor', 'Dock, marine or outdoor': 'marine', 'Salon, spa or fitness': 'salon', 'Restaurant or shop': 'restaurant', 'Insurance agency': 'insurance', 'Medical, dental or legal': 'medical' };
+  [/\bauto\b|\bautomotive\b|\btires?\b|\bmechanic|\bcollision\b|\btransmission|\bdetail/, 'auto repair'], [/\bdocks?\b/, 'docks'], [/\bmarinas?\b(?!['’]s)|\byacht club\b|\bboat rentals?\b/, 'marina'], [/\bmarine\b|\bboats?\b/, 'marine'], [/\bbarber/, 'barber'], [/\bsalon\b|\bhair\b|\bnails?\b|\bbeauty\b/, 'salon'], [/\bfitness\b|\bgym\b|\byoga\b|\bpilates\b/, 'fitness'],
+  [/\bgroom/, 'pet grooming'], [/\bclinic\b|\bmedical\b|\bchiropract|\btherap|\bdoctors?\b/, 'medical'], [/\brestaurant\b|\bcafe\b|\bgrill\b|\bbbq\b|\bpizza\b|\bbakery\b|\bdiner\b/, 'restaurant'], [/\bfoam\b|\bparty\b|\bparties\b|\bevents?\b|\brentals?\b/, 'party rentals']];
+const BY_TYPE = { 'Contractor or trade': 'contractor', 'Dock, marine or outdoor': 'marine', 'Salon, spa or fitness': 'salon', 'Restaurant or shop': 'restaurant', 'Insurance agency': 'insurance', 'Medical, dental or legal': 'medical', 'Medical, dental or vet': 'medical' };
 export function industryOf(business, type) {
   const n = String(business || '').toLowerCase();
   if (type === 'Insurance agency') return 'insurance';
-  for (const [re, k] of BY_NAME) if (re.test(n)) return type === 'Medical, dental or legal' && !/dental|legal|medical/.test(k) ? 'medical' : k;
+  const med = /^Medical, dental or (legal|vet)$/.test(String(type || ''));
+  for (const [re, k] of BY_NAME) if (re.test(n)) return med && !/dental|legal|medical/.test(k) ? 'medical' : k;
   return BY_TYPE[type] || '';
 }
 

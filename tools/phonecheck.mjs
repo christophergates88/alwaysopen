@@ -140,7 +140,7 @@ for (const w of WIDTHS) {
       if (await page.$('#check')) { await page.evaluate(() => { const s = document.getElementById('audit'); const b = s && s.querySelector(':scope > .ao-foldbar'); if (b && !s.classList.contains('ao-open')) b.click(); });
         await page.waitForTimeout(200); await page.fill('#c-q', 'Sample Plumbing'); await page.fill('#c-town', 'Eatonton, GA');
       const sb = page.locator('#check button[type=submit]'); await sb.scrollIntoViewIfNeeded(); const bb = await sb.boundingBox(); await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);   // a real tap: a locator click in touch mode taps the pre-scroll spot
-      await page.waitForFunction(() => (document.getElementById('check-out') || {}).textContent.trim().length > 0, null, { timeout: 3000 }).catch(() => problems.push(name + ': the instant check did not answer')); }
+      await page.waitForFunction(() => { const o = document.getElementById('check-out'); return !!(o && o.querySelector('.check-score, #check-go')); }, null, { timeout: 4000 }).catch(() => problems.push(name + ': the instant check did not answer')); }
       // Spanish: every swap finds its place, the switch is a full tap, nothing scrolls sideways, English comes back.
       const es = await page.evaluate(() => {
         const btn = document.querySelector('[data-lang-t]'); if (!btn) return ['no ES/EN switch'];

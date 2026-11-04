@@ -20,7 +20,7 @@ const ping = async (env, title, body, pr) => { pings.push({ title, body, pr }); 
 const g = (subject, text) => ({ from: 'businessprofile-noreply@google.com', subject, auth: 'mx.cloudflare.net; dkim=pass header.d=google.com; dmarc=pass header.from=google.com', text });
 
 test('reading a raw email: headers, quoted-printable, base64 and HTML parts', () => {
-  const raw = 'From: "Google Business Profile" <businessprofile-noreply@google.com>\r\nSubject: =?UTF-8?Q?New_review_for_Sinclair_Plumbing?=\r\nAuthentication-Results: mx; dkim=pass header.d=google.com\r\n' +
+  const raw = 'From: "Google Business Profile" <businessprofile-noreply@google.com>\r\nSubject: =?UTF-8?Q?New_review_for_Sinclair_Plumbing?=\r\nAuthentication-Results: mx.cloudflare.net;\r\n\tdkim=pass header.d=google.com header.s=20260707;\r\n\tdmarc=pass header.from=google.com policy.dmarc=reject;\r\n\tspf=pass smtp.mailfrom=google.com\r\n' +
     'Content-Type: multipart/alternative; boundary="b1"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nDana R. left a 5=E2=98=85 review=\r\n: Fixed our leak fast.\r\n--b1\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--b1--\r\n';
   const m = M.readEmail(raw);
   assert.equal(m.from, 'businessprofile-noreply@google.com');
@@ -34,7 +34,32 @@ test('reading a raw email: headers, quoted-printable, base64 and HTML parts', ()
 test('only real Google mail counts: lookalike domains and failed signatures are ignored', () => {
   assert.equal(M.fromGoogle({ from: 'reviews@google.com.evil.io', subject: 'New review', auth: '', text: '' }), false);
   assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'New review', auth: 'dkim=fail; dmarc=fail', text: '' }), false);
-  assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'Your verification', auth: 'dkim=pass header.d=google.com', text: 'Submit a new video.' }), false);
+  assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'Your verification', auth: 'mx.cloudflare.net; dmarc=pass header.from=google.com', text: 'Submit a new video.' }), false);
+  assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'New review', auth: '', text: '' }), false, 'no result from Cloudflare: not trusted');
+  assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'New review', auth: 'mx.cloudflare.net; dmarc=pass header.from=google.com.evil.io', text: '' }), false);
+  assert.equal(M.fromGoogle({ from: 'noreply@google.com', subject: 'New review', auth: 'mx.evil.io; dmarc=pass header.from=google.com', text: '' }), false, 'someone else’s result');
+  assert.equal(M.fromGoogle({ from: 'noreply@google.com', froms: 2, subject: 'New review', auth: 'mx.cloudflare.net; dmarc=pass header.from=google.com', text: '' }), false, 'two From lines');
+  // A forger adds their own "pass" lower down; Cloudflare's own result sits on top and says fail.
+  const forged = M.readEmail('Authentication-Results: mx.cloudflare.net; dkim=none; dmarc=fail header.from=google.com policy.dmarc=reject\r\nFrom: <businessprofile-noreply@google.com>\r\nAuthentication-Results: mx.cloudflare.net; dmarc=pass header.from=google.com\r\nSubject: New review for Sinclair Plumbing\r\n\r\nDana left a review');
+  assert.equal(M.googleAuth(forged), 'dmarc did not pass');
+  const two = M.readEmail('Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=google.com\r\nFrom: <evil@example.com>\r\nFrom: <businessprofile-noreply@google.com>\r\nSubject: New review\r\n\r\nx');
+  assert.equal(M.fromGoogle(two), false);
+});
+
+test('a forged review email drafts nothing and tells Christopher once a day; an out-of-office reply does not stop follow-ups', async () => {
+  const db = await seeded(); const env = { DB: db, MAIL_TO: 'owner@example.com' }; pings.length = 0;
+  for (const col of ['stop', 'stop_at']) { try { await db.prepare('ALTER TABLE leads ADD COLUMN ' + col + ' TEXT').run(); } catch (e) {} }
+  await db.prepare("INSERT INTO leads (at, email, stop) VALUES ('2026-11-01T00:00:00Z', 'sam@example.com', '')").run();
+  const msg = raw => ({ rawSize: raw.length, raw: new Response(raw).body, forward: async () => {} });
+  const fake = 'From: <businessprofile-noreply@google.com>\r\nSubject: New review for Sinclair Plumbing\r\n\r\nDana left a 1-star review';
+  const r = await M.inbound(msg(fake), env, {}, { ping });
+  assert.equal(r.skipped, 'unverified: no cloudflare result');
+  await M.inbound(msg(fake), env, {}, { ping });
+  assert.equal(pings.filter(p => /was not trusted/.test(p.title)).length, 1);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM app_items').first()).n, 0);
+  const ooo = await M.inbound(msg('From: Sam <sam@example.com>\r\nAuto-Submitted: auto-replied\r\nSubject: Out of office\r\n\r\nAway until Monday'), env, {});
+  assert.equal(ooo.skipped, 'auto-reply');
+  assert.equal((await db.prepare("SELECT stop FROM leads WHERE email = 'sam@example.com'").first()).stop, '');
 });
 
 test('a regular client: the review becomes a draft in the owner’s voice, once, and a low rating pushes', async () => {
@@ -82,6 +107,11 @@ test('the approved wording fits every case cleanly', () => {
   assert.equal(M.libraryKey({ text: 'Great people', stars: 5 }), 's5_text');
   assert.equal(M.libraryKey({ text: '', stars: 0 }), 'low');
   assert.equal(M.libraryKey({ text: 'Best tacos in town', stars: 5, otherBusiness: true }), 'wrong');
+  assert.equal(M.libraryKey({ text: 'Great rates and Jane is so helpful', stars: 5 }), 's5_text', 'a happy review about rates is thanked, not met with "we understand your frustration"');
+  assert.equal(M.libraryKey({ text: 'Good prices', stars: 4 }), 's4');
+  assert.equal(M.libraryKey({ text: 'My premium went up again', stars: 2 }), 'rate');
+  assert.equal(M.libraryKey({ text: 'My premium went up again', stars: 0 }), 'rate');
+  assert.equal(M.libraryText('wrong', 'en', 'Ann', '4785550142'), 'Thank you for taking the time to write, Ann. From the details, this review may have been meant for another business. If you would like to talk with us, please contact our office directly at 478-555-0142.', 'the approved wording from HQ, word for word');
   assert.equal(M.libraryText('low', 'en', '', ''), 'We take all feedback seriously and would like to hear more. Please contact our office directly.');
   assert.equal(M.libraryText('claim', 'en', 'Ann', '(478) 555-0142'), 'Thank you for reaching out, Ann. To protect everyone\'s privacy we don\'t discuss details here, but we would like to hear from you. Please contact our office directly at 478-555-0142.');
   for (const k of Object.keys(M.REPLY_LIBRARY)) for (const lang of ['en', 'es']) {
@@ -113,17 +143,24 @@ test('the email handler forwards every message first, even one it cannot read', 
   assert.equal(fwd.length, 2);
 });
 
-test('season-calendar posts: insurance clients only, one a week, no topic twice a year, once a day', async () => {
+test('season-calendar posts: insurance clients only, about every two weeks, this month’s topics only, once a day', async () => {
   const db = await seeded(); const env = { DB: db };
   const d1 = Date.parse('2026-11-04T15:00:00Z');
   assert.deepEqual(await M.seasonPosts(env, d1), { made: 1 });
   assert.deepEqual(await M.seasonPosts(env, d1 + 3600e3), { skipped: 'done today' });
-  assert.deepEqual(await M.seasonPosts(env, d1 + 2 * 864e5), { made: 0 }, 'not again within the week');
-  assert.deepEqual(await M.seasonPosts(env, d1 + 8 * 864e5), { made: 1 });
+  assert.deepEqual(await M.seasonPosts(env, d1 + 8 * 864e5), { made: 0 }, 'not again within two weeks');
+  assert.deepEqual(await M.seasonPosts(env, d1 + 14 * 864e5), { made: 1 });
   const posts = (await db.prepare("SELECT client_id, title, checked, context FROM app_items WHERE kind = 'post' ORDER BY created").all()).results;
   assert.equal(posts.length, 2);
   assert.ok(posts.every(p => p.client_id === 'c2' && p.checked === 1 && p.context === 'From the season calendar'));
   assert.notEqual(posts[0].title, posts[1].title);
   assert.equal(M.POST_CALENDAR.length, 24);
-  assert.deepEqual(M.nextCalendarPost([[11, 'A', 'a'], [12, 'B', 'b']], 11, ['A']), { m: 12, topic: 'B', text: 'b' }, 'a used month rolls to the next');
+  assert.equal(M.nextCalendarPost([[11, 'A', 'a'], [12, 'B', 'b']], 11, ['A']), null, 'a used month waits for next month, never takes December’s');
+  assert.deepEqual(await M.seasonPosts(env, d1 + 26 * 864e5), { made: 0 }, 'Nov 30: both November posts are used, December’s wait for December');
+  // a whole year, week by week: never more than two a month, and each in its own month
+  const db2 = await seeded(); const env2 = { DB: db2 };
+  for (let t = Date.parse('2026-01-05T15:00:00Z'); t < Date.parse('2026-12-31T15:00:00Z'); t += 7 * 864e5) await M.seasonPosts(env2, t);
+  const all = (await db2.prepare("SELECT title, created FROM app_items WHERE kind = 'post'").all()).results;
+  assert.equal(all.length, 24);
+  for (const p of all) { const m = +p.created.slice(5, 7); assert.ok(M.POST_CALENDAR.some(x => x[0] === m && x[1] === p.title), p.title + ' in month ' + m); }
 });

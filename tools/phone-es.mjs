@@ -44,8 +44,8 @@ const planHtml = p => '<h3>' + p.name + '</h3><div class="price"><b>' + p.price 
 export const ES_HOME = [
   { s: 'header.hero h1', h: 'Su negocio, <em>siempre</em> abierto.' },
   { s: 'header.hero .hero-scene', h: 'Parte baja de la novena. Su hijo va al bate. Un cliente está llamando, acaba de llegar una reseña y una cotización se quedó en silencio. Nos encargamos de las tres. Usted no se pierda la jugada.' },
-  { s: 'header.hero .lede', h: 'Always Open lleva la parte de atrás de su negocio, la que nunca cierra: cada llamada contestada, cada reseña respondida, cotizaciones y facturas con seguimiento, días vacíos llenados con su propia lista de clientes, su perfil de Google al día y un mapa que le manda a quienes llaman cerca de usted. Usted lo aprueba todo desde su teléfono. <b>El día 2 de cada mes, una página le muestra lo que se hizo y cuánto valió.</b>' },
-  { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos y su perfil de Google, resueltos. El día 2 de cada mes, una página le muestra lo que se hizo.' },
+  { s: 'header.hero .lede', h: 'Always Open lleva la parte de atrás de su negocio, la que nunca cierra: cada llamada contestada, cada reseña respondida, cotizaciones y facturas con seguimiento, días vacíos llenados con su propia lista de clientes, su perfil de Google al día y un mapa que le manda a quienes llaman cerca de usted. Usted lo aprueba todo desde su teléfono. <b>Una página le muestra lo que se hizo y cuánto valió, al día en su app todo el mes y enviada a usted el día 2.</b>' },
+  { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos y su perfil de Google, resueltos. Una página le muestra lo que se hizo, al día todo el mes y enviada a usted el día 2.' },
   { s: 'header.hero .ctas a.ph-only', h: 'Ver mi calificación' },
   { s: 'header.hero .ctas a[href="#contact"]', h: 'Quiero mi auditoría gratis' },
   { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
@@ -145,9 +145,9 @@ const TRADE = {
 // Every lede ends on the monthly page, as in English (tools/industry.py). Insurance has its own line.
 function esLede(key, l) {
   l = l.replace(/<b>(Usted lo aprueba todo desde su teléfono[^<]*)<\/b>/, '$1');
-  if (key === 'insurance') return l + ' El día 2 de cada mes, una página muestra cada reseña, respuesta y publicación, para sus archivos.';
-  if (key === 'dental') return l + ' <b>El día 2 de cada mes, una página le muestra lo que se hizo, con cada respuesta archivada.</b>';
-  return l + ' <b>El día 2 de cada mes, una página le muestra lo que se hizo y cuánto valió.</b>';
+  if (key === 'insurance') return l + ' Una página muestra cada reseña, respuesta y publicación, al día en su app todo el mes y enviada a usted el día 2 para sus archivos.';
+  if (key === 'dental') return l + ' <b>Una página le muestra lo que se hizo, con cada respuesta archivada, al día en su app todo el mes y enviada a usted el día 2.</b>';
+  return l + ' <b>Una página le muestra lo que se hizo y cuánto valió, al día en su app todo el mes y enviada a usted el día 2.</b>';
 }
 export function esTrade(key) {
   const t = TRADE[key];
@@ -225,7 +225,7 @@ export function esDoesFor(key) {
 export const ES_DOES = [
   { s: '#does .eyebrow', h: 'Lo que hace Always Open' },
   { s: '#does h2', h: 'La parte de atrás de su negocio, llevada por nosotros.' },
-  { s: '#does .head p:not(.eyebrow)', h: 'Todo lo que un negocio necesita y nunca tiene tiempo de hacer, desde el teléfono hasta el seguimiento. Usted lo aprueba desde su teléfono, y el día 2 de cada mes una página le muestra lo que se hizo.' },
+  { s: '#does .head p:not(.eyebrow)', h: 'Todo lo que un negocio necesita y nunca tiene tiempo de hacer, desde el teléfono hasta el seguimiento. Usted lo aprueba desde su teléfono, y una página le muestra lo que se hizo, al día todo el mes y enviada a usted el día 2.' },
   { s: '#does .pillar:nth-child(1) h3', h: 'Llamadas, de día y de noche' },
   { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max contesta, de día y de noche</b><span>: a su nombre, con los datos que usted aprueba, y le avisa al instante si es urgente</span></li><li><b>Devoluciones a tiempo</b><span>: una hora fija dentro de su horario, no “alguien lo llamará”</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
   { s: '#does .pillar:nth-child(1) a', h: 'Escúchelo <span aria-hidden="true">&rarr;</span>' },

@@ -5,7 +5,7 @@ import { push, isNight } from './push.js';
 import { rawEmail } from './neonmail.js';
 import { explainAlert, alertEmail } from './plainalerts.js';
 export { explainAlert, alertEmail };
-// Say it once: a problem that stays broken alerts again at most once a day, with a count of the ones held back (it was
+// Say it once: a problem that stays broken (health:, cron:, crash:) alerts again at most once a day, with a count of the ones held back (it was
 // every 3 hours, which sent 16 emails about one ntfy token on Nov 3-4). The 7 AM push lists what is still broken.
 // Once its check passes again (clearAlert), a new break can alert after 3 hours, so a real new problem is not held a day.
 const GAP_MS = 24 * 3600e3;
@@ -38,7 +38,12 @@ function enc(s) { return /^[\x20-\x7E]*$/.test(s) ? s : '=?UTF-8?B?' + btoa(unes
 const MEMO = new Map();
 export async function opsAlert(env, type, who, detail) {
   try {
-    const key = one(type).slice(0, 60) || 'error';
+    const kind = one(type).slice(0, 60) || 'error';
+    // Something that stays broken (a health check, a crashing job) is said once a day. Things that happen (a dispute, an
+    // unsafe call, a failed text) are said again after 3 hours, and each client's counts separately.
+    const stuck = /^(health|cron|crash):/.test(kind);
+    const key = stuck || !one(who) ? kind : (kind + '|' + one(who)).slice(0, 90);
+    const gap = stuck ? GAP_MS : GAP_AFTER_FIX_MS;
     const now = Date.now();
     // One statement decides whether this one goes out, so a burst of crashes in the same second is still one push.
     // When the database itself is what broke, a per-isolate memory decides instead, so that alert still gets out.
@@ -47,14 +52,14 @@ export async function opsAlert(env, type, who, detail) {
       await ensureAlerts(env);
       // the gap is a day while it stays broken, 3 hours once its check has passed since the last alert
       const G = 'CASE WHEN ok_at > at THEN ?4 ELSE ?3 END';
-      row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev, ok_at) VALUES (?1, ?2, 0, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ' + G + ' THEN prev ELSE n END, n = CASE WHEN ?2 - at < ' + G + ' THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ' + G + ' THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS, GAP_AFTER_FIX_MS).first();
+      row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev, ok_at) VALUES (?1, ?2, 0, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ' + G + ' THEN prev ELSE n END, n = CASE WHEN ?2 - at < ' + G + ' THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ' + G + ' THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, gap, GAP_AFTER_FIX_MS).first();
     } catch (e) {
       const last = MEMO.get(key) || 0;
       if (now - last < GAP_AFTER_FIX_MS) return 'limited';
       MEMO.set(key, now); row = { n: 0, prev: 0 };
     }
     if (!row || +row.n !== 0) return 'limited';   // held back: n counts the ones since the last push
-    const ex = explainAlert(key, detail);
+    const ex = explainAlert(kind, detail);
     const more = row.prev ? row.prev + ' more like this since the last alert' : '';
     const title = ex.title;
     // The push: what happened, then exactly what to do. The detail is in the email.
@@ -62,8 +67,8 @@ export async function opsAlert(env, type, who, detail) {
     const body = ex.what + '\nDo this: ' + ex.doThis + (det && det !== ex.what ? '\nDetails: ' + det : '') + (who ? ' (client ' + one(who).slice(0, 40) + ')' : '') + (more ? '\n(' + more + ')' : '');
     const jobs = [];
     // At night it arrives silently (push.js) and waits in ops_night for the 7 AM push; the email goes either way.
-    const loud = NIGHT_LOUD.has(key);
-    if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), key, scrub(detail).slice(0, 200)).run().catch(() => {});
+    const loud = NIGHT_LOUD.has(kind);
+    if (!loud && isNight(now)) await env.DB.prepare('INSERT INTO ops_night (at, type, detail) VALUES (?1, ?2, ?3)').bind(new Date(now).toISOString(), kind, scrub(detail).slice(0, 200)).run().catch(() => {});
     if (env.NTFY_URL) jobs.push(push(env, { title, body, priority: 'high', tags: 'warning', loud }).catch(() => {}));
     if (env.EMAIL && env.MAIL_FROM && env.MAIL_TO) {
       const e = alertEmail(ex, { detail: scrub(detail).slice(0, 600), who: one(who).slice(0, 40), more, at: now });
@@ -90,7 +95,8 @@ export async function noteRun(env, name, ok, ms, note) {
 export function watched(env, name, p) {
   const t0 = Date.now();
   return Promise.resolve(p)
-    .then(r => noteRun(env, name, true, Date.now() - t0, '').then(() => r))
+    // A good run clears the job's alert, so a later new break is said after 3 hours, not held a day.
+    .then(r => noteRun(env, name, true, Date.now() - t0, '').then(() => clearAlert(env, 'cron:' + name)).then(() => r))
     .catch(e => noteRun(env, name, false, Date.now() - t0, (e && e.message) || e).then(() => opsAlert(env, 'cron:' + name, '', (e && e.message) || e)));
 }
 // The last run of every job, newest first.

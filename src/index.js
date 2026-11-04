@@ -2,6 +2,7 @@
 // Each request is checked for spam, saved to D1, pushed to Christopher's phone (ntfy) and emailed to him.
 // The Always Open check (scheduled task) reads new requests from that email, or from /leads with a key.
 import { rivalsWeekly, ensureRivals, purgeGoogle, isoWeek as rivalWeek } from './rivals.js';
+import { townKey } from './radar.js';
 import { ensureReviews } from './reviews.js';
 import { seedDemo } from './demo.js';
 import { handleOpsBoard, boardWeekly } from './opsboard.js';
@@ -584,93 +585,107 @@ a.btn{justify-self:start;display:inline-block;background:var(--sign);color:var(-
 
 
 // ---------- Rate-Shock Radar ----------
-// Every Monday: for each town in RADAR_TOWNS, look up insurance agencies on Google (Places API, New) and count
-// recent reviews, recent low ratings and recent reviews about rates. Emails COUNTS ONLY and keeps nothing: Google's terms
-// don't allow storing Places content, so there is no week-to-week table. No agency names, no reviewer names, no review text.
+// Every Monday: for each insurance client's own town (anywhere in the U.S.) and then each town in RADAR_TOWNS, look up
+// insurance agencies on Google (Places API, New) and count recent reviews, recent low ratings and recent unhappy reviews
+// about rates. Emails COUNTS ONLY and keeps nothing: Google's terms don't allow storing Places content, so there is no
+// week-to-week table. No agency names, no reviewer names, no review text. Scoring and town handling: radar.js.
 const RADAR_CRON = '17 12 * * 1';
-const RATE_RE = /\b(rate|rates|premium|premiums|price|prices|bill|went up|goes up|going up|increase|increased|raised|doubled|expensive|afford)\b|tarifa|prima|precio|aument|subi[oó]|caro/i;
+const RADAR_FIELDS = 'places.id,places.rating,places.userRatingCount,places.reviews,nextPageToken';
 function isoWeek(d) {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
   const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
   return t.getUTCFullYear() + '-W' + String(Math.ceil(((t - y) / 86400000 + 1) / 7)).padStart(2, '0');
 }
-async function radarTown(env, town, now) {
+// One page of up to 20 agencies (Google gives up to 3 pages, 60 agencies, for a town).
+async function radarPage(env, town, token) {
   const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.PLACES_KEY, 'X-Goog-FieldMask': 'places.id,places.rating,places.userRatingCount,places.reviews' },
-    body: JSON.stringify({ textQuery: 'insurance agency in ' + town, pageSize: 20 })
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.PLACES_KEY, 'X-Goog-FieldMask': RADAR_FIELDS },
+    body: JSON.stringify(Object.assign({ textQuery: 'insurance agency in ' + town, includedType: 'insurance_agency', strictTypeFiltering: true, pageSize: 20 }, token ? { pageToken: token } : {}))
   });
-  if (!r.ok) throw new Error('Places ' + r.status);
-  const places = ((await r.json()) || {}).places || [];
-  const cutoff = now - 30 * 86400000;
-  let total = 0, wsum = 0, rate = 0, low = 0, recent = 0;
-  for (const p of places) {
-    const n = +p.userRatingCount || 0; total += n; wsum += (+p.rating || 0) * n;
-    for (const rv of (p.reviews || [])) {
-      const t = Date.parse(rv.publishTime || '');
-      if (!t || t < cutoff) continue;
-      recent++;
-      if ((+rv.rating || 0) <= 2) low++;
-      const txt = (rv.originalText && rv.originalText.text) || (rv.text && rv.text.text) || '';
-      if (RATE_RE.test(txt)) rate++;
-    }
+  if (!r.ok) { const t = await r.text().catch(() => ''); try { await (await import('./funding.js')).googleProblem(env, r.status, t); } catch (e) {} throw new Error('Places ' + r.status); }
+  const j = (await r.json()) || {};
+  return { places: j.places || [], next: j.nextPageToken || '' };
+}
+// The weekly Google lookups for the radar. Each is one paid call, so there is a budget (RADAR_MAX_CALLS, default 60: about 260 a
+// month, inside Google's monthly free amount for this kind of lookup). Every town gets its first page; what is left reads
+// more agencies in clients' towns first.
+export async function radarScan(env, now, h) {
+  h = h || {};
+  const page = h.page || ((town, token) => radarPage(env, town, token));
+  const { planTowns, scoreTown } = await import('./radar.js');
+  let own = [];
+  try { own = (((await env.DB.prepare("SELECT DISTINCT COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND c.client_id NOT IN ('demo-plumbing', 'always-open') AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || []).map(r => r.town); } catch (e) { own = []; }
+  const week = isoWeek(new Date(now)), budget = Math.min(500, Math.max(5, +env.RADAR_MAX_CALLS || 60));
+  const plan = planTowns(own, String(env.RADAR_TOWNS || '').split('|'), budget, +week.slice(-2));
+  let calls = 0;
+  const got = [];
+  for (const t of plan.towns) {
+    try { calls++; const p = await page(t.town, ''); got.push(Object.assign({ places: p.places, next: p.next, pages: 1 }, t)); }
+    catch (e) { got.push(Object.assign({ error: String((e && e.message) || e).slice(0, 120) }, t)); }
   }
-  return { places: places.length, total, avg: total ? Math.round(wsum / total * 100) / 100 : 0, recent, rate, low };
+  // Leftover budget: up to two more pages per town, clients' towns first (they come first in the plan).
+  for (let round = 0; round < 2; round++) for (const g of got) {
+    if (calls >= budget) break;
+    if (g.error || !g.next || g.pages > round + 1) continue;
+    try { calls++; const p = await page(g.town, g.next); g.places = g.places.concat(p.places); g.next = p.next; g.pages++; } catch (e) { g.next = ''; }
+  }
+  const out = got.map(g => g.error ? { town: g.town, week, client: g.client, error: g.error } : Object.assign({ town: g.town, week, client: g.client, pages: g.pages }, scoreTown(g.places, now)));
+  return { week, out, calls, skipped: plan.skipped };
 }
 async function radarWatch(env) {
   if (!env.PLACES_KEY) return { ok: false, error: 'no key' };
-  // Every insurance client's own town, anywhere in the U.S., then the standing list (RADAR_TOWNS) for prospects.
-  let own = [];
-  try { own = (((await env.DB.prepare("SELECT DISTINCT COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || []).map(r => String(r.town || '').trim()).filter(t => /,\s*[A-Z]{2}$/.test(t)); } catch (e) { own = []; }
-  const towns = [...new Set(own.concat(String(env.RADAR_TOWNS || '').split('|').map(x => x.trim()).filter(Boolean)))];
-  if (!towns.length) return { ok: false, error: 'no towns' };
-  const now = Date.now(), week = isoWeek(new Date(now)), at = new Date(now).toISOString(), lines = [], out = [];
-  for (const town of towns.slice(0, 30)) {
-    try {
-      const m = await radarTown(env, town, now);
-      // A wave: several recent reviews about rates, or a run of recent reviews with low ratings among them (last 30 days, from this lookup).
-      const wave = m.rate >= 2 || (m.recent >= 6 && m.low >= 2);
-      out.push(Object.assign({ town, week, wave }, m));
-      lines.push('Town: ' + town + ' | Week: ' + week + ' | Agencies: ' + m.places + ' | Reviews total: ' + m.total + ' | Recent reviews (30 days): ' + m.recent +
-        ' | Average rating: ' + m.avg + ' | Recent reviews about rates: ' + m.rate + ' | Recent 1-2 star: ' + m.low + ' | Wave: ' + (wave ? 'yes' : 'no'));
-    } catch (e) {
-      lines.push('Town: ' + town + ' | Week: ' + week + ' | Error: ' + String((e && e.message) || e).slice(0, 120));
-      out.push({ town, week, error: String((e && e.message) || e).slice(0, 120) });
-    }
-  }
-  await radarMail(env, week, out.filter(x => !x.error), out.filter(x => x.error));
-  // Each insurance client whose own town shows a wave hears it on their phone the same morning (counts only, nothing from Google kept).
+  const now = Date.now();
+  const { week, out, calls, skipped } = await radarScan(env, now);
+  if (!out.length) return { ok: false, error: 'no towns' };
+  await radarMail(env, week, out.filter(x => !x.error), out.filter(x => x.error), skipped);
+  // Each insurance client whose own town shows a wave hears it on their phone the same morning (counts only, nothing from
+  // Google kept), and finds a short post about what moves rates waiting in their app for an OK.
   try {
-    const mine = ((await env.DB.prepare("SELECT DISTINCT c.client_id AS cid, COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || [];
-    for (const n of radarNotes(mine, out)) await pushClient(env, n.cid, n.note).catch(() => 0);
+    const mine = ((await env.DB.prepare("SELECT DISTINCT c.client_id AS cid, c.regulated AS regulated, COALESCE(NULLIF(b.town, ''), v.town) AS town FROM app_clients c LEFT JOIN billing b ON b.client_id = c.client_id LEFT JOIN voice_lines v ON v.client_id = c.client_id WHERE c.active = 1 AND c.client_id NOT IN ('demo-plumbing', 'always-open') AND (v.industry = 'insurance' OR b.type = 'Insurance agency')").all()).results) || [];
+    for (const n of radarNotes(mine, out)) {
+      await pushClient(env, n.cid, n.note).catch(() => 0);
+      await radarPost(env, n.cid, n.town, week, now).catch(() => 0);
+    }
   } catch (e) { /* the email above still went out */ }
-  if (out.some(x => x.wave)) await phonePush(env, { title: 'Rates rising in ' + out.filter(x => x.wave).length + (out.filter(x => x.wave).length === 1 ? ' town' : ' towns'), priority: 'default', tags: 'chart_with_upwards_trend', body: out.filter(x => x.wave).map(x => x.town + ': ' + x.rate + ' reviews about rates').join('\n') + '\nDo: tell the agents there to call their renewals this week.' });
-  return { ok: true, week, towns: out.filter(x => !x.error) };
+  const waves = out.filter(x => x.wave);
+  if (waves.length) await phonePush(env, { title: 'Rates rising in ' + waves.length + (waves.length === 1 ? ' town' : ' towns'), priority: 'default', tags: 'chart_with_upwards_trend', body: waves.map(x => x.town + ': ' + (x.why === 'low' ? x.low + ' low-star reviews' : x.rate + ' unhappy reviews about rates')).join('\n') + '\nDo: tell the agents there to call their renewals this week.' });
+  return { ok: true, week, calls, skipped, towns: out.filter(x => !x.error) };
+}
+// The post that waits in an insurance client's app the Monday their town shows a wave. Educational: no numbers, no
+// quotes, no promises, nothing about other agencies. One per client per week.
+export const RADAR_POST = { title: 'What moves insurance rates', text: 'Insurance rates can change at renewal for reasons like the cost of repairs and rebuilding, weather in the area, and changes to your home, car or drivers. If your renewal looks different than you expected, call our office before it renews. We are glad to walk through it with you.' };
+async function radarPost(env, cid, town, week, now) {
+  const at = new Date(now).toISOString();
+  await env.DB.prepare("INSERT OR IGNORE INTO app_items (id, client_id, kind, title, context, stars, text, status, hq_synced, checked, photo, created, updated, notified) VALUES (?1, ?2, 'post', ?3, ?4, 0, ?5, 'pending', 1, 1, '', ?6, ?6, 0)")
+    .bind('radar:' + cid + ':' + week, cid, RADAR_POST.title, 'Rate-Shock Radar: rate complaints rising in ' + town, RADAR_POST.text, at).run();
 }
 // Which insurance clients get a Rate-Shock push: those whose own town had a wave this week. Pure, so it can be tested.
 export function radarNotes(clients, towns) {
-  const waves = new Map((towns || []).filter(x => x && x.wave).map(x => [String(x.town).trim().toLowerCase(), x]));
+  const waves = new Map((towns || []).filter(x => x && x.wave).map(x => [townKey(x.town), x]));
   const out = [];
   for (const c of clients || []) {
-    const w = waves.get(String((c && c.town) || '').trim().toLowerCase());
+    const k = townKey(c && c.town), w = k && waves.get(k);
     if (!w) continue;
-    const body = w.rate >= 2 ? 'Do this: call your renewals this week, before they shop. ' + w.rate + ' recent reviews of agencies in ' + w.town + ' mention rate increases.'
-      : 'Do this: check in with your renewals this week. ' + w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days.';
-    out.push({ cid: c.cid, note: { aps: { alert: { title: 'Rates rising in ' + w.town, body }, 'thread-id': 'radar' }, screen: 'home' } });
+    const byRate = w.why ? w.why === 'rate' : w.rate >= 2;
+    const body = byRate ? 'Do this: call your renewals this week, before they shop. ' + w.rate + ' recent reviews of agencies in ' + w.town + ' complain about rate increases. A short post about what moves rates is ready for your OK.'
+      : 'Do this: check in with your renewals this week. ' + w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days. A short post about what moves rates is ready for your OK.';
+    out.push({ cid: c.cid, town: w.town, note: { aps: { alert: { title: 'Rates rising in ' + w.town, body }, 'thread-id': 'radar' }, screen: 'home' } });
   }
   return out;
 }
 // The weekly radar email to Christopher: one neon page, the towns with a wave first, counts only. Pure, so it can be tested.
-export function radarEmail(week, towns, errors) {
+export function radarEmail(week, towns, errors, skipped) {
   towns = towns || []; errors = errors || [];
   const waves = towns.filter(x => x.wave).sort((a, b) => b.rate - a.rate || b.low - a.low);
   const calm = towns.filter(x => !x.wave);
   const rateSum = towns.reduce((a, x) => a + (+x.rate || 0), 0), lowSum = towns.reduce((a, x) => a + (+x.low || 0), 0);
-  const lines = waves.map(x => ({ k: x.town, v: x.rate + ' about rates, ' + x.low + ' at 1-2 stars (' + x.recent + ' recent reviews)', bad: true }))
+  const lines = waves.map(x => ({ k: x.town, v: x.rate + ' unhappy about rates, ' + x.low + ' at 1-2 stars (' + x.recent + ' recent reviews' + (x.places ? ', ' + x.places + ' agencies' : '') + ')', bad: true }))
     .concat(calm.slice(0, Math.max(0, 8 - waves.length)).map(x => ({ k: x.town, v: 'quiet: ' + x.rate + ' about rates, ' + x.recent + ' recent reviews', ok: true })));
   if (calm.length > 8 - waves.length && 8 - waves.length >= 0) lines.push({ v: (calm.length - Math.max(0, 8 - waves.length)) + ' more quiet towns' });
   if (errors.length) lines.push({ k: 'Not checked', v: errors.map(e => e.town).join(', '), bad: true });
+  if (+skipped > 0) lines.push({ k: 'Waiting a week', v: skipped + (skipped === 1 ? ' town' : ' towns') + ' over this week\u2019s lookup budget (RADAR_MAX_CALLS). The list rotates, so they come first in a later week.' });
   const n = neonEmail({
     tone: waves.length ? 'bad' : 'ok', sign: waves.length ? 'RATES RISING' : 'ALL QUIET', who: 'Rate-Shock Radar · ' + week,
     title: waves.length ? 'Complaints about rates are up in ' + (waves.length === 1 ? waves[0].town : waves.length + ' towns') + '.' : 'No town shows a wave of rate complaints this week.',
@@ -681,9 +696,9 @@ export function radarEmail(week, towns, errors) {
   });
   return { subject: waves.length ? 'Rates rising: ' + waves.map(x => x.town).slice(0, 3).join(', ') : 'Rate-Shock Radar: all quiet (' + week + ')', html: n.html, text: n.text };
 }
-async function radarMail(env, week, towns, errors) {
+async function radarMail(env, week, towns, errors, skipped) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO || !(towns.length || errors.length)) return;
-  const m = radarEmail(week, towns, errors);
+  const m = radarEmail(week, towns, errors, skipped);
   const raw = rawEmail({ fromName: 'Always Open Radar', from: env.MAIL_FROM, to: env.MAIL_TO, subject: m.subject }, m.text, m.html);
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); } catch (e) {}
 }

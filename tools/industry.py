@@ -23,7 +23,7 @@ def build(key, d):
     s = rep(s, '<p class="for">For builders, remodelers and contractors</p>', '<p class="for">For ' + d['who'] + '</p>')
     s = rep(s, '<h1>The next job, a new review and a quiet estimate, handled while you build this one.</h1>', '<h1>' + d['h1'] + '</h1>')
     # Every lede ends on the monthly page: what a client keeps and forwards. Regulated pages leave out what it was worth.
-    lede = re.sub(r'<b>(You approve it all from your phone[^<]*)</b>', r'\1', d['lede']) + (' <b>On the 2nd of every month, one page shows what it did, with every reply on file.</b>' if d.get('regulated') else ' <b>On the 2nd of every month, one page shows what it did and what it was worth.</b>')
+    lede = re.sub(r'<b>(You approve it all from your phone[^<]*)</b>', r'\1', d['lede']) + (' <b>One page shows what it did, with every reply on file, live in your app all month and sent to you on the 2nd.</b>' if d.get('regulated') else ' <b>One page shows what it did and what it was worth, live in your app all month and sent to you on the 2nd.</b>')
     s = re.sub(r'<p class="lede">.*?</p>', lambda m: '<p class="lede">' + lede + '</p>', s, count=1, flags=re.S)
     # the hero: this trade's sample monthly report (tools/report_mock.py)
     s = report_mock.put(s, key)

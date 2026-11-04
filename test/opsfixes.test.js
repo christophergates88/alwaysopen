@@ -60,3 +60,21 @@ test('a waiting push is quiet or loud by the hour it is SENT, and a loud one may
   assert.match(texts[0], /Max unreachable/);
   assert.doesNotMatch(texts[0], /A quiet one/);
 });
+
+test('a problem that stays broken says it once a day; events like a second dispute or another client’s unsafe call still get through', async () => {
+  const DB = H.makeDB();
+  const env = { DB, NTFY_URL: 'https://ntfy.example.test/x' };
+  const realNow = Date.now; let t = Date.parse('2026-10-29T15:00:00Z'); Date.now = () => t;
+  const real = globalThis.fetch; globalThis.fetch = async () => new Response('{}');
+  try {
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'token refused'), 'sent');
+    t += 4 * 3600e3;
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'token refused'), 'limited', 'still broken 4 hours later: held');
+    assert.equal(await O.opsAlert(env, 'stripe-dispute', 'c1', 'dispute 1'), 'sent');
+    assert.equal(await O.opsAlert(env, 'max-unsafe', 'c1', 'call 1'), 'sent');
+    assert.equal(await O.opsAlert(env, 'max-unsafe', 'c2', 'call 2'), 'sent', 'another client is its own alert');
+    assert.equal(await O.opsAlert(env, 'max-unsafe', 'c2', 'call 3'), 'limited');
+    t += 3.5 * 3600e3;
+    assert.equal(await O.opsAlert(env, 'stripe-dispute', 'c1', 'dispute 2'), 'sent', 'a second dispute 3.5 hours later is not held a day');
+  } finally { globalThis.fetch = real; Date.now = realNow; }
+});

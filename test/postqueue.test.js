@@ -73,3 +73,18 @@ test('the reminder: 10 AM and 4 PM Eastern, once each, only when something is wa
   assert.deepEqual(await Q.queuePush(env, Date.parse('2026-11-04T21:10:00Z'), { ping }), { waiting: 0 }, 'nothing waiting: no push');
   assert.equal(pings.length, 1);
 });
+
+test('a regulated client’s edited reply is held for a compliance look: not in the queue, and it cannot be marked posted', async () => {
+  const env = { DB: await seeded() };
+  await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active, regulated, tier) VALUES ('c2', 'h2', 'Gates Insurance Agency', 1, 1, 'Pro')").run();
+  const add = (id, text, decided) => env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, decided_text, status, hq_synced, checked, created, updated, decided_at, notified) VALUES (?1, 'c2', 'reply', 'Ann K.', 'Great people', 5, ?2, ?3, 'approved', 1, 1, '2026-11-04T12:00:00Z', '2026-11-04T12:00:00Z', '2026-11-04T12:00:00Z', 0)").bind(id, text, decided).run();
+  await add('m:asis', 'Thank you for the kind words, Ann.', 'Thank you for the kind words, Ann.');
+  await add('m:edited', 'Thank you for the kind words, Ann.', 'Thanks Ann! We can lower your premium anytime.');
+  const items = await Q.queueItems(env, now);
+  assert.ok(items.some(i => i.id === 'm:asis'));
+  assert.ok(!items.some(i => i.id === 'm:edited'));
+  assert.equal(items.held, 1);
+  assert.match(Q.queuePage(items, 't', now), /1 edited reply from a regulated client is held for a compliance look/);
+  assert.equal(await Q.markPosted(env, 'm:edited', now), false);
+  assert.equal(await Q.markPosted(env, 'm:asis', now), true);
+});

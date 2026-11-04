@@ -24,15 +24,16 @@ export const REPLY_LIBRARY = {
   s5_text: { en: 'Thank you for the kind words, {first}. We appreciate you taking the time to share them.', es: 'Gracias por sus amables palabras, {first}. Le agradecemos que se haya tomado el tiempo de compartirlas.' },
   s5_none: { en: 'Thank you for the 5-star rating, {first}. We appreciate it.', es: 'Gracias por las 5 estrellas, {first}. Se lo agradecemos.' }
 };
-export const WRONG_BUSINESS = { en: 'Thank you for the review, {first}. It sounds like this may be about a different business. If we can help, please contact our office directly at {phone}.', es: 'Gracias por su reseña, {first}. Parece que esto podría ser sobre otro negocio. Si podemos ayudarle, comuníquese directamente con nuestra oficina al {phone}.' };
+export const WRONG_BUSINESS = { en: "Thank you for taking the time to write, {first}. From the details, this review may have been meant for another business. If you would like to talk with us, please contact our office directly at {phone}.", es: "Gracias por tomarse el tiempo de escribir, {first}. Por los detalles, es posible que esta reseña fuera para otro negocio. Si desea hablar con nosotros, comuníquese directamente con nuestra oficina al {phone}." };
 
 // Which approved reply fits: the first rule that matches, as the HQ check did.
 export function libraryKey(r) {
   if (r.otherBusiness) return 'wrong';
   const t = String(r.text || '');
-  if (CLAIM_RE.test(t)) return 'claim';
-  if (RATE_RE.test(t)) return 'rate';
   const s = +r.stars || 0;
+  if (CLAIM_RE.test(t)) return 'claim';
+  // "About a rate or price increase" is a complaint: a 4- or 5-star "great rates!" gets the thank-you wording instead.
+  if (RATE_RE.test(t) && !(s >= 4)) return 'rate';
   if (s === 0 || s <= 3) return 'low';
   if (s === 4) return 's4';
   return t.trim() ? 's5_text' : 's5_none';
@@ -66,9 +67,16 @@ function decodeWords(h) {   // =?UTF-8?B?...?= and =?UTF-8?Q?...?=
 function splitPart(raw) {
   const i = raw.search(/\r?\n\r?\n/);
   const head = i < 0 ? raw : raw.slice(0, i), body = i < 0 ? '' : raw.slice(i).replace(/^\r?\n\r?\n/, '');
-  const headers = {};
-  for (const line of head.replace(/\r?\n[ \t]+/g, ' ').split(/\r?\n/)) { const k = line.indexOf(':'); if (k > 0) headers[line.slice(0, k).trim().toLowerCase()] = line.slice(k + 1).trim(); }
-  return { headers, body };
+  // The first (topmost) copy of each header is kept: receiving servers add theirs at the top, so a sender can't
+  // override them with their own lower down. How many times each name appears is kept too (two From lines = forged).
+  const headers = {}, count = {};
+  for (const line of head.replace(/\r?\n[ \t]+/g, ' ').split(/\r?\n/)) {
+    const k = line.indexOf(':'); if (k <= 0) continue;
+    const name = line.slice(0, k).trim().toLowerCase();
+    count[name] = (count[name] || 0) + 1;
+    if (!(name in headers)) headers[name] = line.slice(k + 1).trim();
+  }
+  return { headers, body, count };
 }
 function partText(p, depth) {
   const ct = p.headers['content-type'] || 'text/plain', enc = String(p.headers['content-transfer-encoding'] || '').toLowerCase();
@@ -87,14 +95,23 @@ function partText(p, depth) {
 export function readEmail(raw) {
   const p = splitPart(String(raw || ''));
   const from = decodeWords(p.headers.from || ''), addr = (/<([^>]+)>/.exec(from) || [null, from])[1].trim().toLowerCase();
-  return { from: addr, fromName: from.replace(/<[^>]+>/, '').replace(/"/g, '').trim(), subject: decodeWords(p.headers.subject || ''), auth: p.headers['authentication-results'] || '', text: partText(p, 0).slice(0, 20000) };
+  const auto = /^auto-(replied|generated)/i.test(p.headers['auto-submitted'] || '') || !!p.headers['x-autoreply'] || !!p.headers['x-autorespond'] || /^(bulk|auto_reply|junk|list)$/i.test(p.headers.precedence || '');
+  return { from: addr, fromName: from.replace(/<[^>]+>/, '').replace(/"/g, '').trim(), froms: (p.count && p.count.from) || 0, subject: decodeWords(p.headers.subject || ''), auth: p.headers['authentication-results'] || '', auto, text: partText(p, 0).slice(0, 20000) };
 }
 
 // A Google Business Profile email that passed Google's own signature check (when the receiving side says so).
+// Trust only Cloudflare's own result (the topmost Authentication-Results, from mx.cloudflare.net): Google's DMARC must
+// pass for a google.com From address. A missing result, someone else's, or two From lines all fail.
+export function googleAuth(m) {
+  if (!/@([a-z0-9-]+\.)*google\.com$/.test(m.from)) return 'not google';
+  if (m.froms > 1) return 'two from lines';
+  const a = String(m.auth || '');
+  if (!/^mx\.cloudflare\.net\s*;/i.test(a)) return 'no cloudflare result';
+  if (!/(^|[;\s])dmarc=pass\b[^;]*?\bheader\.from=([a-z0-9-]+\.)*google\.com(?=[\s;]|$)/i.test(a)) return 'dmarc did not pass';
+  return 'ok';
+}
 export function fromGoogle(m) {
-  if (!/@([a-z0-9-]+\.)*google\.com$/.test(m.from)) return false;
-  if (m.auth && !/dkim=pass[^;]*header\.(d|i)=@?([a-z0-9-]+\.)*google\.com|dmarc=pass[^;]*header\.from=([a-z0-9-]+\.)*google\.com/i.test(m.auth)) return false;
-  return /review/i.test(m.subject + ' ' + m.text.slice(0, 3000));
+  return googleAuth(m) === 'ok' && /review/i.test(m.subject + ' ' + m.text.slice(0, 3000));
 }
 
 // What the email says, read by Claude into plain fields. Returns null when it is not a new customer review.
@@ -175,9 +192,9 @@ export async function reviewFromEmail(env, m, h) {
     .bind(id, c.client_id, label(rv.reviewer), rv.text, rv.stars, draft, checked, at).run();
   if (rv.stars > 0 && rv.stars < 4) await opsPing(env, 'Always Open: ' + rv.stars + '-star review for ' + c.business, 'The reply is drafted' + (checked ? ' from the approved wording' : '') + ' and waiting in the owner’s app.', 'high').catch(() => {});
   // A rate wave at a regulated client: two or more reviews about rates in 7 days, said once a week.
-  if (+c.regulated && RATE_RE.test(rv.text)) {
+  if (+c.regulated && RATE_RE.test(rv.text) && !(+rv.stars >= 4)) {
     const since = new Date(now - 7 * 864e5).toISOString();
-    const n = ((await env.DB.prepare("SELECT context FROM app_items WHERE client_id = ?1 AND kind = 'reply' AND created > ?2").bind(c.client_id, since).all()).results || []).filter(r => RATE_RE.test(r.context || '')).length;
+    const n = ((await env.DB.prepare("SELECT context, stars FROM app_items WHERE client_id = ?1 AND kind = 'reply' AND created > ?2").bind(c.client_id, since).all()).results || []).filter(r => RATE_RE.test(r.context || '') && !(+r.stars >= 4)).length;
     if (n >= 2 && await once(env, 'ratewave:' + c.client_id + ':' + isoWeek(now), at))
       await opsPing(env, 'Rate-increase wave at ' + c.business, n + ' reviews about rates this week. The approved replies are drafted in the owner’s app.', 'high').catch(() => {});
   }
@@ -208,6 +225,14 @@ export async function inbound(message, env, ctx, h) {
   const m = readEmail(raw);
   const work = (async () => {
     if (fromGoogle(m)) return { review: await reviewFromEmail(env, m, h).catch(e => ({ error: String((e && e.message) || e).slice(0, 160) })) };
+    // A Google-looking review email that fails the check: nothing is drafted, and Christopher hears once a day (so a
+    // change on Cloudflare's side that stops real ones is noticed, and a forged one is seen).
+    const why = googleAuth(m);
+    if (why !== 'not google' && why !== 'ok' && /review/i.test(m.subject)) {
+      try { await ensure(env); if (await once(env, 'unverified:' + new Date(h.now || Date.now()).toISOString().slice(0, 10), new Date().toISOString())) { const ping = h.ping || (async (e, t, b, pr) => (await import('./app.js')).opsPing(e, t, b, pr)); await ping(env, 'Always Open: a Google review email to hello@ was not trusted', 'From ' + m.from + ' (' + why + '). Nothing was drafted. If it was a real review, draft the reply from the board.', 'default'); } } catch (e) {}
+      return { skipped: 'unverified: ' + why };
+    }
+    if (m.auto) return { skipped: 'auto-reply' };   // an out-of-office reply is not a lead answering
     return { lead: await leadReplied(env, m.from) };
   })();
   const out = await work;
@@ -216,7 +241,7 @@ export async function inbound(message, env, ctx, h) {
 
 // ---------------- season-calendar posts for insurance clients ----------------
 // Educational posts from Always Open HQ settings/post-calendar (copied Nov 4 2026): two a month, general and safe, approved
-// once by compliance as written. A client with none in the last 7 days gets the next one this month it hasn't had this year.
+// once by compliance as written. A client with none in the last 13 days gets the next one this month it hasn't had this year: about every two weeks.
 export const POST_CALENDAR = [
   [1, "Frozen pipes", "Cold snaps can freeze pipes overnight. Know where your main water shut-off valve is, let faucets on outside walls drip, and open the cabinet doors under sinks so warm air reaches the pipes."],
   [1, "Home inventory", "A new year is a good time to take a quick video of every room in your home. If you ever need it, a simple record of what you own makes life much easier. Keep a copy somewhere outside the house."],
@@ -243,14 +268,12 @@ export const POST_CALENDAR = [
   [12, "Holiday decorations", "Water your tree every day, check light strings for frayed wires, and blow out candles before bed."],
   [12, "Year-end review", "Before the new year, take a minute to check your renewal dates. We're glad to walk through any questions, so give our office a call."]
 ];
+// This month's topics only (two a month): once both are used, nothing until next month. Pulling from later months
+// would use up the whole year by June (a hurricane kit post in February).
 export function nextCalendarPost(list, month, usedTopics) {
   const used = new Set((usedTopics || []).map(s => String(s).toLowerCase()));
-  for (let k = 0; k < 12; k++) {
-    const m = ((month - 1 + k) % 12) + 1;
-    const hit = list.find(x => x[0] === m && !used.has(x[1].toLowerCase()));
-    if (hit) return { m, topic: hit[1], text: hit[2] };
-  }
-  return null;
+  const hit = list.find(x => x[0] === month && !used.has(x[1].toLowerCase()));
+  return hit ? { m: month, topic: hit[1], text: hit[2] } : null;
 }
 export async function seasonPosts(env, now, list) {
   now = now || Date.now();
@@ -262,7 +285,7 @@ export async function seasonPosts(env, now, list) {
   const year = day.slice(0, 4), month = +day.slice(5, 7);
   let made = 0;
   for (const r of rows) {
-    const recent = await env.DB.prepare("SELECT 1 AS x FROM app_items WHERE client_id = ?1 AND kind = 'post' AND id LIKE 'cal:%' AND created > ?2").bind(r.client_id, new Date(now - 7 * 864e5).toISOString()).first();
+    const recent = await env.DB.prepare("SELECT 1 AS x FROM app_items WHERE client_id = ?1 AND kind = 'post' AND id LIKE 'cal:%' AND created > ?2").bind(r.client_id, new Date(now - 13 * 864e5).toISOString()).first();
     if (recent) continue;
     const used = (((await env.DB.prepare("SELECT title FROM app_items WHERE client_id = ?1 AND kind = 'post' AND id LIKE 'cal:%' AND created >= ?2").bind(r.client_id, year + '-01-01').all()).results) || []).map(x => x.title);
     const next = nextCalendarPost(cal, month, used);

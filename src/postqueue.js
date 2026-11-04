@@ -28,27 +28,33 @@ export async function queueItems(env, now) {
   const { DEMO_ID } = await import('./demo.js');
   let rows = [];
   try {
-    rows = ((await env.DB.prepare("SELECT i.id, i.client_id, i.kind, i.title, i.context, i.stars, i.text, i.decided_text, i.decided_at, i.decided_by, COALESCE(c.business, i.client_id) AS business, " +
+    rows = ((await env.DB.prepare("SELECT i.id, i.client_id, i.kind, i.title, i.context, i.stars, i.text, i.decided_text, i.decided_at, i.decided_by, COALESCE(c.business, i.client_id) AS business, c.regulated AS regulated, " +
       "(SELECT place_id FROM rival_profile r WHERE r.client_id = i.client_id) AS place_id, (SELECT town FROM voice_lines v WHERE v.client_id = i.client_id LIMIT 1) AS town " +
       "FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id LEFT JOIN gbp_posted p ON p.item_id = i.id AND p.ok = 1 " +
       "WHERE i.status = 'approved' AND i.kind IN ('reply', 'review', 'post') AND p.item_id IS NULL AND i.decided_at > ?1 AND i.client_id != ?2 ORDER BY i.decided_at LIMIT 200")
       .bind(new Date(since).toISOString(), DEMO_ID).all()).results) || [];
   } catch (e) {
     // rival_profile may not exist yet on a fresh database: the same list without the place id
-    rows = ((await env.DB.prepare("SELECT i.id, i.client_id, i.kind, i.title, i.context, i.stars, i.text, i.decided_text, i.decided_at, i.decided_by, COALESCE(c.business, i.client_id) AS business, '' AS place_id, " +
+    rows = ((await env.DB.prepare("SELECT i.id, i.client_id, i.kind, i.title, i.context, i.stars, i.text, i.decided_text, i.decided_at, i.decided_by, COALESCE(c.business, i.client_id) AS business, c.regulated AS regulated, '' AS place_id, " +
       "(SELECT town FROM voice_lines v WHERE v.client_id = i.client_id LIMIT 1) AS town FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id LEFT JOIN gbp_posted p ON p.item_id = i.id AND p.ok = 1 " +
       "WHERE i.status = 'approved' AND i.kind IN ('reply', 'review', 'post') AND p.item_id IS NULL AND i.decided_at > ?1 AND i.client_id != ?2 ORDER BY i.decided_at LIMIT 200")
       .bind(new Date(since).toISOString(), DEMO_ID).all()).results) || [];
   }
-  return rows.filter(r => !/yelp/i.test(String(r.context || '') + ' ' + String(r.title || '')))
+  // A regulated client's edited reply waits for a compliance look first, the same hold gbp.js applies before posting.
+  let held = 0;
+  const out = rows.filter(r => !/yelp/i.test(String(r.context || '') + ' ' + String(r.title || '')))
     .filter(r => !(apiFrom && Date.parse(r.decided_at || 0) > apiFrom))
+    .filter(r => { if (heldForCompliance(r)) { held++; return false; } return true; })
     .map(r => ({ id: r.id, client: r.client_id, business: r.business, kind: r.kind === 'post' ? 'post' : 'reply', title: r.title || '', review: r.context || '', stars: +r.stars || 0,
       words: String(r.decided_text || r.text || ''), approvedAt: r.decided_at || '', by: r.decided_by || '', link: googleLink({ kind: r.kind === 'post' ? 'post' : 'reply', place_id: r.place_id, business: r.business, town: r.town }) }));
+  out.held = held;
+  return out;
 }
+export const heldForCompliance = r => !!(+r.regulated && String(r.decided_text || '').trim() && String(r.decided_text).trim() !== String(r.text || '').trim());
 
 export async function markPosted(env, id, now) {
-  const it = await env.DB.prepare("SELECT id, client_id, kind FROM app_items WHERE id = ?1 AND status = 'approved'").bind(String(id || '').slice(0, 120)).first();
-  if (!it) return false;
+  const it = await env.DB.prepare("SELECT i.id, i.client_id, i.kind, i.text, i.decided_text, c.regulated FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.id = ?1 AND i.status = 'approved'").bind(String(id || '').slice(0, 120)).first();
+  if (!it || heldForCompliance(it)) return false;
   await (await import('./gbp.js')).ensureGbp(env);
   await env.DB.prepare("INSERT INTO gbp_posted (item_id, client_id, kind, target, ok, tries, result, at) VALUES (?1, ?2, ?3, '', 1, 1, 'by hand', ?4) ON CONFLICT(item_id) DO UPDATE SET ok = 1, result = 'by hand', at = excluded.at")
     .bind(it.id, it.client_id, it.kind === 'post' ? 'post' : 'reply', new Date(now || Date.now()).toISOString()).run();
@@ -85,6 +91,7 @@ export function queuePage(items, tok, now) {
     '.go{background:var(--sign);color:#1A0605;border:0}.done{background:transparent;color:var(--ok);border:2px solid var(--ok)}.how{margin:8px 0 0;color:var(--mute);font-size:.85rem}' +
     '.empty{text-align:center;padding:60px 10px;color:var(--mute)}.empty b{display:block;font-size:1.6rem;color:var(--ok);margin-bottom:6px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:99px;font-weight:600;opacity:0;transition:opacity .2s}.toast.on{opacity:1}' +
     '</style></head><body><main><h1>Post on Google</h1><p class="sub" id="sub">' + (n ? '<span class="count" id="n">' + n + '</span> approved by the owners, waiting for Google. About ' + mins + (mins === 1 ? ' minute' : ' minutes') + '.' : '') + '</p>' +
+    (+items.held ? '<p class="sub">' + items.held + (items.held === 1 ? ' edited reply from a regulated client is' : ' edited replies from regulated clients are') + ' held for a compliance look first, so ' + (items.held === 1 ? 'it is' : 'they are') + ' not here.</p>' : '') +
     (n ? cards : '') + '<div class="empty" id="empty"' + (n ? ' hidden' : '') + '><b>All caught up</b>Nothing is waiting for Google.</div></main><div class="toast" id="toast"></div>' +
     '<script>(function(){var tok=' + JSON.stringify(String(tok || '')) + ',left=' + n + ';function toast(t){var e=document.getElementById("toast");e.textContent=t;e.classList.add("on");setTimeout(function(){e.classList.remove("on")},1800)}' +
     'document.querySelectorAll(".go").forEach(function(a){a.addEventListener("click",function(){var w=a.getAttribute("data-words");try{navigator.clipboard.writeText(w).then(function(){toast("Copied. Paste it on Google.")},function(){toast("Hold on the words to copy them.")})}catch(e){toast("Hold on the words to copy them.")}})});' +

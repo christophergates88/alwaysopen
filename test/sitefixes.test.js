@@ -256,7 +256,9 @@ test('Storm Desk is sold for wherever the business is; Rate-Shock Radar says wha
   }
   const ins = visible('insurance.html');
   assert.doesNotMatch(ins, /Rate complaints double|heads-up the same day|a week early|Rate complaints doubled/);
-  for (const t of ['Eatonton', 'Madison', 'Greensboro', 'Milledgeville', 'Monticello', 'Gray', 'Sparta', 'Macon']) assert.match(ins, new RegExp('covers[^<]*' + t), t);
+  // Nov 4, 2026: the radar checks every insurance client's own town, so it says that instead of a list of Georgia towns.
+  assert.match(ins, /covers the town on your account, anywhere in the U\.S\./);
+  assert.match(ins, /the reviews Google shows for each agency, not every review ever written/);
   const storm = THEMES.find(t => t.name === 'storm');
   assert.doesNotMatch(storm.about + storm.fallback, /central Georgia/);
 });

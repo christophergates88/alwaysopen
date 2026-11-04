@@ -14,3 +14,17 @@ test('Max asks a marina caller about the slip, rental, fuel or service', () => {
   const d = tradeDefaults('marina');
   assert.match(d.intake, /slip/); assert.match(d.intake, /rental/); assert.match(d.urgent, /taking on water/);
 });
+
+test('"harbor", "marina" in a person’s name, and regulated words never make a business a marina', () => {
+  assert.equal(industryOf('Harbor Dental Care', 'Medical, dental or vet'), 'dental');
+  assert.equal(industryOf('Harbor Dental Care', 'Other'), 'dental');
+  assert.equal(industryOf('Safe Harbor Law Group', 'Other'), 'legal');
+  assert.equal(industryOf('Harbor Insurance', 'Other'), 'insurance');
+  assert.equal(industryOf('Lakeside Marina Insurance', 'Insurance agency'), 'insurance');
+  assert.equal(industryOf('Harbour Grill', 'Restaurant or shop'), 'restaurant');
+  assert.equal(industryOf('Harbor Freight', 'Other'), '');
+  assert.equal(industryOf('Marina’s Hair Salon', 'Salon, spa or fitness'), 'salon');
+  assert.equal(industryOf("Marina's Hair Salon", 'Other'), 'salon');
+  assert.equal(industryOf('Northside Pet Clinic', 'Medical, dental or vet'), 'medical');
+  assert.equal(industryOf('Drain Doctor Plumbing', 'Contractor or trade'), 'plumbing');
+});

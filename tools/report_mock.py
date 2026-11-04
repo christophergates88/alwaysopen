@@ -114,7 +114,7 @@ def render(key):
             '          <div class="rp-grid">' + cells + '</div>\n'
             '          ' + check + '\n'
             '        </div>\n'
-            '        <p class="rp-cap">An example report. Yours comes on the 2nd of every month.' + ('' if key in ('dental', 'insurance') else ' <a href="/sample-report">See the whole page</a>') + '</p>\n'
+            '        <p class="rp-cap">An example report. Yours is live in your app all month and comes on the 2nd.' + ('' if key in ('dental', 'insurance') else ' <a href="/sample-report">See the whole page</a>') + '</p>\n'
             '      </div>\n      <!--/ao:report-->')
 
 def put_css(s):
