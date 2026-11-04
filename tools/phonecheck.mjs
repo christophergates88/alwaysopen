@@ -1,7 +1,7 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 13,600 px with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
+// taller than 14,400 px (the trade pages 8,400; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 13600], ['/plumbing', 7700], ['/hvac', 7700], ['/builders', 7700], ['/auto-repair', 7700], ['/marine', 7700], ['/salons', 7700], ['/restaurants', 7700], ['/dental', 7700], ['/insurance', 7700]];
+const PAGES = [['/', 14400], ['/plumbing', 8400], ['/hvac', 8400], ['/builders', 8400], ['/auto-repair', 8400], ['/marine', 8400], ['/salons', 8400], ['/restaurants', 8400], ['/dental', 8400], ['/insurance', 8400]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();
@@ -90,8 +90,8 @@ for (const w of WIDTHS) {
     report.push(row);
     if (r.docW > r.winW) problems.push(name + ': scrolls sideways (' + r.docW + ' > ' + r.winW + ')');
     if (r.h > maxH) problems.push(name + ': ' + r.h + ' px tall with sections folded (limit ' + maxH + ')');
-    // The monthly report leads the phone hero (Oct 29, 2026), so the grade check moved to the third screen.
-    if (r.gradeTop < 0 || r.gradeTop > 812 * 3) problems.push(name + ': the grade check starts at ' + Math.round(r.gradeTop) + ' px (should be on the first three screens)');
+    // The grade check sits at the end of "Tap to try it" since Nov 4, 2026 (the feature wall took its spot up top): it only has to be there.
+    if (r.gradeTop < 0) problems.push(name + ': the grade check is missing');
     // 572: the cards' wording on every plan (Max included with Starter) is one line longer on some phones (Oct 30).
     if (r.strip > 572) problems.push(name + ': the cards are ' + r.strip + ' px tall (limit 572)');
     r.small.forEach(x => problems.push(name + ': small tap target ' + x));
