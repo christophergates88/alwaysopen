@@ -4,7 +4,7 @@
 // Kinds of work where people call with something broken: Spanish on by default, check-in calls on by default.
 export const TRADES = new Set(['plumbing', 'hvac', 'electrical', 'roofing', 'landscaping', 'pest control', 'pools', 'painting', 'tree service',
   'pressure washing', 'cleaning', 'fencing', 'concrete', 'garage doors', 'septic', 'gutters', 'flooring', 'builders', 'moving', 'contractor',
-  'handyman', 'appliance repair', 'locksmith', 'docks', 'marine', 'auto repair']);
+  'handyman', 'appliance repair', 'locksmith', 'docks', 'marine', 'marina', 'auto repair']);
 
 // Message-only kinds: Max never quotes, books or discusses specifics.
 export const MESSAGE_ONLY = new Set(['insurance', 'legal', 'medical', 'dental']);
@@ -23,6 +23,7 @@ const DEFAULTS = {
   'auto repair': { intake: 'their name, the year, make and model, what the car is doing, and whether it can be driven', urgent: 'a car that will not start or is unsafe to drive' },
   docks: { intake: 'their name, the lake and address, what they need (new dock, repair, lift), and the timeline', urgent: 'a dock or lift coming apart with a boat on it' },
   marine: { intake: 'their name, the boat (make, length, engine), what is wrong, and where it is', urgent: 'a boat taking on water' },
+  marina: { intake: 'their name, the boat (make and length), and what they need: a slip, storage, a rental (the day and how many people), fuel or service', urgent: 'a boat taking on water or breaking loose in its slip, or fuel in the water' },
   salon: { intake: 'their name, the service they want, a stylist if they have one, and the days and times that work', urgent: '' },
   barber: { intake: 'their name, the service, and the days and times that work', urgent: '' },
   restaurant: { intake: 'their name, what they are calling about (a reservation, catering, an order, hours), the date and party size', urgent: '' },

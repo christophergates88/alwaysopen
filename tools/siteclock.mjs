@@ -60,7 +60,7 @@ const section = `<!-- clock:start -->
 <!-- clock:end -->
 `;
 
-for (const f of ['public/index.html', 'public/plumbing.html', 'public/hvac.html', 'public/builders.html', 'public/auto-repair.html', 'public/marine.html', 'public/insurance.html']) {
+for (const f of ['public/index.html', 'public/plumbing.html', 'public/hvac.html', 'public/builders.html', 'public/auto-repair.html', 'public/marine.html', 'public/marinas.html', 'public/insurance.html']) {
   let s = readFileSync(f, 'utf8');
   if (s.includes('<!-- clock:start -->')) s = s.replace(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->\n?/, section);
   else {

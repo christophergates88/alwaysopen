@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 14400], ['/plumbing', 8400], ['/hvac', 8400], ['/builders', 8400], ['/auto-repair', 8400], ['/marine', 8400], ['/salons', 8400], ['/restaurants', 8400], ['/dental', 8400], ['/insurance', 8400]];
+const PAGES = [['/', 14400], ['/plumbing', 8400], ['/hvac', 8400], ['/builders', 8400], ['/auto-repair', 8400], ['/marine', 8400], ['/marinas', 8400], ['/salons', 8400], ['/restaurants', 8400], ['/dental', 8400], ['/insurance', 8400]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();
