@@ -658,7 +658,7 @@ Cost you: $69.</div><div style="max-width:88%;margin:6px 0 6px auto;padding:10px
 </script>
 <!--ao:kit-->
 <style id="ao-phone">
-.ao-foldbar,.ao-dots,.lede-ph,.ph-only{display:none}
+.ao-foldbar,.ao-dots,.lede-ph,.ph-only,.ao-plantabs,.ao-moreb,.reglink{display:none}
 /* the playable cards and the instant grade, on every screen size */
 /* the playable cards */
 .aos-head{padding-top:40px}
@@ -831,6 +831,61 @@ footer span,footer a,footer .entity{font-size:15px}
 .plan-note{font-size:15px!important}
 .guarantee{display:block!important}.guarantee>*+*{margin-top:6px}
 .lead button[type=submit]{box-shadow:0 10px 24px -10px rgba(0,0,0,.55)}
+/* an open section: its bar at the very top, edge to edge, and its heading not said twice (Nov 4, 2026) */
+.js [data-fold].ao-open{padding-top:0!important}
+.js [data-fold].ao-open>.ao-foldbar{width:auto;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.ao-open .ao-dup{display:none!important}
+/* plans: pick one, see one, so a short plan never leaves a gap under it */
+.ao-plantabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:4px 0 22px;padding:4px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.ao-plantabs button{min-height:60px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:700 16px/1.15 var(--body);cursor:pointer;display:grid;gap:3px;place-content:center;padding:6px 4px}
+.ao-plantabs button small{font:500 14px var(--body);color:var(--slate)}
+.ao-plantabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.ao-plantabs button[aria-selected="true"] small{color:inherit;opacity:.85}
+.ao-plantabs button:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.plans.ao-tabbed{display:block;margin:0;padding:0}
+.plans.ao-tabbed>.plan:not(.on){display:none}
+.plans.ao-tabbed>.plan{padding:24px 18px 20px}
+.plans.ao-tabbed>.plan .btn{width:100%}
+.setup{display:none}
+.plan li .soon{grid-column:2;justify-self:start;margin:2px 0 0}
+#pricing.sec{padding-bottom:28px}
+#pricing>.inner{display:flex;flex-direction:column}
+#pricing>.inner>.ao-addons{order:2}
+#pricing .guarantee{margin-top:18px}
+/* add-ons: a short list, the details one tap away */
+.addons{gap:12px;margin-top:18px}
+.addon{padding:18px 16px;gap:6px;border-radius:16px}
+.addon .avail{display:none}
+.addon h3{font-size:1.12rem}
+.addon .price b{font-size:1.7rem}
+.addon .price span{font-size:15px}
+.addon .what{font-size:15px;line-height:1.5}
+.js .addon dl{display:none}
+.js .addon.ao-more dl{display:grid}
+.addon dl{grid-template-columns:1fr;gap:2px;margin-top:6px;font-size:15px}
+.addon dt{padding-top:10px;font-size:12px}
+.addon-act{display:flex;align-items:center;gap:6px 16px;flex-wrap:wrap;margin-top:8px}
+.addon-act .btn{margin:0}
+.ao-moreb{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 2px;border:0;background:none;color:var(--ink);font:600 15px var(--body);cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.ao-moreb:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.ao-addons .addons-head{margin-top:0}
+.ao-addons .fine{font:400 15px/1.5 var(--body)!important;letter-spacing:0!important;text-transform:none!important}
+/* compared: one card per question, no sideways table */
+.tablewrap{overflow:visible;border:0;background:none;border-radius:0}
+.tablewrap table{min-width:0}
+.tablewrap table,.tablewrap tbody,.tablewrap tr{display:block;width:100%}
+.tablewrap thead{display:none}
+.tablewrap tr{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px 10px;margin-bottom:10px}
+.tablewrap td{display:grid;grid-template-columns:40% 1fr;gap:12px;padding:6px 0;border:0;background:none!important;font-size:15px;line-height:1.4}
+.tablewrap td:first-child{display:block;font:700 1.05rem/1.25 var(--display);padding:0 0 6px}
+.tablewrap td[data-th]::before{content:attr(data-th);color:var(--slate);font-size:14px}
+.tablewrap td.us{font-weight:700}
+/* regulated: the short version here, the whole thing on its own page */
+#regulated .cg-grid,#regulated .incl-wrap>h3,#regulated .incl{display:none}
+#regulated .regbox{gap:22px;padding:22px 18px}
+#regulated .cg{margin:0;padding:20px 16px}
+#regulated .reglink{display:block;margin:0;font-size:15px;color:var(--slate)}
+#regulated .reglink a{color:var(--sign);font-weight:700;text-underline-offset:3px}
 }
 </style>
 <script>(function () {
@@ -860,6 +915,13 @@ footer span,footer a,footer .entity{font-size:15px}
     b.insertAdjacentHTML('beforeend', CHEV);
     b.addEventListener('click', function () { setFold(s, !s.classList.contains('ao-open')); });
     s.insertBefore(b, s.firstChild);
+    // the bar already carries the heading, so an open section doesn't say it twice; it follows the heading's language
+    if (h && !s.getAttribute('data-fold-title')) {
+      h.classList.add('ao-dup');
+      var eb = h.previousElementSibling; if (eb && eb.classList.contains('eyebrow')) eb.classList.add('ao-dup');
+      var hd = h.parentElement; if (hd && hd !== s && [].every.call(hd.children, function (c) { return c.classList.contains('ao-dup'); })) hd.classList.add('ao-dup');
+      window.addEventListener('ao:lang', function () { t.textContent = h.textContent; });
+    }
   });
   function openFor(id) {
     var el = id && d.getElementById(id); if (!el) return null;
@@ -874,6 +936,49 @@ footer span,footer a,footer .entity{font-size:15px}
   }, true);
   window.addEventListener('hashchange', function () { var el = openFor(decodeURIComponent(location.hash.slice(1))); if (el) el.scrollIntoView(); });
   if (location.hash) { var first = openFor(decodeURIComponent(location.hash.slice(1))); if (first) setTimeout(function () { first.scrollIntoView(); }, 0); }
+
+  // Plans on a phone: Starter, Growth, Pro as three tabs, one plan shown at a time (the picked-most plan first).
+  d.querySelectorAll('.plans').forEach(function (rail, ri) {
+    var plans = [].slice.call(rail.querySelectorAll(':scope > .plan')); if (plans.length < 2) return;
+    var tabs = d.createElement('div'); tabs.className = 'ao-plantabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Plans');
+    var start = Math.max(0, plans.findIndex(function (p) { return p.classList.contains('feat'); }));
+    var btns = plans.map(function (p, i) {
+      if (!p.id) p.id = 'ao-plan' + ri + '-' + i;
+      p.setAttribute('role', 'tabpanel');
+      var b = d.createElement('button'); b.type = 'button'; b.id = p.id + '-tab'; b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', p.id);
+      p.setAttribute('aria-labelledby', b.id);
+      b.addEventListener('click', function () { pick(i); });
+      b.addEventListener('keydown', function (e) { var k = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!k) return; e.preventDefault(); var j = (i + k + plans.length) % plans.length; pick(j); btns[j].focus(); });
+      tabs.appendChild(b); return b;
+    });
+    function names() { btns.forEach(function (b, i) { var h = plans[i].querySelector('h3'), pr = plans[i].querySelector('.price b'); b.innerHTML = ''; b.appendChild(d.createTextNode(h ? h.textContent : 'Plan ' + (i + 1))); if (pr) { var sm = d.createElement('small'); sm.textContent = pr.textContent; b.appendChild(sm); } }); }
+    function pick(i) { plans.forEach(function (p, j) { p.classList.toggle('on', j === i); }); btns.forEach(function (b, j) { b.setAttribute('aria-selected', String(j === i)); b.tabIndex = j === i ? 0 : -1; }); }
+    names(); pick(start);
+    rail.removeAttribute('data-swipe'); rail.classList.add('ao-tabbed');
+    rail.parentNode.insertBefore(tabs, rail);
+    window.addEventListener('ao:lang', names);
+  });
+
+  // Add-ons on a phone: name, price and what it does; the details one tap away.
+  d.querySelectorAll('.addon').forEach(function (a, i) {
+    var dl = a.querySelector('dl'), go = a.querySelector('.btn'); if (!dl || !go) return;
+    if (!dl.id) dl.id = 'ao-addon-' + i;
+    var row = d.createElement('div'); row.className = 'addon-act';
+    var b = d.createElement('button'); b.type = 'button'; b.className = 'ao-moreb'; b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', dl.id);
+    function label() { var es = root.lang === 'es', open = a.classList.contains('ao-more'); b.textContent = open ? (es ? 'Menos detalles' : 'Fewer details') : (es ? 'Detalles' : 'Details'); }
+    b.addEventListener('click', function () { var open = !a.classList.contains('ao-more'); a.classList.toggle('ao-more', open); b.setAttribute('aria-expanded', String(open)); label(); });
+    go.parentNode.insertBefore(row, go); row.appendChild(go); row.appendChild(b); label();
+    window.addEventListener('ao:lang', label);
+  });
+
+  // The comparison table on a phone: each row a card, each answer labelled with whose it is.
+  d.querySelectorAll('.tablewrap table').forEach(function (tb) {
+    function heads() {
+      var th = [].slice.call(tb.querySelectorAll('thead th')).map(function (x) { return x.textContent.trim(); });
+      tb.querySelectorAll('tbody tr').forEach(function (tr) { [].slice.call(tr.children).forEach(function (td, j) { if (j && th[j]) td.setAttribute('data-th', th[j]); }); });
+    }
+    heads(); window.addEventListener('ao:lang', heads);
+  });
 
   // Rows that swipe sideways get dots under them.
   d.querySelectorAll('[data-swipe]').forEach(function (rail) {
