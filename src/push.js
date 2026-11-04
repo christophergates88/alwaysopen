@@ -150,11 +150,19 @@ export async function pushCron(env, now, h) {
 }
 
 // For the hourly health check: are pushes reaching the phone, one way or another?
-export async function pushHealth(env, now) {
+export async function pushHealth(env, now, h) {
   now = now || Date.now();
   if (!env.NTFY_URL) return { ok: false, why: 'no push topic set: nothing reaches your phone' };
   await ensurePush(env);
   const tk = env.NTFY_TOKEN ? await env.DB.prepare("SELECT v FROM push_meta WHERE k = 'token'").first().catch(() => null) : null;
+  // A refused token may have been replaced since (Set ntfy token): ask ntfy about the account, which sends no push.
+  if (tk && /^refused/.test(tk.v || '')) {
+    try {
+      const f = (h && h.fetch) || fetch;
+      const r = await f(String(env.NTFY_URL).replace(/^(https?:\/\/[^/]+).*$/, '$1') + '/v1/account', { headers: { Authorization: 'Bearer ' + String(env.NTFY_TOKEN).trim() }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (r.ok) { await note(env, 'token', 'ok', now); tk.v = 'ok'; }
+    } catch (e) { /* still refused, as far as we know */ }
+  }
   if (tk && /^refused/.test(tk.v || '')) return { ok: false, why: 'ntfy turned down the account token (' + tk.v + '), so pushes are going without it, on the free limits. Make a new token at ntfy.sh, Account, Access tokens, and set it with “Set ntfy token” on the Mac' };
   const stuck = await env.DB.prepare("SELECT COUNT(*) AS n, MIN(at) AS first FROM push_queue WHERE status IN ('queued', 'out') AND at < ?1").bind(new Date(now - 15 * 60e3).toISOString()).first();
   const relay = await env.DB.prepare("SELECT at FROM push_meta WHERE k = 'relay'").first().catch(() => null);

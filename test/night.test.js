@@ -30,7 +30,7 @@ test('at night a push arrives silently unless it is marked loud; by day nothing 
   assert.deepEqual(log.map(x => x.priority), ['low', 'high', 'high']);
 });
 
-test('problem alerts: silent and listed for the morning at night, loud only when callers reach nobody, repeats every 3 hours at most', async () => {
+test('problem alerts: silent and listed for the morning at night, loud only when callers reach nobody, repeats once a day while broken, 3 hours after a fix', async () => {
   const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
   H.installFetch(world, env);
   const real = Date.now;
@@ -44,8 +44,10 @@ test('problem alerts: silent and listed for the morning at night, loud only when
     Date.now = () => NIGHT + 40 * 60e3;
     assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'limited', 'not again 40 minutes later');
     Date.now = () => NIGHT + 3 * 3600e3 + 60e3;
-    assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'sent', 'again after 3 hours, with the count');
-    assert.match(world.pushes[3].body, /\(1 more like this since the last alert\)/);
+    assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'limited', 'still broken: not again after 3 hours');
+    Date.now = () => NIGHT + 24 * 3600e3 + 60e3;
+    assert.equal(await O.opsAlert(env, 'health:backup', '', 'the last backup was 9 days ago'), 'sent', 'again after a day, with the count');
+    assert.match(world.pushes[3].body, /\(2 more like this since the last alert\)/);
     const night = await M.nightList(env);
     assert.deepEqual(night.map(r => [r.type, r.n]), [['health:backup', 2], ['crash:/app/*', 1]], 'the loud one is not repeated in the morning list');
     assert.deepEqual(await M.nightList(env), [], 'cleared once read');
@@ -70,4 +72,21 @@ test('the outside monitor sees the site, the database, the jobs and the phone li
     await DB.prepare("UPDATE health_slow SET ok = 0, why = 'webhook points elsewhere' WHERE name = 'twilio-numbers'").run();
     assert.ok(names(await O.healthStatus(env, Date.now(), 'monitor')).includes('twilio-numbers'), 'a number that no longer reaches us does turn the monitor red');
   } finally { globalThis.fetch = real; }
+});
+
+test('a problem that was fixed and breaks again alerts after 3 hours, not a day', async () => {
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  const real = Date.now, t0 = Date.parse('2026-11-04T15:00:00Z');
+  try {
+    Date.now = () => t0;
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'ntfy turned down the account token'), 'sent');
+    Date.now = () => t0 + 2 * 3600e3;
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'ntfy turned down the account token'), 'limited');
+    await O.clearAlert(env, 'health:ntfy', t0 + 2.5 * 3600e3);   // the check passed
+    Date.now = () => t0 + 3 * 3600e3 + 60e3;
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'ntfy turned down the account token'), 'sent', 'a new break, 3 hours on');
+    Date.now = () => t0 + 7 * 3600e3;
+    assert.equal(await O.opsAlert(env, 'health:ntfy', '', 'ntfy turned down the account token'), 'limited', 'and now held for a day again');
+  } finally { Date.now = real; }
 });

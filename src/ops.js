@@ -5,9 +5,11 @@ import { push, isNight } from './push.js';
 import { rawEmail } from './neonmail.js';
 import { explainAlert, alertEmail } from './plainalerts.js';
 export { explainAlert, alertEmail };
-// The same problem alerts again at most every 3 hours, with a count of the ones held back (it used to be 15 minutes,
-// which meant a push every 20 minutes all night for anything that stayed broken).
-const GAP_MS = 3 * 3600e3;
+// Say it once: a problem that stays broken alerts again at most once a day, with a count of the ones held back (it was
+// every 3 hours, which sent 16 emails about one ntfy token on Nov 3-4). The 7 AM push lists what is still broken.
+// Once its check passes again (clearAlert), a new break can alert after 3 hours, so a real new problem is not held a day.
+const GAP_MS = 24 * 3600e3;
+const GAP_AFTER_FIX_MS = 3 * 3600e3;
 // The only problems worth waking up for: callers can reach neither Max nor the voicemail backup.
 const NIGHT_LOUD = new Set(['health:twilio-numbers']);
 const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').trim();
@@ -23,7 +25,8 @@ export const scrub = s => one(s)
 const alertsReady = new WeakSet();
 async function ensureAlerts(env) {
   if (alertsReady.has(env.DB)) return;
-  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER, prev INTEGER DEFAULT 0)').run();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_alerts (type TEXT PRIMARY KEY, at INTEGER, n INTEGER, prev INTEGER DEFAULT 0, ok_at INTEGER DEFAULT 0)').run();
+  try { await env.DB.prepare('ALTER TABLE ops_alerts ADD COLUMN ok_at INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS ops_night (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, type TEXT, detail TEXT)').run();
   try { await env.DB.prepare('ALTER TABLE ops_alerts ADD COLUMN prev INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
   alertsReady.add(env.DB);
@@ -42,10 +45,12 @@ export async function opsAlert(env, type, who, detail) {
     let row;
     try {
       await ensureAlerts(env);
-      row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev) VALUES (?1, ?2, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ?3 THEN prev ELSE n END, n = CASE WHEN ?2 - at < ?3 THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ?3 THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS).first();
+      // the gap is a day while it stays broken, 3 hours once its check has passed since the last alert
+      const G = 'CASE WHEN ok_at > at THEN ?4 ELSE ?3 END';
+      row = await env.DB.prepare('INSERT INTO ops_alerts (type, at, n, prev, ok_at) VALUES (?1, ?2, 0, 0, 0) ON CONFLICT(type) DO UPDATE SET prev = CASE WHEN ?2 - at < ' + G + ' THEN prev ELSE n END, n = CASE WHEN ?2 - at < ' + G + ' THEN n + 1 ELSE 0 END, at = CASE WHEN ?2 - at < ' + G + ' THEN at ELSE ?2 END RETURNING n, prev').bind(key, now, GAP_MS, GAP_AFTER_FIX_MS).first();
     } catch (e) {
       const last = MEMO.get(key) || 0;
-      if (now - last < GAP_MS) return 'limited';
+      if (now - last < GAP_AFTER_FIX_MS) return 'limited';
       MEMO.set(key, now); row = { n: 0, prev: 0 };
     }
     if (!row || +row.n !== 0) return 'limited';   // held back: n counts the ones since the last push
@@ -151,7 +156,7 @@ export async function slowChecks(env, h) {
   }
   // Phone pushes: ntfy refuses this server now and then (its free tier is limited per address, and Workers share
   // addresses), so what matters is whether pushes are reaching the phone one way or another (push.js).
-  try { const { pushHealth } = await import('./push.js'); const p = await pushHealth(env, h.now); out.push({ name: 'ntfy', ok: p.ok, why: p.why }); }
+  try { const { pushHealth } = await import('./push.js'); const p = await pushHealth(env, h.now, h); out.push({ name: 'ntfy', ok: p.ok, why: p.why }); }
   catch (e) { out.push({ name: 'ntfy', ok: true, why: '' }); }
   // Twilio: every live number still points at our webhook and has the fallback.
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
@@ -212,7 +217,7 @@ export async function slowCron(env, now, h) {
   const at = new Date(now).toISOString();
   for (const c of res) await env.DB.prepare('INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES (?1, ?2, ?3, ?4)').bind(c.name, at, c.ok ? 1 : 0, c.why || '').run();
   await env.DB.prepare("INSERT OR REPLACE INTO health_slow (name, at, ok, why) VALUES ('ran', ?1, 1, '')").bind(at).run();
-  for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why);
+  for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why); else await clearAlert(env, 'health:' + c.name, now);
   return { checked: res.length, bad: res.filter(c => !c.ok).map(c => c.name) };
 }
 async function slowResults(env, now) {
@@ -223,9 +228,13 @@ async function slowResults(env, now) {
   } catch (e) { return []; }
 }
 
+// A check that passes again: noted, so the next break of it is a new problem (3-hour gap, not a day).
+export async function clearAlert(env, type, now) {
+  try { await ensureAlerts(env); await env.DB.prepare('UPDATE ops_alerts SET ok_at = ?2 WHERE type = ?1 AND ok_at <= at').bind(type, now || Date.now()).run(); } catch (e) { /* only a note */ }
+}
 export async function healthCron(env) {
   const res = await healthChecks(env);
-  for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why);
+  for (const c of res) if (!c.ok) await opsAlert(env, 'health:' + c.name, '', c.why); else await clearAlert(env, 'health:' + c.name);
   await noteRun(env, 'tick', true, 0, res.filter(c => !c.ok).map(c => c.name).join(', '));
   return res;
 }
