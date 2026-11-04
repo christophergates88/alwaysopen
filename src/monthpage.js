@@ -4,6 +4,7 @@
 // /sample-report on the website is the same page with a made-up plumber. Pure renderer: renderMonthPage(view).
 import { insights, nextStep, BANDS } from './insights.js';
 import { review } from './timecard.js';
+import { clockSVG, clockLines, backExplained, hoursText, CLOCK_CSS, CLOCK_JS, sampleClock } from './clock.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
@@ -83,6 +84,7 @@ export function renderMonthPage(v) {
     '<h1>' + esc(v.business || 'Your business') + '</h1><p class="when-made">' + esc(v.label || '') + (v.mtd ? ', so far' : ', on one page') + (v.sentText ? ' · ' + esc(v.sentText) : '') + '</p></header>' +
     '<section class="lead"><div class="big"><b>' + (c.n || 0) + '</b><span>' + (v.regulated ? 'calls answered' : 'calls answered') + '<small>' + (c.n ? c.after + ' after hours or on a weekend' + (c.leads ? ', ' + pl(c.leads, 'lead', 'leads') + ' left their details' : '') : 'No calls to Max this month') + '</small>' + delta(vs && vs.calls, vl) + '</span></div>' + worth + '</section>' +
     '<section class="tiles">' + tiles.map(t => '<div><b>' + t[0] + '</b><span>' + esc(t[1]) + '</span><small>' + esc(t[2]) + '</small>' + delta(t[3], vl) + '</div>').join('') + '</section>' +
+    clockBand(v) +
     checkBand +
     when +
     (lost || rv ? '<div class="two">' + (lost || '') + rv + '</div>' : '') +
@@ -95,7 +97,20 @@ export function renderMonthPage(v) {
     '<footer class="ft"><p>' + (v.record ? 'Every review, reply and post this month is in your <a href="' + esc(v.record) + '">record of public communications</a>. ' : 'Every review, reply and post is kept in a monthly record. ') +
     'Questions about this page? ' + SUPPORT_NAME + ' answers, usually the same business day: hello@alwaysopenoffice.com' + (v.sample ? '' : ', or Ask us in the app') + '.</p>' +
     '<p>Made by Always Open' + (v.sample ? '. Sample: made-up business and numbers.' : ' for ' + esc(v.business || 'your business') + (/\.$/.test(v.business || '') ? '' : '.') + ' Counts come from Max’s calls, your app and your Google profile.') + '</p></footer></div>' +
-    '</main><script>(function(){var p=document.getElementById("pdf");if(p)p.onclick=function(){window.print();};var s=document.getElementById("share");if(s&&navigator.share){s.hidden=false;s.onclick=function(){navigator.share({title:document.title,url:location.href}).catch(function(){});};}})();</script></body></html>';
+    '</main><script>' + CLOCK_JS + '(function(){var p=document.getElementById("pdf");if(p)p.onclick=function(){window.print();};var s=document.getElementById("share");if(s&&navigator.share){s.hidden=false;s.onclick=function(){navigator.share({title:document.title,url:location.href}).catch(function(){});};}})();</script></body></html>';
+}
+// Max's clock: the month on one 24-hour dial (clock.js), the two numbers in the middle, the one call under it, and the
+// plain arithmetic for "back to you". Sits right under the tiles, because it is what the month looked like from the desk.
+function clockBand(v) {
+  const m = v.clock; if (!m) return '';
+  const name = esc(v.maxName || m.name || 'Max');
+  const lines = clockLines(m);
+  const perHour = v.planCents && m.onMin >= 24 * 60 ? Math.round(v.planCents / (m.onMin / 60)) : 0;
+  return '<section class="clock"><div class="clk-wrap">' + clockSVG(m, { id: 'mp', size: 300, live: !!v.mtd }) +
+    '<div class="clk-side"><h2>' + name + '’s clock</h2><p class="sub">Every call, check-in, reply, post and text, at the minute it happened. The shaded hours are 6 PM to 8 AM, when nobody is at a desk.</p>' +
+    '<ul class="facts">' + lines.map(x => '<li>' + esc(x) + '</li>').join('') + (perHour ? '<li>Your plan, by the hour: ' + (perHour >= 100 ? '$' + (perHour / 100).toFixed(2) : perHour + '¢') + '.</li>' : '') + '</ul>' +
+    (m.one ? '<p class="one"><b>The one call.</b> ' + esc(m.one.text) + '</p>' : (m.calls ? '' : '<p class="one">' + (v.mtd ? 'Nothing yet this month. He is there anyway.' : 'A quiet month. He was there anyway.') + '</p>')) +
+    '<details><summary>How “back to you” is figured</summary><p>' + esc(backExplained(m)) + '</p></details></div></div></section>';
 }
 function ordinal(n) { return n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); }
 
@@ -114,6 +129,7 @@ export const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#
   '.tiles{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.tiles div{padding:12px 16px;border-right:1px solid var(--line);display:grid;align-content:start;gap:1px}.tiles div:last-child{border-right:0}.tiles b{font:850 1.7rem/1 "Archivo","Arial Narrow",system-ui,sans-serif}.tiles span{font-weight:600;font-size:13.5px}.tiles small{font-size:12.5px;color:var(--slate)}' +
   'section{padding:14px 24px;border-bottom:1px solid var(--line)}h2{font:800 1.02rem/1.2 system-ui,sans-serif;margin:0 0 4px}.sub{margin:0 0 8px;color:var(--slate);font-size:13.5px}' +
   '.when{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}.bars{display:flex;align-items:flex-end;gap:6px;height:118px}.bar{flex:1;display:grid;grid-template-rows:1fr auto auto;align-items:end;text-align:center;height:100%}.bar i{display:block;background:#D6D1C6;border-radius:6px 6px 2px 2px;align-self:end}.bar.pk i{background:var(--sign)}.bar b{font-size:12px}.bar span{font-size:11px;color:var(--slate);white-space:nowrap}' +
+  CLOCK_CSS + '.clock{--clk-ink:#14171F;--clk-mute:#5A6170;--clk-line:#E2DED6;--clk-night:#FDECEA;--clk-ok:#0E4A2E;--clk-sign:#D92D20}.clk-wrap{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:center}.clk-side h2{margin-bottom:2px}.clk-side .facts{margin-top:6px}.clk-side .one{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--sign-soft);font-size:14px}.clk-side .one b{color:var(--sign)}.clk-side details{margin-top:8px;font-size:13px;color:var(--slate)}.clk-side summary{cursor:pointer;font-weight:600}.clk-side details p{margin:4px 0 0}.clk .clk-big{font-family:"Archivo","Arial Narrow",system-ui,sans-serif}' +
   '.two{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}.two section{border-bottom:0}.two section+section{border-left:1px solid var(--line)}' +
   '.hbar{display:grid;grid-template-columns:minmax(0,1.3fr) 1fr auto;gap:8px;align-items:center;font-size:13.5px;margin:6px 0}.hbar i{height:10px;border-radius:5px;background:var(--sign)}' +
   '.facts,.list{margin:0;padding-left:18px}.facts li,.list li{margin:3px 0;font-size:14px}' +
@@ -122,7 +138,7 @@ export const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#
   '.check{background:var(--ok-soft)}.check h2{color:var(--ok)}.ck{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 6px}.ck div{display:flex;gap:10px;align-items:baseline}.ck b{font:850 2rem/1 "Archivo","Arial Narrow",system-ui,sans-serif;color:var(--ok)}.ck span{font-size:14px}.check .sub{margin:0}' +
   '.proof{margin:0 0 14px;padding:12px 16px;border-radius:12px;border:1px solid var(--ok);background:var(--ok-soft);font-weight:600;font-size:14.5px}.next{background:var(--ok-soft)}.next p{margin:0;font-weight:600}.since p{margin:0}.since a{color:var(--sign);font-weight:600}' +
   '.ft{border-radius:0 0 18px 18px;padding:14px 24px 18px;font-size:12.5px;color:var(--slate)}.ft p{margin:4px 0}.ft a{color:inherit}' +
-  '@media (max-width:640px){.lead,.when,.two,.ck{grid-template-columns:1fr}.two section+section{border-left:0;border-top:1px solid var(--line)}.tiles{grid-template-columns:1fr 1fr}.tiles div:nth-child(2){border-right:0}.tiles div:nth-child(-n+2){border-bottom:1px solid var(--line)}.hd,.lead,section,.ft{padding-left:16px;padding-right:16px}.big b{font-size:3.2rem}}' +
+  '@media (max-width:640px){.clk-wrap{grid-template-columns:1fr;justify-items:center}.clk-side{width:100%}.lead,.when,.two,.ck{grid-template-columns:1fr}.two section+section{border-left:0;border-top:1px solid var(--line)}.tiles{grid-template-columns:1fr 1fr}.tiles div:nth-child(2){border-right:0}.tiles div:nth-child(-n+2){border-bottom:1px solid var(--line)}.hd,.lead,section,.ft{padding-left:16px;padding-right:16px}.big b{font-size:3.2rem}}' +
   // On screen the page is lit like the OPEN sign on the website: a dark sheet with a slow red glow, the big number in
   // neon, check-ins in green. Printing and Save as PDF keep the plain paper version above (nothing here applies).
   '@media screen{:root{--ink:#ECEEF3;--slate:#A3ACBF;--line:rgba(255,255,255,.08);--paper:transparent;--sign:#FF5A4D;--sign-soft:rgba(255,90,77,.1);--ok:#5CC9A4;--ok-soft:rgba(92,201,164,.07);color-scheme:dark}' +
@@ -136,11 +152,12 @@ export const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#
   '.check{background:rgba(92,201,164,.07);border-top:1px solid rgba(92,201,164,.35);border-bottom:1px solid rgba(92,201,164,.35);box-shadow:inset 0 0 26px rgba(92,201,164,.08)}.check h2,.ck b{color:#7EE0BE;text-shadow:0 0 10px rgba(92,201,164,.55)}' +
   '.bar i{background:#2B3346}.bar.pk i{background:#FF5A4D;box-shadow:0 0 14px rgba(255,90,77,.6)}.hbar i{background:#FF5A4D;box-shadow:0 0 10px rgba(255,90,77,.5)}' +
   '.next{background:rgba(92,201,164,.07)}.next h2{color:#7EE0BE}.next p{color:#fff}' +
+  '.clock{--clk-ink:#fff;--clk-mute:#A3ACBF;--clk-line:rgba(255,255,255,.07);--clk-night:rgba(255,90,77,.17);--clk-ok:#5CC9A4;--clk-sign:#FF6A5E}.clk .clk-big{fill:#fff;text-shadow:none}.clk-side .one{background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.45);box-shadow:0 0 16px rgba(255,90,77,.16)}.clk-side .one b{color:#FF8C82;text-shadow:0 0 8px rgba(255,106,94,.6)}' +
   '.btn{box-shadow:0 0 18px rgba(255,90,77,.35)}.btn.ghost{color:#FF8C82;border-color:rgba(255,106,94,.7);box-shadow:none}' +
   '.ft a{color:#FF8C82}' +
   '@keyframes shGlow{0%,100%{box-shadow:0 0 0 1px rgba(255,106,94,.12),0 0 28px rgba(255,90,77,.24),inset 0 0 26px rgba(255,90,77,.04),0 40px 80px -40px rgba(0,0,0,.9)}50%{box-shadow:0 0 0 1px rgba(255,106,94,.22),0 0 44px rgba(255,90,77,.4),inset 0 0 34px rgba(255,90,77,.08),0 40px 80px -40px rgba(0,0,0,.9)}}' +
   '@media (prefers-reduced-motion:no-preference){.sheet{animation:shGlow 3.2s ease-in-out infinite}}}' +
-  '@media print{@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
+  '@media print{.clk *{filter:none!important;animation:none!important}.clk-hand{display:none}@page{size:letter;margin:.35in}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}html{background:#fff}.page{max-width:none;padding:0;zoom:.66}.tools{display:none}.hd,.lead,.tiles,section,.two,.ft{background:#fff}section{padding:9px 0}.hd,.lead,.ft{padding-left:0;padding-right:0}.two section{padding:9px 16px 9px 0}.two section+section{padding-left:16px}.bars{height:90px}body{font-size:13px}}';
 
 // The website's sample: a made-up plumber, in the same shape as a real month, run through the same findings.
 export function samplePage(proof) {
@@ -158,5 +175,5 @@ export function samplePage(proof) {
     stormPosts: 1
   };
   a.insights = insights(a, {}); a.next = nextStep(a, {});
-  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, proof: proof || '', a, stats: { posts: 2, rating: 4.6, count: 58, replies: 3 } });
+  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, proof: proof || '', a, stats: { posts: 2, rating: 4.6, count: 58, replies: 3 }, clock: sampleClock(), planCents: 29900 });
 }

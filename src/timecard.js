@@ -6,6 +6,7 @@
 import { tzFor, local, fromLocal, ensureCallbacks } from './callbacks.js';
 import { isAfterHours } from './answerrate.js';
 import { figure } from './money.js';
+import { hoursText } from './clock.js';
 
 export const HOURS = 168;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -32,7 +33,7 @@ export function lastWeek(tz, now) {
 export function timecardNumbers(c) {
   const m = figure({ after: c.after || 0, leads: c.leads || 0, booked: c.booked || 0 }, c.avgJob || 0, c.winRate == null ? 30 : c.winRate);
   return { hours: HOURS, calls: c.calls || 0, booked: c.booked || 0, kept: c.kept || 0, due: c.due || 0, after: c.after || 0, leads: c.leads || 0,
-    caught: m.mid || 0, cost: weekCost(c.monthlyCents) };
+    caught: m.mid || 0, cost: weekCost(c.monthlyCents), back: Math.round(c.back || 0) };
 }
 // Pure: the text, one line per fact, nothing else.
 export function timecardText(t, name, label) {
@@ -42,6 +43,7 @@ export function timecardText(t, name, label) {
   if (t.due) out.push('Call-backs kept: ' + t.kept + ' of ' + t.due + '.');
   if (t.caught) out.push('Caught after hours: about ' + dollars(t.caught) + '.');
   else if (t.leads) out.push('After-hours leads: ' + t.leads + '.');
+  if (t.back) out.push('Back to you: ' + hoursText(t.back, true) + '.');
   if (t.cost) out.push('Cost you: ' + dollars(t.cost) + '.');
   if (!t.calls) out.push('Quiet week. He was there anyway.');
   return out.join('\n');
@@ -77,7 +79,9 @@ export async function weekCounts(env, cid, w, tz) {
   let bill = null, cl = null;
   try { bill = await env.DB.prepare('SELECT plan, max FROM billing WHERE client_id = ?1').bind(cid).first(); } catch (e) { bill = null; }
   try { cl = await env.DB.prepare('SELECT tier FROM app_clients WHERE client_id = ?1').bind(cid).first(); } catch (e) { cl = null; }
-  return { calls: calls.length, booked: books.length, after, leads, bookedAfter, kept: cbs.filter(r => r.status === 'done').length, due: cbs.length,
+  let back = 0;
+  try { back = (await (await import('./clock.js')).clockFor(env, cid, w.from, w.to, { tz })).backMin; } catch (e) { back = 0; }
+  return { calls: calls.length, booked: books.length, after, leads, bookedAfter, kept: cbs.filter(r => r.status === 'done').length, due: cbs.length, back,
     avgJob: +(set && set.avg_job) || 0, winRate: set && set.win_rate != null ? +set.win_rate : 30,
     monthlyCents: planCents((bill && bill.plan) || (cl && cl.tier) || '', !!(bill && +bill.max)) };
 }
@@ -96,7 +100,7 @@ export async function timecardFor(env, cid, now) {
 export async function timecardState(env, cid, now) {
   try {
     const tc = await timecardFor(env, cid, now);
-    return { label: tc.label, name: tc.name, hours: tc.nums.hours, calls: tc.nums.calls, booked: tc.nums.booked, kept: tc.nums.kept, due: tc.nums.due, caught: tc.nums.caught, leads: tc.nums.leads, cost: tc.nums.cost, text: tc.text };
+    return { label: tc.label, name: tc.name, hours: tc.nums.hours, calls: tc.nums.calls, booked: tc.nums.booked, kept: tc.nums.kept, due: tc.nums.due, caught: tc.nums.caught, leads: tc.nums.leads, cost: tc.nums.cost, back: tc.nums.back, text: tc.text };
   } catch (e) { return null; }
 }
 

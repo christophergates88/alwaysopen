@@ -1,6 +1,7 @@
 import { BIZ_JS } from './bizpage.js';
 import { PAST_JS } from './pastpage.js';
 import { RIVALS_JS } from './rivalspage.js';
+import { CLOCK_CSS, CLOCK_JS } from './clock.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -215,6 +216,14 @@ a.btn{color:inherit}
 .loading span:nth-child(2){animation-delay:.15s}.loading span:nth-child(3){animation-delay:.3s}
 @keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
 /* home, reviews, Max */
+${CLOCK_CSS}
+.clock{--clk-ink:#fff;--clk-mute:var(--slate);--clk-line:rgba(255,255,255,.07);--clk-night:rgba(255,90,77,.18);--clk-ok:var(--ok);--clk-sign:var(--sign);background:var(--card);border:1px solid rgba(255,106,94,.4);border-radius:20px;padding:14px 16px 12px;margin:0 0 14px;display:grid;gap:6px;box-shadow:var(--glow)}
+.clock .ch{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.clock .ch b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}.clock .ch span{font:500 12px var(--mono);color:var(--slate)}
+.clock .clk{margin:0 auto;width:min(280px,100%)}.clock .clk .clk-big{font-family:var(--display);font-stretch:92%}
+.clock .one{margin:4px 0 0;padding:10px 12px;border-radius:12px;background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.4);font-size:14px;line-height:1.35}.clock .one b{color:var(--sign)}
+.clock .cl{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--slate)}.clock .cl b{color:var(--ink);font-weight:600}
+.clock .acts{margin-top:4px}
+.evl .row .meta b{color:var(--sign)}
 .hero{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:var(--card);border:2px solid var(--sign);border-radius:20px;padding:16px;margin:0 0 18px;box-shadow:var(--glow)}
 .hero.off{border-color:var(--line);box-shadow:none}
 .sign{display:grid;justify-items:center;gap:3px;padding:9px 12px 7px;border:2.5px solid var(--sign);border-radius:12px;color:var(--sign);box-shadow:0 0 16px rgba(255,90,77,.45),inset 0 0 10px rgba(255,90,77,.2)}
@@ -266,6 +275,7 @@ select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:v
 `;
 
 const JS = `
+${CLOCK_JS}
 (function(){
 'use strict';
 var S=null,TAB='home',EDIT={},VERS={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
@@ -329,7 +339,7 @@ function load(quiet,auto){
 
 function hasMax(){return !!(S&&S.features&&(S.features.line||S.features.calls));}
 var KEEP=['msg','lh','lo','lt','lw','lg'];
-function render(){
+function render(){clearTimeout(render.clk);render.clk=setTimeout(function(){try{aoClockTick();}catch(e){}},0);
   var hm=hasMax();if(S&&TAB==='max'&&!hm)TAB='home';
   var bs=document.querySelectorAll('.tab');for(var i=0;i<bs.length;i++){if(bs[i].dataset.tab===TAB)bs[i].setAttribute('aria-current','page');else bs[i].removeAttribute('aria-current');}
   var n=S&&S.items?S.items.length:0,bd=$('#badge');bd.hidden=!n;bd.textContent=n>99?'99+':n;
@@ -512,8 +522,8 @@ function vHome(){
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+qt('hours',ICON.cal,'Holiday or new hours','Tell us the days and times')+'</div>';
   // A brand-new account: Max, then setup. Once calls come in: call-backs, Max, today so far, then quick actions.
   var fresh=!busy&&!(S.calls||[]).length;
-  if(fresh)h+=heroCard()+flCard()+bizTop()+quick;
-  else h+=cbCard()+heroCard()+todayStrip()+quick+flCard()+bizTop();
+  if(fresh)h+=heroCard()+clockCard()+flCard()+bizTop()+quick;
+  else h+=cbCard()+heroCard()+clockCard()+todayStrip()+quick+flCard()+bizTop();
   if(busy&&!isTech())h+=monthNowCard()+moneyCard();
   if(!att.length&&busy)h+='<div class="empty slim">'+ICON.check+'<b>All caught up</b><span>We’ll buzz your phone when something needs you.</span></div>';
   h+=(f.followups||busy?fuBlock():'')+fwCard()+moreCard()+(busy?homeRefer():'');
@@ -648,6 +658,22 @@ function monthNowCard(){
     (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
     (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+
     '<div class="acts" style="margin-top:10px"><a class="btn line sm" href="'+esc(BASE+m.page)+'">Open '+esc(mo)+'\u2019s page</a>'+(m.year?'<a class="btn line sm" href="'+esc(BASE+m.year)+'">Your year</a>':'')+'</div></div>';
+}
+// Max's clock: this month on one dial (server-drawn, clock.js), the two numbers, the one call, and the list behind it.
+function clockCard(){
+  var K=S.clock;if(!K)return '';
+  var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
+  var facts='<ul class="cl"><li><b>'+hb(K.onMin)+'</b> on the clock</li>'+(K.calls?'<li><b>'+K.calls+'</b> '+(K.calls===1?'call':'calls')+', '+K.alone+' handled alone'+(K.toYou?', <b>'+K.toYou+'</b> brought to you':'')+'</li>':'')+(K.backMin?'<li><b>'+hb(K.backMin)+'</b> back to you</li>':'')+'</ul>';
+  return '<div class="clock" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+esc(K.month||'this month')+' so far</span></div>'+K.svg+facts+
+    (K.one?'<p class="one"><b>The one call.</b> '+esc(K.one)+'</p>':(K.n?'':'<p class="one">Nothing yet this month. '+nm+' is on the clock anyway; the first call lands here.</p>'))+
+    '<div class="acts"><button class="btn line sm" type="button" data-a="clock-list">'+(K.n?'Everything on the dial':'How this works')+'</button>'+(S.monthNow&&S.monthNow.page?'<a class="btn ghost sm" href="'+esc(BASE+S.monthNow.page)+'">This month\u2019s page</a>':'')+'</div></div>';
+}
+function clockSheet(){
+  var K=S.clock||{},ev=K.events||[],nm=esc(K.name||'Max');
+  var list=ev.length?'<div class="list evl">'+ev.map(function(e){var d=new Date(e.at),day=isNaN(d)?'':d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      return '<div class="row"><div><b>'+esc(e.time)+'</b><div class="meta">'+esc(day)+' \u00b7 '+esc(e.label)+(e.you?' \u00b7 <b>brought to you</b>':'')+(e.booked?' \u00b7 booked':'')+(e.reason?'<br>'+esc(e.reason):'')+'</div></div></div>';}).join('')+'</div>':'<p class="fine">Nothing on the dial yet.</p>';
+  sheet('<h2>'+nm+'\u2019s clock</h2><p class="fine">Every call, check-in call, follow-up, reply, post and missed-call text this month, at the minute it happened in your own time. Teal: handled without you. Red: brought to you.</p>'+
+    '<p class="fine"><b>How \u201cback to you\u201d is figured.</b> '+esc(K.explained||'')+'</p>'+list+'<div class="acts"><button class="btn line" type="button" data-close="1">Close</button></div>');
 }
 function heroCard(){
   var L=S.line,f=S.features||{};
@@ -868,7 +894,7 @@ function timecardCard(){
   var row=function(k,v){return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span class="fine" style="margin:0">'+k+'</span><b>'+v+'</b></div>';};
   return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px"><b>'+esc(T.name)+'\\u2019s timecard</b><span class="fine">'+esc(T.label)+'</span></div>'+
     row('On the clock',T.hours+' hours')+row('Answered',T.calls+(T.calls===1?' call':' calls'))+(T.booked?row('Booked',T.booked):'')+(T.due?row('Call-backs kept',T.kept+' of '+T.due):'')+
-    (T.caught?row('Caught after hours','about '+d(T.caught)):(T.leads?row('After-hours leads',T.leads):''))+(T.cost?row('Cost you',d(T.cost)):'')+
+    (T.caught?row('Caught after hours','about '+d(T.caught)):(T.leads?row('After-hours leads',T.leads):''))+(T.back?row('Back to you',(function(min){var h=Math.floor(min/60),m=min%60;return h?h+(h===1?' hour':' hours')+(m?' '+m+' min':''):m+' min';})(T.back)):'')+(T.cost?row('Cost you',d(T.cost)):'')+
     '<p class="fine" style="margin:8px 0 0">'+(T.calls?'':'Quiet week. He was there anyway. ')+'Texted to you every Monday morning.</p></div>';
 }
 // Max's job description (duties.js) and "Tell Max": owner only (the server sends duties only to the owner).
@@ -1199,6 +1225,7 @@ document.addEventListener('click',function(e){
   else if(a==='line-on')lineSave({onAir:true});
   else if(a==='sign')signTap();
   else if(a==='money-set')moneySheet();
+  else if(a==='clock-list')clockSheet();
   else if(a==='ref-x'){store('ao_ref_x',JSON.stringify({k:(S.referrals&&S.referrals.nudge||{}).key,at:Date.now()}));render();}
   else if(a==='filt'){FILT=t.dataset.k;render();}
   else if(a==='tile')tileSheet(t.dataset.k,t.dataset.m);

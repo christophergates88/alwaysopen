@@ -473,6 +473,8 @@ async function apiState(env, c, ctx) {
   try { out.minutes = (f.calls && line && !c.staff) ? await (await import('./minutes.js')).meterFor(env, cid) : null; } catch (e) { out.minutes = null; }
   try { out.money = (f.calls && line && !tech) ? await (await import('./money.js')).moneyState(env, cid) : null; } catch (e) { out.money = null; }
   try { out.timecard = (f.calls && line && !c.staff) ? await (await import('./timecard.js')).timecardState(env, cid) : null; } catch (e) { out.timecard = null; }
+  // Max's clock: this month on one dial (clock.js), for Today and the month page. Techs see counts, never reasons.
+  try { out.clock = await clockState(env, c, tech); } catch (e) { out.clock = null; }
   try { out.reconnect = c.staff ? [] : await (await import('./connections.js')).brokenFor(env, cid); } catch (e) { out.reconnect = []; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
@@ -966,6 +968,19 @@ async function storedA(env, cid, ym) {
   const d = parse(row && row.data) || null;
   return d && d.a ? Object.assign({ label: d.label || labelOf(ym) }, d.a) : null;
 }
+// A month's window in the business's own time: ISO start and end (now, for this month so far), its zone and Max's name.
+export async function monthWindow(env, c, ym, mtd, now) {
+  now = now || Date.now();
+  const { tzFor, local, fromLocal } = await import('./callbacks.js');
+  const tz = await tzFor(env, c.client_id);
+  ym = mtd ? local(tz, now).day.slice(0, 7) : ym;
+  const start = new Date(fromLocal(tz, ym + '-01', 0, 0)).toISOString();
+  const nextYm = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 1)).toISOString().slice(0, 7);
+  const end = mtd ? new Date(now).toISOString() : new Date(fromLocal(tz, nextYm + '-01', 0, 0)).toISOString();
+  let name = 'Max';
+  try { const l = await env.DB.prepare('SELECT owner_set, facts FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first(); const o = parse(l && l.owner_set) || {}, f = parse(l && l.facts) || {}; name = String(o.name || f.name || 'Max').trim() || 'Max'; } catch (e) { name = 'Max'; }
+  return { tz, ym, start, end, name };
+}
 // One month's analytics for a client: whole past months from the report (or worked out now for older ones), or this
 // month from the 1st in the business's own time to now. Techs never see money.
 export async function monthFor(env, c, which, now) {
@@ -998,7 +1013,10 @@ async function monthPageFor(env, c, which, base) {
   const sent = m.mtd ? 'through ' + new Date(Date.parse(m.through + 'T12:00:00Z')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
   let since = '';
   try { const T = await import('./trends.js'); since = T.sinceLine((await T.trendsFor(env, c)).since, { noMoney: c.role === 'tech' || !!+c.regulated }); } catch (e) { since = ''; }
-  const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '', year: base + '/year', since });
+  let clock = null, planCents = 0;
+  try { const w = await monthWindow(env, c, m.month, m.mtd); clock = await (await import('./clock.js')).clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: m.mtd, name: w.name, reasons: c.role !== 'tech' }); } catch (e) { clock = null; }
+  try { const b = await env.DB.prepare('SELECT plan, max FROM billing WHERE client_id = ?1').bind(c.client_id).first(); planCents = c.role === 'tech' ? 0 : (await import('./timecard.js')).planCents((b && b.plan) || c.tier || '', !!(b && +b.max)); } catch (e) { planCents = 0; }
+  const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '', year: base + '/year', since, clock, planCents, maxName: clock && clock.name });
   return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
 }
 async function yearPageFor(env, c, base) {
@@ -1007,6 +1025,20 @@ async function yearPageFor(env, c, base) {
   return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
 }
 // The Home card's numbers: this month so far, short.
+async function clockState(env, c, tech) {
+  const w = await monthWindow(env, c, '', true);
+  const K = await import('./clock.js');
+  const m = await K.clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: true, name: w.name, reasons: !tech });
+  const month = new Date(Date.parse(w.start)).toLocaleDateString('en-US', { month: 'long', timeZone: w.tz });
+  return { month, name: m.name, onMin: m.onMin, backMin: m.backMin, calls: m.calls, alone: m.alone, toYou: m.toYou, after: m.after, byKind: m.byKind, n: m.n,
+    lines: K.clockLines(m), explained: K.backExplained(m), one: m.one ? m.one.text : '', oneMin: m.one ? m.one.m : -1, nowMin: m.nowMin,
+    svg: K.clockSVG(m, { id: 'app', size: 280, live: true }),
+    // every tick for the iPhone app's own dial: minute of day, kind, brought to you, after hours
+    ticks: m.ticks.map(t => ({ m: t.m, k: t.kind, y: t.you ? 1 : 0, n: t.night ? 1 : 0 })),
+    // the list behind the dial, newest first: time, what, handled alone or brought to you
+    events: m.ticks.slice().reverse().slice(0, 120).map(t => ({ at: new Date(t.at).toISOString(), m: t.m, time: K.sayMinute(t.m), day: t.day, kind: t.kind, label: K.KIND_LABEL[t.kind] || t.kind, you: t.you, night: t.night, booked: t.booked, reason: tech ? '' : (t.reason || '') }))
+  };
+}
 function monthNowOut(m) {
   if (!m) return null;
   const a = m.a, w = a.work;
