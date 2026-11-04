@@ -24,9 +24,9 @@ import { slotsFor, bookFor } from './availability.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
-// Live calls stay on Haiku until a stronger model is proven on rehearsals (Opus refuses thinking "disabled"; the
-// stronger model goes live only once its replies and speed are checked). VOICE_MODEL / VOICE_THINKING override per deploy.
-const CLAUDE_MODEL = 'claude-haiku-5-5';
+// Live calls run on Sonnet since Nov 4 2026: it beat Haiku on the hard rehearsal calls (safe advice, the danger calls,
+// Spanish, no made-up contradictions) once phone numbers were counted by code. VOICE_MODEL / VOICE_THINKING override per deploy.
+const CLAUDE_MODEL = 'claude-sonnet-5-5';
 // How each model is asked not to think before speaking: "disabled" where the model allows it, otherwise the least thinking.
 export function thinkingFor(env, model) {
   const t = String(env.VOICE_THINKING || '');
@@ -34,7 +34,8 @@ export function thinkingFor(env, model) {
   if (t === 'adaptive') return { type: 'adaptive' };
   if (t === 'disabled') return { type: 'disabled' };
   if (t === 'between_tools') return { type: 'between_tools' };   // Sonnet/Opus 5.5: the lowest thinking setting (they refuse "disabled")
-  return /haiku/.test(model) ? { type: 'disabled' } : null;
+  if (/haiku/.test(model)) return { type: 'disabled' };
+  return /sonnet|opus/.test(model) ? { type: 'between_tools' } : null;   // the least thinking these allow, so Max answers fast
 }
 const CF_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const FILLER_MS = 2200;          // if the AI is unusually slow and has said nothing by then, Max bridges the gap ("Let's see.")
@@ -1588,7 +1589,7 @@ const LEADS = {
   ask: ['Sure.', 'Alright.', 'Yeah, of course.', 'Absolutely.'],
   wh: ['Good question.', 'Sure.', 'Okay, so.', 'Let me see.', 'Yeah, so.'],
   worry: ['Fair question.', 'Good question.'],
-  yn: ['Good question.', 'Fair question.', 'Okay.', 'Let me see.', 'Yeah, so.'],
+  yn: ['Okay.', 'Sure.', 'Let me see.', 'Yeah, so.'],
   point: ['Fair point.', 'Good point.'],
   biz: ['Nice.', 'Okay, nice.'],
   pet: ['Nice.', 'That\'s great.'],
@@ -1870,7 +1871,7 @@ export function callerNotes(s, said) {
   if (callLang(s.lang, s.msgs, said) === 'es-US') out.push('The call is in Spanish: every word of your answer in Spanish, no English fillers or reactions (okay, sure, right, got it); street, town and business names stay as said.');
   { const lastA = [...(s.msgs || [])].reverse().find(m => m.r === 'a');
     if (lastA && NOT_OUR_WORK.test(String(lastA.t || ''))) out.push('You told them this business does not do that work. Never imply anyone from here will come for it or take details "to send someone" for it; offer only a listed nearby business, or a message for the owner, said as a message, not a visit.'); }
-  if (s.urgent) out.push('This is urgent: something is going wrong for them right now or they need it as soon as possible. ' + 'The owner was just sent an urgent alert about this call' + '. Sound like you care that it gets fixed today, in your own words, not a script. Make sure it is safe first. If what you know about the business says how emergencies are handled (same night, a quick callback), say that first, in those words, instead of offering a calendar time. Otherwise, if they ask for anything sooner than the soonest open time, do not just repeat that time: say the owner knows it is urgent and will call them back as soon as he can to see if he can get there sooner, and get the best number.');
+  if (s.urgent) out.push('This is urgent: something is going wrong for them right now or they need it as soon as possible. Never guess what is causing it (no "that usually means..."); that is for whoever comes out. ' + 'The owner was just sent an urgent alert about this call' + '. Sound like you care that it gets fixed today, in your own words, not a script. Make sure it is safe first. If what you know about the business says how emergencies are handled (same night, a quick callback), say that first, in those words, instead of offering a calendar time. Otherwise, if they ask for anything sooner than the soonest open time, do not just repeat that time: say the owner knows it is urgent and will call them back as soon as he can to see if he can get there sooner, and get the best number.');
   if (s.msgs.some(m => m.r === 'a' && /\b(zero|one|two|three|four|five|six|seven|eight|nine)(,? (zero|one|two|three|four|five|six|seven|eight|nine)){2,}\b/i.test(m.t))) out.push('You already read their phone number back. Never read it out again; call it "that number".');
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');

@@ -27,8 +27,8 @@ test('the prompt still fits its size cap', () => {
 test('no model is ever sent a thinking setting it refuses (Opus refused "disabled" on Oct 30)', async () => {
   const { thinkingFor } = await import('../src/voice.js');
   assert.deepEqual(thinkingFor({}, 'claude-haiku-5-5'), { type: 'disabled' });
-  assert.equal(thinkingFor({}, 'claude-opus-5-5'), null);
-  assert.equal(thinkingFor({}, 'claude-sonnet-5-5'), null);
+  assert.deepEqual(thinkingFor({}, 'claude-opus-5-5'), { type: 'between_tools' });
+  assert.deepEqual(thinkingFor({}, 'claude-sonnet-5-5'), { type: 'between_tools' });   // the setting the Nov 4 rehearsals ran on
   assert.deepEqual(thinkingFor({ VOICE_THINKING: 'adaptive' }, 'claude-opus-5-5'), { type: 'adaptive' });
 });
 
@@ -52,4 +52,9 @@ test('what the call already settled is handed to Max every turn, so he never re-
   assert.match(n, /Is the water shut off\?" -> "Yes, whole house\./);
   assert.match(n, /best number for Mike to reach you\?" -> "four seven eight/);
   assert.equal(settledOnCall([{ r: 'a', t: 'Hello.' }]), '');
+});
+
+test('Max runs on Sonnet live (Nov 4 2026)', async () => {
+  const fs = await import('node:fs');
+  assert.match(fs.readFileSync(new URL('../src/voice.js', import.meta.url), 'utf8'), /const CLAUDE_MODEL = 'claude-sonnet-5-5';/);
 });
