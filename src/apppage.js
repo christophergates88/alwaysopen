@@ -1,7 +1,7 @@
 import { BIZ_JS } from './bizpage.js';
 import { PAST_JS } from './pastpage.js';
 import { RIVALS_JS } from './rivalspage.js';
-import { CLOCK_CSS, CLOCK_JS } from './clock.js';
+import { CLOCK_CSS, CLOCK_JS, CLOCK_ANIM_CSS, CLOCK_ANIM_JS } from './clock.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -216,7 +216,7 @@ a.btn{color:inherit}
 .loading span:nth-child(2){animation-delay:.15s}.loading span:nth-child(3){animation-delay:.3s}
 @keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
 /* home, reviews, Max */
-${CLOCK_CSS}
+${CLOCK_CSS}${CLOCK_ANIM_CSS}
 .clock{--clk-ink:#fff;--clk-mute:var(--slate);--clk-line:rgba(255,255,255,.07);--clk-night:rgba(255,90,77,.18);--clk-ok:var(--ok);--clk-sign:var(--sign);background:var(--card);border:1px solid rgba(255,106,94,.4);border-radius:20px;padding:14px 16px 12px;margin:0 0 14px;display:grid;gap:6px;box-shadow:var(--glow)}
 .clock .ch{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.clock .ch b{font:800 1.15rem/1.15 var(--display);font-stretch:92%}.clock .ch span{font:500 12px var(--mono);color:var(--slate)}
 .clock .clk{margin:0 auto;width:min(280px,100%)}.clock .clk .clk-big{font-family:var(--display);font-stretch:92%}
@@ -276,7 +276,7 @@ select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:v
 `;
 
 const JS = `
-${CLOCK_JS}
+${CLOCK_JS}${CLOCK_ANIM_JS}
 (function(){
 'use strict';
 var S=null,TAB='home',EDIT={},VERS={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
@@ -340,7 +340,7 @@ function load(quiet,auto){
 
 function hasMax(){return !!(S&&S.features&&(S.features.line||S.features.calls));}
 var KEEP=['msg','lh','lo','lt','lw','lg'];
-function render(){clearTimeout(render.clk);render.clk=setTimeout(function(){try{aoClockTick();}catch(e){}},0);
+function render(){clearTimeout(render.clk);render.clk=setTimeout(function(){try{aoClockTick();aoClockAnim();}catch(e){}},0);
   var hm=hasMax();if(S&&TAB==='max'&&!hm)TAB='home';
   var bs=document.querySelectorAll('.tab');for(var i=0;i<bs.length;i++){if(bs[i].dataset.tab===TAB)bs[i].setAttribute('aria-current','page');else bs[i].removeAttribute('aria-current');}
   var n=S&&S.items?S.items.length:0,bd=$('#badge');bd.hidden=!n;bd.textContent=n>99?'99+':n;

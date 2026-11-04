@@ -1033,7 +1033,7 @@ async function clockState(env, c, tech, x) {
   const month = new Date(Date.parse(w.start)).toLocaleDateString('en-US', { month: 'long', timeZone: w.tz });
   return { month, name: m.name, onMin: m.onMin, backMin: m.backMin, calls: m.calls, alone: m.alone, toYou: m.toYou, after: m.after, byKind: m.byKind, n: m.n, worth: m.worth, liveMin: m.live == null ? -1 : m.live,
     lines: K.clockLines(m), explained: K.backExplained(m), one: m.one ? m.one.text : '', oneMin: m.one ? m.one.m : -1, nowMin: m.nowMin,
-    svg: K.clockSVG(m, { id: 'app', size: 280, live: true }),
+    svg: K.clockSVG(m, { id: 'app', size: 280, live: true, anim: true }),
     // every tick for the iPhone app's own dial: minute of day, kind, brought to you, after hours
     ticks: m.ticks.map(t => ({ m: t.m, k: t.kind, y: t.you ? 1 : 0, n: t.night ? 1 : 0 })),
     // the list behind the dial, newest first: time, what, handled alone or brought to you
