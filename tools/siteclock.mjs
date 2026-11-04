@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { register } from 'node:module';
 register(new URL('../test/rehearsal/hooks.mjs', import.meta.url), import.meta.url);
-const { sampleClock, clockSVG, clockLines, CLOCK_CSS, CLOCK_JS } = await import('../src/clock.js');
+const { sampleClock, clockSVG, clockLines, hoursText, CLOCK_CSS, CLOCK_JS } = await import('../src/clock.js');
 
 const m = sampleClock();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,21 +33,22 @@ const section = `<!-- clock:start -->
 <section class="clockband band" id="clock" data-label="On the clock" aria-labelledby="clock-h">
   <style>${css}</style>
   <div class="inner">
-    <div class="head"><p class="eyebrow">On the clock</p><h2 id="clock-h">744 hours a month. Here’s what they look like.</h2></div>
+    <div class="head"><p class="eyebrow">On the clock</p><h2 id="clock-h">744 hours a month. Here’s what they look like, and what they were worth.</h2></div>
     <div class="clockgrid">
       <div class="clockstage">
         <div class="dial">${svg}</div>
         <p class="clockcap">Mike’s Plumbing, October. A made-up business; the dial is drawn the same way from yours.</p>
       </div>
       <div class="clockcopy">
-        <p class="lead">Every business gets its month on one dial. Every call, check-in, reply, post and text sits at the minute it happened. The shaded hours are 6 PM to 8 AM, when nobody is at a desk. The number in the middle is your time, back.</p>
+        <p class="lead">Every business gets its month on one dial. Every call, check-in, reply, post and text sits at the minute it happened. The shaded hours are 6 PM to 8 AM, when nobody is at a desk. The number in the middle is what the calls in those hours were worth, at your own average job.</p>
         <ul class="clockfacts">
+          <li><b class="red">$${m.worth.toLocaleString('en-US')}</b><span>caught while the business was closed: ${m.after} calls at night and on weekends that became jobs or leads, at the owner’s own numbers.</span></li>
           <li><b>744 h</b><span>on the clock. Clocked in Oct 1 at midnight. Never clocked out.</span></li>
-          <li><b class="ok">${m.alone}</b><span>of ${m.calls} calls handled without you. Teal ticks.</span></li>
-          <li><b class="red">${m.toYou}</b><span>brought to you, because they were urgent. Red ticks.</span></li>
-          <li><b>${esc(lines[2].replace(/^Back to you: /, '').replace(/\.$/, ''))}</b><span>back to you: the calls, write-ups, replies, follow-ups and posts you didn’t have to do. The arithmetic is on the page.</span></li>
+          <li><b class="ok">${m.alone}</b><span>of ${m.calls} calls handled without the owner. Teal ticks.</span></li>
+          <li><b class="red">${m.toYou}</b><span>brought to the owner, because they were urgent. Red ticks.</span></li>
+          <li><b>${esc(hoursText(m.backMin))}</b><span>of the owner’s time back: the calls, write-ups, replies, follow-ups and posts he didn’t have to do.</span></li>
         </ul>
-        <p class="clockone"><b>The one call.</b> ${esc(m.one.text)} Booked for 8 AM.</p>
+        <p class="clockone"><b>The one call.</b> ${esc(m.one.text)} Booked for 8 AM. That is the call pulsing on the dial.</p>
         <p class="clockwhere">The dial is on <b>Today</b> in your app, with the hand moving. Every Monday it comes as a timecard text. On the 2nd it opens your month on one page.</p>
         <div class="ctas"><a class="btn primary" href="/sample-report">See the whole page</a><a class="btn line" href="/#contact">Get yours</a></div>
       </div>

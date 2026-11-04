@@ -474,7 +474,7 @@ async function apiState(env, c, ctx) {
   try { out.money = (f.calls && line && !tech) ? await (await import('./money.js')).moneyState(env, cid) : null; } catch (e) { out.money = null; }
   try { out.timecard = (f.calls && line && !c.staff) ? await (await import('./timecard.js')).timecardState(env, cid) : null; } catch (e) { out.timecard = null; }
   // Max's clock: this month on one dial (clock.js), for Today and the month page. Techs see counts, never reasons.
-  try { out.clock = await clockState(env, c, tech); } catch (e) { out.clock = null; }
+  try { out.clock = await clockState(env, c, tech, { worth: out.money && out.money.thisMonth && out.money.thisMonth.avgJob ? out.money.thisMonth.mid : 0, live: out.live && out.live[0] ? out.live[0].at : null }); } catch (e) { out.clock = null; }
   try { out.reconnect = c.staff ? [] : await (await import('./connections.js')).brokenFor(env, cid); } catch (e) { out.reconnect = []; }
   try { out.fillWeek = c.staff || cid === 'demo-plumbing' ? null : await (await import('./fillweek.js')).fillState(env, c); } catch (e) { out.fillWeek = null; }
   try { out.upgrades = c.staff ? null : await upgradesState(env, c); } catch (e) { out.upgrades = null; }
@@ -1014,7 +1014,7 @@ async function monthPageFor(env, c, which, base) {
   let since = '';
   try { const T = await import('./trends.js'); since = T.sinceLine((await T.trendsFor(env, c)).since, { noMoney: c.role === 'tech' || !!+c.regulated }); } catch (e) { since = ''; }
   let clock = null, planCents = 0;
-  try { const w = await monthWindow(env, c, m.month, m.mtd); clock = await (await import('./clock.js')).clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: m.mtd, name: w.name, reasons: c.role !== 'tech' }); } catch (e) { clock = null; }
+  try { const w = await monthWindow(env, c, m.month, m.mtd); clock = await (await import('./clock.js')).clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: m.mtd, name: w.name, reasons: c.role !== 'tech', worth: c.role === 'tech' ? 0 : (m.a && m.a.worth && m.a.worth.mid) || 0 }); } catch (e) { clock = null; }
   try { const b = await env.DB.prepare('SELECT plan, max FROM billing WHERE client_id = ?1').bind(c.client_id).first(); planCents = c.role === 'tech' ? 0 : (await import('./timecard.js')).planCents((b && b.plan) || c.tier || '', !!(b && +b.max)); } catch (e) { planCents = 0; }
   const html = renderMonthPage({ business: c.business || '', label: m.label, mtd: m.mtd, sentText: sent, regulated: !!+c.regulated, a: m.a, stats: m.stats, back: base, record: m.record ? base + '/record/' + m.month : '', year: base + '/year', since, clock, planCents, maxName: clock && clock.name });
   return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
@@ -1025,12 +1025,13 @@ async function yearPageFor(env, c, base) {
   return new Response(html, { headers: { ...H, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP } });
 }
 // The Home card's numbers: this month so far, short.
-async function clockState(env, c, tech) {
+async function clockState(env, c, tech, x) {
+  x = x || {};
   const w = await monthWindow(env, c, '', true);
   const K = await import('./clock.js');
-  const m = await K.clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: true, name: w.name, reasons: !tech });
+  const m = await K.clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: true, name: w.name, reasons: !tech, worth: tech ? 0 : x.worth, live: x.live });
   const month = new Date(Date.parse(w.start)).toLocaleDateString('en-US', { month: 'long', timeZone: w.tz });
-  return { month, name: m.name, onMin: m.onMin, backMin: m.backMin, calls: m.calls, alone: m.alone, toYou: m.toYou, after: m.after, byKind: m.byKind, n: m.n,
+  return { month, name: m.name, onMin: m.onMin, backMin: m.backMin, calls: m.calls, alone: m.alone, toYou: m.toYou, after: m.after, byKind: m.byKind, n: m.n, worth: m.worth, liveMin: m.live == null ? -1 : m.live,
     lines: K.clockLines(m), explained: K.backExplained(m), one: m.one ? m.one.text : '', oneMin: m.one ? m.one.m : -1, nowMin: m.nowMin,
     svg: K.clockSVG(m, { id: 'app', size: 280, live: true }),
     // every tick for the iPhone app's own dial: minute of day, kind, brought to you, after hours

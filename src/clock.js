@@ -54,8 +54,11 @@ export function clockModel(ev, o) {
   const score = t => (t.night ? 8 : 0) + (t.booked ? 4 : 0) + (t.lead ? 2 : 0) + (t.you ? 1 : 0);
   const one = ticks.filter(t => t.kind === 'call' && (t.night || t.booked || t.lead || t.you)).sort((a, b) => score(b) - score(a) || b.at - a.at)[0] || null;
   const nowL = local(tz, now);
+  // a call in progress right now (its minute on the dial), and what the month's after-hours calls were worth (money.js)
+  let live = null;
+  if (o.live != null) { const la = typeof o.live === 'number' ? o.live : Date.parse(o.live); if (isFinite(la)) { const ll = local(tz, la); live = ll.hour * 60 + ll.minute; } }
   return {
-    tz, start, end, mtd: !!o.mtd, name: o.name || 'Max',
+    tz, start, end, mtd: !!o.mtd, name: o.name || 'Max', worth: Math.round(+o.worth || 0), live,
     ticks, n: ticks.length, calls, alone, toYou, after, callSec: Math.round(callSec), byKind,
     onMin, backMin: Math.round(backMin),
     one: one ? { m: one.m, time: sayMinute(one.m), day: DAY_SHORT[one.wd] || one.wd, date: one.day, night: one.night, booked: one.booked, lead: one.lead, you: one.you, reason: one.reason,
@@ -81,6 +84,7 @@ export function clockLines(m) {
   const out = [];
   out.push('On the clock: ' + hoursText(m.onMin, true) + ', all of it.');
   if (m.calls) out.push(pl(m.calls, 'call', 'calls') + ': ' + m.alone + ' handled alone' + (m.toYou ? ', ' + m.toYou + ' brought to you' : '') + '.');
+  if (m.worth) out.push('Caught after hours: about $' + m.worth.toLocaleString('en-US') + '.');
   if (m.backMin) out.push('Back to you: ' + hoursText(m.backMin) + '.');
   return out;
 }
@@ -117,21 +121,26 @@ export function clockSVG(m, opt) {
   }
   let one = '';
   if (m.one) { const [ox, oy] = pt(m.one.m, R + 4); one = '<circle class="clk-one" cx="' + f(ox) + '" cy="' + f(oy) + '" r="6"/>'; }
+  // a call in progress: a red tick that pulses at its minute, and the hand parked on it
+  let liveMark = '';
+  if (m.live != null) { const [lx, ly] = pt(m.live, R - 2), [kx, ky] = pt(m.live, R + 12); liveMark = '<line class="clk-live" x1="' + f(lx) + '" y1="' + f(ly) + '" x2="' + f(kx) + '" y2="' + f(ky) + '"/><circle class="clk-live-dot" cx="' + f(kx) + '" cy="' + f(ky) + '" r="5"/>'; }
   let hand = '';
-  if (opt.live !== false) { const [hx, hy] = pt(m.nowMin, R - 28); hand = '<g class="clk-hand" id="' + id + '-hand" data-min="' + m.nowMin + '"><line x1="' + C + '" y1="' + C + '" x2="' + f(hx) + '" y2="' + f(hy) + '"/><circle cx="' + f(hx) + '" cy="' + f(hy) + '" r="3"/></g>'; }
-  const big = m.backMin ? hoursText(m.backMin) : (m.calls ? pl(m.calls, 'call', 'calls') : 'On duty');
-  const sub = m.backMin ? 'back to you' : (m.calls ? 'answered' : 'nothing yet');
-  const line2 = hoursText(m.onMin, true) + ' on the clock' + (m.calls ? ' · ' + pl(m.calls, 'call', 'calls') : '');
-  const center = '<text class="clk-big" x="' + C + '" y="' + (C - 2) + '" text-anchor="middle">' + esc(big) + '</text>' +
+  const handMin = m.live != null ? m.live : m.nowMin;
+  if (opt.live !== false) { const [hx, hy] = pt(handMin, R - 28); hand = '<g class="clk-hand" id="' + id + '-hand"' + (m.live != null ? '' : ' data-min="' + m.nowMin + '"') + '><line x1="' + C + '" y1="' + C + '" x2="' + f(hx) + '" y2="' + f(hy) + '"/><circle cx="' + f(hx) + '" cy="' + f(hy) + '" r="3"/></g>'; }
+  // the middle: what the after-hours calls were worth when the owner's numbers are set; otherwise the time that came back
+  const big = m.worth ? '$' + m.worth.toLocaleString('en-US') : m.backMin ? hoursText(m.backMin) : (m.calls ? pl(m.calls, 'call', 'calls') : 'On duty');
+  const sub = m.worth ? 'caught while you were closed' : m.backMin ? 'back to you' : (m.calls ? 'answered' : 'nothing yet');
+  const line2 = m.live != null ? 'On a call now · ' + sayMinute(m.live) : (m.worth && m.backMin ? hoursText(m.backMin) + ' back to you · ' : '') + hoursText(m.onMin, true) + ' on the clock' + (m.calls && !(m.worth && m.backMin) ? ' · ' + pl(m.calls, 'call', 'calls') : '');
+  const center = '<text class="clk-big' + (m.worth ? ' money' : '') + '" x="' + C + '" y="' + (C - 2) + '" text-anchor="middle">' + esc(big) + '</text>' +
     '<text class="clk-sub" x="' + C + '" y="' + (C + 20) + '" text-anchor="middle">' + esc(sub) + '</text>' +
-    '<text class="clk-sub small" x="' + C + '" y="' + (C + 40) + '" text-anchor="middle">' + esc(line2) + '</text>';
+    '<text class="clk-sub small' + (m.live != null ? ' live' : '') + '" x="' + C + '" y="' + (C + 40) + '" text-anchor="middle">' + esc(line2) + '</text>';
   const defs = opt.plain ? '' : '<defs><filter id="' + id + '-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
   return '<svg class="clk' + (opt.plain ? ' plain' : '') + '" viewBox="-14 0 ' + (S + 28) + ' ' + S + '" width="' + (opt.size || S) + '" height="' + Math.round((opt.size || S) * S / (S + 28)) + '" role="img" aria-label="' + esc(ariaText(m)) + '"' + (opt.plain ? '' : ' style="--g:url(#' + id + '-glow)"') + '>' + defs +
     '<circle class="clk-ring" cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke-width="18"/>' + closed + marks + labels +
-    '<g class="clk-ticks"' + (opt.plain ? '' : ' filter="url(#' + id + '-glow)"') + '>' + ticks + one + '</g>' + hand + center + '</svg>';
+    '<g class="clk-ticks"' + (opt.plain ? '' : ' filter="url(#' + id + '-glow)"') + '>' + ticks + one + liveMark + '</g>' + hand + center + '</svg>';
 }
 function ariaText(m) {
-  return m.name + '’s clock: ' + hoursText(m.onMin, true) + ' on the clock, ' + pl(m.calls, 'call', 'calls') + (m.toYou ? ', ' + m.toYou + ' brought to you' : '') + (m.backMin ? ', ' + hoursText(m.backMin) + ' back to you' : '') + '.';
+  return m.name + '’s clock: ' + hoursText(m.onMin, true) + ' on the clock, ' + pl(m.calls, 'call', 'calls') + (m.toYou ? ', ' + m.toYou + ' brought to you' : '') + (m.worth ? ', about $' + m.worth.toLocaleString('en-US') + ' caught after hours' : '') + (m.backMin ? ', ' + hoursText(m.backMin) + ' back to you' : '') + (m.live != null ? '. On a call now, ' + sayMinute(m.live) : '') + '.';
 }
 // The styles every host shares. Each host sets --clk-ink, --clk-mute, --clk-line, --clk-ok, --clk-sign and the fonts.
 export const CLOCK_CSS = '.clk{display:block;max-width:100%;height:auto;overflow:visible}.clk text{font-family:inherit}' +
@@ -139,11 +148,13 @@ export const CLOCK_CSS = '.clk{display:block;max-width:100%;height:auto;overflow
   '.clk-mark{stroke:var(--clk-mute,#A3ACBF);stroke-width:1;opacity:.5}.clk-mark.big{stroke-width:2;opacity:.9}.clk-lab{font-size:11px;fill:var(--clk-mute,#A3ACBF);font-weight:600;letter-spacing:.04em}' +
   '.clk-tick{stroke:var(--clk-ok,#5CC9A4);stroke-width:2;stroke-linecap:round;opacity:.85}.clk-tick.work{stroke-width:1.5;opacity:.55}.clk-tick.you{stroke:var(--clk-sign,#FF6A5E);stroke-width:2.6;opacity:1}' +
   '.clk-one{fill:none;stroke:var(--clk-sign,#FF6A5E);stroke-width:2;opacity:.95}' +
+  '.clk-live{stroke:var(--clk-sign,#FF6A5E);stroke-width:3;stroke-linecap:round}.clk-live-dot{fill:var(--clk-sign,#FF6A5E)}.clk-big.money{fill:var(--clk-sign,#FF6A5E)}.clk-sub.live{fill:var(--clk-sign,#FF6A5E);font-weight:700}' +
+  '.clk:not(.plain) .clk-live,.clk:not(.plain) .clk-live-dot{filter:drop-shadow(0 0 6px rgba(255,90,77,1))}@media (prefers-reduced-motion:no-preference){.clk:not(.plain) .clk-live-dot{animation:clkLive 1.4s ease-in-out infinite}.clk:not(.plain) .clk-big.money{animation:clkMoney 3.2s ease-in-out infinite}}@keyframes clkLive{0%,100%{opacity:1;r:5}50%{opacity:.45;r:8}}@keyframes clkMoney{0%,100%{filter:drop-shadow(0 0 8px rgba(255,90,77,.6))}50%{filter:drop-shadow(0 0 16px rgba(255,90,77,1))}}' +
   '.clk-hand line{stroke:var(--clk-ink,#fff);stroke-width:1.2;opacity:.55}.clk-hand circle{fill:var(--clk-ink,#fff)}' +
   '.clk-big{font-size:34px;font-weight:850;fill:var(--clk-ink,#fff)}.clk-sub{font-size:13px;font-weight:600;fill:var(--clk-mute,#A3ACBF)}.clk-sub.small{font-size:11px;font-weight:500}' +
   '.clk:not(.plain) .clk-big{filter:drop-shadow(0 0 8px rgba(255,255,255,.35))}.clk:not(.plain) .clk-tick.night{filter:drop-shadow(0 0 3px rgba(92,201,164,.8))}.clk:not(.plain) .clk-tick.you{filter:drop-shadow(0 0 4px rgba(255,90,77,.9))}.clk:not(.plain) .clk-one{filter:drop-shadow(0 0 6px rgba(255,90,77,.9))}' +
   '@media (prefers-reduced-motion:no-preference){.clk:not(.plain) .clk-one{animation:clkOne 2.4s ease-in-out infinite}}@keyframes clkOne{0%,100%{opacity:.55;r:6}50%{opacity:1;r:8}}' +
-  '.clk.plain .clk-ring{stroke:#E2DED6}.clk.plain .clk-night{stroke:#FDECEA}.clk.plain .clk-tick{stroke:#0E4A2E}.clk.plain .clk-tick.you,.clk.plain .clk-one{stroke:#D92D20}.clk.plain .clk-big,.clk.plain .clk-hand circle{fill:#14171F}.clk.plain .clk-hand line{stroke:#14171F}.clk.plain .clk-sub,.clk.plain .clk-lab{fill:#5A6170}.clk.plain .clk-mark{stroke:#5A6170}';
+  '.clk.plain .clk-ring{stroke:#E2DED6}.clk.plain .clk-night{stroke:#FDECEA}.clk.plain .clk-tick{stroke:#0E4A2E}.clk.plain .clk-tick.you,.clk.plain .clk-one{stroke:#D92D20}.clk.plain .clk-live,.clk.plain .clk-live-dot{stroke:#D92D20;fill:#D92D20}.clk.plain .clk-big.money{fill:#B42318}.clk.plain .clk-big,.clk.plain .clk-hand circle{fill:#14171F}.clk.plain .clk-hand line{stroke:#14171F}.clk.plain .clk-sub,.clk.plain .clk-lab{fill:#5A6170}.clk.plain .clk-mark{stroke:#5A6170}';
 // Keeps the hand on the minute while the page is open (the server drew it once). Returns a script body; hosts wrap it.
 export const CLOCK_JS = 'function aoClockTick(){var hs=document.querySelectorAll(".clk-hand");if(!hs.length)return;var d=new Date(),m=d.getHours()*60+d.getMinutes();for(var i=0;i<hs.length;i++){var h=hs[i],b=+h.getAttribute("data-min");if(!isFinite(b))continue;var a=((m-b)/1440)*360;h.style.transformOrigin="160px 160px";h.style.transform="rotate("+a+"deg)";}}aoClockTick();setInterval(aoClockTick,30000);';
 
@@ -171,25 +182,39 @@ export async function clockFor(env, cid, startIso, endIso, o) {
   for (const r of fus) ev.push({ at: r.done_at, kind: 'followup' });
   for (const r of items) ev.push({ at: r.at, kind: r.kind === 'post' ? 'post' : 'reply' });
   for (const r of texts) ev.push({ at: r.at, kind: 'textback' });
-  return clockModel(ev, { tz: o.tz, start: Date.parse(startIso), end: Date.parse(endIso), now: o.now, name: o.name, mtd: o.mtd });
+  return clockModel(ev, { tz: o.tz, start: Date.parse(startIso), end: Date.parse(endIso), now: o.now, name: o.name, mtd: o.mtd, worth: o.worth, live: o.live });
 }
 
 // The website's sample: Mike's Plumbing, October, the same month as the sample report (monthpage.js samplePage).
 export function sampleClock(now) {
   const tz = 'America/New_York', d = (day, hh, mm) => Date.parse('2026-10-' + String(day).padStart(2, '0') + 'T' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ':00-04:00');
   const call = (day, hh, mm, x) => Object.assign({ at: d(day, hh, mm), kind: 'call', seconds: 150, lead: true }, x || {});
+  // 60 calls, 15 of them nights and weekends; 3 brought to the owner; 9 booked on the call
   const ev = [
     call(14, 2, 47, { toYou: true, booked: true, reason: 'Water coming up through the basement floor drain', seconds: 231 }),
-    call(3, 6, 52, { booked: true, reason: 'Water heater pilot keeps going out' }), call(21, 8, 40, { reason: 'Dripping kitchen faucet' }),
-    call(7, 9, 15, { reason: 'Quote for a new water heater' }), call(15, 10, 48, { lead: false, reason: 'Wrong number' }), call(28, 11, 20, { reason: 'Toilet running' }),
-    call(9, 13, 5, { reason: 'Slow bathroom drain' }),
-    call(2, 15, 30, { booked: true, reason: 'Garbage disposal jammed' }), call(16, 16, 10, { reason: 'Low water pressure upstairs' }), call(23, 17, 45, { reason: 'Outside spigot leaking' }),
-    call(6, 18, 20, { reason: 'No hot water' }), call(13, 19, 5, { reason: 'Sump pump not running', toYou: false }), call(20, 19, 50, { toYou: true, reason: 'Pipe burst under the sink', seconds: 198 }), call(27, 20, 30, { lead: false, reason: 'Asked about Sunday hours' })
+    call(3, 6, 52, { booked: true, reason: 'Water heater pilot keeps going out' }), call(22, 7, 31, { reason: 'No hot water this morning' }),
+    call(21, 8, 40, { reason: 'Dripping kitchen faucet' }), call(1, 8, 15, { reason: 'Quote for a repipe' }), call(8, 8, 55, { booked: true, reason: 'Toilet overflowing' }),
+    call(7, 9, 15, { reason: 'Quote for a new water heater' }), call(15, 9, 40, { lead: false, reason: 'Wrong number' }), call(28, 9, 5, { reason: 'Toilet running' }), call(5, 9, 50, { reason: 'Kitchen sink backing up' }),
+    call(12, 10, 20, { booked: true, reason: 'Leak under the bathroom sink' }), call(19, 10, 48, { reason: 'Water softener question' }), call(26, 10, 5, { reason: 'Sewer smell in the yard' }), call(2, 10, 35, { reason: 'Hose bib replacement' }),
+    call(9, 11, 10, { reason: 'Shower pressure dropped' }), call(16, 11, 25, { reason: 'Garbage disposal humming' }), call(23, 11, 45, { booked: true, reason: 'Main line clog' }), call(30, 11, 5, { reason: 'Estimate for a bathroom remodel' }), call(6, 11, 55, { lead: false, reason: 'Asked for directions' }),
+    call(13, 12, 10, { reason: 'Slow bathroom drain' }), call(20, 12, 40, { reason: 'Tankless heater error code' }), call(27, 12, 15, { reason: 'Dishwasher not draining' }), call(1, 13, 5, { reason: 'Outdoor faucet froze last year' }),
+    call(8, 13, 30, { booked: true, reason: 'Water heater leaking from the bottom' }), call(15, 13, 50, { reason: 'Gurgling toilet' }), call(22, 14, 5, { reason: 'Price for a sump pump' }), call(29, 14, 25, { reason: 'Low pressure whole house' }),
+    call(2, 14, 45, { reason: 'Faucet cartridge' }), call(9, 14, 55, { lead: false, reason: 'Vendor call' }),
+    call(2, 15, 30, { booked: true, reason: 'Garbage disposal jammed' }), call(16, 16, 10, { reason: 'Low water pressure upstairs' }), call(23, 17, 45, { reason: 'Outside spigot leaking' }), call(6, 15, 5, { reason: 'Reschedule Thursday' }),
+    call(13, 15, 40, { reason: 'Water bill doubled, maybe a leak' }), call(20, 16, 35, { reason: 'Shut-off valve stuck' }), call(27, 16, 50, { booked: true, reason: 'Clogged tub' }), call(30, 17, 15, { reason: 'Quote for a water filter' }),
+    call(7, 17, 30, { reason: 'Running toilet, second floor' }), call(14, 15, 55, { reason: 'Follow-up on an estimate' }), call(21, 16, 20, { lead: false, reason: 'Spam' }),
+    call(6, 18, 20, { reason: 'No hot water' }), call(13, 19, 5, { reason: 'Sump pump not running' }), call(20, 19, 50, { toYou: true, reason: 'Pipe burst under the sink', seconds: 198 }), call(27, 20, 30, { lead: false, reason: 'Asked about Sunday hours' }),
+    call(1, 18, 45, { reason: 'Leak from the ceiling' }), call(8, 19, 25, { booked: true, reason: 'Toilet will not flush, only one in the house' }), call(15, 20, 10, { reason: 'Hot water smells like sulfur' }),
+    call(22, 18, 5, { reason: 'Drain cleaning price' }), call(29, 19, 40, { reason: 'Water heater making a popping noise' }),
+    call(3, 22, 15, { reason: 'Leaking water heater, towels down', toYou: true, seconds: 204 }), call(10, 23, 5, { reason: 'Shut-off valve will not turn' }), call(17, 21, 40, { reason: 'Clog, guests tomorrow' }),
+    call(24, 5, 50, { reason: 'No water at all' }), call(4, 10, 15, { reason: 'Saturday: sewer backup' }), call(11, 14, 30, { reason: 'Saturday: leak behind the washer' }), call(18, 9, 45, { booked: true, reason: 'Saturday: toilet off the floor' }),
+    call(25, 16, 5, { reason: 'Sunday: dripping faucet' }), call(4, 19, 20, { reason: 'Saturday evening: no hot water' }), call(11, 8, 30, { reason: 'Sunday: water heater question' }), call(31, 7, 10, { reason: 'Saturday: kitchen drain' })
   ];
   [[4, 10, 10], [5, 11, 40], [8, 10, 20], [10, 14, 5], [12, 11, 0], [17, 15, 30], [19, 10, 45], [24, 13, 15], [26, 16, 20]].forEach(x => ev.push({ at: d(x[0], x[1], x[2]), kind: 'checkin' }));
   [[6, 9, 2], [13, 9, 4], [20, 9, 1], [27, 9, 3]].forEach(x => ev.push({ at: d(x[0], x[1], x[2]), kind: 'followup' }));
   [[5, 7, 15], [18, 7, 40], [29, 7, 5]].forEach(x => ev.push({ at: d(x[0], x[1], x[2]), kind: 'reply' }));
   [[8, 12, 30], [22, 12, 45]].forEach(x => ev.push({ at: d(x[0], x[1], x[2]), kind: 'post' }));
   ev.push({ at: d(11, 21, 12), kind: 'textback' });
-  return clockModel(ev, { tz, start: d(1, 0, 0), end: Date.parse('2026-11-01T00:00:00-04:00'), now: now || Date.parse('2026-11-02T08:00:00-05:00'), name: 'Max' });
+  // staged for the website: the 2:47 AM call is in progress, so the hand is parked on it
+  return clockModel(ev, { tz, start: d(1, 0, 0), end: Date.parse('2026-11-01T00:00:00-04:00'), now: now || Date.parse('2026-11-02T08:00:00-05:00'), name: 'Max', worth: 6400, live: d(14, 2, 47) });
 }

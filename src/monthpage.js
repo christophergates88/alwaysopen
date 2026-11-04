@@ -163,17 +163,17 @@ export const CSS = ':root{--ink:#14171F;--slate:#5A6170;--line:#E2DED6;--paper:#
 export function samplePage(proof) {
   const a = {
     v: 1,
-    calls: { n: 14, after: 6, weekend: 3, spanish: 1, urgent: 2, transferred: 2, leads: 11, booked: 3, avgSec: 150, textback: 1, callbacks: { set: 3, kept: 3, missed: 0 },
-      byBand: [2, 3, 1, 3, 4, 1], byDay: [2, 3, 2, 2, 2, 2, 1], peak: { band: '6 to 9 PM', bandN: 4, day: 'Tuesday', dayN: 3 } },
-    lost: { n: 3, top: [{ r: 'price', label: 'said price', n: 2 }, { r: 'timing', label: 'wanted a different time', n: 1 }] },
-    work: { requests: 2, bookedCalls: 3, fill: { offers: 6, booked: 2 }, jobsLogged: 9, asks: 8, checkins: { yes: 8, no: 1 }, handoffs: { out: 1, in: 2 }, won: { n: 7, amount: 7350 }, followups: { done: 4, quoteAmount: 6420 } },
-    reviews: { n: 3, avg: 4.7, replied: 3, replyRate: 100, replyHrs: 3 },
-    google: { calls: 22, clicks: 41, directions: 17 },
+    calls: { n: 60, after: 23, weekend: 12, spanish: 2, urgent: 3, transferred: 3, leads: 55, booked: 10, avgSec: 150, textback: 1, callbacks: { set: 6, kept: 6, missed: 0 },
+      byBand: [7, 15, 11, 12, 10, 5], byDay: [4, 12, 7, 14, 11, 6, 6], peak: { band: '9 AM to noon', bandN: 15, day: 'Thursday', dayN: 14 } },
+    lost: { n: 7, top: [{ r: 'price', label: 'said price', n: 4 }, { r: 'timing', label: 'wanted a different time', n: 2 }, { r: 'far', label: 'too far', n: 1 }] },
+    work: { requests: 3, bookedCalls: 10, fill: { offers: 6, booked: 2 }, jobsLogged: 18, asks: 16, checkins: { yes: 8, no: 1 }, handoffs: { out: 1, in: 2 }, won: { n: 14, amount: 11900 }, followups: { done: 4, quoteAmount: 6420 } },
+    reviews: { n: 5, avg: 4.8, replied: 5, replyRate: 100, replyHrs: 3 },
+    google: { calls: 41, clicks: 118, directions: 37 },
     rivals: { rank: 2, of: 6, rating: 4.6, reviews: 58, mostReviews: 71, leaderIsYou: false },
-    worth: { mid: 4900, low: 3500, high: 6300, after: 6, leads: 5 },
-    vs: { label: 'September 2026', calls: 4, reviews: 1, googleCalls: 3 },
+    worth: { mid: 6400, low: 4600, high: 8200, after: 23, leads: 19 },
+    vs: { label: 'September 2026', calls: 9, reviews: 2, googleCalls: 6 },
     stormPosts: 1
   };
   a.insights = insights(a, {}); a.next = nextStep(a, {});
-  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, proof: proof || '', a, stats: { posts: 2, rating: 4.6, count: 58, replies: 3 }, clock: sampleClock(), planCents: 29900 });
+  return renderMonthPage({ business: 'Mike’s Plumbing', label: 'October 2026', sentText: 'sent Nov 2', sample: true, proof: proof || '', a, stats: { posts: 2, rating: 4.6, count: 58, replies: 5 }, clock: sampleClock(), planCents: 29900 });
 }

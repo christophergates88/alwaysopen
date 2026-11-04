@@ -32,9 +32,13 @@ test('the model: minutes in the business’s own time, alone vs brought to you, 
 test('the dial: ticks at the right angle, the closed arc, the hand, escaped text, plain for paper', () => {
   const m = sampleClock();
   const svg = clockSVG(m, { id: 'x', size: 300 });
-  assert.equal(m.calls, 14); assert.equal(m.toYou, 2); assert.equal(m.after, 6, 'the sample matches the sample report');
+  assert.equal(m.calls, 60); assert.equal(m.toYou, 3); assert.equal(m.after, 23, 'the sample matches the sample report');
+  assert.equal(m.worth, 6400); assert.equal(m.live, 2 * 60 + 47, 'the 2:47 call is staged as in progress');
+  assert.ok(svg.includes('class="clk-live"') && svg.includes('>$6,400<') && svg.includes('caught while you were closed') && svg.includes('On a call now · 2:47 AM'));
+  assert.ok(!svg.includes('data-min='), 'a staged dial keeps its hand on the call');
+  assert.match(clockLines(m).join(' '), /Caught after hours: about \$6,400\./);
   assert.equal((svg.match(/class="clk-tick /g) || []).length, m.n, 'one tick per event');
-  assert.equal((svg.match(/clk-tick you/g) || []).length, 2);
+  assert.equal((svg.match(/clk-tick you/g) || []).length, 3);
   assert.ok(svg.includes('class="clk-night"') && svg.includes('class="clk-one"') && svg.includes('id="x-hand"'));
   // 6 AM sits at the right of the dial (midnight at the top, clockwise): the 6 AM label is right of center
   const lab = svg.match(/<text class="clk-lab" x="([\d.]+)" y="[\d.]+" text-anchor="middle">6 AM/);
@@ -45,6 +49,8 @@ test('the dial: ticks at the right angle, the closed arc, the hand, escaped text
   assert.ok(!evil.one.text.includes('<script') || true);
   const plain = clockSVG(m, { plain: true, live: false });
   assert.ok(plain.includes('class="clk plain"') && !plain.includes('<filter') && !plain.includes('clk-hand'));
+  const quiet = clockSVG(clockModel([{ at: '2026-10-14T06:47:00Z', kind: 'call', lead: true }], { tz: 'America/New_York', start: 0, end: Date.parse('2026-11-01T00:00:00Z'), now: Date.parse('2026-11-02T00:00:00Z') }));
+  assert.ok(quiet.includes('data-min=') && !quiet.includes('clk-live') && !quiet.includes('$'), 'no money and no live mark without them');
   assert.ok(CLOCK_CSS.includes('.clk-tick.you') && CLOCK_JS.includes('aoClockTick'));
 });
 

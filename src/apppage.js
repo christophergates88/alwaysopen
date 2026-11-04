@@ -223,6 +223,7 @@ ${CLOCK_CSS}
 .clock .one{margin:4px 0 0;padding:10px 12px;border-radius:12px;background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.4);font-size:14px;line-height:1.35}.clock .one b{color:var(--sign)}
 .clock .cl{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--slate)}.clock .cl b{color:var(--ink);font-weight:600}
 .clock .acts{margin-top:4px}
+.clock.onair{border-color:var(--sign)}.clock .ch .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--sign);margin-right:6px;box-shadow:0 0 8px var(--sign);animation:clkDot 1.4s ease-in-out infinite}@keyframes clkDot{0%,100%{opacity:1}50%{opacity:.35}}
 .evl .row .meta b{color:var(--sign)}
 .hero{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:var(--card);border:2px solid var(--sign);border-radius:20px;padding:16px;margin:0 0 18px;box-shadow:var(--glow)}
 .hero.off{border-color:var(--line);box-shadow:none}
@@ -663,8 +664,8 @@ function monthNowCard(){
 function clockCard(){
   var K=S.clock;if(!K)return '';
   var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
-  var facts='<ul class="cl"><li><b>'+hb(K.onMin)+'</b> on the clock</li>'+(K.calls?'<li><b>'+K.calls+'</b> '+(K.calls===1?'call':'calls')+', '+K.alone+' handled alone'+(K.toYou?', <b>'+K.toYou+'</b> brought to you':'')+'</li>':'')+(K.backMin?'<li><b>'+hb(K.backMin)+'</b> back to you</li>':'')+'</ul>';
-  return '<div class="clock" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+esc(K.month||'this month')+' so far</span></div>'+K.svg+facts+
+  var facts='<ul class="cl">'+(K.worth?'<li><b>$'+Math.round(K.worth).toLocaleString('en-US')+'</b> caught while you were closed</li>':'')+'<li><b>'+hb(K.onMin)+'</b> on the clock</li>'+(K.calls?'<li><b>'+K.calls+'</b> '+(K.calls===1?'call':'calls')+', '+K.alone+' handled alone'+(K.toYou?', <b>'+K.toYou+'</b> brought to you':'')+'</li>':'')+(K.backMin?'<li><b>'+hb(K.backMin)+'</b> back to you</li>':'')+'</ul>';
+  return '<div class="clock'+(K.liveMin>=0?' onair':'')+'" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+(K.liveMin>=0?'<i class="dot"></i>on a call now':esc(K.month||'this month')+' so far')+'</span></div>'+K.svg+facts+
     (K.one?'<p class="one"><b>The one call.</b> '+esc(K.one)+'</p>':(K.n?'':'<p class="one">Nothing yet this month. '+nm+' is on the clock anyway; the first call lands here.</p>'))+
     '<div class="acts"><button class="btn line sm" type="button" data-a="clock-list">'+(K.n?'Everything on the dial':'How this works')+'</button>'+(S.monthNow&&S.monthNow.page?'<a class="btn ghost sm" href="'+esc(BASE+S.monthNow.page)+'">This month\u2019s page</a>':'')+'</div></div>';
 }
