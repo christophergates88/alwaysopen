@@ -117,7 +117,7 @@ export function clockSVG(m, opt) {
   for (const t of m.ticks) {
     const call = t.kind === 'call';
     const [ax, ay] = pt(t.m, call ? R - 1 : R - 20), [bx, by] = pt(t.m, call ? R + 9 : R - 14);
-    ticks += '<line class="clk-tick' + (t.you ? ' you' : '') + (call ? ' call' : ' work') + (t.night ? ' night' : '') + '" x1="' + f(ax) + '" y1="' + f(ay) + '" x2="' + f(bx) + '" y2="' + f(by) + '"><title>' + esc(sayMinute(t.m) + ' · ' + (KIND_LABEL[t.kind] || t.kind) + (t.you ? ', brought to you' : '')) + '</title></line>';
+    ticks += '<line class="clk-tick' + (t.you ? ' you' : '') + (call ? ' call' : ' work') + (t.night ? ' night' : '') + '" data-m="' + t.m + '" x1="' + f(ax) + '" y1="' + f(ay) + '" x2="' + f(bx) + '" y2="' + f(by) + '"><title>' + esc(sayMinute(t.m) + ' · ' + (KIND_LABEL[t.kind] || t.kind) + (t.you ? ', brought to you' : '')) + '</title></line>';
   }
   let one = '';
   if (m.one) { const [ox, oy] = pt(m.one.m, R + 4); one = '<circle class="clk-one" cx="' + f(ox) + '" cy="' + f(oy) + '" r="6"/>'; }
@@ -126,16 +126,16 @@ export function clockSVG(m, opt) {
   if (m.live != null) { const [lx, ly] = pt(m.live, R - 2), [kx, ky] = pt(m.live, R + 12); liveMark = '<line class="clk-live" x1="' + f(lx) + '" y1="' + f(ly) + '" x2="' + f(kx) + '" y2="' + f(ky) + '"/><circle class="clk-live-dot" cx="' + f(kx) + '" cy="' + f(ky) + '" r="5"/>'; }
   let hand = '';
   const handMin = m.live != null ? m.live : m.nowMin;
-  if (opt.live !== false) { const [hx, hy] = pt(handMin, R - 28); hand = '<g class="clk-hand" id="' + id + '-hand"' + (m.live != null ? '' : ' data-min="' + m.nowMin + '"') + '><line x1="' + C + '" y1="' + C + '" x2="' + f(hx) + '" y2="' + f(hy) + '"/><circle cx="' + f(hx) + '" cy="' + f(hy) + '" r="3"/></g>'; }
+  if (opt.live !== false) { const [hx, hy] = pt(handMin, R - 28), [sx, sy] = pt(handMin, 72); hand = '<g class="clk-hand" id="' + id + '-hand" data-at="' + handMin + '"' + (m.live != null ? '' : ' data-min="' + m.nowMin + '"') + '><line x1="' + f(sx) + '" y1="' + f(sy) + '" x2="' + f(hx) + '" y2="' + f(hy) + '"/><circle cx="' + f(hx) + '" cy="' + f(hy) + '" r="3"/></g>'; }
   // the middle: what the after-hours calls were worth when the owner's numbers are set; otherwise the time that came back
   const big = m.worth ? '$' + m.worth.toLocaleString('en-US') : m.backMin ? hoursText(m.backMin) : (m.calls ? pl(m.calls, 'call', 'calls') : 'On duty');
   const sub = m.worth ? 'caught while you were closed' : m.backMin ? 'back to you' : (m.calls ? 'answered' : 'nothing yet');
   const line2 = m.live != null ? 'On a call now · ' + sayMinute(m.live) : (m.worth && m.backMin ? hoursText(m.backMin) + ' back to you · ' : '') + hoursText(m.onMin, true) + ' on the clock' + (m.calls && !(m.worth && m.backMin) ? ' · ' + pl(m.calls, 'call', 'calls') : '');
-  const center = '<text class="clk-big' + (m.worth ? ' money' : '') + '" x="' + C + '" y="' + (C - 2) + '" text-anchor="middle">' + esc(big) + '</text>' +
+  const center = '<text class="clk-big' + (m.worth ? ' money' : '') + '"' + (m.worth ? ' data-worth="' + m.worth + '"' : '') + ' x="' + C + '" y="' + (C - 2) + '" text-anchor="middle">' + esc(big) + '</text>' +
     '<text class="clk-sub" x="' + C + '" y="' + (C + 20) + '" text-anchor="middle">' + esc(sub) + '</text>' +
     '<text class="clk-sub small' + (m.live != null ? ' live' : '') + '" x="' + C + '" y="' + (C + 40) + '" text-anchor="middle">' + esc(line2) + '</text>';
   const defs = opt.plain ? '' : '<defs><filter id="' + id + '-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
-  return '<svg class="clk' + (opt.plain ? ' plain' : '') + '" viewBox="-14 0 ' + (S + 28) + ' ' + S + '" width="' + (opt.size || S) + '" height="' + Math.round((opt.size || S) * S / (S + 28)) + '" role="img" aria-label="' + esc(ariaText(m)) + '"' + (opt.plain ? '' : ' style="--g:url(#' + id + '-glow)"') + '>' + defs +
+  return '<svg class="clk' + (opt.plain ? ' plain' : '') + '"' + (opt.anim ? ' data-anim="1"' : '') + ' viewBox="-14 0 ' + (S + 28) + ' ' + S + '" width="' + (opt.size || S) + '" height="' + Math.round((opt.size || S) * S / (S + 28)) + '" role="img" aria-label="' + esc(ariaText(m)) + '"' + (opt.plain ? '' : ' style="--g:url(#' + id + '-glow)"') + '>' + defs +
     '<circle class="clk-ring" cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke-width="18"/>' + closed + marks + labels +
     '<g class="clk-ticks"' + (opt.plain ? '' : ' filter="url(#' + id + '-glow)"') + '>' + ticks + one + liveMark + '</g>' + hand + center + '</svg>';
 }
@@ -155,6 +155,22 @@ export const CLOCK_CSS = '.clk{display:block;max-width:100%;height:auto;overflow
   '.clk:not(.plain) .clk-big{filter:drop-shadow(0 0 8px rgba(255,255,255,.35))}.clk:not(.plain) .clk-tick.night{filter:drop-shadow(0 0 3px rgba(92,201,164,.8))}.clk:not(.plain) .clk-tick.you{filter:drop-shadow(0 0 4px rgba(255,90,77,.9))}.clk:not(.plain) .clk-one{filter:drop-shadow(0 0 6px rgba(255,90,77,.9))}' +
   '@media (prefers-reduced-motion:no-preference){.clk:not(.plain) .clk-one{animation:clkOne 2.4s ease-in-out infinite}}@keyframes clkOne{0%,100%{opacity:.55;r:6}50%{opacity:1;r:8}}' +
   '.clk.plain .clk-ring{stroke:#E2DED6}.clk.plain .clk-night{stroke:#FDECEA}.clk.plain .clk-tick{stroke:#0E4A2E}.clk.plain .clk-tick.you,.clk.plain .clk-one{stroke:#D92D20}.clk.plain .clk-live,.clk.plain .clk-live-dot{stroke:#D92D20;fill:#D92D20}.clk.plain .clk-big.money{fill:#B42318}.clk.plain .clk-big,.clk.plain .clk-hand circle{fill:#14171F}.clk.plain .clk-hand line{stroke:#14171F}.clk.plain .clk-sub,.clk.plain .clk-lab{fill:#5A6170}.clk.plain .clk-mark{stroke:#5A6170}';
+// The site's "working" dial: when it scrolls into view, the hand sweeps one day, each call lights up with a ping as the
+// hand reaches it, the money counts up with the after-hours calls, then the hand parks on the live call and it repeats.
+// Only while visible; reduced motion keeps the still dial. Returns a script body; hosts wrap it.
+export const CLOCK_ANIM_CSS = '.clk-tick.off{opacity:.08!important;filter:none!important}.clk-ping{fill:none;stroke:var(--clk-ok,#5CC9A4);stroke-width:2;opacity:0}.clk-ping.you{stroke:var(--clk-sign,#FF6A5E)}.clk-ping.go{animation:clkPing .9s ease-out}@keyframes clkPing{0%{opacity:.95;r:2}100%{opacity:0;r:16}}.clk-hand.sweep line{opacity:.9;stroke-width:1.6}.clk-trail{fill:none;stroke:url(#clkTrail);stroke-width:18;opacity:.0;transition:opacity .4s}.clk-hand.sweep~.clk-trail,.clk.sweeping .clk-trail{opacity:1}';
+export const CLOCK_ANIM_JS = '(function(){var svgs=document.querySelectorAll("svg.clk[data-anim]");if(!svgs.length)return;if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;' +
+'svgs.forEach(function(svg){var C=160,R=126,ns="http://www.w3.org/2000/svg",hand=svg.querySelector(".clk-hand"),big=svg.querySelector(".clk-big[data-worth]"),sub=svg.querySelector(".clk-sub.small"),ticks=[].slice.call(svg.querySelectorAll(".clk-tick")).sort(function(a,b){return a.getAttribute("data-m")-b.getAttribute("data-m")});if(!hand||!ticks.length)return;' +
+'var at=+hand.getAttribute("data-at")||0,worth=big?+big.getAttribute("data-worth"):0,bigTxt=big?big.textContent:"",subTxt=sub?sub.textContent:"",nightN=ticks.filter(function(t){return /night/.test(t.getAttribute("class"))&&/call/.test(t.getAttribute("class"))}).length||1;' +
+'var g=svg.querySelector(".clk-ticks"),pings=[];for(var k=0;k<6;k++){var c=document.createElementNS(ns,"circle");c.setAttribute("class","clk-ping");c.setAttribute("r","2");g.appendChild(c);pings.push(c)}var pi=0;' +
+'function ang(m){return m/1440*Math.PI*2-Math.PI/2}function ping(t){var m=+t.getAttribute("data-m"),c=pings[pi++%pings.length],r=R+4;c.setAttribute("cx",(C+Math.cos(ang(m))*r).toFixed(1));c.setAttribute("cy",(C+Math.sin(ang(m))*r).toFixed(1));c.setAttribute("class","clk-ping"+(/you/.test(t.getAttribute("class"))?" you":""));void c.getBBox();c.setAttribute("class",c.getAttribute("class")+" go")}' +
+'function say(m){m=Math.round(m)%1440;var h=Math.floor(m/60),mm=m%60,ap=h<12?"AM":"PM";h=h%12||12;return h+":"+(mm<10?"0":"")+mm+" "+ap}' +
+'function rot(m){hand.style.transformOrigin=C+"px "+C+"px";hand.style.transform="rotate("+((m-at)/1440*360)+"deg)"}' +
+'var DAY=7000,PARK=3800,run=0,t0=0,idx=0,seen=0,visible=false,raf=0;function money(n){return "$"+Math.round(n).toLocaleString("en-US")}' +
+'function start(){ticks.forEach(function(t){t.classList.add("off")});idx=0;seen=0;t0=performance.now();run=1;hand.classList.add("sweep");if(big)big.textContent="$0";if(sub)sub.textContent="Answering · 12:00 AM";frame()}' +
+'function frame(){if(!visible){raf=0;return}var e=performance.now()-t0;if(run===1){var p=Math.min(1,e/DAY),m=p*1440;rot(m);while(idx<ticks.length&&+ticks[idx].getAttribute("data-m")<=m){var t=ticks[idx++];t.classList.remove("off");var cl=t.getAttribute("class");if(/call/.test(cl)){ping(t);if(/night/.test(cl))seen++}}if(big)big.textContent=money(worth*Math.min(1,seen/nightN));if(sub)sub.textContent=(idx?idx+" handled · ":"Answering · ")+say(m);' +
+'if(p>=1){run=2;t0=performance.now();if(big)big.textContent=bigTxt}}else if(run===2){var q=Math.min(1,e/900),ease=1-Math.pow(1-q,3);rot(1440+(at)*ease);if(q>=1){run=3;t0=performance.now();hand.classList.remove("sweep");if(sub)sub.textContent=subTxt}}else if(run===3){if(e>PARK){start();return}}raf=requestAnimationFrame(frame)}' +
+'new IntersectionObserver(function(es){es.forEach(function(x){visible=x.isIntersecting;if(visible&&!raf){if(!run)start();else{t0=performance.now()-(run===1?0:0);raf=requestAnimationFrame(frame)}}})},{threshold:.45}).observe(svg)})})();';
 // Keeps the hand on the minute while the page is open (the server drew it once). Returns a script body; hosts wrap it.
 export const CLOCK_JS = 'function aoClockTick(){var hs=document.querySelectorAll(".clk-hand");if(!hs.length)return;var d=new Date(),m=d.getHours()*60+d.getMinutes();for(var i=0;i<hs.length;i++){var h=hs[i],b=+h.getAttribute("data-min");if(!isFinite(b))continue;var a=((m-b)/1440)*360;h.style.transformOrigin="160px 160px";h.style.transform="rotate("+a+"deg)";}}aoClockTick();setInterval(aoClockTick,30000);';
 

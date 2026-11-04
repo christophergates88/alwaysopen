@@ -5,12 +5,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { register } from 'node:module';
 register(new URL('../test/rehearsal/hooks.mjs', import.meta.url), import.meta.url);
-const { sampleClock, clockSVG, clockLines, hoursText, CLOCK_CSS, CLOCK_JS } = await import('../src/clock.js');
+const { sampleClock, clockSVG, clockLines, hoursText, CLOCK_CSS, CLOCK_JS, CLOCK_ANIM_CSS, CLOCK_ANIM_JS } = await import('../src/clock.js');
 
 const m = sampleClock();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lines = clockLines(m);
-const svg = clockSVG(m, { id: 'site', size: 340, live: true });
+const svg = clockSVG(m, { id: 'site', size: 340, live: true, anim: true });
 const css = CLOCK_CSS +
   '.clockband{padding-block:88px;background:var(--night);color:var(--night-ink);position:relative;border-top:1px solid var(--night-line)}' +
   '.clockband::before{content:"";position:absolute;inset:0;background:radial-gradient(55% 60% at 78% 20%,rgba(255,90,77,.16),transparent 70%);pointer-events:none}' +
@@ -54,7 +54,8 @@ const section = `<!-- clock:start -->
       </div>
     </div>
   </div>
-  <script>${CLOCK_JS}</script>
+  <style>${CLOCK_ANIM_CSS}</style>
+  <script>${CLOCK_JS}${CLOCK_ANIM_JS}</script>
 </section>
 <!-- clock:end -->
 `;
