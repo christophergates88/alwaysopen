@@ -313,7 +313,9 @@ export async function handleBilling(req, env, url, h) {
     if (env.STRIPE_KEY) {
       try { await ensureBilling(env); const w = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first(); if (!w) await setupStripe(env); } catch (e) { /* the page still works; setup retries next load */ }
     }
-    return startPage({ plan: url.searchParams.get('plan') || '', ref: url.searchParams.get('ref') || '' });
+    // from a trade page (?from=plumbing): the kind of business is picked already
+    const FROM = { plumbing: 'Contractor or trade', hvac: 'Contractor or trade', builders: 'Contractor or trade', 'auto-repair': 'Contractor or trade', marine: 'Dock, marine or outdoor', marinas: 'Dock, marine or outdoor', salons: 'Salon, spa or fitness', restaurants: 'Restaurant or shop', dental: 'Medical, dental or legal', insurance: 'Insurance agency' };
+    return startPage({ plan: url.searchParams.get('plan') || '', ref: url.searchParams.get('ref') || '', type: FROM[url.searchParams.get('from') || ''] || '' });
   }
   if (path === '/welcome') return welcome(env, url, h);
   if (req.method !== 'POST') return new Response('Not found', { status: 404 });

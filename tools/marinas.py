@@ -23,7 +23,8 @@ META = ('Always Open runs the back side of a marina: every call answered, every 
         'service quotes followed up on the day you pick, and open rental days filled from your own customers. You approve it all from your phone.')
 s = re.sub(r'(<meta (?:name|property)="(?:og:)?description" content=")[^"]*(">)', lambda m: m.group(1) + META + m.group(2), s)
 rep('?from=marine#', '?from=marinas#', 0)
-rep('This page covers what matters most to dock builders, boat repair shops and marinas.', 'This page covers what matters most to marinas.')
+rep('&amp;from=marine"', '&amp;from=marinas"', 0)
+rep('This page covers what matters most to dock builders and boat repair shops. Run a marina? <a href="/marinas">See the marinas page</a>.', 'This page covers what matters most to marinas. Build docks or fix boats? <a href="marine.html">See the page for docks and boat repair</a>.')
 rep('<p class="for">For dock builders, boat repair shops and marinas</p>', '<p class="for">For marinas: slips, rentals, fuel and service</p>')
 rep('<h1>Out on the water all weekend. The calls, the reviews, the quotes back at the dock? Handled.</h1>',
     '<h1>Slips, rentals, the fuel dock and the service bay. The phone that rings all weekend? Handled.</h1>')
@@ -72,6 +73,8 @@ rep('Sam’s crew can be there at 8 tomorrow. The service call is $125. Want tha
 rep('Yes, 8 is great.', 'Yes, book it.')
 rep('The Kellers · lift jammed', 'The Kellers · pontoon rental', 0)
 rep('Tomorrow 8:00 AM · boat on the lift', 'Saturday 9:00 AM · 24 ft pontoon, 8 people')
+# the call comes in on a weekday, so the Saturday rental Max offers is still ahead
+rep('Sat 5:48 PM · call to Harbor Point Marina', 'Thu 5:48 PM · call to Harbor Point Marina', 0)
 rep('Boat stuck on the lift. Wants a person.', 'Asking about a Saturday rental. Wants a person.')
 rep('If your dock or lift takes a hit tonight, call us.', 'Boats in our slips: we’re checking lines and fenders tonight. Questions? Call us.', 0)
 rep('Who fixes boat lifts on Lake Oconee?', 'Where can I rent a pontoon on Lake Oconee?')

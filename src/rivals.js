@@ -147,11 +147,43 @@ export function noteNow(rows) {
   return parts.join(' ');
 }
 
+// To be #1 on the list (ranked by Google rating, then review count, as the card ranks it): how many more 5-star reviews
+// it takes, worked out on the spot from the numbers just looked up. null when you are #1 already or it is out of reach.
+export function toFirst(rows) {
+  const list = (rows || []).filter(r => r && (r.rating || r.reviews));
+  const me = list.find(r => r.own); if (!me) return null;
+  const rank = list.slice().sort((a, b) => (b.rating - a.rating) || (b.reviews - a.reviews));
+  if (rank[0] === me) return null;
+  const top = rank[0], r = +me.rating || 0, n = +me.reviews || 0, R = +top.rating || 0, N = +top.reviews || 0;
+  for (let k = 1; k <= 2000; k++) {
+    const shown = Math.round(((r * n + 5 * k) / (n + k)) * 10) / 10;
+    if (shown > R + 1e-9 || (Math.abs(shown - R) < 1e-9 && n + k > N)) return { k, leader: top.name, leaderRating: R };
+  }
+  return null;
+}
+// The owner's own pace: new Google reviews a week over the last 8 weeks, from the review emails and Google's own
+// notices that become drafts in their app (their own data, not looked up from Google Maps). null when too few to say.
+export async function reviewPace(env, cid, now) {
+  try {
+    const since = new Date((now || Date.now()) - 56 * 864e5).toISOString();
+    const n = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind IN ('reply', 'review') AND created > ?2 AND lower(COALESCE(context, '')) NOT LIKE '%yelp%'").bind(cid, since).first()) || {}).n || 0;
+    return n >= 2 ? n / 8 : null;
+  } catch (e) { return null; }
+}
+export function weeksAtPace(k, pace) {
+  if (!k || !pace) return null;
+  const w = Math.ceil(k / pace);
+  return w <= 104 ? w : null;
+}
+
 function result(rows, c, extra) {
   const sorted = rows.slice().sort((a, b) => (+b.own - +a.own) || (b.reviews - a.reviews));
   let share = null;
   try { const e = estimate(sorted); if (e) share = Object.assign(e, { moved: '', assumptions: assumptionsText(!!(c && +c.regulated)) }); } catch (e) { share = null; }
-  return Object.assign({ status: 'ok', rows: sorted.map(r => ({ id: r.own ? '' : r.id, name: r.name, own: !!r.own, rating: r.rating, reviews: r.reviews })), note: noteNow(sorted), share, attribution: ATTRIBUTION, checkedAt: isoNow() }, extra || {});
+  const first = toFirst(sorted);
+  if (first && extra && extra.pace) first.weeks = weeksAtPace(first.k, extra.pace);
+  const ex = Object.assign({}, extra || {}); delete ex.pace;
+  return Object.assign({ status: 'ok', rows: sorted.map(r => ({ id: r.own ? '' : r.id, name: r.name, own: !!r.own, rating: r.rating, reviews: r.reviews })), note: noteNow(sorted), share, toFirst: first, attribution: ATTRIBUTION, checkedAt: isoNow() }, ex);
 }
 
 // The live check. Returns what the card shows; nothing from Google is written anywhere.
@@ -182,7 +214,7 @@ export async function liveCheck(env, c) {
     if (list.length < MIN_RIVALS) { await pickRivals(env, cid, me); list = ((await env.DB.prepare('SELECT place_id FROM rival_list WHERE client_id = ?1 AND active = 1').bind(cid).all()).results) || []; }
     const rows = [Object.assign(shape(me), { own: true })];
     for (const r of list) { try { const d = await gDetails(env, cid, r.place_id, RIVAL_FIELDS); const s = shape(d); if (s.name) rows.push(s); } catch (e) { if (e === BUDGET) break; } }
-    return Object.assign(base, result(rows, c, { canAdd: owner && list.length < MAX_RIVALS, left: Math.max(0, Math.floor((await room(env, cid)) / (1 + list.length))) }));
+    return Object.assign(base, result(rows, c, { canAdd: owner && list.length < MAX_RIVALS, left: Math.max(0, Math.floor((await room(env, cid)) / (1 + list.length))), pace: await reviewPace(env, cid) }));
   } catch (e) {
     if (e === BUDGET) return Object.assign(base, { status: 'limit', message: 'That is all the checks for today. Check again tomorrow.' });
     return Object.assign(base, { status: 'error', message: 'Google did not answer. Try again in a minute.' });
@@ -207,7 +239,8 @@ export async function rivalLine(env, c) {
   try {
     const r = await liveCheck(env, c);
     if (r.status !== 'ok' || !r.note) return '';
-    return 'Competitor watch (from Google Maps): ' + r.note + (r.share ? ' Estimated potential share: about ' + r.share.range + ' of the businesses on your list.' : '');
+    const f = r.toFirst;
+    return 'Competitor watch (from Google Maps): ' + r.note + (f ? ' To be #1: ' + f.k + ' more 5-star ' + (f.k === 1 ? 'review' : 'reviews') + (f.weeks ? ', about ' + f.weeks + (f.weeks === 1 ? ' week' : ' weeks') + ' at your pace' : '') + '.' : '') + (r.share ? ' Estimated potential share: about ' + r.share.range + ' of the businesses on your list.' : '');
   } catch (e) { return ''; }
 }
 

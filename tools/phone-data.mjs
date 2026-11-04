@@ -94,7 +94,7 @@ export const PAGES = {
   index: {
     heading: 'What nobody else does. Tap to try it.',
     sub: 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.',
-    short: 'Calls, reviews, follow-ups and your Google listing, handled. One page shows what it did, live all month and sent to you on the 2nd.',
+    short: 'Your phone answered day and night. Reviews, follow-ups, your Google listing, storms and competitors, handled. One page shows what it did and what it was worth, live in your app all month and sent to you on the 2nd.',
     chips: true,
     cards: tradeCards(Object.assign({}, PLUMB, { biz: 'Sinclair Plumbing',
       ai: { q: 'What’s the number for Sinclair Plumbing in Eatonton?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who’s a good plumber in Eatonton?', right: 'Sinclair Plumbing, 478-555-0142. They answer around the clock.' } }))
@@ -258,11 +258,9 @@ export const FOLDS = {
   index: {
     try: 'Our own line. Call it and test him.',
     day: 'What happens at 2 AM, 7 AM and 4:45 PM while you work.',
-    only: 'Tap to open all six, plus what you can add.',
+    only: 'Tap to open all six.',
     what: 'Reviews, your Google profile, posts and follow-ups, in detail.',
-    all: 'Everything that comes with every plan, in one list.',
     audit: 'What the free audit covers, with a sample report.',
-    worth: 'Put in what one job is worth and see what covers a month.',
     compare: 'How we differ from software you have to run yourself.',
     rules: 'No fake reviews, every customer asked, you approve what matters.',
     regulated: 'How insurance agencies and practices use us safely.',
@@ -271,14 +269,12 @@ export const FOLDS = {
   },
   trade: {
     calls: 'How calls, follow-ups and reviews work for a business like yours.',
-    only: 'Tap to open all six.',
-    math: 'Put in one job and see how many months it covers.',
+    only: 'Tap to open all three.',
     rules: 'No fake reviews, every customer asked, you approve what matters.',
     questions: 'Answers to what owners ask first.'
   },
   dental: {
     calls: 'How Max answers, and what reaches the front desk.',
-    math: 'Put in one new patient and see how many months it covers.',
     rules: 'No fake reviews, replies that protect privacy, you approve what matters.',
     questions: 'Answers to what practice owners ask first.'
   },

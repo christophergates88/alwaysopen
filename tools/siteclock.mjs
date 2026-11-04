@@ -62,13 +62,15 @@ const section = `<!-- clock:start -->
 
 for (const f of ['public/index.html', 'public/plumbing.html', 'public/hvac.html', 'public/builders.html', 'public/auto-repair.html', 'public/marine.html', 'public/marinas.html', 'public/insurance.html']) {
   let s = readFileSync(f, 'utf8');
-  if (s.includes('<!-- clock:start -->')) s = s.replace(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->\n?/, section);
+  // "Get yours" opens the free-audit form with this page's kind of business picked (?from=plumbing)
+  const key = f.replace(/^public\/|\.html$/g, ''), sec = key === 'index' ? section : section.replace('href="/#contact">Get yours', 'href="/?from=' + key + '#contact">Get yours');
+  if (s.includes('<!-- clock:start -->')) s = s.replace(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->\n?/, sec);
   else {
     // right after "Tap to try it" (its grade check has to stay on the first three phone screens, tools/phonecheck.mjs);
     // the trade pages fold it on phones to stay inside their height limit, the home page shows it open
     const i = s.indexOf('<section class="aos band" id="go"'), j = i > -1 ? s.indexOf('</section>', i) + 10 : -1;
     if (j < 9) { console.log('skip', f); continue; }
-    s = s.slice(0, j) + '\n\n' + section + s.slice(j);
+    s = s.slice(0, j) + '\n\n' + sec + s.slice(j);
   }
   if (!f.endsWith('index.html')) s = s.replace('<section class="clockband band" id="clock" data-label="On the clock"', '<section class="clockband band" id="clock" data-label="On the clock" data-fold="Every call on one dial, and the hours that came back to you."');
   writeFileSync(f, s);

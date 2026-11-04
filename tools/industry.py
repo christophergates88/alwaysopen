@@ -2,6 +2,13 @@
 """Builds the industry pages (hvac, plumbing, dental, auto-repair, marine, salons, restaurants) from builders.html.
 Run from the repo root: python3 tools/industry.py. Every business here is made up; captions call them examples, and nothing claims to be a real client."""
 import re, sys, pathlib
+# Retired Nov 4, 2026. The trade pages have been edited past what this script makes (the feature wall, Max's clock,
+# the trims, per-page Spanish), and running it would undo that work and put booking money on the dental page. To change
+# the site, edit the pages, then run in this order: node tools/phone.mjs, python3 tools/marinas.py,
+# node tools/sitefeatures.mjs, node tools/siteclock.mjs, then node tools/phonecheck.mjs. Set AO_FORCE_INDUSTRY=1 only to read old output in a copy.
+import os
+if os.environ.get('AO_FORCE_INDUSTRY') != '1':
+    sys.exit('tools/industry.py is retired: see the note at the top of the file for the order to run instead.')
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import report_mock
 

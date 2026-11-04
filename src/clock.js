@@ -174,7 +174,7 @@ export const CLOCK_ANIM_JS = 'function aoClockAnim(){if(window.matchMedia&&match
 'raf=requestAnimationFrame(frame)}' +
 'new IntersectionObserver(function(es){es.forEach(function(x){visible=x.isIntersecting;if(visible&&!raf)raf=requestAnimationFrame(frame)})},{threshold:.4}).observe(svg)})}aoClockAnim();';
 // Keeps the hand on the minute while the page is open (the server drew it once). Returns a script body; hosts wrap it.
-export const CLOCK_JS = 'function aoClockTick(){var hs=document.querySelectorAll(".clk-hand");if(!hs.length)return;var d=new Date(),m=d.getHours()*60+d.getMinutes();for(var i=0;i<hs.length;i++){var h=hs[i],b=+h.getAttribute("data-min");if(h.hasAttribute("data-anim-own"))continue;if(!isFinite(b))continue;var a=((m-b)/1440)*360;h.style.transformOrigin="160px 160px";h.style.transform="rotate("+a+"deg)";}}aoClockTick();setInterval(aoClockTick,30000);';
+export const CLOCK_JS = 'function aoClockTick(){var hs=document.querySelectorAll(".clk-hand");if(!hs.length)return;var d=new Date(),m=d.getHours()*60+d.getMinutes();for(var i=0;i<hs.length;i++){var h=hs[i];if(h.hasAttribute("data-anim-own")||!h.hasAttribute("data-min"))continue;var b=+h.getAttribute("data-min");if(!isFinite(b))continue;var a=((m-b)/1440)*360;h.style.transformOrigin="160px 160px";h.style.transform="rotate("+a+"deg)";}}aoClockTick();setInterval(aoClockTick,30000);';
 
 // ---------- the database ----------
 // One business, one window (ISO start and end), in its own time. Every query tolerates a missing table.

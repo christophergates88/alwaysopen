@@ -45,8 +45,7 @@ export const ES_HOME = [
   { s: 'header.hero h1', h: 'Su negocio, <em>siempre</em> abierto.' },
   { s: 'header.hero .hero-scene', h: 'Parte baja de la novena. Su hijo va al bate. Un cliente está llamando, acaba de llegar una reseña y una cotización se quedó en silencio. Nos encargamos de las tres. Usted no se pierda la jugada.' },
   { s: 'header.hero .lede', h: 'Always Open lleva la parte de atrás de su negocio, la que nunca cierra: cada llamada contestada, cada reseña respondida, cotizaciones y facturas con seguimiento, días vacíos llenados con su propia lista de clientes, su perfil de Google al día y un mapa que le manda a quienes llaman cerca de usted. Usted lo aprueba todo desde su teléfono. <b>Una página le muestra lo que se hizo y cuánto valió, al día en su app todo el mes y enviada a usted el día 2.</b>' },
-  { s: 'header.hero .lede-ph', h: 'Llamadas, reseñas, seguimientos y su perfil de Google, resueltos. Una página le muestra lo que se hizo, al día todo el mes y enviada a usted el día 2.' },
-  { s: 'header.hero .ctas a.ph-only', h: 'Ver mi calificación' },
+  { s: 'header.hero .lede-ph', h: 'Su teléfono contestado de día y de noche. Reseñas, seguimientos, su perfil de Google, tormentas y competidores, todo atendido. Una página muestra lo que hizo y lo que valió, al día todo el mes y enviada a usted el día 2.' },
   { s: 'header.hero .ctas a[href="#contact"]', h: 'Quiero mi auditoría gratis' },
   { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
   { s: 'header.hero .promise > span', h: PROMISE },
@@ -74,7 +73,6 @@ export const ES_HOME = [
     bub('in', '¿Cuál es el número de Sinclair Plumbing en Eatonton?') + bub('out', '478-555-0100, según Yelp.') + card('La revisión de este mes', 'Teléfono equivocado en Yelp', 'Ese es el número viejo. Lo corregimos en Yelp, y ahora el asistente lo nombra a usted primero entre los plomeros de Eatonton.'),
     'Los clientes les preguntan a los asistentes a quién llamar. Una vez al mes les preguntamos por usted y corregimos lo que digan mal, desde donde se origine.'),
   { s: '#only p.sample', h: 'Ejemplos. Los suyos llevan el nombre de su negocio.' },
-  { s: '#only .alsoonly', h: '<b>También solo aquí</b><p><a href="#regulated">Compliance Guard</a> revisa cada palabra antes de que salga a su nombre, así que agencias de seguros y consultorios también pueden usarnos. <a href="/map">El mapa de Always Open</a> muestra cada negocio de Always Open, el más cercano primero. <a href="#rules">Full Max</a> deja que lo rutinario salga sin que usted toque nada, cuando usted lo diga. Todos los planes contestan en español, sin costo extra.</p>' },
   { s: '#pricing .head .eyebrow', h: 'Precios' },
   { s: '#pricing .head h2', h: 'Pruébelo un mes. Si no vale la pena, no lo paga.' },
   { s: '#pricing .head > p:not(.eyebrow)', h: 'Sin contrato y sin cargo de instalación. Starter cuesta unos $5 al día. Cancele desde la app y cambie de plan cualquier mes. <a href="#worth" style="color:inherit;text-underline-offset:3px">¿Vale la pena? Haga las cuentas.</a>' },
@@ -100,7 +98,13 @@ export const ES_HOME = [
   { s: '#f-plan option:nth-child(1)', o: 'Todavía no sé' },
   { s: '#lead .optin > span', h: 'Envíenme mensajes de texto de Always Open sobre mi solicitud. Pueden aplicar tarifas de mensajes y datos. La frecuencia de los mensajes varía. Responda STOP para no recibir más y HELP para ayuda. No hace falta aceptar para recibir su auditoría. <a href="privacy.html" target="_blank" rel="noopener">Política de privacidad</a> y <a href="terms.html" target="_blank" rel="noopener">Términos</a>.' },
   { s: '#lead .fineprint', h: 'Al enviar esto acepta nuestros <a href="terms.html">Términos</a> y nuestra <a href="privacy.html">Política de privacidad</a>. Solo usamos sus datos para responderle.' },
-  { s: '#lead button[type="submit"]', h: 'Pedir mi auditoría gratis' }
+  { s: '#lead button[type="submit"]', h: 'Pedir mi auditoría gratis' },
+  // the instant check in the free-audit section (its results switch too: the page's own script reads the language)
+  { s: '#check .check-h', h: 'O revise su negocio ahora mismo' },
+  { s: 'label[for="c-q"]', t: 'Nombre del negocio' }, { s: '#c-q', p: 'Nombre del negocio' },
+  { s: 'label[for="c-town"]', t: 'Ciudad' }, { s: '#c-town', p: 'Ciudad y estado' },
+  { s: '#check button[type="submit"]', h: 'Ver mi calificación' },
+  { s: '#audit .ctas a[href="#contact"]', h: 'Pedir mi auditoría completa' }
 ];
 
 // The trade pages: the hero, in each trade's own words.
@@ -140,7 +144,7 @@ const TRADE = {
   insurance: { plural: 'agencias de seguros', for: 'Para agencias de seguros', h1: 'Subieron las tarifas. <span>Las reseñas vinieron después.</span>',
     lede: 'Always Open contesta cada reseña de su agencia con la redacción que aprobó su encargado de cumplimiento. Compliance Guard revisa cada respuesta antes de que usted la vea, y <b>nada se publica hasta que usted toque Aprobar</b>. Nunca vemos su lista de clientes.',
     ph: 'Llamadas fuera de horario contestadas, reseñas respondidas y su perfil de Google al día. Compliance Guard revisa cada palabra que escribimos por usted.',
-    ctas: ['Ver mi calificación', 'Pedir mi auditoría gratis', 'Probar Compliance Guard'], small: 'Sin cargo de instalación y sin contrato. Respuestas en inglés y en español.' }
+    ctas: [['a[href*="#start-insurance"]', 'Pedir mi auditoría gratis'], ['a[href="#guard"]', 'Probar Compliance Guard']], small: 'Sin cargo de instalación y sin contrato. Respuestas en inglés y en español.' }
 };
 // Every lede ends on the monthly page, as in English (tools/industry.py). Insurance has its own line.
 function esLede(key, l) {
@@ -155,7 +159,8 @@ export function esTrade(key) {
   return [
     { s: 'header.hero .everyone', h: 'Always Open trabaja para todo tipo de negocio, en cualquier parte de EE. UU. Esta página cubre lo que más les importa a ' + t.plural + '. <a href="index.html">Vea todo lo que hacemos</a>' },
     { s: 'header.hero p.for', h: t.for }, { s: 'header.hero h1', h: t.h1 }, { s: 'header.hero .lede', h: esLede(key, t.lede) }, { s: 'header.hero .lede-ph', h: t.ph },
-    ...(t.ctas || ['Ver mi calificación', 'Quiero mi auditoría gratis', 'Llame a Max: (706) 460-2226']).map((c, i) => ({ s: 'header.hero .ctas a:nth-child(' + (i + 1) + ')', h: c })),
+    // By what each button links to, not its place: a button added or taken away can't shift the Spanish onto the wrong one.
+    ...(t.ctas || [['a[href*="#contact"]', 'Quiero mi auditoría gratis'], ['a[href^="tel:"]', 'Llame a Max: (706) 460-2226']]).map(([sel, c]) => ({ s: 'header.hero .ctas ' + sel, h: c })),
     { s: 'header.hero .promise > span', h: PROMISE + '<small>' + (t.small || 'Sin cargo de instalación ni contrato. Max también habla español.') + '</small>' }
   ];
 }
@@ -169,10 +174,9 @@ export function esFront(key) {
     { s: '#aos-h', h: key === 'index' || !t ? 'Lo que nadie más hace. Toque y pruébelo.' : 'Lo que nadie más hace para ' + t.plural + '. Toque y pruébelo.' },
     { s: '#go .aos-head > p', h: 'Cada tarjeta muestra una llamada, un mensaje o una publicación, de principio a fin. Toque una opción y vea lo que pasa.' },
     { s: '#go .aos-sample', h: 'Ejemplos. En su línea, Max contesta con el nombre de su negocio.' },
-    { s: '#go-grade h3', h: '¿Cómo se ve su negocio en internet?' },
-    { s: '#go-grade > p', h: 'Escriba el nombre de su negocio y su ciudad. Su calificación aparece aquí mismo en unos segundos.' },
-    { s: 'label[for="g-q"]', t: 'Nombre del negocio' }, { s: '#g-q', p: 'Como aparece en Google' }, { s: 'label[for="g-town"]', t: 'Ciudad' },
-    { s: '#go .aog-go', h: 'Ver mi calificación' },
+    { s: '#wall .eyebrow', h: 'Así se ve' },
+    { s: '#wall h2', h: 'Pantallas reales. Cada una es lo que usted recibe.' },
+    { s: '#wall .head > p:not(.eyebrow)', h: 'No es una lista de funciones. Son los textos y pantallas que Always Open envía, con datos de negocios inventados.' },
     { s: '#go .aos-also > p', h: 'También solo aquí' },
     { s: '#go .aos-also details:nth-of-type(2) summary', h: 'El mapa de Always Open' },
     { s: '#go .aos-also details:nth-of-type(1) p', h: 'Cada palabra se revisa antes de salir a su nombre, así que agencias de seguros y consultorios también pueden usarnos.' },

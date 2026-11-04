@@ -273,7 +273,7 @@ test('honest labels: a sample call, no receptionist, Max on every plan, nobody n
     assert.doesNotMatch(s.replace(/<script[\s\S]*?<\/script>/g, ' '), /Christopher/, f);
   }
   for (const f of ['index.html', 'hvac.html', 'plumbing.html', 'auto-repair.html', 'dental.html', 'marine.html', 'restaurants.html', 'salons.html', 'builders.html', 'insurance.html']) assert.match(text(f), /Ratings and review counts from Google Maps/, f + ' shows Google data under the grade without credit');
-  assert.match(text('index.html'), /id="check-go">Send me the full audit<\/a>'\+\s*'<p class="muted gsrc">/, 'the home page’s own grade box too');
+  assert.match(text('index.html'), /id="check-go">'\+T\('Send me the full audit','Envíenme la auditoría completa'\)\+'<\/a>'\+\s*'<p class="muted gsrc">/, 'the home page’s own grade box too (in English or Spanish)');
   const idx = fs.readFileSync('src/index.js', 'utf8');
   assert.doesNotMatch(idx, /'Christopher at Always Open'/);
   assert.match(idx, /mailTo\(env, to, subj, text, 'Always Open', \{ replyTo: 'hello@alwaysopenoffice\.com' \}\)/);

@@ -1,6 +1,8 @@
 // The phone version of the public site. Run from the repo root: node tools/phone.mjs
-// Writes into public/index.html and the industry pages (run it again after tools/industry.py rebuilds them):
-//   - the phone front right under the hero: playable "Only here" cards and the instant grade check
+// The site's generators, in order (each one safe to rerun; tools/industry.py is retired): node tools/phone.mjs,
+// python3 tools/marinas.py, node tools/sitefeatures.mjs, node tools/siteclock.mjs, then node tools/phonecheck.mjs.
+// Writes into public/index.html and the industry pages:
+//   - the "Tap to try it" band under the hero: playable "Only here" cards (the feature wall and clock band inside it are kept)
 //   - the phone kit before </body>: folded sections, swipeable plans, the grade form, and the small fixes for phones
 // Everything is between <!--ao:...--> markers, so running it twice changes nothing. Desktop layouts are not touched:
 // all of it shows only at 760 px wide and under.
@@ -52,25 +54,20 @@ function set(key, p0, on) {
     (p.modes ? '<div class="aos-modes" role="group" aria-label="Kind of agency">' + p.modes.map((m, i) => '<button type="button" data-mode="' + i + '" aria-pressed="' + (i ? 'false' : 'true') + '">' + esc(m) + '</button>').join('') + '</div>' : '') +
     '<div class="aos-rail" data-swipe tabindex="0" role="region" aria-label="Things to try, ' + n + ' cards">' + p.cards.map((c, i) => card(c, i, n)).join('') + '</div></div>';
 }
-function front(key, p) {
+// The "Tap to try it" band. The feature wall (sitefeatures.mjs) and Max's clock band (siteclock.mjs) live inside this
+// block, so a rerun carries them over unchanged (keep.wall, keep.clock) instead of wiping them. The grade check that
+// used to open the band is gone since Nov 4, 2026: the free-audit section's #check is the one place left.
+function front(key, p, keep) {
+  keep = keep || {};
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
   const sub = p.sub || 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.';
   const home = key === 'index';
-  return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' +
-    '<div class="aos-deck"><div class="aog" id="go-grade"><h3>How does your business look online?</h3><p>Type your business name and town. Your grade shows up right here in a few seconds.</p>' +
-    '<form data-grade="' + (home ? 'plumbing' : key) + '" novalidate>' +
-      '<label for="g-q">Business name</label><input id="g-q" name="q" autocomplete="organization" enterkeyhint="next" placeholder="As it shows on Google" required>' +
-      '<label for="g-town">Town</label><input id="g-town" name="town" autocomplete="address-level2" enterkeyhint="go" placeholder="Eatonton, GA">' +
-      '<button class="aog-go" type="submit">Check my grade</button>' +
-      '<div class="aog-out" aria-live="polite"></div>' +
-    '</form></div>\n' +
-    '<div></div>' + '</div>\n' +
-    // The grade check first (it stays on the first two screens now that What we do sits above it), then the cards.
+  return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' + (keep.wall ? keep.wall.replace(/\n*$/, '\n\n') : '') +
     '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
       (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
     (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
     '<p class="aos-sample">Examples. On your line, Max answers with your business name.</p>\n' +
-    '</section>\n<!--/ao:front-->';
+    '</section>\n' + (keep.clock ? '\n' + keep.clock.replace(/\n*$/, '\n\n') : '') + '<!--/ao:front-->';
 }
 
 // ---------- the styles, shown only on phones ----------
@@ -206,8 +203,8 @@ const CSS = `
 .hero-grid{padding-block:6px 30px!important;gap:0!important}
 .hero .neon{margin-bottom:16px}
 .hero .ctas{margin-top:22px!important}
-.hero .ctas>a:not(.ph-only):not([href^="tel:"]){display:none!important}
-.hero .ctas>.ph-only{display:inline-flex;width:100%}
+.hero .ctas>a:not(.ph-only):not([href^="tel:"]):not([href*="#contact"]){display:none!important}
+.hero .ctas>.ph-only,.hero .ctas>a[href*="#contact"]{display:inline-flex;width:100%}
 .indlinks,#industries .sub,#contact .founding{display:none}
 #industries h2{margin-bottom:16px}
 .aos{display:block;color:#ECEEF3;background:linear-gradient(180deg,#0F131B 0%,#131A28 100%);padding-top:6px;padding-bottom:40px;border-top:1px solid rgba(255,106,94,.28)}
@@ -413,7 +410,7 @@ const JS = `(function () {
   var lead = d.getElementById('lead');
   if (lead) {
     var qs = {}; location.search.replace(/^\\?/, '').split('&').forEach(function (kv) { var i = kv.indexOf('='); if (i > 0) { try { qs[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\\+/g, ' ')); } catch (x) {} } });
-    var TYPES = ${JSON.stringify(Object.fromEntries(Object.entries(PAGES).filter(([, p]) => p.type).map(([k, p]) => [k, p.type])))};
+    var TYPES = ${JSON.stringify(Object.assign(Object.fromEntries(Object.entries(PAGES).filter(([, p]) => p.type).map(([k, p]) => [k, p.type])), { marinas: 'Dock, marine or outdoor' }))};
     var from = /^[a-z-]{3,20}$/.test(qs.from || '') && TYPES[qs.from] ? qs.from : '';
     try { if (from) sessionStorage.setItem('ao_from', from); else from = sessionStorage.getItem('ao_from') || ''; } catch (x) {}
     var put = function (id, v) { var el = d.getElementById(id); if (el && v && !el.value) el.value = String(v).slice(0, 120); };
@@ -502,6 +499,8 @@ function between(s, tag, block, where) {
 }
 function foldAttrs(s, folds) {
   s = s.replace(/ data-fold="[^"]*"/g, '');
+  // Max's clock band (siteclock.mjs) is on the pages that have it; it keeps its own one-line summary.
+  if (s.includes('id="clock"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { clock: 'Every call on one dial, and the hours that came back to you.' });
   for (const [id, sum] of Object.entries(folds)) {
     const re = new RegExp('(<(?:section|div)\\b[^>]*\\bid="' + id + '"[^>]*)>');
     if (!re.test(s)) throw new Error('no section ' + id);
@@ -519,9 +518,10 @@ function build(file, key) {
   s = s.replace(/<p class="lede-ph">[\s\S]*?<\/p>/, '');
   s = s.replace(/(<p class="lede">[\s\S]*?<\/p>)/, (m) => m + '<p class="lede-ph">' + esc(p.short) + '</p>');
   s = s.replace(/<a class="btn primary ph-only"[^>]*>[^<]*<\/a>/g, '');
-  s = s.replace(/(<header[\s\S]*?<div class="ctas">)/, (m) => m + '<a class="btn primary ph-only" href="#go-grade">Check my grade</a>');
+  // (no "Check my grade" button since Nov 4, 2026: on phones the free-audit button shows instead)
   // the phone front right after the hero, the kit before </body>
-  s = between(s, 'front', front(key, p), x => { const i = x.indexOf('</header>'); return i < 0 ? -1 : i + '</header>'.length + 1; });
+  const keep = { wall: (s.match(/<!-- wall:start -->[\s\S]*?<!-- wall:end -->/) || [''])[0], clock: (s.match(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->/) || [''])[0] };
+  s = between(s, 'front', front(key, p, keep), x => { const i = x.indexOf('</header>'); return i < 0 ? -1 : i + '</header>'.length + 1; });
   s = between(s, 'kit', KIT, x => x.lastIndexOf('</body>'));
   // folded sections and swipeable plans
   s = s.replace(/<div class="plans"( data-swipe)?>/g, '<div class="plans" data-swipe>');
