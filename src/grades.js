@@ -106,10 +106,13 @@ export async function humanScore(env, msgs, f) {
   try {
     const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
       headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
-      body: JSON.stringify({ model: env.GRADE_MODEL || 'claude-haiku-5-5', max_tokens: 120, thinking: { type: 'disabled' }, system: HUMAN_RUBRIC, messages: [{ role: 'user', content: text }] }) });
+      body: JSON.stringify({ model: env.GRADE_MODEL || 'claude-haiku-5-5', max_tokens: 200, thinking: { type: 'disabled' }, system: HUMAN_RUBRIC, messages: [{ role: 'user', content: text }] }) });
     const j = await r.json().catch(() => ({}));
-    const o = JSON.parse((/\{[\s\S]*\}/.exec((j.content || []).map(x => x.text || '').join('')) || ['{}'])[0]);
-    const sc = Math.round(+o.score);
+    // a reply cut off mid-"why" still carries its score, so read the number even when the JSON never closes
+    const raw = (j.content || []).map(x => x.text || '').join('');
+    let o = {}; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['{}'])[0]); } catch (e) { o = {}; }
+    if (o.score == null) { const m = /"score"\s*:\s*(\d+(?:\.\d+)?)/.exec(raw); if (m) o = { score: +m[1], why: ((/"why"\s*:\s*"([^"]*)/.exec(raw) || [])[1] || '') }; }
+    const sc = o.score == null || o.score === '' ? NaN : Math.round(+o.score);
     return sc >= 0 && sc <= 10 ? { score: sc, why: String(o.why || '').slice(0, 200) } : { score: -1, why: 'unreadable' };
   } catch (e) { return { score: -1, why: 'failed' }; }
 }

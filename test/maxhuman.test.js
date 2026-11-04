@@ -91,4 +91,7 @@ test('the human grade reads a fixed rubric and keeps only the number', async () 
   assert.equal(sent.model, 'claude-haiku-5-5'); assert.equal(sent.system, G.HUMAN_RUBRIC); assert.match(sent.messages[0].content, /Caller: leak in the ceiling\nMax: Through the ceiling/);
   assert.equal((await G.humanScore({ ANTHROPIC_API_KEY: 'k' }, msgs, async () => new Response('{"content":[{"text":"eleven"}]}'))).score, -1);
   assert.equal((await G.humanScore({}, msgs)).score, -1);
+  const cut = async () => new Response(JSON.stringify({ content: [{ text: '{"score": 6, "why": "Warm and quick, but he asks for the town tw' }] }));
+  assert.deepEqual(await G.humanScore({ ANTHROPIC_API_KEY: 'k' }, msgs, cut), { score: 6, why: 'Warm and quick, but he asks for the town tw' }, 'a reply cut off mid-why still counts');
+  assert.equal(sent.max_tokens, 200);
 });
