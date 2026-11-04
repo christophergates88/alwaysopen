@@ -175,10 +175,10 @@ async function incoming(env, f) {
     (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greeting(line)) + '" welcomeGreetingInterruptible="none" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
     // English uses Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
     // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over. Lines that
-    // also answer in Spanish get Flux for English too once fluxFor says so (Nov 4 2026, tried on a line first); their
-    // Spanish keeps its own recognizer (or Deepgram Nova-3 where that is switched on), since Flux is English only.
+    // also answer in Spanish get Flux once fluxFor says so (Nov 4 2026, tried on a line first), for both languages: Flux
+    // is multilingual now (Spanish among its ten), so Spanish callers get the same quick, natural turn-taking.
     (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000" partialPrompts="true"' : '') +
-    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (esNovaFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="nova-3-general"' : '') + '/>' : '') + '</ConversationRelay></Connect>');
+    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux"' : '') + '/>' : '') + '</ConversationRelay></Connect>');
 }
 
 // Max's interview call to the owner (interview.js). Twilio asks what to say once the owner picks up.
@@ -1361,17 +1361,17 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- Match their energy: an emergency gets short, steady sentences; a chatty caller an easy back-and-forth; an angry caller is heard first.',
     '- Short turns: usually one sentence, two at most, under about 25 words. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
     '- When a question\'s reason isn\'t obvious, give it in a few words: "What\'s the address, so he heads to the right place?"',
-    '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". Asked again, answer in fresh words. If they dodge the number twice, confirm the one they called from.',
-    '- When the answer is no, say what you CAN do in the same breath.',
-    '- Dry humor only with a relaxed caller, one line a call at most, never about their problem or money. Never write laughter, "um", sighs or sound effects.',
+    '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". If they answer something else, take it and don\'t re-ask in your very next reply; ask for any one detail twice a call at most, then let it go. If they dodge the number twice, use the one they called from.',
+    '- A no comes with what you CAN do, in the same breath.',
+    '- Dry humor only with a relaxed caller, once a call at most, never about their problem or money. Never write laughter, "um" or sighs.',
     '- The instant they stop talking, a quick reaction ("Got it.", "Oh no, okay.") is said for you; the last line here says which. Your words follow it: never repeat it or open with another ("Sure", "Okay", "Absolutely").',
     '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you").',
-    '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
+    '- Speech recognition slips: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself; a note says if a number is short.',
     '- The first time you name someone, say who they are ("Mike, who runs the business"). Use their first name now and then once given, never every reply, never as an opener.',
     '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness.',
     '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking.',
     '- Off-topic: a few words, then steer back. No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
-    '- Never invent details. If you do not know, say the team will have the answer on the callback, as a normal thing, not an apology. Never say what the team will NOT do ("nobody will text you"); if asked who will contact them or how, say the team will, at that number.',
+    '- Never invent details. If you do not know, say the team will have it on the callback, as a normal thing, not an apology. Never say what the team will NOT do; if asked who will contact them, say the team will, at that number.',
     '',
     'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):',
     ...soundsLike(L),
@@ -1680,7 +1680,7 @@ const LEADS = {
   doubt: ['Fair enough.', 'That\'s fair.', 'I hear you.'],
   info: ['Sure.', 'Sure thing.', 'Okay.', 'Yeah.'],
   name: ['Nice to meet you.', 'Great, thanks.', 'Got it, thanks.'],
-  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.', 'Okay.', 'Right.', 'Okay, so.', 'Sure.']
+  said: ['Got it.', 'Gotcha.', 'Alright.', 'Mm-hm.', 'Okay.', 'Right.']   // not "Sure." or "Okay, so.": after a plain fact they sound like the wrong cue
 };
 
 const LEADS_ES = {
@@ -1738,7 +1738,7 @@ export function quickQuestion(t) {
 // Callers who want a person, and callers who are upset: counted per call (callerNotes) as well as reacted to.
 const WANT_PERSON = /\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real|someone|somebody|the owner|a manager|chris)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b|\b(real|live|actual) (person|human)\b/;
 // An active problem, or a caller who says it can't wait. A business owner describing their trade ("we fix leaks") is not one.
-const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no heating|no cooling|no hot water|no water|no (ac|a c|air)|no power|no electricity|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|on fire|fire|burning|carbon monoxide|gas smell|smell gas|smells? (like )?gas|water everywhere|pouring|sewage|sewer|caving in|caved in|collapsed|collapsing|fell (on|through)|broke into|broken into|broke in|break-?in|burglar(y|ized)?|robbed|accident|crashed|wrecked|totaled|stranded|locked out|can't breathe|on oxygen|(furnace|heater|heat pump|boiler|water heater|ac|a c|compressor|pump|freezer|fridge|refrigerator) (died|is dead|quit|is out|went out|is down|broke|stopped|won't (start|turn on|work|run)|not (working|starting|running)|isn't (working|running|starting))|broke down|stopped working|(fuga|fugas|inunda|inundo|inundado|inundacion|inundando|emergencia|urgente|incendio|humo|ladrones|robaron|choque|accidente|reventado|reviento|tubo roto|se rompio|derrumb\w*|no tengo (calefaccion|agua|luz|aire|electricidad|gas)|sin calefaccion|sin agua|sin luz|sin aire|sin electricidad|huele a gas|olor a gas|hay gas|aguas negras|drenaje tapado))\b/;
+const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no heating|no cooling|no hot water|no water|no (ac|a c|air)|no power|no electricity|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|on fire|fire|burning|carbon monoxide|gas smell|smell gas|smells? (like )?gas|water everywhere|pouring|sewage|sewer|caving in|caved in|collapsed|collapsing|fell (on|through)|broke into|broken into|broke in|break-?in|burglar(y|ized)?|robbed|accident|crashed|wrecked|totaled|stranded|locked out|can't breathe|on oxygen|heat'?s out|heat is out|ac'?s out|taking on water|sinking|broke (a|my) tooth|in (a lot of )?pain|really hurts|toothache|(furnace|heater|heat pump|boiler|water heater|ac|a c|compressor|pump|freezer|fridge|refrigerator) (died|is dead|quit|is out|went out|is down|broke|stopped|won't (start|turn on|work|run)|not (working|starting|running)|isn't (working|running|starting))|broke down|stopped working|(fuga|fugas|inunda|inundo|inundado|inundacion|inundando|emergencia|urgente|incendio|humo|ladrones|robaron|choque|accidente|reventado|reviento|tubo roto|se rompio|derrumb\w*|no tengo (calefaccion|agua|luz|aire|electricidad|gas)|sin calefaccion|sin agua|sin luz|sin aire|sin electricidad|huele a gas|olor a gas|hay gas|aguas negras|drenaje tapado))\b/;
 const OWN_TRADE = /\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize in)\b|\b(my|our) (company|business|customers|clients)\b/;
 const PAST = /\b(was|were|had been|used to|last (year|month|week|winter|summer|time)|(years?|months?|weeks?) ago|a while ago|got fixed|was fixed|is fixed|fixed it|thank(s| you)|in case (of )?|if (there'?s|there is|we have|i have) an? (emergency|leak))\b/;
 const NOW_WORDS = /\b(now|currently|right now|today|tonight|still|again|just|this (morning|afternoon|evening))\b/;
@@ -2079,7 +2079,7 @@ function leadKindEn(raw, orig) {
   // a business owner describing their work ("we fix leaks", "I run a restoration company") is not having a bad day
   const work = has(/\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize|get|take|answer|miss)\b|\b(company|business|contractor|restoration|services|customers|clients|calls|jobs|crew)\b/);
   if (!isQ && !work && has(/\b(passed away|died|funeral|cancer|in the hospital|lost my (husband|wife|mom|mother|dad|father|son|daughter))\b/)) return 'sad';
-  if (!isQ && !work && has(/\b(emergency|leak|leaking|flood|flooding|flooded|burst|broke|broken|not working|stopped working|won't start|wont start|no heat|no hot water|no ac|no air|no power|backed up|backing up|clogged|overflowing|damaged|damage|crashed|stolen|robbed|locked out|pouring|gushing|spraying|sewage|water everywhere|no water|coming through)\b/)) return 'trouble';
+  if (!isQ && !work && has(/\b(emergency|leak|leaking|flood|flooding|flooded|burst|broke|broken|not working|stopped working|won't start|wont start|no heat|no hot water|no ac|no air|no power|backed up|backing up|clogged|overflowing|damaged|damage|crashed|stolen|robbed|locked out|pouring|gushing|spraying|sewage|water everywhere|no water|coming through|heat'?s out|heat is out|ac'?s out|taking on water|sinking|sitting (really )?low|snapped off|really hurts|in (a lot of )?pain|toothache|broke (a|my) tooth|just clicks|smells? (like )?(something )?burning)\b/)) return 'trouble';
   if (!isQ && has(/\b(urgent|asap|as soon as possible|right away)\b/)) return 'urgent';
   if (!isQ && has(/\b(bye|goodbye|that's all|that is all|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go)\b/)) return 'bye';
   if (n <= 6 && /^(no|nope|nah|not really|not yet|not now|not right now|not at the moment|not today|no thanks|no thank you|actually no|wrong)\b/.test(w)) return 'no';
@@ -2252,10 +2252,6 @@ export function fluxFor(env, line) {
   if (!+line.spanish) return true;
   const f = parse(line.facts) || {};
   return f.flux === 1 || f.flux === true || String((env && env.VOICE_FLUX) || '') === 'all';
-}
-export function esNovaFor(env, line) {
-  const f = parse(line.facts) || {};
-  return f.esNova === 1 || f.esNova === true || String((env && env.VOICE_ES_NOVA) || '') === 'on';
 }
 // Delivery that follows the call: once a call turns urgent, the voice goes a touch slower and steadier for the rest of it,
 // the way a person's does. Sent as a ConversationRelay config message, which takes effect on the next words sent.
