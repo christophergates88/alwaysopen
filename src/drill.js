@@ -113,6 +113,14 @@ export async function drillCron(env, now, h) {
   const line = await ownLine(env);
   if (!line || !E164.test(line.number)) return { off: 'no line to call' };
   await listAsTester(env, from);
+  // One test call right now, on request (drill_meta 'now' = 'requested'): used after a change to Max to hear it on a
+  // real call with the real ears and voice. The call is a tester's, so it is marked a test and keeps its timeline.
+  if (await getMeta(env, 'now') === 'requested') {
+    await setMeta(env, 'now', 'placing ' + new Date(now).toISOString());
+    const p = await placeCall(env, from, line.number, h);
+    await setMeta(env, 'now', p.sid ? 'called ' + p.sid + ' ' + new Date(now).toISOString() : 'failed ' + String(p.error || '').slice(0, 120));
+    return { placed: 'on request', sid: p.sid || '' };
+  }
   const e = eastern(now);
   let run = await env.DB.prepare('SELECT * FROM drill_runs WHERE day = ?1').bind(e.day).first();
   const call = async attempt => {

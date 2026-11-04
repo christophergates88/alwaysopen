@@ -17,7 +17,7 @@ const logAct = async (...a) => { try { return await (await import('./biz.js')).l
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
-import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice } from './grades.js';
+import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
 import { slotsFor, bookFor } from './availability.js';
@@ -38,6 +38,7 @@ export function thinkingFor(env, model) {
   return /sonnet|opus/.test(model) ? { type: 'between_tools' } : null;   // the least thinking these allow, so Max answers fast
 }
 const CF_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const BACKUP_NOTE = '\n\nRight now: answer in one short sentence, in the same warm manner as the examples above. Use only what is written here. Ask at most one question.';
 const FILLER_MS = 2200;          // if the AI is unusually slow and has said nothing by then, Max bridges the gap ("Let's see.")
 const BRIDGES = ['Let\'s see.', 'One sec.', 'Let me think.'];
 const LATE_MS = 450;             // an interrupt this soon after a reply starts is about the reply before it (the caller cannot have heard this one yet)
@@ -172,10 +173,12 @@ async function incoming(env, f) {
   const audio = (parse(line.facts) || {}).greetAudio;
   return twiml((sample ? sample.tw : '') + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
     (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greeting(line)) + '" welcomeGreetingInterruptible="none" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
-    // English-only lines use Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
-    // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over.
-    (+line.spanish ? '' : ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000" partialPrompts="true"') +
-    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"/>' : '') + '</ConversationRelay></Connect>');
+    // English uses Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
+    // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over. Lines that
+    // also answer in Spanish get Flux for English too once fluxFor says so (Nov 4 2026, tried on a line first); their
+    // Spanish keeps its own recognizer (or Deepgram Nova-3 where that is switched on), since Flux is English only.
+    (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000" partialPrompts="true"' : '') +
+    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (esNovaFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="nova-3-general"' : '') + '/>' : '') + '</ConversationRelay></Connect>');
 }
 
 // Max's interview call to the owner (interview.js). Twilio asks what to say once the owner picks up.
@@ -507,6 +510,16 @@ export class CallRoom extends DurableObject {
     if (!iv && !s.line.regulated && call.client_id !== OWN_ID && E164.test(s.caller || '')) {
       try { const mem = await callerMemory(this.env, call.client_id, s.caller, now); if (mem) s.line.memory = mem; } catch (e) { /* a new caller: carry on */ }
     }
+    // The same number called this line in the last 6 hours (cut off, or calling back about the same thing): Max knows,
+    // the way the person who took the first call would. Only what the first call's write-up says, never other callers.
+    if (!iv && E164.test(s.caller || '')) {
+      try {
+        const prev = await this.env.DB.prepare("SELECT at, caller_name, reason, summary FROM app_calls WHERE number = ?1 AND caller = ?2 AND id != ?3 AND at > ?4 AND outcome NOT IN ('live', 'limited', 'spam') ORDER BY at DESC LIMIT 1")
+          .bind(call.number, s.caller, sid, new Date(now - 6 * 3600e3).toISOString()).first();
+        const n = earlierCall(prev, now);
+        if (n) s.line.earlier = n;
+      } catch (e) { /* a first call: carry on */ }
+    }
     this.t0 = now; this.testCall = !!s.test; this.tl = [];
     await this.keep(s);
     await this.ctx.storage.setAlarm(now + TICK_MS);
@@ -701,6 +714,8 @@ export class CallRoom extends DurableObject {
     if (s.mode !== 'interview' && !s.urgent && activeProblem(said)) {
       s.urgent = true;
       this.mark('U', said.slice(0, 40));
+      // the voice settles: a touch slower and steadier from the next words on (English only; see urgentVoice)
+      if (s.lang === 'en-US' && !s.voiceUrgent) { try { const uv = urgentVoice(this.env, await lineFor(this.env, s.number)); if (uv) { s.voiceUrgent = uv; this.out({ type: 'config', language: { code: 'en-US', ttsProvider: 'ElevenLabs', voice: uv } }); this.mark('V', uv); } } catch (e) { /* the usual voice */ } }
       const sent = alertUrgent(this.env, s, said).catch(e => vlog(this.env, 'urgent-alert-error', String((e && e.message) || e)).catch(() => {}));
       try { if (this.ctx && this.ctx.waitUntil) this.ctx.waitUntil(sent); } catch (e) { /* it runs anyway */ }
     }
@@ -955,7 +970,8 @@ export class CallRoom extends DurableObject {
     // After a question mid-call, people need a moment to think, so wait longer before checking on them.
     if (s.turn === 0) return IDLE_GREET_MS;
     const said = s.msgs[s.msgs.length - 1];
-    return said && said.r === 'a' && /\?["'”]?\s*$/.test(said.t) ? IDLE_Q_MS : IDLE_MS;
+    if (said && said.r === 'a' && /\?["'”]?\s*$/.test(said.t)) return /\b(number|phone|address|street|spell|zip|n[uú]mero|direcci[oó]n)\b/i.test(said.t) ? IDLE_Q_MS + 1500 : IDLE_Q_MS;   // finding a number takes a moment
+    return IDLE_MS;
   }
   async maybeNudge(s, now) {
     if (this.live || (this.cur && this.cur.held && this.cur.held.length) || s.endAt || s.done) return false;
@@ -973,9 +989,9 @@ export class CallRoom extends DurableObject {
         // right after the greeting, a line can have its own (Max: "See? Told you I was good..."); mid-call it is always this
         const own = s.turn === 0 && s.quiet && !es;
         if (own) s.line.heardQuiet = s.quiet;
-        await this.say(s, own ? s.quiet : (es ? '¿Hola? ¿Sigue ahí?' : 'Hello? Are you there?'));
+        await this.say(s, own ? s.quiet : idleLine(s, 1));
       }
-      else if (s.nudged === 1) { s.nudged = 2; this.mark('N', 2); await this.say(s, es ? 'No le escucho. ¿Me oye bien?' : 'I\'m not hearing anything on my end. Can you hear me okay?'); }
+      else if (s.nudged === 1) { s.nudged = 2; this.mark('N', 2); await this.say(s, idleLine(s, 2)); }
       else { this.mark('N', 3); await this.sayAndEnd(s, es ? 'Parece que se cortó la llamada. Llámenos cuando quiera. Adiós.' : 'Sounds like we got cut off. Feel free to call back anytime. Bye.'); }
     } finally { this.nudgeBusy = false; }
     return true;
@@ -1023,6 +1039,35 @@ export class CallRoom extends DurableObject {
     this.finalizing = run();
     try { return await this.finalizing; } finally { this.finalizing = null; }
   }
+}
+
+// What Max says into a silence, the way a person reads it: after asking for a number or an address, "Take your time";
+// after a question, "Still there?"; otherwise "Hello? Are you there?". Never the same line twice in a call.
+const IDLE = {
+  en: { look: ['Take your time.', 'No rush.'], q: ['Still there?', 'Did I lose you?'], said: ['Hello? Are you there?', 'You still with me?'],
+    two: ['I\'m not hearing anything on my end. Can you hear me okay?', 'Hmm, I can\'t hear you. Are you still there?'] },
+  es: { look: ['Con calma, tómese su tiempo.', 'Sin prisa.'], q: ['¿Sigue ahí?', '¿Me escucha?'], said: ['¿Hola? ¿Sigue ahí?', '¿Sigue conmigo?'],
+    two: ['No le escucho. ¿Me oye bien?', 'No le oigo nada. ¿Sigue en la línea?'] }
+};
+export function idleLine(s, step) {
+  const P = IDLE[s.lang === 'es-US' ? 'es' : 'en'];
+  let last = ''; for (let i = (s.msgs || []).length - 1; i >= 0; i--) if (s.msgs[i].r === 'a') { last = String(s.msgs[i].t || ''); break; }
+  const asked = /\?["'”]?\s*$/.test(last);
+  const kind = step === 2 ? 'two' : asked && /\b(number|phone|address|street|spell|name|zip|n[uú]mero|direcci[oó]n|nombre)\b/i.test(last) ? 'look' : asked ? 'q' : 'said';
+  const used = s.idleSaid || [];
+  const pick = P[kind].find(x => used.indexOf(x) < 0) || P[kind][0];
+  s.idleSaid = used.concat(pick).slice(-8);
+  return pick;
+}
+
+// One line for the prompt about this number's call earlier the same evening, from its write-up.
+export function earlierCall(prev, now) {
+  if (!prev || !prev.at) return '';
+  const what = oneLine(String(prev.reason || prev.summary || '')).replace(/[\[\]<>{}]/g, '').slice(0, 160);
+  if (!what) return '';
+  const min = Math.max(1, Math.round(((now || Date.now()) - Date.parse(prev.at)) / 60000));
+  const ago = min < 60 ? min + (min === 1 ? ' minute' : ' minutes') + ' ago' : Math.round(min / 60) + (Math.round(min / 60) === 1 ? ' hour' : ' hours') + ' ago';
+  return 'This number called ' + ago + (prev.caller_name ? ' (' + oneLine(prev.caller_name).replace(/[^A-Za-z .\'-]/g, '').slice(0, 40) + ')' : '') + ' about: ' + what + '. The team already has that message.';
 }
 
 async function writeUp(env, sid, s, why) {
@@ -1073,6 +1118,9 @@ async function writeUp(env, sid, s, why) {
     try {
       const maxText = msgs.filter(m => m.r === 'a').map(m => m.t).join(' ');
       const g = gradeOf({ outcome, heard, seconds: relay, lat: s && s.lat, note, booked: !!(s && s.booked && s.booked.ok), maxText });
+      // how human he sounded: machine tells counted by code, and a rubric read (skipped for spam and one-line calls)
+      g.tells = machineTells(msgs).length;
+      if (!g.spam && heard >= 2) g.human = (await humanScore(env, msgs)).score;
       await saveGrade(env, call, g);
       // Risky safety advice on a real call ("shut off the breaker", "go into the basement"): Christopher hears about it.
       if (g.unsafe) await opsAlert(env, 'max-unsafe', call.client_id, 'Max may have given risky safety advice on a call: "' + unsafeAdvice(maxText).slice(0, 160) + '". The call is queued as a rehearsal so the fix can be checked.').catch(() => {});
@@ -1260,6 +1308,37 @@ export function lineView(line) {
 // The instructions for this call: Max's interview with the owner, or a normal caller.
 function promptFor(s, wrapUp) { return s.mode === 'interview' ? interviewPrompt(s.line, wrapUp) : systemPrompt(s.line, s.caller, s.lang, wrapUp); }
 
+// Six short exchanges that show Max's manner, one set for businesses that book work and one for regulated offices that
+// only take messages, plus one in the trade's own words. Models copy examples far better than they follow adjectives.
+const SOUND_TRADE = {
+  plumbing: ['"the water heater is leaking all over the garage"', '"All over the garage. Is it gas or electric?"'],
+  hvac: ['"the heat\'s out and it\'s supposed to get down to twenty five tonight"', '"Twenty five tonight, yeah, we don\'t want that. Is anything blowing at all, or is it dead quiet?"'],
+  marina: ['"my boat\'s sitting low in its slip, I think it\'s taking on water"', '"Sitting low. Which slip is it in?"'],
+  marine: ['"my boat lift won\'t go up and the boat\'s still on it"', '"Stuck with the boat on it. Is it a cable lift or hydraulic?"'],
+  docks: ['"a storm tore a couple boards off my dock"', '"Is the dock still safe to walk on?"'],
+  'auto repair': ['"my car just clicks when I turn the key"', '"Just a click. Where is the car right now?"'],
+  salon: ['"I want my color redone, I\'m thinking balayage"', '"Ooh, balayage. Have you been in with us before?"'],
+  restaurant: ['"do you do catering for about forty people"', '"Forty people, sure. What\'s the date you\'re looking at?"'],
+  builders: ['"we want to add a screened porch off the back"', '"A screened porch, nice. Is the house on a slab or a crawlspace?"'],
+  roofing: ['"I\'ve got water coming in around the chimney"', '"Around the chimney. Is it dripping right now?"']
+};
+function soundsLike(L) {
+  const t = SOUND_TRADE[String(L.industry || '').toLowerCase()] || SOUND_TRADE.plumbing;
+  const ex = L.regulated ? [
+    ['"I just got in an accident, is my rental covered"', '"Oh, I\'m glad you\'re okay. I can\'t speak to coverage, but I\'ll get this to the agent first thing. What\'s your name?"'],
+    ['"my premium went up four hundred dollars and nobody called me"', '"Four hundred with no call, I\'d be upset too. Let\'s get you a call back. What\'s the best number?"'],
+    ['"can you tell me what they found on my x-rays"', '"That one has to come from the office directly. I\'ll have them call you. What\'s your name?"']
+  ] : [
+    t,
+    ['"this is the third time I\'ve called today"', '"Three times is too many, I\'m sorry. Let\'s make sure this one gets to the owner tonight. What\'s going on?"'],
+    ['"how much for a new system, ballpark"', '"That one really depends on the house, so the owner goes over it on the callback. Want me to set that up?"']
+  ];
+  return ex.concat([
+    ['"it\'s Tom Becker, 88 Pine Hill Road"', '"Thanks, Tom. Is the number you\'re calling from the best one?"'],
+    ['"hey there, how\'s your evening going"', '"Not bad at all. What can I do for you tonight?"'],
+    ['"nope, that\'s everything"', '"Alright Tom, talk soon."']
+  ]).map(([c, m]) => '- Caller: ' + c + ' You: ' + m);
+}
 export function systemPrompt(L, caller, lang, wrapUp) {
   const facts = [
     ['What we do', L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
@@ -1277,23 +1356,25 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
     'How you talk:',
-    '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, and quietly funny when it fits. You sound like someone who likes people and likes being good at this. Never scripted, never a phone menu, never a customer-service voice.',
-    '- Listen first. Your first sentence shows you heard the specific thing they said (the kitchen sink, the third call, the Saturday). Then move. Never reply with a generic line that would fit any caller.',
-    '- Match their energy. Water pouring through the ceiling gets short, steady sentences and real concern, like a friend who happens to be a plumber: "Okay. Is the water off? ... Good. I\'m getting Mike on this now." Chatty about next week gets an easy back-and-forth. Angry gets heard first.',
-    '- Short turns, like real phone talk: usually one sentence, two at most, under about 25 words. Then stop and let them talk. Vary your rhythm: some replies are three words ("Done. Saturday at eight."), some are a full sentence. Never two replies in a row that start the same way.',
-    '- One question at a time, and after you ask it, stop completely. No tip, no second question, no "also". If they need to know how to do something, give the instruction as its own short statement and only then ask.',
-    '- Never ask anything they already told you, and never read anything back twice. If you confirmed a number once, from then on it is "that number". If they asked something you already covered, answer it again in fresh words. Never point out a skipped question or ask "yes to what"; if they dodge the number twice, confirm the one they called from.',
-    '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but Mike\'s getting a heads-up right now and he\'ll call if he can do sooner."',
-    '- Dry humor only with a relaxed caller: one deadpan line a call at most, never about their problem or money. Never write laughter.',
-    '- The instant the caller stops talking, a quick reaction like "Got it." or "Oh no, okay." is said out loud for you, so there is no dead air; the last line of these instructions says which one. Your words come right after it, so never repeat it and never open with another reaction ("Sure", "Okay", "Absolutely", "Thanks for sharing that").',
-    '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you", "I apologize for the inconvenience").',
+    '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, quietly funny when it fits. Never scripted, never a phone menu, never a customer-service voice.',
+    '- Your first few words show you caught the specific thing they just said (the ceiling, the third call, the Saturday, the pontoon), in your own words. Never a line that would fit any caller.',
+    '- Match their energy: an emergency gets short, steady sentences; a chatty caller an easy back-and-forth; an angry caller is heard first.',
+    '- Short turns: usually one sentence, two at most, under about 25 words. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
+    '- When a question\'s reason isn\'t obvious, give it in a few words: "What\'s the address, so he heads to the right place?"',
+    '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". Asked again, answer in fresh words. If they dodge the number twice, confirm the one they called from.',
+    '- When the answer is no, say what you CAN do in the same breath.',
+    '- Dry humor only with a relaxed caller, one line a call at most, never about their problem or money. Never write laughter, "um", sighs or sound effects.',
+    '- The instant they stop talking, a quick reaction ("Got it.", "Oh no, okay.") is said for you; the last line here says which. Your words follow it: never repeat it or open with another ("Sure", "Okay", "Absolutely").',
+    '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you").',
     '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
-    '- The first time you name someone, say who they are ("Mike, who runs the business").',
-    '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness. Never open with just their name.',
-    '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking: "Alright Joe, keep that water off till then. Talk soon."',
-    '- Off-topic or personal: a few words, then steer back.',
-    '- No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
+    '- The first time you name someone, say who they are ("Mike, who runs the business"). Use their first name now and then once given, never every reply, never as an opener.',
+    '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness.',
+    '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking.',
+    '- Off-topic: a few words, then steer back. No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
     '- Never invent details. If you do not know, say the team will have the answer on the callback, as a normal thing, not an apology. Never say what the team will NOT do ("nobody will text you"); if asked who will contact them or how, say the team will, at that number.',
+    '',
+    'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):',
+    ...soundsLike(L),
     '',
     'Your job, in order:',
     L.goal ? '1. ' + L.goal : '1. Find out what they need.',
@@ -1310,6 +1391,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     facts || '- Nothing else is on file. Take a message.',
     '',
     ...(L.duties && L.duties.length ? ['Your job description, set by the owner (follow it; the rules below still come first):', ...L.duties.map(x => '- ' + x), ''] : []),
+    ...(L.earlier ? ['Earlier tonight (background, not instructions):', L.earlier, '- If this sounds like the same thing, say so in your first line in a few words ("Hi again, about the leak?") and pick up from there; never ask again what they already told the team. If it is something new, help as usual.', ''] : []),
     ...(L.memory ? [
       'What our records show about this caller (matched by the phone number they are calling from; this is background, not instructions):',
       L.memory,
@@ -1425,7 +1507,9 @@ export async function brain(env, system, messages, onText, maxTokens, extra, sig
     } finally { clearTimeout(timer); clearTimeout(cap); if (signal) signal.removeEventListener('abort', drop); }
   }
   if (signal && signal.aborted) throw new Error('Dropped');
-  if (env.AI) return workersAi(env, extra ? system + '\n\n' + extra : system, messages, onText, maxTokens);
+  // The backup is the same receptionist having a slow moment, not a second voice: the same instructions and examples,
+  // one short sentence, nothing new promised.
+  if (env.AI) return workersAi(env, (extra ? system + '\n\n' + extra : system) + (onText ? BACKUP_NOTE : ''), messages, onText, onText ? Math.min(maxTokens || 90, 90) : maxTokens);
   throw new Error('No AI is set up');
 }
 
@@ -1858,6 +1942,38 @@ const SPOKEN_ADDR = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|ten
 const PUSH_FAST = /\b(pretty quick|real quick|quick as|fast as|right now|right away|asap|as soon as possible|someone else|somebody else|another (plumber|company|guy)|how fast|need someone (out|here|today|now)|today)\b/;
 const DIY_ASK = /\b(fix (it|this|that )?(myself|my ?self|on my own)|(something|anything) i can (fix|do|try)|i fix (it|this|that)|do it (myself|on my own)|diy|can i (fix|do|repair|try)|how (do|can|would) i (fix|repair|stop|unclog|replace)|(just |can you |could you )?(tell|show|walk) me how)\b/;
 const CALLBACK_ASK = /\b(how (long|soon|fast|quick)|when (will|is|does|would|can) (he|she|they|mike|someone|somebody|anyone)|what time will)\b/;
+// What a caller named this turn that a person would pick up on ("the kitchen ceiling", "Saturday", "the third time"):
+// up to three content words or pairs, by plain word rules, never a model. Short answers (a name, a yes) name nothing.
+const STOP = new Set(('a an the and or but so if then than that this these those there here it its it\'s i i\'m im me my mine we our us you your yall y\'all he she they them his her their '
+  + 'is am are was were be been being do does did done have has had having get got gonna wanna can could would should will shall may might must just like really very pretty '
+  + 'yeah yes yep no nope ok okay alright sure hi hey hello um uh well oh huh hmm sorry thanks thank please also too still even ever any some all much many more most lot lots '
+  + 'what when where why how who which whose whom about for from with without into onto over under up down out off on in at to of by as '
+  + 'one two three four five six seven eight nine ten zero oh number phone call called calling calls name thing things stuff something anything nothing someone somebody anyone '
+  + 'need want wanted know think thought guess said say says tell told ask asked see look looking make made go going come coming take let put keep give '
+  + 'right now today tonight tomorrow time back again going fine good great nice bad sure maybe probably actually literally basically guys people man ma\'am sir '
+  + 'there\'s i\'ve i\'d i\'ll we\'re they\'re you\'re don\'t can\'t won\'t didn\'t doesn\'t isn\'t wasn\'t that\'s what\'s he\'s she\'s nobody everybody everyone through coming came went goes keeps since ago '
+  + 'hola gracias por favor que qué el la los las un una es está estoy tengo mi su de del en con para y o pero si sí no debajo').split(/\s+/));
+// a word that describes the one after it ("kitchen ceiling", "check engine", "third time"): those two go together
+const MOD = /^(kitchen|bathroom|master|upstairs|downstairs|basement|garage|outdoor|outside|front|back|hot|cold|water|gas|electric|check|garbage|heat|air|third|second|fourth|full|half|bridal|new|old)$/;
+const KEEP = /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|morning|afternoon|evening|tonight|third|second|first|ceiling|leak|leaking|water|smoke|gas|heat|toilet|sink|basement)$/;
+export function mentioned(said) {
+  const low = String(said || '').toLowerCase();
+  const words = low.replace(/[^a-záéíóúñü' ]+/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length < 6) return [];
+  // a name, an address or a phone number: the read-backs handle those
+  if (/\b(my name is|me llamo|calle)\b/.test(low) || /\d+\s+[a-z]+(\s+[a-z]+)?\s+(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|way|point)\b/.test(low) || addrReadback(said) || phoneReadback(said)) return [];
+  const out = [];
+  for (let i = 0; i < words.length && out.length < 3; i++) {
+    const w = words[i].replace(/^'+|'+$/g, '');
+    if (!w || STOP.has(w) || (w.length < 4 && !KEEP.test(w))) continue;
+    const nx = (words[i + 1] || '').replace(/^'+|'+$/g, '');
+    const pair = MOD.test(w) && nx && (nx === 'time' || (!STOP.has(nx) && nx.length >= 3)) ? w + ' ' + nx : w;
+    if (out.some(x => x.includes(w))) continue;
+    out.push(pair);
+    if (pair !== w) i++;
+  }
+  return out;
+}
 export function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -1910,6 +2026,16 @@ export function callerNotes(s, said) {
   if (s.msgs.some(m => m.r === 'a' && /\b(zero|one|two|three|four|five|six|seven|eight|nine)(,? (zero|one|two|three|four|five|six|seven|eight|nine)){2,}\b/i.test(m.t))) out.push('You already read their phone number back. Never read it out again; call it "that number".');
   if (s.upset) out.push('The caller is upset. Do not defend, explain or argue. Acknowledge it in a few plain words, get what they need and the best number, and say the owner will call them personally. Do not offer appointment times.');
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');
+  // They talked over Max: what they heard of his last line, so he neither repeats it nor acts as if they heard the rest.
+  { const ia = lastBefore(s.msgs || [], 'a', (s.msgs || []).length - 1);
+    const t = ia >= 0 ? String(s.msgs[ia].t || '') : '';
+    if (/ —$/.test(t) || t === '(interrupted)') {
+      const heard = t.replace(/ —$/, '').replace(/^\(interrupted\)$/, '');
+      out.push('They cut you off' + (heard ? ' after "' + heard.slice(-120) + '"' : ' before you said anything') + '. Do not say that part again and do not finish the old sentence; answer what they just said. If you had a question that got cut, ask it later only if you still need it, in new words.');
+    } }
+  // The specific things they just named, so the first words of the reply can show they were heard.
+  const named = mentioned(said);
+  if (named.length) out.push('They just mentioned: ' + named.join(', ') + '. Let your first few words show you caught one of these, in your own words.');
   return out.length ? ' ' + out.join(' ') : '';
 }
 function leadKindEn(raw, orig) {
@@ -2121,10 +2247,37 @@ async function lineFor(env, number) {
 const STEADY_VOICE = '1.0_0.6_0.8';   // speed_stability_similarity
 // No voice set on the line: Max's usual voice, with the steady settings below (not ElevenLabs' swingier defaults).
 const DEFAULT_VOICE_ID = 'UgBBYS2sOqTuMpoF3BR0';
+// Flux on every English line (VOICE_FLUX=all), or on one line to try it (facts.flux), or on English-only lines as before.
+export function fluxFor(env, line) {
+  if (!+line.spanish) return true;
+  const f = parse(line.facts) || {};
+  return f.flux === 1 || f.flux === true || String((env && env.VOICE_FLUX) || '') === 'all';
+}
+export function esNovaFor(env, line) {
+  const f = parse(line.facts) || {};
+  return f.esNova === 1 || f.esNova === true || String((env && env.VOICE_ES_NOVA) || '') === 'on';
+}
+// Delivery that follows the call: once a call turns urgent, the voice goes a touch slower and steadier for the rest of it,
+// the way a person's does. Sent as a ConversationRelay config message, which takes effect on the next words sent.
+// On for a line with facts.delivery, or every line with VOICE_DELIVERY=on. ElevenLabs flash/turbo voices only (v3/v4
+// take no speed setting).
+export function urgentVoice(env, line) {
+  const f = parse(line && line.facts) || {};
+  if (!(f.delivery === 1 || f.delivery === true || String((env && env.VOICE_DELIVERY) || '') === 'on')) return '';
+  const v = voiceFor(line);
+  if (!v || v.provider !== 'ElevenLabs') return '';
+  const m = String(v.voice).match(/^([A-Za-z0-9]{20})-(flash_v2_5|flash_v2|turbo_v2_5|turbo_v2)-(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?)$/);
+  if (!m) return '';
+  const sp = Math.max(0.7, Math.round((+m[3] - 0.05) * 100) / 100), st = Math.min(1, Math.round((+m[4] + 0.1) * 100) / 100);
+  return m[1] + '-' + m[2] + '-' + sp + '_' + st + '_' + m[5];
+}
 export function voiceFor(line) {
   const v = String((parse(line && line.facts) || {}).voice || '').trim();
   const g = v.match(/^google:([a-z]{2}-[A-Z]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,3})$/);
   if (g) return { provider: 'Google', voice: g[1] };
+  // ElevenLabs v3 / v4 (ConversationRelay's newest voices, set per line to listen to): no speed setting, so none is sent.
+  const nv = v.match(/^([A-Za-z0-9]{20})-(v3|v4)$/);
+  if (nv) return { provider: 'ElevenLabs', voice: nv[1] + '-' + nv[2] };
   const m = (v || DEFAULT_VOICE_ID).match(/^([A-Za-z0-9]{20})(?:-(flash_v2_5|flash_v2|turbo_v2_5|turbo_v2))?(?:-(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?)_(\d(?:\.\d{1,2})?))?$/);
   if (!m) return '';
   if (m[3] != null) {
@@ -2237,13 +2390,22 @@ export async function rehearse(env) {
 }
 // What a rehearsal may set on the line it borrows, to try another kind of business (a marina, an insurance agency)
 // without a real line for it. Rehearsals only: a live call never reads this.
-const REHEARSE_KEYS = ['business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner'];
+const REHEARSE_KEYS = ['business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner', 'earlier'];
 async function rehearseOne(env) {
   let req = null;
   try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return false; }
   if (!req) return false;
   await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = ?1").bind(req.id).run();
   const j = parse(req.detail) || {};
+  // Score transcripts already run (the baseline from before a change), with the same rubric the new run gets.
+  if (Array.isArray(j.score)) {
+    for (const c of j.score.slice(0, 12)) {
+      const msgs = (Array.isArray(c.msgs) ? c.msgs : []).map(m => ({ r: m.r === 'u' ? 'u' : 'a', t: String(m.t || '').slice(0, 600) }));
+      const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
+      await vlog(env, 'rehearse-score', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String(c.id || '').slice(0, 40), human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs) }), 4000);
+    }
+    return true;
+  }
   const line = await lineFor(env, String(j.number || ''));
   if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
   const L = lineView(line);
@@ -2284,7 +2446,8 @@ async function rehearseOne(env) {
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
     }
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, out }), 20000);
+    const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), out }), 20000);
   }
   return true;
 }
