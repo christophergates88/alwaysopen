@@ -48,12 +48,12 @@ export async function boardItems(env) {
   await ensure(env);
   try { await (await import('./gbp.js')).ensureGbp(env); await (await import('./provision.js')).ensureProvision(env); } catch (e) { /* queries below fall back to empty */ }
   const items = [];
-  const waiting = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, SUM(CASE WHEN i.kind = 'post' THEN 1 ELSE 0 END) AS posts, SUM(CASE WHEN i.kind != 'post' THEN 1 ELSE 0 END) AS replies FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.kind NOT IN ('invoice', 'reviewreq') AND i.client_id != ?1 AND LOWER(i.context || i.title) NOT LIKE '%yelp%' AND i.id NOT IN (SELECT item_id FROM gbp_posted WHERE ok = 1) GROUP BY i.client_id", DEMO_ID);
+  const waiting = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, SUM(CASE WHEN i.kind = 'post' THEN 1 ELSE 0 END) AS posts, SUM(CASE WHEN i.kind != 'post' THEN 1 ELSE 0 END) AS replies FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id LEFT JOIN gbp_posted gp ON gp.item_id = i.id AND gp.ok = 1 WHERE i.status = 'approved' AND gp.item_id IS NULL AND i.kind IN ('reply', 'review', 'post') AND i.decided_at > datetime('now', '-30 days') AND i.client_id != ?1 AND LOWER(i.context || i.title) NOT LIKE '%yelp%' AND i.id NOT IN (SELECT item_id FROM gbp_posted WHERE ok = 1) GROUP BY i.client_id", DEMO_ID);
   for (const w of waiting) {
     const bits = [];
     if (+w.replies) bits.push(w.replies + (+w.replies === 1 ? ' reply' : ' replies'));
     if (+w.posts) bits.push(w.posts + (+w.posts === 1 ? ' post' : ' posts'));
-    items.push({ key: 'google:' + w.client_id + ':' + w.replies + ':' + w.posts, group: 'Google: approved, waiting to be posted', title: w.biz, detail: bits.join(' and ') + ' approved by the owner, not posted yet' });
+    items.push({ key: 'google:' + w.client_id + ':' + w.replies + ':' + w.posts, group: 'Google: approved, waiting to be posted', title: w.biz, detail: bits.join(' and ') + ' approved by the owner, not posted yet. Post them in a few taps: https://alwaysopenoffice.com/ops/post?t=' + await boardToken(env) });
   }
   const yelp = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, COUNT(*) AS n FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.client_id != ?1 AND LOWER(i.context || i.title) LIKE '%yelp%' GROUP BY i.client_id", DEMO_ID);
   for (const y of yelp) items.push({ key: 'yelp:' + y.client_id + ':' + y.n, group: 'Yelp: replies to hand to the owner', title: y.biz, detail: y.n + (+y.n === 1 ? ' reply is' : ' replies are') + ' approved. The owner posts them, we never ask for Yelp reviews' });
