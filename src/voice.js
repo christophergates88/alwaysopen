@@ -1725,13 +1725,16 @@ const NUM_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seve
 const STREET_SFX = /^(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike)$/;
 const DIGIT_WORD = ['oh', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 const isNumWord = w => w in NUM_UNIT || w in NUM_TEEN || w in NUM_TENS || w === 'hundred';
-function wordsToDigits(ws) {
+// phone: in a phone number "one eight hundred five five five..." is 1-800-555, so "X hundred" is X00 and the next
+// digit word stays its own digit (in an address, "one hundred five" is 105).
+function wordsToDigits(ws, phone) {
   let out = '';
   for (let i = 0; i < ws.length; i++) {
     const w = ws[i];
     if (w in NUM_TENS) { const u = ws[i + 1]; if (u in NUM_UNIT && NUM_UNIT[u] > 0 && u !== 'oh' && u !== 'o') { out += String(NUM_TENS[w] + NUM_UNIT[u]); i++; } else out += String(NUM_TENS[w]); continue; }
     if (w in NUM_TEEN) { out += String(NUM_TEEN[w]); continue; }
     if (w in NUM_UNIT) {
+      if (phone && ws[i + 1] === 'hundred') { out += String(NUM_UNIT[w] * 100).padStart(3, '0'); i++; continue; }
       if (ws[i + 1] === 'hundred') {
         let v = NUM_UNIT[w] * 100, j = i + 2;
         if (ws[j] in NUM_TENS) { v += NUM_TENS[ws[j]]; if (ws[j + 1] in NUM_UNIT && NUM_UNIT[ws[j + 1]] > 0) { v += NUM_UNIT[ws[j + 1]]; j++; } j++; }
@@ -1772,12 +1775,32 @@ export function addrReadback(said) {
 // The stronger model miscounts spoken digits and told callers a complete number was "a digit short", so Max never
 // counts: he is told the count and the exact read-back. Returns null when nothing in what they said looks like one.
 const ES_DIGIT = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
+const ES_TENS = { veinte: 20, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90 };
+const ES_TEEN = { diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, 'dieciséis': 16, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+  veintiuno: 21, 'veintidós': 22, veintidos: 22, 'veintitrés': 23, veintitres: 23, veinticuatro: 24, veinticinco: 25, 'veintiséis': 26, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29 };
+const ES_SAY = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+// After a number, these say it was a time or a street, not more of the phone number ("... nine o'clock", "... 90 Elm St").
+const AFTER_NOT_PHONE = /^(o'?clock|am|pm|a\.m|p\.m|de|la|tarde|mañana|noche)$/;
 export function phoneReadback(said) {
-  const ws = String(said || '').toLowerCase().replace(/[()+.;:]/g, ' ').replace(/,/g, ' , ').replace(/(\d)-(?=\d)/g, '$1').replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+  let ws = String(said || '').toLowerCase().replace(/[()+.;:]/g, ' ').replace(/,/g, ' , ').replace(/(\d)-(?=\d)/g, '$1').replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+  // Spanish: "treinta y tres" is 33, and "o" is "or", never a zero
+  const es = ws.some(w => w in ES_DIGIT || w in ES_TENS || w in ES_TEEN);
+  if (es) {
+    const out = [];
+    for (let i = 0; i < ws.length; i++) {
+      const w = ws[i];
+      if (w in ES_TENS && ws[i + 1] === 'y' && ws[i + 2] in ES_DIGIT && ES_DIGIT[ws[i + 2]] > 0) { out.push(String(ES_TENS[w] + ES_DIGIT[ws[i + 2]])); i += 2; }
+      else if (w in ES_TENS) out.push(String(ES_TENS[w]));
+      else if (w in ES_TEEN) out.push(String(ES_TEEN[w]));
+      else if (w === 'o') out.push('or');
+      else out.push(w);
+    }
+    ws = out;
+  }
   const isNum = w => /^\d+$/.test(w) || isNumWord(w) || w in ES_DIGIT || /^(double|triple|dash)$/.test(w);
   const seg = run => {   // one comma-free stretch of number words and digits -> its digits ('' if it doesn't parse)
     let d = '', words = [], bad = false;
-    const end = () => { if (words.length) { const x = wordsToDigits(words); if (x === '') bad = true; else d += x; words = []; } };
+    const end = () => { if (words.length) { const x = wordsToDigits(words, true); if (x === '') bad = true; else d += x; words = []; } };
     for (let i = 0; i < run.length; i++) {
       const w = run[i];
       if (/^\d+$/.test(w)) { end(); d += w; continue; }
@@ -1803,17 +1826,29 @@ export function phoneReadback(said) {
     cands.push(hit || segs.join(''));
     segs = [];
   };
-  for (const w of ws) {
+  const isTen = c => c.length === 10 || (c.length === 11 && c[0] === '1');
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i];
     if (w === ',') { close(); continue; }
-    if (isNum(w)) cur.push(w); else finish();
+    if (isNum(w)) { cur.push(w); continue; }
+    // a time or a street right after the number ("... one two three nine o'clock", "... zero one two three ninety Elm
+    // Street"): the last few number words belong to it, not to the phone number, when that leaves exactly ten digits
+    const streetNext = ws.slice(i, i + 3).some(x => STREET_SFX.test(x));
+    if (cur.length > 1 && (AFTER_NOT_PHONE.test(w) || streetNext)) {
+      const whole = segs.join('') + seg(cur);
+      if (!isTen(whole)) for (let k = 1; k <= 2 && k < cur.length; k++) { if (isTen(segs.join('') + seg(cur.slice(0, -k)))) { cur = cur.slice(0, -k); break; } }
+    }
+    finish();
   }
   finish();
-  const ten = cands.find(c => c.length === 10 || (c.length === 11 && c[0] === '1'));
-  const best = ten || cands.sort((x, y) => y.length - x.length)[0] || '';
+  const ten = cands.find(isTen);
+  let best = ten || cands.sort((x, y) => y.length - x.length)[0] || '';
+  if (!ten && best.length === 11 && best[0] === '0') best = best.slice(1);   // "Oh, four seven eight...": a filler "oh", not a zero
   if (best.length < 7 || best.length > 12) return null;
   const d = best.length === 11 && best[0] === '1' ? best.slice(1) : best;
-  const say = d.length === 10 ? [d.slice(0, 3), d.slice(3, 6), d.slice(6)].map(g => g.split('').map(x => DIGIT_WORD[+x].replace('oh', 'zero')).join(' ')).join(', ') : '';
-  return { digits: d, n: d.length, say };
+  const words = es ? ES_SAY : DIGIT_WORD.map(x => x.replace('oh', 'zero'));
+  const say = d.length === 10 ? [d.slice(0, 3), d.slice(3, 6), d.slice(6)].map(g => g.split('').map(x => words[+x]).join(' ')).join(', ') : '';
+  return { digits: d, n: d.length, say, es };
 }
 const N_WORD = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const NOT_OUR_WORK = /\b(we don'?t do|we do not do|isn'?t something we do|is not something we do|not something we (do|handle)|we'?re (a |just a |only a )?[a-z]+ (company|business|shop|office)|we can'?t (send anyone|do electrical|do that work))\b/i;

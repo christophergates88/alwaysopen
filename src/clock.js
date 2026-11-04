@@ -166,13 +166,16 @@ export const CLOCK_ANIM_JS = 'function aoClockAnim(){if(window.matchMedia&&match
 'function ang(m){return m/1440*Math.PI*2-Math.PI/2}function ping(t){var m=+t.getAttribute("data-m"),c=pings[pi++%pings.length];c.setAttribute("cx",(C+Math.cos(ang(m))*(R+4)).toFixed(1));c.setAttribute("cy",(C+Math.sin(ang(m))*(R+4)).toFixed(1));c.setAttribute("class","clk-ping"+(/you/.test(t.getAttribute("class"))?" you":""));void c.getBBox();c.setAttribute("class",c.getAttribute("class")+" go")}' +
 'function say(m){m=Math.round(m)%1440;var h=Math.floor(m/60),mm=m%60,ap=h<12?"AM":"PM";h=h%12||12;return h+":"+(mm<10?"0":"")+mm+" "+ap}function rot(m){hand.style.transformOrigin=C+"px "+C+"px";hand.style.transform="rotate("+((m-at)/1440*360)+"deg)"}' +
 'function park(){if(!nowMin)return at;var d=new Date();return d.getHours()*60+d.getMinutes()}' +
-'var DAY=7000,BACK=900,PARK=3800,CYC=DAY+BACK+PARK,visible=false,raf=0,last=-1;if(O[key]==null)O[key]=-1;' +
-'function frame(){if(!visible||!svg.isConnected){raf=0;return}var n=performance.now();if(O[key]<0)O[key]=n;var e=(n-O[key])%CYC;' +
-'if(e<DAY){var m=e/DAY*1440,lit=0,seen=0;if(m<last)last=-1;ticks.forEach(function(t){var tm=+t.getAttribute("data-m"),on=tm<=m,c=t.getAttribute("class");t.classList.toggle("off",!on);if(on){lit++;if(/call/.test(c)&&/night/.test(c))seen++;if(last>=0&&tm>last&&/call/.test(c))ping(t)}});last=m;rot(m);hand.classList.add("sweep");' +
+'var DAY=7000,BACK=900,PARK=3800,CYC=DAY+BACK+PARK,visible=false,raf=0,last=-1,parked=false,io=null,wait=0;if(O[key]==null)O[key]=-1;' +
+'function frame(){if(!svg.isConnected){raf=0;if(io)io.disconnect();return}if(!visible){raf=0;return}var n=performance.now();if(O[key]<0)O[key]=n;var e=(n-O[key])%CYC;' +
+'if(e<DAY){parked=false;var m=e/DAY*1440,lit=0,seen=0;if(m<last)last=-1;ticks.forEach(function(t){var tm=+t.getAttribute("data-m"),on=tm<=m,c=t.getAttribute("class");t.classList.toggle("off",!on);if(on){lit++;if(/call/.test(c)&&/night/.test(c))seen++;if(last>=0&&tm>last&&/call/.test(c))ping(t)}});last=m;rot(m);hand.classList.add("sweep");' +
 'if(big&&worth)big.textContent="$"+Math.round(worth*Math.min(1,seen/nightN)).toLocaleString("en-US");if(sub)sub.textContent=(lit?lit+" handled \\u00b7 ":"Answering \\u00b7 ")+say(m)}' +
-'else{last=-1;ticks.forEach(function(t){t.classList.remove("off")});if(big)big.textContent=bigTxt;var q=Math.min(1,(e-DAY)/BACK),ease=1-Math.pow(1-q,3),to=park();rot(1440+(to)*ease);if(q>=1){hand.classList.remove("sweep");if(sub)sub.textContent=subTxt}}' +
+'else if(!parked){last=-1;ticks.forEach(function(t){t.classList.remove("off")});if(big)big.textContent=bigTxt;var q=Math.min(1,(e-DAY)/BACK),ease=1-Math.pow(1-q,3),to=park();rot(1440+(to)*ease);' +
+// parked: nothing moves, so no frames until the next sweep starts
+'if(q>=1){parked=true;hand.classList.remove("sweep");if(sub)sub.textContent=subTxt;raf=0;clearTimeout(wait);wait=setTimeout(function(){if(visible&&!raf)raf=requestAnimationFrame(frame)},CYC-e+16);return}}' +
+'else{raf=0;clearTimeout(wait);wait=setTimeout(function(){if(visible&&!raf)raf=requestAnimationFrame(frame)},CYC-e+16);return}' +
 'raf=requestAnimationFrame(frame)}' +
-'new IntersectionObserver(function(es){es.forEach(function(x){visible=x.isIntersecting;if(visible&&!raf)raf=requestAnimationFrame(frame)})},{threshold:.4}).observe(svg)})}aoClockAnim();';
+'io=new IntersectionObserver(function(es){if(!svg.isConnected){io.disconnect();return}es.forEach(function(x){visible=x.isIntersecting;if(visible&&!raf)raf=requestAnimationFrame(frame)})},{threshold:.4});io.observe(svg)})}aoClockAnim();';
 // Keeps the hand on the minute while the page is open (the server drew it once). Returns a script body; hosts wrap it.
 export const CLOCK_JS = 'function aoClockTick(){var hs=document.querySelectorAll(".clk-hand");if(!hs.length)return;var d=new Date(),m=d.getHours()*60+d.getMinutes();for(var i=0;i<hs.length;i++){var h=hs[i];if(h.hasAttribute("data-anim-own")||!h.hasAttribute("data-min"))continue;var b=+h.getAttribute("data-min");if(!isFinite(b))continue;var a=((m-b)/1440)*360;h.style.transformOrigin="160px 160px";h.style.transform="rotate("+a+"deg)";}}aoClockTick();setInterval(aoClockTick,30000);';
 

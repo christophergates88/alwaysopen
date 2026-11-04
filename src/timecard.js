@@ -11,7 +11,7 @@ import { hoursText } from './clock.js';
 export const HOURS = 168;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const PLAN_CENTS = { Starter: 14900, Growth: 29900, Pro: 49900 };   // billing.js PLANS
-const MORE_MINUTES_CENTS = 14900;
+const MORE_MINUTES_CENTS = 5900;   // billing.js MAX
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const dollars = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
 

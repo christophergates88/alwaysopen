@@ -17,6 +17,8 @@ export async function ensureFill(env) {
   if (ready) return;
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS fillweek_cache (client_id TEXT PRIMARY KEY, at TEXT, day TEXT, say TEXT)'),
+    // how many past customers are due, worked out at most every 10 minutes (the app reloads every minute)
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS fillweek_counts (client_id TEXT PRIMARY KEY, at TEXT, n INTEGER, due INTEGER, customers INTEGER)'),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek (client_id TEXT PRIMARY KEY, on_ INTEGER DEFAULT 0, agreed_at TEXT DEFAULT '', agreed_by TEXT DEFAULT '', updated TEXT DEFAULT '')"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, day TEXT, created TEXT, by TEXT DEFAULT '', offers INTEGER DEFAULT 0, booked INTEGER DEFAULT 0)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS fillweek_offers (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, client_id TEXT NOT NULL, phone10 TEXT NOT NULL, name TEXT DEFAULT '', job TEXT DEFAULT '', day TEXT DEFAULT '', status TEXT DEFAULT 'sent', at TEXT, result TEXT DEFAULT '')"),
@@ -245,30 +247,39 @@ export async function fillState(env, c, now) {
   let texting = false, calendar = false;
   try { const { senderFor, TEXTING_ON } = await import('./sms.js'); texting = !!(TEXTING_ON && await senderFor(env, c.client_id)); } catch (e) { texting = false; }
   try { calendar = !!(await (await import('./gcal.js')).gcalStatus(env, c.client_id)).connected; } catch (e) { calendar = false; }
-  const { customers, jobs, recent, stopped } = await people(env, c.client_id, now);
-  const due = pickCandidates(customers, jobs, recent, stopped, now, 100000).length;
+  // the full count reads every customer and job, so it is kept 10 minutes, and redone at once when the list changes
+  let due = 0, nCustomers = 0;
+  const size = +((await env.DB.prepare("SELECT COUNT(*) AS n FROM biz_customers WHERE client_id = ?1").bind(c.client_id).first().catch(() => null)) || {}).n || 0;
+  const kept = await env.DB.prepare('SELECT at, n, due, customers FROM fillweek_counts WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
+  if (kept && +kept.n === size && now - Date.parse(kept.at) < 10 * 60e3) { due = +kept.due || 0; nCustomers = +kept.customers || 0; }
+  else {
+    const { customers, jobs, recent, stopped } = await people(env, c.client_id, now);
+    due = pickCandidates(customers, jobs, recent, stopped, now, 100000).length; nCustomers = customers.length;
+    await env.DB.prepare('INSERT OR REPLACE INTO fillweek_counts (client_id, at, n, due, customers) VALUES (?1, ?2, ?3, ?4, ?5)').bind(c.client_id, new Date(now).toISOString(), size, due, nCustomers).run().catch(() => {});
+  }
   let nextDay = null;
   if (calendar) {
     const cached = await env.DB.prepare('SELECT at, day, say FROM fillweek_cache WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
-    if (cached && now - Date.parse(cached.at) < 30 * 60e3) nextDay = cached.day ? { day: cached.day, say: cached.say } : null;
+    // a good read is kept 30 minutes; a failed one (Google down, token refused) 10, so the app doesn't ask every minute
+    if (cached && now - Date.parse(cached.at) < (cached.say === '!' ? 10 : 30) * 60e3) nextDay = cached.day ? { day: cached.day, say: cached.say } : null;
     else {
       try {
         const open = await (await import('./gcal.js')).openSlots(env, c.client_id, now, 12);
         const d = open ? openDays(open.slots, open.tz, now)[0] : null;
         nextDay = d ? { day: d.day, say: shortSlot(d.slots[0].say) } : null;
         await env.DB.prepare('INSERT OR REPLACE INTO fillweek_cache (client_id, at, day, say) VALUES (?1, ?2, ?3, ?4)').bind(c.client_id, new Date(now).toISOString(), nextDay ? nextDay.day : '', nextDay ? nextDay.say : '').run();
-      } catch (e) { nextDay = null; }
+      } catch (e) { nextDay = null; await env.DB.prepare("INSERT OR REPLACE INTO fillweek_cache (client_id, at, day, say) VALUES (?1, ?2, '', '!')").bind(c.client_id, new Date(now).toISOString()).run().catch(() => {}); }
     }
   }
   const steps = [
     { k: 'pro', label: 'On the Pro plan', done: pro },
     { k: 'texting', label: 'Texting approved for your business number', done: texting },
     { k: 'calendar', label: 'Google Calendar connected', done: calendar },
-    { k: 'customers', label: customers.length ? customers.length + (customers.length === 1 ? ' past customer' : ' past customers') + ' OK to contact' : 'Past customers imported', done: customers.length > 0 },
+    { k: 'customers', label: nCustomers ? nCustomers + (nCustomers === 1 ? ' past customer' : ' past customers') + ' OK to contact' : 'Past customers imported', done: nCustomers > 0 },
     { k: 'on', label: 'Turned on', done: !!r.on }
   ];
   const ready = pro && texting && calendar;
   const last = await env.DB.prepare('SELECT day, created, offers, booked FROM fillweek_runs WHERE client_id = ?1 ORDER BY id DESC LIMIT 1').bind(c.client_id).first().catch(() => null);
-  return { on: r.on, ready, why: ready ? '' : (steps.find(x => !x.done && x.k !== 'customers' && x.k !== 'on') || {}).label || '', agreement: AGREEMENT, steps, due, customers: customers.length, nextDay,
+  return { on: r.on, ready, why: ready ? '' : (steps.find(x => !x.done && x.k !== 'customers' && x.k !== 'on') || {}).label || '', agreement: AGREEMENT, steps, due, customers: nCustomers, nextDay,
     last: last ? { day: last.day, at: last.created, offers: +last.offers || 0, booked: +last.booked || 0 } : null };
 }

@@ -9,7 +9,7 @@ import { INTERNAL } from './drift.js';
 import { burnPerDay } from './funding.js';
 
 const DAY = 864e5;
-const MAX_CENTS = 14900;
+const MAX_CENTS = 5900;   // billing.js MAX (300 more Max minutes, $59 since Nov 4, 2026)
 // Usage rates for the per-client estimate. Twilio's real total comes from its balance; these only split it fairly
 // and show the shape. Change them here if the bills say otherwise.
 export const RATES = { voicePerMin: 0.08, perText: 0.011, numberPerMonth: 1.15, claudeInPerM: 1, claudeOutPerM: 5 };

@@ -60,7 +60,7 @@ test('tellMax writes into what Max tells callers, on every line', async () => {
 test('timecard math: 168 hours, plan cost per week, plain lines', () => {
   assert.equal(weekCost(29900), 69);   // $299 × 12 / 52
   assert.equal(weekCost(14900), 34);
-  assert.equal(planCents('Growth', true), 29900 + 14900);
+  assert.equal(planCents('Growth', true), 29900 + 5900);
   assert.equal(planCents('', false), 0);
   const t = timecardNumbers({ calls: 41, booked: 9, kept: 6, due: 6, after: 10, leads: 8, avgJob: 400, winRate: 50, monthlyCents: 29900 });
   assert.equal(t.hours, 168);

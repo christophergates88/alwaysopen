@@ -52,17 +52,37 @@ export function libraryText(key, lang, first, phone) {
 }
 
 // ---------------- reading a raw email ----------------
-function decodeQP(s) {
+// <style> and <script> blocks out, with indexOf (linear even when a closing tag never comes: the rest is dropped).
+function dropBlocks(t) {
+  let out = '', i = 0;
+  const low = t.toLowerCase();
+  for (;;) {
+    const a = low.indexOf('<style', i), b = low.indexOf('<script', i);
+    const at = a < 0 ? b : b < 0 ? a : Math.min(a, b);
+    if (at < 0) return out + t.slice(i);
+    out += t.slice(i, at) + ' ';
+    const close = low.indexOf(at === a ? '</style' : '</script', at);
+    if (close < 0) return out;
+    const gt = low.indexOf('>', close);
+    i = gt < 0 ? t.length : gt + 1;
+  }
+}
+// Bytes to text in the part's own charset: UTF-8, or Latin-1 / Windows-1252 byte for byte ("reseña", not "rese�a").
+function bytesText(bytes, cs) {
+  if (/^(iso-8859-1|latin-?1|windows-1252|cp1252|us-ascii)$/i.test(String(cs || '').trim())) { let t = ''; for (const b of bytes) t += String.fromCharCode(b); return t; }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+function decodeQP(s, cs) {
   const bytes = []; s = s.replace(/=\r?\n/g, '');
   for (let i = 0; i < s.length; i++) {
     if (s[i] === '=' && /^[0-9A-F]{2}$/i.test(s.slice(i + 1, i + 3))) { bytes.push(parseInt(s.slice(i + 1, i + 3), 16)); i += 2; }
     else { const c = s.charCodeAt(i); if (c < 128) bytes.push(c); else bytes.push(...new TextEncoder().encode(s[i])); }
   }
-  return new TextDecoder().decode(new Uint8Array(bytes));
+  return bytesText(bytes, cs);
 }
-function decodeB64(s) { try { const b = atob(s.replace(/[^A-Za-z0-9+/=]/g, '')); return new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0))); } catch (e) { return ''; } }
+function decodeB64(s, cs) { try { const b = atob(s.replace(/[^A-Za-z0-9+/=]/g, '')); return bytesText(Uint8Array.from(b, c => c.charCodeAt(0)), cs); } catch (e) { return ''; } }
 function decodeWords(h) {   // =?UTF-8?B?...?= and =?UTF-8?Q?...?=
-  return String(h || '').replace(/=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi, (m, cs, enc, txt) => enc.toUpperCase() === 'B' ? decodeB64(txt) : decodeQP(txt.replace(/_/g, ' '))).replace(/\?=\s+=\?/g, '');
+  return String(h || '').replace(/\?=\s+=\?/g, '?==?').replace(/=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi, (m, cs, enc, txt) => enc.toUpperCase() === 'B' ? decodeB64(txt, cs) : decodeQP(txt.replace(/_/g, ' '), cs));
 }
 function splitPart(raw) {
   const i = raw.search(/\r?\n\r?\n/);
@@ -87,9 +107,13 @@ function partText(p, depth) {
     const pick = plain.find(x => /text\/plain/i.test(x.ct) && x.t.trim()) || plain.find(x => x.t.trim());
     return pick ? pick.t : '';
   }
-  let t = enc === 'base64' ? decodeB64(p.body) : enc === 'quoted-printable' ? decodeQP(p.body) : p.body;
-  if (/text\/html/i.test(ct)) t = t.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<br\s*\/?>|<\/(p|div|tr|td|li|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n));
+  const cs = (/charset="?([^";\s]+)"?/i.exec(ct) || [])[1] || '';
+  let t = enc === 'base64' ? decodeB64(p.body, cs) : enc === 'quoted-printable' ? decodeQP(p.body, cs) : p.body;
+  // HTML to text in one linear pass each (a tag can't span another '<', so a page of "<a <a <a" can't stall the Worker),
+  // entities last so "&amp;lt;" stays "&lt;"
+  if (/text\/html/i.test(ct)) t = dropBlocks(t.slice(0, 400000)).replace(/<br\s*\/?>|<\/(p|div|tr|td|li|h\d)>/gi, '\n').replace(/<[^<>]*>/g, ' ')
+    .replace(/&(nbsp|quot|apos|lt|gt|rsquo|lsquo|rdquo|ldquo|mdash|ndash|hellip|#39|#x[0-9a-f]+|#\d+);/gi, (m, e) => ({ nbsp: ' ', quot: '"', apos: "'", lt: '<', gt: '>', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', mdash: '—', ndash: '–', hellip: '…', '#39': "'" }[e.toLowerCase()] ||
+      (/^#x/i.test(e) ? String.fromCodePoint(parseInt(e.slice(2), 16) || 32) : /^#\d/.test(e) ? String.fromCodePoint(+e.slice(1) || 32) : m))).replace(/&amp;/gi, '&');
   return t.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
 }
 export function readEmail(raw) {
@@ -128,8 +152,18 @@ async function readReview(env, m, f) {
   const out = (j.content || []).map(x => x.text || '').join('');
   const o = (() => { try { return JSON.parse((/\{[\s\S]*\}/.exec(out) || ['{}'])[0]); } catch (e) { return {}; } })();
   if (o.newReview !== true || !String(o.business || '').trim()) return null;
-  return { business: String(o.business).slice(0, 160), reviewer: String(o.reviewer || '').replace(/\s+/g, ' ').trim().slice(0, 80), stars: Math.max(0, Math.min(5, Math.round(+o.stars || 0))),
+  const rv = { business: String(o.business).slice(0, 160), reviewer: String(o.reviewer || '').replace(/\s+/g, ' ').trim().slice(0, 80), stars: Math.max(0, Math.min(5, Math.round(+o.stars || 0))),
     text: String(o.text || '').slice(0, 2000), lang: o.lang === 'es' ? 'es' : 'en', otherBusiness: o.otherBusiness === true };
+  // A reviewer can write anything, including "this review is for Gates Insurance" or "5 stars": the business must be
+  // named by Google's own part of the email (the subject, or the text around the review words), and a star count that
+  // Google's part states wins over the read.
+  const { normName } = await import('./gbp.js');
+  const around = (m.subject + ' \n ' + (rv.text ? m.text.split(rv.text).join(' ') : m.text));
+  const want = normName(rv.business);
+  if (!want || !normName(around).includes(want)) return null;
+  const st = /\b([1-5])[ -]?(?:★|stars?\b|estrellas?\b)|\b(?:rated|rating|calificó)[^0-9]{0,12}([1-5])\b|(★{1,5})(?=☆|[^★]|$)/i.exec(around);
+  if (st) rv.stars = +(st[1] || st[2] || (st[3] || '').length) || rv.stars;
+  return rv;
 }
 
 const sha = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -205,7 +239,11 @@ export async function reviewFromEmail(env, m, h) {
 export async function leadReplied(env, addr, now) {
   if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(addr)) return 0;
   try {
-    const r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE lower(email) = ?2 AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr).run();
+    // the same person however they wrote it (j.smith+audit@gmail.com and jsmith@gmail.com): leadmail.js emailKey
+    const { emailKey } = await import('./leadmail.js');
+    let r;
+    try { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE (lower(email) = ?2 OR email_key = ?3) AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr, emailKey(addr)).run(); }
+    catch (e) { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE lower(email) = ?2 AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr).run(); }
     return (r && r.meta && r.meta.changes) || 0;
   } catch (e) { return 0; }
 }

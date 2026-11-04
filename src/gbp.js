@@ -215,10 +215,11 @@ export function reviewScore(rv, it) {
   if (name && !/^a customer$/i.test(name) && dn) {
     const [f1, l1] = name.toLowerCase().split(/\s+/), parts = dn.toLowerCase().split(/\s+/);
     if (f1 && parts[0] === f1) s += 3; else if (f1) s -= 2;
-    if (l1 && parts.length > 1 && parts[parts.length - 1][0] === l1[0]) s += 1;
+    // a different last initial is a different person (John S. and John D. both leaving 5 stars the same month)
+    if (l1 && parts.length > 1) s += parts[parts.length - 1][0] === l1[0] ? 1 : -3;
   }
   const a = flat(it.context), b = flat(rv.comment);
-  if (!a && !b) s += 1;
+  if (!a && !b) s += 0;   // two rating-only reviews prove nothing alike
   else if (a && b && (a === b || b.includes(a.slice(0, 60)) || a.includes(b.slice(0, 60)))) s += 4;
   else if (a && b) s -= 2;
   return s;
@@ -242,7 +243,9 @@ async function recentReviews(tok, v4, pages) {
 }
 
 // ---------------- posting what owners approved ----------------
-const isYelp = it => /yelp/i.test(String(it.context || '') + ' ' + String(it.title || ''));
+// A Yelp reply to hand to the owner. Drafts made from Google's own review emails (m:) or Google's API (g:) are Google
+// reviews whatever their words say ("better than the Yelp reviews said" is still a Google review).
+export const isYelp = it => !/^(m|g):/.test(String(it.id || '')) && /yelp/i.test(String(it.context || '') + ' ' + String(it.title || ''));
 async function record(env, it, cid, kind, target, ok, result) {
   await env.DB.prepare("INSERT INTO gbp_posted (item_id, client_id, kind, target, ok, tries, result, at) VALUES (?1,?2,?3,?4,?5,1,?6,?7) ON CONFLICT(item_id) DO UPDATE SET target = excluded.target, ok = excluded.ok, tries = gbp_posted.tries + 1, result = excluded.result, at = excluded.at")
     .bind(it.id, cid, kind, target || '', ok ? 1 : 0, String(result || '').slice(0, 200), new Date().toISOString()).run();

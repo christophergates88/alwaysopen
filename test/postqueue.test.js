@@ -19,7 +19,7 @@ async function seeded() {
   await ins('m:new', 'reply', 'approved', '2026-11-04T12:00:00Z');
   await ins('phst1', 'post', 'approved', '2026-11-04T13:00:00Z', { title: 'Storm Desk: Flooding', context: 'Storm Desk' });
   await ins('m:pend', 'reply', 'pending', '2026-11-04T12:00:00Z');
-  await ins('m:yelp', 'reply', 'approved', '2026-11-04T12:00:00Z', { context: 'Yelp review' });
+  await ins('yelp1', 'reply', 'approved', '2026-11-04T12:00:00Z', { context: 'Yelp review' });
   await ins('m:demo', 'reply', 'approved', '2026-11-04T12:00:00Z', { client: 'demo-plumbing' });
   return db;
 }
@@ -87,4 +87,12 @@ test('a regulated client’s edited reply is held for a compliance look: not in 
   assert.match(Q.queuePage(items, 't', now), /1 edited reply from a regulated client is held for a compliance look/);
   assert.equal(await Q.markPosted(env, 'm:edited', now), false);
   assert.equal(await Q.markPosted(env, 'm:asis', now), true);
+});
+
+test('a Google review that mentions Yelp is still a Google review; a hand-made Yelp item is not queued', async () => {
+  const env = { DB: await seeded() };
+  await env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, decided_text, status, hq_synced, checked, created, updated, decided_at, notified) VALUES ('m:g2', 'c1', 'reply', 'Pat L.', 'Way better than the Yelp reviews said.', 9, 'x', 'Thanks, Pat!', 'approved', 1, 0, '2026-11-04T14:00:00Z', '2026-11-04T14:00:00Z', '2026-11-04T14:00:00Z', 0)").run();
+  const ids = (await Q.queueItems(env, now)).map(i => i.id);
+  assert.ok(ids.includes('m:g2')); assert.ok(!ids.includes('yelp1'));
+  assert.match(Q.queuePage(await Q.queueItems(env, now), 't', now), /★★★★★ from Pat L\./, 'a star count outside 0-5 is clamped, not a crash');
 });

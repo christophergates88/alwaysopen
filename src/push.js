@@ -126,7 +126,9 @@ export async function pushCron(env, now, h) {
     r.status = 'done'; sent++;
   }
   // 2. Important ones still waiting: one text for all of them.
-  const late = waiting.filter(r => r.status !== 'done' && HIGH.has(String(r.orig || r.priority).toLowerCase()) && now - Date.parse(r.at) >= TEXT_AFTER_MS);
+  // one the Mac relay took within its lease is on its way there (it reports back), so it isn't texted as well
+  const onMac = r => r.status === 'out' && r.out_at && now - Date.parse(r.out_at) < LEASE_MS;
+  const late = waiting.filter(r => r.status !== 'done' && !onMac(r) && HIGH.has(String(r.orig || r.priority).toLowerCase()) && now - Date.parse(r.at) >= TEXT_AFTER_MS);
   const to = env.OPS_TEXT_TO || '';
   const hour = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/New_York' }).format(new Date(now));
   const textable = late.filter(r => +r.loud || (hour >= 8 && hour < 21));   // a loud one (Max unreachable, money out) at any hour
@@ -156,11 +158,17 @@ export async function pushHealth(env, now, h) {
   await ensurePush(env);
   const tk = env.NTFY_TOKEN ? await env.DB.prepare("SELECT v FROM push_meta WHERE k = 'token'").first().catch(() => null) : null;
   // A refused token may have been replaced since (Set ntfy token): ask ntfy about the account, which sends no push.
+  // The account answering is not enough (a valid token can still lack permission on the topic): the account's
+  // grants must include this topic for writing, or "refused" stays until a real push with the token goes through.
   if (tk && /^refused/.test(tk.v || '')) {
     try {
       const f = (h && h.fetch) || fetch;
       const r = await f(String(env.NTFY_URL).replace(/^(https?:\/\/[^/]+).*$/, '$1') + '/v1/account', { headers: { Authorization: 'Bearer ' + String(env.NTFY_TOKEN).trim() }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-      if (r.ok) { await note(env, 'token', 'ok', now); tk.v = 'ok'; }
+      const j = r.ok ? await r.json().catch(() => ({})) : null;
+      const topic = String(env.NTFY_URL).replace(/^https?:\/\/[^/]+\//, '').split(/[/?#]/)[0];
+      // the topic reserved by this account is one it can always write to
+      const mayWrite = !!(j && Array.isArray(j.reservations) && j.reservations.some(g => g && g.topic === topic));
+      if (mayWrite) { await note(env, 'token', 'ok', now); tk.v = 'ok'; }
     } catch (e) { /* still refused, as far as we know */ }
   }
   if (tk && /^refused/.test(tk.v || '')) return { ok: false, why: 'ntfy turned down the account token (' + tk.v + '), so pushes are going without it, on the free limits. Make a new token at ntfy.sh, Account, Access tokens, and set it with “Set ntfy token” on the Mac' };

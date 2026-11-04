@@ -53,7 +53,7 @@ test('checkout sends the customer to Stripe with the right plan and nothing leak
   assert.equal(s.metadata.business, 'Sinclair Plumbing');
   assert.equal(s.metadata.max, '1');
   const prices = s._items.filter(([k]) => /unit_amount/.test(k)).map(([, v]) => v);
-  assert.deepEqual(prices, ['29900', '14900'], 'Growth plus the extra Max minutes');
+  assert.deepEqual(prices, ['29900', '5900'], 'Growth plus the extra Max minutes');
 });
 
 test('a Stripe outage on checkout shows a plain message, not a crash', async () => {

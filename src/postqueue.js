@@ -42,7 +42,8 @@ export async function queueItems(env, now) {
   }
   // A regulated client's edited reply waits for a compliance look first, the same hold gbp.js applies before posting.
   let held = 0;
-  const out = rows.filter(r => !/yelp/i.test(String(r.context || '') + ' ' + String(r.title || '')))
+  const { isYelp } = await import('./gbp.js');
+  const out = rows.filter(r => !isYelp(r))
     .filter(r => !(apiFrom && Date.parse(r.decided_at || 0) > apiFrom))
     .filter(r => { if (heldForCompliance(r)) { held++; return false; } return true; })
     .map(r => ({ id: r.id, client: r.client_id, business: r.business, kind: r.kind === 'post' ? 'post' : 'reply', title: r.title || '', review: r.context || '', stars: +r.stars || 0,
@@ -72,7 +73,8 @@ export function queuePage(items, tok, now) {
   now = now || Date.now();
   const n = items.length, mins = Math.max(1, Math.round(n * 0.5));
   const cards = items.map(it => {
-    const head = it.kind === 'post' ? 'Google post' : (it.stars ? '★'.repeat(it.stars) + '☆'.repeat(5 - it.stars) + ' from ' + esc(it.title || 'a customer') : 'Review from ' + esc(it.title || 'a customer'));
+    const st = Math.max(0, Math.min(5, Math.round(+it.stars || 0)));
+    const head = it.kind === 'post' ? 'Google post' : (st ? '★'.repeat(st) + '☆'.repeat(5 - st) + ' from ' + esc(it.title || 'a customer') : 'Review from ' + esc(it.title || 'a customer'));
     return '<article class="q" data-id="' + esc(it.id) + '"><div class="top"><b>' + esc(it.business) + '</b><span>' + esc(ago(it.approvedAt, now)) + '</span></div>' +
       '<p class="hd">' + head + '</p>' + (it.kind !== 'post' && it.review ? '<p class="rv">“' + esc(it.review.slice(0, 400)) + (it.review.length > 400 ? '…' : '') + '”</p>' : '') +
       '<p class="lab">' + (it.kind === 'post' ? 'The approved post' : 'The approved reply') + '</p><div class="words">' + esc(it.words) + '</div>' +

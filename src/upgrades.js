@@ -68,8 +68,8 @@ export function score(s, c) {
   if (s.hasLine) {
     const used = s.minutes / 300, why = ['You used ' + s.minutes + ' of your 300 Max minutes in the last 30 days.'];
     let f = used >= 0.85 ? 90 : used >= 0.6 ? 60 : used >= 0.4 ? 35 : 10;
-    why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so 300 more for $149 is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
-    add({ id: 'addon-minutes', kind: 'addon', name: 'More Max minutes', price: '$149 a month for 300 more', what: 'Another 300 minutes a month of Max answering the calls you can’t.', fit: f, why, ask: 'I’d like to hear about more Max minutes.' });
+    why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so 300 more for $59 (about 20¢ a minute) is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
+    add({ id: 'addon-minutes', kind: 'addon', name: 'More Max minutes', price: '$59 a month for 300 more', what: 'Another 300 minutes a month of Max answering the calls you can’t.', fit: f, why, ask: 'I’d like to hear about more Max minutes.' });
   }
   {
     let f = 30; const why = [];

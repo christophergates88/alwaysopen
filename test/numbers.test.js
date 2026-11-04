@@ -15,7 +15,7 @@ test('monthly revenue counts paying plans and the extra minutes, never demo or A
     { client_id: 'a', plan: 'Growth', status: 'active', max: 0 }, { client_id: 'b', plan: 'Pro', status: 'past_due', max: 1 },
     { client_id: 'c', plan: 'Starter', status: 'canceled' }, { client_id: 'always-open', plan: 'Pro', status: 'active' }, { client_id: 'demo-plumbing', plan: 'Pro', status: 'active' }
   ]);
-  assert.equal(m.cents, 29900 + 49900 + 14900);
+  assert.equal(m.cents, 29900 + 49900 + 5900);
   assert.equal(m.clients, 2);
   assert.deepEqual(Object.keys(m.byPlan).sort(), ['Growth', 'Pro']);
 });

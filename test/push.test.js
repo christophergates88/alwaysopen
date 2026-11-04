@@ -118,7 +118,10 @@ test('a paid ntfy account: the token goes with every push; a token ntfy turns do
   const h = await P.pushHealth(env, Date.now(), { fetch: async () => new Response('', { status: 401 }) });
   assert.equal(h.ok, false); assert.match(h.why, /ntfy turned down the account token \(refused 403\)/);
   // a new token set since (Set ntfy token): the account answers, so the warning clears without waiting for a push
-  assert.equal((await P.pushHealth(env, Date.now(), { fetch: async (u, i) => { seen.push('probe ' + u + ' ' + i.headers.Authorization); return new Response('{}', { status: 200 }); } })).ok, true);
+  // the account answers but this topic isn't one of its own: a valid token without permission here stays "refused"
+  assert.equal((await P.pushHealth(env, Date.now(), { fetch: async () => new Response('{"reservations":[]}', { status: 200 }) })).ok, false);
+  const topic = NTFY.replace(/^https?:\/\/[^/]+\//, '').split(/[/?#]/)[0];
+  assert.equal((await P.pushHealth(env, Date.now(), { fetch: async (u, i) => { seen.push('probe ' + u + ' ' + i.headers.Authorization); return new Response(JSON.stringify({ reservations: [{ topic, everyone: 'deny-all' }] }), { status: 200 }); } })).ok, true);
   assert.match(seen.pop(), /^probe https:\/\/ntfy\.example\.test\/v1\/account Bearer tk_example$/);
   assert.deepEqual(await P.push(envFor(), { title: 'No token' }, { fetch: async (u, i) => { seen.push(i.headers.Authorization || 'none'); return new Response(''); } }), 'sent');
   assert.equal(seen.pop(), 'none', 'no token set: exactly as before');

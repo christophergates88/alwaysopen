@@ -43,3 +43,18 @@ test('a Spanish gas or flood call never gets an upbeat "Perfecto."', () => {
   }
   for (let i = 0; i < 20; i++) { const r = leadIn('Estoy en cuatro doce Pine Street.', 'es-US', [], () => i / 20); assert.ok(!r || r.text !== 'Perfecto.'); }
 });
+
+test('toll-free numbers, a filler "oh", Spanish tens and "o", and a time or street said right after', () => {
+  const r = phoneReadback('one eight hundred five five five one two one two');
+  assert.equal(r.digits, '8005551212'); assert.equal(r.n, 10);
+  assert.equal(phoneReadback('eight hundred five five five one two one two').digits, '8005551212');
+  assert.equal(phoneReadback('My number, oh, four seven eight five five five zero one nine nine').digits, '4785550199');
+  const es = phoneReadback('cuatro siete ocho cinco cinco cinco dos cinco treinta y tres');
+  assert.equal(es.digits, '4785552533'); assert.equal(es.n, 10);
+  assert.equal(es.say, 'cuatro siete ocho, cinco cinco cinco, dos cinco tres tres', 'read back in Spanish');
+  assert.equal(phoneReadback('cuatro siete ocho cinco cinco cinco dos cinco tres tres o el de mi esposo').n, 10);
+  assert.equal(phoneReadback("four seven eight five five five zero one two three nine o'clock works").digits, '4785550123');
+  assert.equal(phoneReadback('four seven eight five five five zero one two three ninety Elm Street').digits, '4785550123');
+  // an address still reads "one hundred five" as 105
+  assert.equal(n('four seven eight five five five zero one two'), 9, 'a real nine-digit number is still nine');
+});
