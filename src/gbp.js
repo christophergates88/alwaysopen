@@ -314,7 +314,7 @@ const SYS = 'You write the reply a small business posts under its own name to a 
   'Under 4 stars: apologize sincerely without arguing, blaming, making excuses or admitting fault; give no details about the job or the customer; invite them to contact the business directly. ' +
   'Never ask them to change or remove the review. Never offer a refund, discount or gift. No emoji, hashtags, links or exclamation marks, and never mention AI or Always Open. ' +
   'A Spanish review gets a reply in Spanish. A rating with no words gets one short thank-you.';
-async function writeDraft(env, c, rv, voice) {
+export async function writeDraft(env, c, rv, voice) {
   if (!env.ANTHROPIC_API_KEY) return '';
   const stars = STARS[rv.starRating] || 0, first = String((rv.reviewer || {}).displayName || '').split(/\s+/)[0] || '';
   const user = 'Business: ' + (c.business || 'the business') + (c.phone && ph10(c.phone) ? '\nBusiness phone for unhappy reviewers: ' + ph10(c.phone).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') : '\nFor unhappy reviewers say "please call our office".') +
