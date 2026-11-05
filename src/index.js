@@ -214,11 +214,16 @@ async function serve(req, env, ctx) {
       if (body.length > 400000) return json({ ok: false, error: 'too big' }, 413);
       let days = []; try { days = JSON.parse(body).days || []; } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
       await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_health (d TEXT PRIMARY KEY, sleep_h REAL, deep_h REAL, rem_h REAL, bed TEXT, wake TEXT, rhr REAL, hrv REAL, steps INTEGER, kcal REAL, ex_min REAL, at TEXT)').run();
+      // v2 columns (more from the watch); added once to an older table
+      const NUMS = ['sleep_h', 'deep_h', 'rem_h', 'core_h', 'awake_h', 'rhr', 'hrv', 'steps', 'kcal', 'ex_min', 'resp', 'spo2', 'wrist_c', 'vo2', 'walk_hr', 'hr_avg', 'hr_max', 'stand_min', 'daylight_min', 'dist_km', 'flights', 'noise_db', 'mindful_min'];
+      const have = new Set(((await env.DB.prepare('PRAGMA table_info(hq_health)').all()).results || []).map(c => c.name));
+      for (const c of [...NUMS, 'workouts']) if (!have.has(c)) await env.DB.prepare(`ALTER TABLE hq_health ADD COLUMN ${c} ${c === 'workouts' ? 'TEXT' : 'REAL'}`).run();
       const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null), str = (v) => (typeof v === 'string' ? v.slice(0, 10) : null);
       const now = new Date().toISOString();
-      const stmts = days.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d || '')).slice(0, 400).map(x => env.DB.prepare(
-        'INSERT OR REPLACE INTO hq_health (d, sleep_h, deep_h, rem_h, bed, wake, rhr, hrv, steps, kcal, ex_min, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)')
-        .bind(x.d, num(x.sleep_h), num(x.deep_h), num(x.rem_h), str(x.bed), str(x.wake), num(x.rhr), num(x.hrv), num(x.steps), num(x.kcal), num(x.ex_min), now));
+      const cols = ['d', ...NUMS, 'bed', 'wake', 'workouts', 'at'];
+      const sql = `INSERT OR REPLACE INTO hq_health (${cols.join(', ')}) VALUES (${cols.map((_, i) => '?' + (i + 1)).join(', ')})`;
+      const stmts = days.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d || '')).slice(0, 400).map(x => env.DB.prepare(sql)
+        .bind(x.d, ...NUMS.map(c => num(x[c])), str(x.bed), str(x.wake), typeof x.workouts === 'string' ? x.workouts.slice(0, 4000) : null, now));
       if (stmts.length) await env.DB.batch(stmts);
       return json({ ok: true, saved: stmts.length });
     }
