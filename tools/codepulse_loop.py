@@ -112,8 +112,10 @@ def write(p):
     body = json.dumps(p, separators=(",", ":")).replace("'", "''")
     with open("pulse.sql", "w") as f:
         f.write(f"INSERT OR REPLACE INTO hq_code (id, at, json) VALUES (1, '{p['at']}', '{body}');\n")
-    subprocess.run(["wrangler", "d1", "execute", "alwaysopen", "--remote", "--file", "pulse.sql", "-y"],
-                   check=True, capture_output=True, timeout=60)
+    r = subprocess.run(["wrangler", "d1", "execute", "alwaysopen", "--remote", "--file", "pulse.sql"],
+                       capture_output=True, text=True, timeout=90, input="y\n")
+    if r.returncode != 0:
+        raise RuntimeError(("wrangler: " + (r.stderr or r.stdout))[-400:].replace("\n", " "))
 
 
 def main():
