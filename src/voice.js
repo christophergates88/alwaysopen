@@ -734,7 +734,7 @@ export class CallRoom extends DurableObject {
     if (spec && spec.skip !== skipLead) { this.dropSpec(); spec = null; }
     // Right away, a quick reaction that fits what they said ("Got it.", "Good question.", "Oh no."), like a person gives while
     // they think. It goes out as its own short message so Twilio says it at once; the AI's answer follows it.
-    const lead = skipLead ? null : (spec ? spec.lead : leadIn(said, callLang(s.lang, s.msgs, said), s.leads));
+    const lead = trimLead(skipLead ? null : (spec ? spec.lead : leadIn(said, callLang(s.lang, s.msgs, said), s.leads)), s.line, s.msgs);
     // what the caller just heard from Max: this reaction, or the one they kept talking after
     const heardNow = lead ? lead.text : (skipLead ? prev.lead : '');
     const kind = lead ? lead.kind : (skipLead && prev.kind ? prev.kind : 'said');
@@ -1314,9 +1314,16 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', ...GUARDS];
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
 export const LIVE_GUARDS = [];
+// Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
+// marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
+const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
+export function trimLead(lead, L, msgs) {
+  if (!lead || !hasFeature(L, 'g-leads')) return lead;
+  return (msgs || []).filter(m => m.r === 'u').length >= 3 && LEAD_TICS.has(lead.kind) ? null : lead;
+}
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
 export const HELD_LABEL = { biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
@@ -2567,7 +2574,7 @@ async function rehearseOne(env) {
       msgs.push({ r: 'u', t: String(said).slice(0, 400) });
       // the same switch to Spanish a live call makes (a Spanish line, a caller speaking Spanish)
       if (rlang === 'en-US' && L.spanish && (looksSpanish(said) || (msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) rlang = 'es-US';
-      const lead = leadIn(said, callLang(rlang, msgs.slice(0, -1), said), leads);
+      const lead = trimLead(leadIn(said, callLang(rlang, msgs.slice(0, -1), said), leads), L, msgs);
       if (lead) leads = leads.concat(lead.text).slice(-12);
       let raw = '', r = null, err = '';
       const t0 = Date.now();

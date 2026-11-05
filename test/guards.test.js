@@ -108,3 +108,13 @@ test('the owner sees "held back" lines in plain words after the reply they belon
   assert.ok(!t.some(x => /\bg-|\bAI\b/.test(x.t)), 'no code names, no "AI"');
   assert.deepEqual(JSON.parse(V.transcriptOf(msgs)).map(x => x.w), ['ai', 'caller', 'ai', 'caller', 'ai']);
 });
+
+test('g-leads: from the third caller turn, "Got it."-style reactions go; question, trouble and goodbye reactions stay', () => {
+  const L = { features: ['g-leads'] };
+  const m3 = [{ r: 'a', t: 'hi' }, { r: 'u', t: 'a' }, { r: 'a', t: 'b' }, { r: 'u', t: 'c' }, { r: 'a', t: 'd' }, { r: 'u', t: 'it is Tom' }];
+  assert.equal(V.trimLead({ kind: 'name', text: 'Got it.' }, L, m3), null);
+  assert.deepEqual(V.trimLead({ kind: 'wh', text: 'Good question.' }, L, m3), { kind: 'wh', text: 'Good question.' });
+  assert.deepEqual(V.trimLead({ kind: 'trouble', text: 'Oh no.' }, L, m3), { kind: 'trouble', text: 'Oh no.' });
+  assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, L, m3.slice(0, 4)), { kind: 'name', text: 'Got it.' });
+  assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, {}, m3), { kind: 'name', text: 'Got it.' });
+});
