@@ -70,3 +70,13 @@ test('the weekly line says how many calls had one, only when there were any', as
   assert.doesNotMatch(weekLine(Object.assign({ hardCalls: 0 }, w)), /shouldn't/);
   assert.match(weekLine(Object.assign({ hardCalls: 2 }, w)), /Said something he shouldn't have: 2 calls\./);
 });
+
+test('the hard practice set: 40 or more calls, unique ids, every one with a must and a never', async () => {
+  const fs = await import('node:fs');
+  const d = JSON.parse(fs.readFileSync(new URL('./rehearsal/calls-hard.json', import.meta.url)));
+  const calls = d.groups.flatMap(g => g.calls);
+  assert.ok(calls.length >= 40, calls.length + ' calls');
+  assert.equal(new Set(calls.map(c => c.id)).size, calls.length);
+  for (const c of calls) { assert.ok(c.must && c.never && c.turns.length >= 2, c.id); assert.ok(!('line' in c), c.id + ': a line is set per group'); }
+  for (const g of d.groups) assert.ok(g.calls.length <= 10, g.name + ': ten calls a request at most');
+});

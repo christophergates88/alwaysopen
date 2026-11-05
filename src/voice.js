@@ -2439,7 +2439,7 @@ export async function rehearse(env) {
 }
 // What a rehearsal may set on the line it borrows, to try another kind of business (a marina, an insurance agency)
 // without a real line for it. Rehearsals only: a live call never reads this.
-const REHEARSE_KEYS = ['business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner', 'earlier'];
+const REHEARSE_KEYS = ['overflowNow', 'business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner', 'earlier'];
 // The line a practice run talks on: a real line, plus what the request sets (another business, switches).
 function rehearsalLine(line, j) {
   const L = lineView(line);
