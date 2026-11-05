@@ -100,3 +100,13 @@ test('a time the caller said first may be noted back; one they never said is a p
   assert.deepEqual(flags(call('my faucet leaks', 'Someone will call you back first thing.')), ['time-promise']);
   assert.deepEqual(flags(call('my faucet leaks', 'We\'ll get back to you tomorrow.')), ['time-promise']);
 });
+
+test('reassurance he can\'t give and the dental advice missed on Nov 5 are flagged', () => {
+  const AUTO = { business: 'Lake Country Auto', prices: 'Diagnostic is $89' };
+  assert.deepEqual(flags(call('my car won\'t start, is it okay to leave it in the lot', 'Leaving it overnight should be fine.'), AUTO), ['reassure']);
+  assert.deepEqual(flags(call('the car is making a noise', 'It\'s probably just the belt.'), AUTO), ['reassure']);
+  assert.deepEqual(flags(call('my faucet drips', 'Got it. The owner will call you back.')), []);
+  const DENT = { business: 'Oconee Family Dental', regulated: true };
+  assert.deepEqual(flags(call('I broke a tooth', 'I\'m sorry. Don\'t chew on that side, and the office will call you.'), DENT), ['regulated-advice']);
+  assert.deepEqual(flags(call('I broke a tooth', 'I\'m sorry. The office will call you to find a time.'), DENT), []);
+});

@@ -80,6 +80,7 @@ const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // website lead does (a phone push, and an email the daily check turns into a Pipeline prospect), not a client's app.
 export const OWN_ID = 'always-open';
 import { callerMemory } from './past.js';
+import { guardOne, guardText, guardsOn, callState, GUARDS } from './guards.js';
 
 // ---------- HTTP: Twilio webhooks and the relay socket ----------
 export async function handleVoice(req, env, ctx, url) {
@@ -751,25 +752,28 @@ export class CallRoom extends DurableObject {
     // Once Max has asked what kind of business they run, that question is cut from later replies: the AI keeps asking it
     // whatever it is told. Replies then go out a sentence at a time; a lone question is still said if it is all there is.
     const askedQ = askedBiz(s.msgs), wrapQ = wrappingUp(said);
-    const cutQ = one => (askedQ && bizQ(one)) || (wrapQ && anyQ(one));
+    // Brief 3: every guard switched on for this line checks each sentence before it is spoken (src/guards.js).
+    const gctx = guardCtx(s.line, s.msgs, said, s);
+    const cutQ = one => (askedQ && bizQ(one)) ? 'biz' : (wrapQ && anyQ(one)) ? 'wrap' : (gctx.on.size ? guardOne(one, Object.assign(gctx, { spoken: sp.spoken + sp.pending })) : '');
     let sent = '', heldQ = '';
     const say = t => {
-      if (!askedQ && !wrapQ) return sp.push(t);
+      if (!askedQ && !wrapQ && !gctx.on.size) return sp.push(t);
       sent += t;
       for (;;) {
         const m = sent.match(/[.!?]["')\]]*\s+/);
         if (!m) return;
         const one = sent.slice(0, m.index + m[0].length);
         sent = sent.slice(m.index + m[0].length);
-        if (cutQ(one)) { if ((sp.spoken + sp.pending).trim()) this.mark('Z', one.trim().slice(0, 60)); else heldQ = one; continue; }
-        if (heldQ) { this.mark('Z', heldQ.trim().slice(0, 60)); heldQ = ''; }
+        { const g = cutQ(one); if (g) { if ((sp.spoken + sp.pending).trim()) this.mark('Z', g + ': ' + one.trim().slice(0, 60)); else heldQ = one; continue; } }
+        if (heldQ) { this.mark('Z', (cutQ(heldQ) || 'cut') + ': ' + heldQ.trim().slice(0, 60)); heldQ = ''; }
         sp.push(one);
       }
     };
     const flushSay = () => {
       const rest = sent; sent = '';
-      if (rest && !cutQ(rest)) { if (heldQ && /[a-z0-9]/i.test(rest.replace(/\[[^\]]*\]?/g, ''))) heldQ = ''; sp.push((heldQ || '') + rest); heldQ = ''; return; }
-      if (rest && (sp.spoken + sp.pending).trim()) { this.mark('Z', rest.trim().slice(0, 60)); if (heldQ) heldQ = ''; return; }
+      const rg = rest ? cutQ(rest) : '';
+      if (rest && !rg) { if (heldQ && /[a-z0-9]/i.test(rest.replace(/\[[^\]]*\]?/g, ''))) heldQ = ''; sp.push((heldQ || '') + rest); heldQ = ''; return; }
+      if (rest && (sp.spoken + sp.pending).trim()) { this.mark('Z', rg + ': ' + rest.trim().slice(0, 60)); if (heldQ) heldQ = ''; return; }
       if (heldQ || rest) { sp.push(heldQ + rest); heldQ = ''; }
     };
     const onTok = t => {
@@ -1310,7 +1314,15 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7'];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', ...GUARDS];
+// Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
+export const LIVE_GUARDS = [];
+// What a guard needs from the call, built the same way for live calls and practice calls.
+export function guardCtx(L, msgs, said, st) {
+  const us = (msgs || []).filter(m => m.r === 'u').map(m => String(m.t || '').toLowerCase()).join(' ');
+  return { L, msgs, said, urgent: !!(st && st.urgent), upset: !!(st && st.upset), danger: DANGER_CALL.test(us) || WATER_ELECTRIC.test(us), wrap: wrappingUp(said),
+    state: callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD }), on: guardsOn(L, LIVE_GUARDS) };
+}
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
@@ -2556,13 +2568,15 @@ async function rehearseOne(env) {
       if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
       else try { r = env.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
       const sp = new Speaker(() => {}, rlang);
-      sp.push(cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)));
+      const gctx = guardCtx(L, msgs, said, rs);
+      const g = gctx.on.size ? guardText(cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)), gctx) : { text: cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)), cuts: [] };
+      sp.push(g.text);
       const spoken = sp.end();
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
-      out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
+      out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), out }), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
   }
   return true;
 }
