@@ -959,6 +959,14 @@ footer span,footer a,footer .entity{font-size:15px}
 #contact form.lead .fineprint,#contact form.lead .txtnote{color:var(--slate)}
 #contact form.lead{color:var(--ink);border:1.5px solid rgba(255,106,94,.6);box-shadow:0 0 0 1px rgba(255,106,94,.2),0 0 38px -10px rgba(255,90,77,.6)}
 #contact+footer{border-top:1px solid #262E40}
+/* ===== closed sections stand out, lit like the "only" sign at the top (Nov 4, 2026): a neon red tube around each
+   card, a glow, the title bright, the arrow in a lit circle; the same in light and dark ===== */
+#compare:not(.ao-open)>.ao-foldbar,#rules:not(.ao-open)>.ao-foldbar,#regulated:not(.ao-open)>.ao-foldbar,#faq:not(.ao-open)>.ao-foldbar,#questions:not(.ao-open)>.ao-foldbar,#pricing .ao-addons:not(.ao-open)>.ao-foldbar,#plans .ao-addons:not(.ao-open)>.ao-foldbar{margin:14px 0;padding:18px 16px;border:2px solid #FF6A5E;border-radius:18px;background:linear-gradient(180deg,#1A2030 0%,#0F131B 100%);color:#ECEEF3;box-shadow:0 0 0 1px rgba(255,106,94,.25),0 0 24px -2px rgba(255,90,77,.5),inset 0 0 18px rgba(255,90,77,.14)}
+#compare:not(.ao-open)>.ao-foldbar .ao-ft,#rules:not(.ao-open)>.ao-foldbar .ao-ft,#regulated:not(.ao-open)>.ao-foldbar .ao-ft,#faq:not(.ao-open)>.ao-foldbar .ao-ft,#questions:not(.ao-open)>.ao-foldbar .ao-ft,#pricing .ao-addons:not(.ao-open)>.ao-foldbar .ao-ft,#plans .ao-addons:not(.ao-open)>.ao-foldbar .ao-ft{color:#FFFFFF;text-shadow:0 0 12px rgba(255,106,94,.55)}
+#compare:not(.ao-open)>.ao-foldbar .ao-fs,#rules:not(.ao-open)>.ao-foldbar .ao-fs,#regulated:not(.ao-open)>.ao-foldbar .ao-fs,#faq:not(.ao-open)>.ao-foldbar .ao-fs,#questions:not(.ao-open)>.ao-foldbar .ao-fs,#pricing .ao-addons:not(.ao-open)>.ao-foldbar .ao-fs,#plans .ao-addons:not(.ao-open)>.ao-foldbar .ao-fs{color:#C9D0DC}
+#compare:not(.ao-open)>.ao-foldbar svg,#rules:not(.ao-open)>.ao-foldbar svg,#regulated:not(.ao-open)>.ao-foldbar svg,#faq:not(.ao-open)>.ao-foldbar svg,#questions:not(.ao-open)>.ao-foldbar svg,#pricing .ao-addons:not(.ao-open)>.ao-foldbar svg,#plans .ao-addons:not(.ao-open)>.ao-foldbar svg{width:38px;height:38px;padding:8px;border-radius:50%;background:#FF5A4D;color:#1A0605;box-shadow:0 0 16px rgba(255,90,77,.75)}
+@media (prefers-reduced-motion:no-preference){#compare:not(.ao-open)>.ao-foldbar:active,#rules:not(.ao-open)>.ao-foldbar:active,#regulated:not(.ao-open)>.ao-foldbar:active,#faq:not(.ao-open)>.ao-foldbar:active,#questions:not(.ao-open)>.ao-foldbar:active{transform:scale(.985)}}
+
 }
 </style>
 <script>(function () {
