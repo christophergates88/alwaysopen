@@ -18,7 +18,11 @@ jobs:
           npm i --no-save --no-audit --no-fund playwright@1.56.0
           npx playwright install --with-deps chromium
           node tools/phonecheck.mjs
-          node tools/appcheck.mjs
+          APP_SHOTS=app-shots node tools/appcheck.mjs
+      - name: Keep the app screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: app-shots, path: app-shots, if-no-files-found: ignore, retention-days: 14 }
       - name: Deploy worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

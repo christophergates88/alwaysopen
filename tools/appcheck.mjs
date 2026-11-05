@@ -46,6 +46,13 @@ try {
   await DB.prepare("UPDATE app_clients SET feats = 'calls' WHERE client_id = ?1").bind(cid).run();
   await DB.prepare("INSERT INTO app_calls (id, client_id, at, caller, caller_name, reason, summary, transcript, outcome, status, urgency, test, turns) VALUES ('CAappcheck', ?1, ?2, '+14785550199', 'Tom Reyes', 'Water heater leaking', 'Water heater pouring onto the floor; cold valve shut. Call Tom back.', ?3, 'done', 'new', 'urgent', 0, 4)").bind(cid, new Date().toISOString(), tr).run();
 } catch (e) { console.error('sample call not added: ' + String(e).slice(0, 120)); }
+// the owner's pin on the map (Brief 4, Part 1): Eatonton, placed at town level the way the map's cron would place it
+try {
+  const { ensureMap } = await import('../src/map.js');
+  await ensureMap(env);
+  const cid = (await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id;
+  await DB.prepare("INSERT INTO map_listing (client_id, show, phone, address, lat, lng, exact, geo_q, geo_at, updated) VALUES (?1, 1, '', '', 33.3268, -83.3885, 0, 'Eatonton, GA', '', '')").bind(cid).run();
+} catch (e) { console.error('map pin not added: ' + String(e).slice(0, 120)); }
 
 // the worker, reachable by a real browser
 const srv = http.createServer(async (q, r) => {
@@ -117,6 +124,53 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
       bad.forEach(x => problems.push('outreach card: ' + x));
       if (shots) { await page.evaluate(() => document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; })); await el.evaluate(x => x.previousElementSibling.scrollIntoView()); await el.screenshot({ path: path.join(shots, 'app-outreach.png') }); }
     }
+  }
+}
+// the live map (Brief 4, Part 1): the map itself on Customers, examples when nobody is near, a full-screen sheet on tap
+{ const hm = await page.$('[data-tab="home"]'); if (hm) { await hm.click(); await page.waitForTimeout(300); }
+  const cu = await page.$('[data-seg="customers"]'); if (cu) { await cu.click(); await page.waitForTimeout(300); }
+  const box = await page.$('#map .mapbox');
+  if (!box) problems.push('map: no live map on Customers');
+  else {
+    await page.waitForSelector('#map .maplibregl-canvas, #map .mapfb', { timeout: 20000 }).catch(() => {});
+    const gl = await page.$('#map .maplibregl-canvas');
+    if (!gl) { if (process.env.CI) problems.push('map: the map did not load (only the grey fallback showed)'); else console.log('map: MapLibre not reachable here, checked the fallback'); }
+    if (gl) await page.waitForTimeout(2500);   // tiles
+    const r = await page.evaluate(() => {
+      const card = document.getElementById('map'), out = { ex: card.querySelectorAll('.mdot.ex').length, note: !document.getElementById('mapex').hidden, pin: !!card.querySelector('.mpin'), small: [], doors: [] };
+      card.querySelectorAll('button,a,input').forEach(x => { if (x.closest('.maplibregl-ctrl,.mapbox')) return; const b = x.getBoundingClientRect(); if (b.width && (b.height < 47.5 || b.width < 47.5)) out.small.push((x.textContent || x.getAttribute('aria-label') || '').trim().slice(0, 30) + ' ' + Math.round(b.width) + 'x' + Math.round(b.height)); });
+      document.querySelectorAll('#view a[target=_blank], #view [data-go="map"], #view a[href*="/map"]').forEach(x => out.doors.push(x.outerHTML.slice(0, 80)));
+      out.line = card.querySelector('.mapline').textContent; out.h = card.querySelector('.mapbox').getBoundingClientRect().height;
+      return out;
+    });
+    if (r.ex !== 6) problems.push('map: expected 6 example dots with nobody nearby, saw ' + r.ex);
+    if (!r.note) problems.push('map: the "these are examples" line is missing');
+    if (!r.pin) problems.push('map: the owner\'s pin is missing');
+    if (Math.round(r.h) !== 260) problems.push('map: should be 260 px tall, is ' + r.h);
+    if (!/plumb|business like yours/i.test(r.line) || !/Eatonton/.test(r.line)) problems.push('map: the line under it reads "' + r.line + '"');
+    r.small.forEach(x => problems.push('map: tap target under 48 px: ' + x));
+    r.doors.forEach(x => problems.push('map: still a link out: ' + x));
+    if (shots) { await page.evaluate(() => document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; })); await page.$eval('#map', x => x.scrollIntoView()); await (await page.$('#map')).screenshot({ path: path.join(shots, 'app-map.png') }); }
+    // tap the map: one full-screen sheet with the map in it, and a 48 px close
+    await box.click(); await page.waitForTimeout(400);
+    await page.waitForSelector('.sheet.full .maplibregl-canvas, .sheet.full .mapfb', { timeout: 20000 }).catch(() => {});
+    const full = await page.evaluate(() => { const sh = document.querySelector('.sheet.full'); if (!sh) return null; const c = sh.querySelector('[data-close]').getBoundingClientRect(), m = sh.querySelector('#mapfull').getBoundingClientRect(); return { close: Math.min(c.width, c.height), mapH: m.height, sheets: document.querySelectorAll('.sheet').length }; });
+    if (!full) problems.push('map: tapping it did not open the full map');
+    else {
+      if (full.close < 48) problems.push('map sheet: close button under 48 px');
+      if (full.mapH < 400) problems.push('map sheet: the map is only ' + full.mapH + ' px tall');
+      if (full.sheets !== 1) problems.push('map sheet: ' + full.sheets + ' sheets open');
+      if (await page.$('.sheet.full .maplibregl-canvas')) await page.waitForTimeout(2500);
+      if (shots) await page.screenshot({ path: path.join(shots, 'app-map-full.png') });
+      await page.click('.sheet.full [data-close]'); await page.waitForTimeout(200);
+    }
+    // once businesses join nearby: real dots, no examples
+    await page.route(/\/api\/map\?/, rt => rt.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, enough: true, businesses: [[33.36, -83.41], [33.30, -83.35], [33.34, -83.30], [33.28, -83.44]].map((p, i) => ({ id: 'n' + i, name: 'Business ' + (i + 1), kind: '', lat: p[0], lng: p[1] })) }) }));
+    await page.evaluate(() => window.aoMapReset());
+    await page.waitForTimeout(1500);
+    const live = await page.evaluate(() => ({ ex: document.querySelectorAll('#map .mdot.ex').length, real: document.querySelectorAll('#map .mdot:not(.ex)').length, note: !document.getElementById('mapex').hidden }));
+    if (live.ex || live.real !== 4 || live.note) problems.push('map: with 4 businesses nearby it showed ' + live.real + ' dots, ' + live.ex + ' examples' + (live.note ? ', and the examples line' : ''));
+    await page.unroute(/\/api\/map\?/);
   }
 }
 await browser.close(); srv.close();

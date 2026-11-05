@@ -78,7 +78,6 @@ function setBlock(){
   var g1='',g2='',gT='',g3='',h='<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
   if(S.line)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-es"'+(S.line.spanish?' checked':'')+'> <span>'+esc(S.line.name)+' answers Spanish-speaking callers in Spanish</span></label>';
   g1=h;h='';
-  if(S.map)h+='<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-map"'+(S.map.show?' checked':'')+'> <span>Show me on the Always Open map</span></label><p class="note" style="margin:4px 0 0">'+esc(mapNote())+' <button class="btn line sm" type="button" data-a="bz-map" style="margin-top:6px">Edit what it shows</button></p>';
   g2=h;h='';
   if(S.texting&&!S.texting.regulated){var T=S.texting;h+='<p class="note" style="margin:14px 0 4px"><b>Texting under your business name</b></p><p class="note" style="margin:0">'+esc(T.label)+(T.error?'. '+esc(T.error):'')+'</p>'+(T.status==='none'||T.status==='needs_fix'?'<div class="acts" style="margin-top:6px"><a class="btn line sm" href="'+BASE+'/texting">'+(T.status==='needs_fix'?'Fix and send again':'Register for texting')+'</a></div>':'');}
   gT=h;h='';
@@ -121,11 +120,8 @@ function setBlock(){
   var card=function(t,x){return x?'<h2>'+t+'</h2><div class="card">'+x+'</div>':'';};
   return card('Your preferences',g1)+card('Public listing',g2)+card('Texting',gT)+card('Automation',g3);
 }
-function mapNote(){var m=S.map;if(!m)return '';if(!m.show)return m.regulated?'Off. Regulated businesses are only listed if they turn it on.':'Off. You are not on the public map.';
-  return 'Shows your name, type and town'+(m.phone?', '+m.phone:'')+(m.address?', '+m.address:'')+'. The list is sorted by distance only.';}
 function mapSheet(){var m=S.map||{};
-  sheet('<h2>Your map listing</h2><p class="fine">The <a href="/map?real=1" target="_blank" rel="noopener">Always Open map</a> lists the businesses we work for. It shows your name, type and town. A phone number and street address show only if you add them here. Changes show within about ten minutes.</p>'+
-  '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="mp-show"'+(m.show?' checked':'')+'> <span>Show me on the map</span></label>'+
+  sheet('<h2>What the map shows</h2><p class="fine">Your name, trade and town. Your phone and street address show only if you add them. Changes show in about ten minutes.</p>'+
   '<label>Business phone for the map (optional)<input id="mp-phone" type="tel" inputmode="tel" value="'+esc(m.phone||'')+'" placeholder="(478) 555-0142"></label>'+
   '<label>Street address for the map (optional)<input id="mp-addr" value="'+esc(m.address||'')+'" placeholder="Leave blank to show only your town"></label>'+
   '<div class="acts"><button class="btn red" type="button" data-a="bz-map-save">Save</button><button class="btn line" type="button" data-close="1">Cancel</button></div>');}
@@ -189,7 +185,7 @@ function bizAct(a,id,t){
   else if(a==='fm-pause'||a==='fm-resume'||a==='fm-off'){t.disabled=true;post('fullmax',{action:a.slice(3)}).then(function(res){toast(res.j.message||res.j.error||'Saved.');load();}).catch(function(){t.disabled=false;});}
   else if(a==='bz-ans-copy'){var tx=S.answer&&S.answer.paste||'';if(tx&&navigator.clipboard)navigator.clipboard.writeText(tx).then(function(){toast('Copied.');},function(){toast(tx);});else toast(tx||'Nothing to copy yet.');}
   else if(a==='bz-map')mapSheet();
-  else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{show:$('#mp-show').checked,phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Map listing saved.');load(true);}else toast(res.j.error||'Could not save.');});}
+  else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Saved.');load(true);}else toast(res.j.error||'Could not save.');});}
   else if(a==='bz-ob-all'){OBALL=!OBALL;render();}
   else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';MSEG='answer';try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
@@ -207,7 +203,6 @@ document.addEventListener('change',function(e){var t=e.target;if(!t)return;
   if(t.dataset.oc){post('outcalls',{key:t.dataset.oc,on:t.checked}).then(function(res){if(res.j.ok){S.outcalls.on[res.j.key]=res.j.on;toast(res.j.message||'Saved.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}}).catch(function(){t.checked=!t.checked;toast('No connection. Try again.');});}
   if(t.id==='bz-ci'){post('checkins',{on:t.checked}).then(function(res){if(res.j.ok){S.checkins.on=res.j.on;toast(res.j.message||'Saved.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
   if(t.id==='bz-ho-give'||t.id==='bz-ho-take'){var body={};body[t.id==='bz-ho-give'?'give':'take']=t.checked;post('handoff',body).then(function(res){if(res.j.ok){S.handoff.give=res.j.give;S.handoff.take=res.j.take;toast('Saved.');load();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});}
-  if(t.id==='bz-map')post('map',{show:t.checked}).then(function(res){if(res.j.ok){S.map=res.j.map;toast(t.checked?'You are on the map.':'You are off the map.');render();}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
   if(t.id==='bz-es')post('line',{spanish:t.checked}).then(function(res){if(res.j.ok){if(S.line)S.line.spanish=t.checked;toast(t.checked?'Spanish callers get Spanish.':'English only.');}else{t.checked=!t.checked;toast(res.j.error||'Could not save.');}});
 });
 `;

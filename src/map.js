@@ -60,9 +60,9 @@ function phoneText(d) { d = String(d || '').replace(/\D/g, '').replace(/^1(?=\d{
 function geoQuery(r) { const a = one(r.address, 160), t = townOf(r); return a ? a + (t && a.toLowerCase().indexOf(t.toLowerCase().split(',')[0]) < 0 ? ', ' + t : '') : t; }
 
 // Town-level pins are moved a short, fixed distance so businesses in the same town don't sit on one spot.
-function nudge(id, lat, lng) {
+export function nudge(id, lat, lng, miles) {
   let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const ang = (h % 360) * Math.PI / 180, mi = 0.6 + ((h >> 9) % 90) / 100;
+  const ang = (h % 360) * Math.PI / 180, mi = miles || 0.6 + ((h >> 9) % 90) / 100;
   return [lat + (mi / 69) * Math.sin(ang), lng + (mi / (69 * Math.cos(lat * Math.PI / 180))) * Math.cos(ang)];
 }
 export function milesBetween(a, b, c, d) {
@@ -133,12 +133,33 @@ function j(o, status, maxAge) {
 }
 
 // ---------- the owner's switch (web app and iPhone app) ----------
+// What a customer would type: "a plumber", not "a plumbing". Unknown trades get no noun (the app says "a business like yours").
+const TRADES = [[/plumb/, 'plumber'], [/electric/, 'electrician'], [/hvac|heating|\bair\b|cooling/, 'HVAC company'], [/roof/, 'roofer'], [/landscap|lawn|yard/, 'landscaper'],
+  [/clean|maid|janitor/, 'cleaner'], [/pest|exterminat/, 'pest control company'], [/paint/, 'painter'], [/garage door/, 'garage door company'], [/pool/, 'pool company'],
+  [/tree/, 'tree service'], [/auto|mechanic|repair shop|car/, 'mechanic'], [/lock/, 'locksmith'], [/handyman/, 'handyman'], [/carpent|woodwork/, 'carpenter'],
+  [/concrete|mason/, 'concrete company'], [/fenc/, 'fence company'], [/floor/, 'flooring company'], [/septic/, 'septic company'], [/well/, 'well company'],
+  [/dent/, 'dentist'], [/law|legal|attorney/, 'lawyer'], [/insur/, 'insurance agent'], [/salon|hair|barber/, 'salon'], [/restaurant|diner|cafe|food/, 'restaurant'],
+  [/vet|animal/, 'vet'], [/chiro/, 'chiropractor'], [/account|tax|bookkeep/, 'accountant'], [/real estate|realt/, 'real estate agent'], [/contractor|construct|builder|remodel/, 'contractor']];
+export function tradeNoun(kind) { const k = String(kind || '').toLowerCase(); for (const [re, n] of TRADES) if (re.test(k)) return n; return ''; }
+
 export async function mapState(env, c) {
   await ensureMap(env);
   const m = await env.DB.prepare('SELECT * FROM map_listing WHERE client_id = ?1').bind(c.client_id).first();
   const row = Object.assign({ regulated: c.regulated }, m || {});
-  return { show: isListed(row), regulated: !!+c.regulated, phone: phoneText(m && m.phone), address: one(m && m.address, 160), placed: !!(m && m.lat != null) };
+  const out = { show: isListed(row), regulated: !!+c.regulated, phone: phoneText(m && m.phone), address: one(m && m.address, 160), placed: !!(m && m.lat != null), id: c.ref || c.client_id, town: '', kind: '', trade: '' };
+  // Where the owner's own pin sits: the same spot the public sees (town-level pins are nudged the same way).
+  if (out.placed && isFinite(+m.lat) && isFinite(+m.lng)) {
+    const [lat, lng] = +m.exact ? [+m.lat, +m.lng] : nudge(c.client_id, +m.lat, +m.lng);
+    out.lat = +lat.toFixed(5); out.lng = +lng.toFixed(5);
+  } else out.placed = false;
+  try {
+    const t = await env.DB.prepare("SELECT (SELECT b.town FROM billing b WHERE b.client_id = ?1) AS btown, (SELECT b.type FROM billing b WHERE b.client_id = ?1) AS btype, " +
+      "(SELECT v.town FROM voice_lines v WHERE v.client_id = ?1 ORDER BY v.number LIMIT 1) AS vtown, (SELECT v.industry FROM voice_lines v WHERE v.client_id = ?1 ORDER BY v.number LIMIT 1) AS vind").bind(c.client_id).first();
+    if (t) { out.town = townOf(t); out.kind = kindOf(t).toLowerCase(); out.trade = tradeNoun(out.kind); }
+  } catch (e) {}
+  return out;
 }
+
 export async function apiMap(req, env, c) {
   if (c.staff) return j({ ok: false, error: 'Only the owner can change this.' }, 403);
   await ensureMap(env);

@@ -204,6 +204,20 @@ a.btn{color:inherit}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .scrim{position:fixed;inset:0;z-index:8;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center}
 .scrim[hidden]{display:none}
+.sheet.full{width:100%;height:100%;max-height:100%;border-radius:0;grid-template-rows:auto 1fr auto;padding-top:calc(14px + env(safe-area-inset-top,0px))}
+.maptop{display:flex;align-items:center;justify-content:space-between;gap:12px}.close48{min-height:48px;min-width:96px}
+.mapfull{border-radius:14px;overflow:hidden;min-height:300px;position:relative;background:#1A2030}
+.mapbox{height:260px;border-radius:14px;overflow:hidden;position:relative;background:#1A2030;cursor:pointer;border:1px solid var(--line)}
+.mapgl{position:absolute;inset:0}.mapbox .maplibregl-ctrl-attrib{font-size:11px}
+.mapc .btn{min-height:48px}.mapc .switch{padding:6px 0}.mapc .switch i{top:10px}
+.feature .mapline{margin:0;font-size:17px;line-height:1.4;color:var(--ink)}
+.mapfb{position:absolute;inset:0;background:#232A3A;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px}
+.mapfb .mdot,.mapfb .mpin{position:absolute;transform:translate(-50%,-50%)}.mapfb .mpin{transform:translate(-50%,-100%)}
+.mdot{width:16px;height:16px;border-radius:50%;background:var(--ok);border:2px solid #fff;padding:0;box-shadow:0 0 0 4px rgba(92,201,164,.25)}
+.mdot.ex{background:var(--slate);opacity:.55;box-shadow:none;border-color:rgba(255,255,255,.6)}
+.mpin{display:grid;justify-items:center;pointer-events:none}.mpin b{background:var(--sign);color:var(--on-sign);font:800 15px var(--display);padding:4px 10px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.mpin i{width:3px;height:12px;background:var(--sign)}.mpin.off b{background:var(--slate)}.mpin.off i{background:var(--slate)}
+.maplibregl-popup-content{background:var(--card);color:var(--ink);font:600 16px var(--body);border-radius:10px;padding:10px 12px}.maplibregl-popup-tip{border-top-color:var(--card)!important;border-bottom-color:var(--card)!important}
 .sheet{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--card);border-radius:22px 22px 0 0;padding:20px max(18px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:grid;gap:12px}
 .sheet h2{margin:0;font-size:1.35rem}
 .sheet label{display:grid;gap:6px;font-weight:600;font-size:15px}
@@ -307,8 +321,8 @@ function needName(cb){
   function done(){var v=i.value.trim();if(!v){i.focus();return;}store('ao_by',v.slice(0,40));close();cb(v);}
   $('#nm-ok').onclick=done;i.onkeydown=function(e){if(e.key==='Enter')done();};
 }
-function sheet(html){var s=$('#scrim');s.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';s.hidden=false;}
-function close(){var s=$('#scrim');s.hidden=true;s.innerHTML='';}
+function sheet(html,kind){var s=$('#scrim');s.innerHTML='<div class="sheet'+(kind?' '+kind:'')+'" role="dialog" aria-modal="true">'+html+'</div>';s.hidden=false;}
+function close(){var s=$('#scrim');if(MAPF){try{MAPF.remove();}catch(e){}MAPF=null;}s.hidden=true;s.innerHTML='';}
 
 /* Automatic refreshes (every minute, every few seconds during a live call, coming back to the app) rebuild the page,
    so they wait while the owner is typing: any field on the page that has focus, or that they changed and haven't
@@ -359,6 +373,7 @@ function render(){clearTimeout(render.clk);render.clk=setTimeout(function(){try{
   if(TAB==='ask'){var th=$('.thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
   var si=$('#sidx');if(si){var hs=document.querySelectorAll('#view h2, #view .feature>h3');var out='';for(var j=0;j<hs.length;j++){var hd=hs[j],tt=hd.textContent.trim();if(!tt||tt.length>28)continue;hd.id=hd.id||('s-'+j);out+='<a href="#'+hd.id+'" data-a="jump" data-to="'+hd.id+'">'+esc(tt)+'</a>';}si.innerHTML=out;}
   var nb=$('#badge');if(nb&&nb.textContent!==LASTB){if(LASTB!=null){nb.classList.add('pop');setTimeout(function(){nb.classList.remove('pop');},300);}LASTB=nb.textContent;}
+  mapSlot();
   livePoll();
 }
 var LASTB=null,LIVET=null;
@@ -546,14 +561,99 @@ function upCard(){
     (U.list.length>3?'<div class="acts"><button class="btn ghost small" type="button" data-a="up-all">'+(UPALL?'Show fewer':'See all '+U.list.length)+'</button></div>':'')+
     '<details style="margin-top:8px"><summary class="fine">How the fit is worked out</summary><p class="fine">'+esc(U.how)+'</p></details></div>';
 }
+/* ---------- the live map (Brief 4, Part 1): the map itself on Customers, never a link to it ---------- */
+var MLS='',MLQ=[],MAPEL=null,MAPM=null,MAPF=null,MAPD=null,MAPAT=0;
+var ML_URL='https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min',MAP_STYLE='https://tiles.openfreemap.org/styles/dark';
+function mlLoad(cb){
+  if(MLS==='ok'&&window.maplibregl)return cb(true);if(MLS==='fail')return cb(false);
+  MLQ.push(cb);if(MLS==='loading')return;MLS='loading';
+  var l=document.createElement('link');l.rel='stylesheet';l.href=ML_URL+'.css';document.head.appendChild(l);
+  var sc=document.createElement('script'),tm=setTimeout(function(){fin(false);},10000);
+  function fin(ok){clearTimeout(tm);if(MLS!=='loading')return;MLS=ok?'ok':'fail';var q=MLQ;MLQ=[];q.forEach(function(f){f(ok);});}
+  sc.src=ML_URL+'.js';sc.onload=function(){fin(!!window.maplibregl);};sc.onerror=function(){fin(false);};document.head.appendChild(sc);
+}
+// six faded spots around the owner, 1.5 to 6 miles out: no names, no trades, no phones
+function exDots(lat,lng){var o=[];for(var i=0;i<6;i++){var id='example-'+i,h=0;for(var k=0;k<id.length;k++)h=(h*31+id.charCodeAt(k))>>>0;
+  var ang=(i*60+h%37)*Math.PI/180,mi=2+((h*7)%50)/10;o.push([lat+(mi/69)*Math.sin(ang),lng+(mi/(69*Math.cos(lat*Math.PI/180)))*Math.cos(ang)]);}return o;}
+function mapData(cb){
+  var m=S.map;if(MAPD&&Date.now()-MAPAT<600000&&MAPD.show===m.show)return cb(MAPD);
+  var q=m.placed?'?lat='+m.lat+'&lng='+m.lng:'';
+  fetch('/api/map'+q).then(function(r){return r.json();}).catch(function(){return {};}).then(function(j){
+    var c=m.placed?[m.lat,m.lng]:(j&&j.center?j.center:[33.33,-83.39]);
+    var others=(j&&j.enough&&j.businesses?j.businesses:[]).filter(function(b){return b.id!==m.id;}).map(function(b){return {name:b.name,kind:b.kind||'',lat:b.lat,lng:b.lng};});
+    MAPD={center:c,others:others,examples:others.length<3,show:m.show,placed:m.placed};
+    if(MAPD.examples)MAPD.dots=exDots(c[0],c[1]);
+    MAPAT=Date.now();cb(MAPD);
+  });
+}
+function pinEl(you){var e=document.createElement('div');
+  if(you){e.className='mpin'+(S.map.show?'':' off');e.innerHTML='<b>You</b><i></i>';}
+  else{e.className='mdot';}
+  return e;}
+function dotEl(ex){var e=document.createElement('button');e.type='button';e.className='mdot'+(ex?' ex':'');e.setAttribute('aria-label',ex?'Example':'Business');return e;}
+function drawPins(map,D,full){
+  (D.examples?D.dots.map(function(d){return {lat:d[0],lng:d[1],ex:true};}):D.others).forEach(function(b){
+    var el=dotEl(b.ex),mk=new maplibregl.Marker({element:el}).setLngLat([b.lng,b.lat]);
+    if(full)mk.setPopup(new maplibregl.Popup({offset:12,closeButton:false}).setText(b.ex?'Example':b.name+(b.kind?' · '+b.kind:'')));
+    mk.addTo(map);});
+  if(D.placed)new maplibregl.Marker({element:pinEl(true),anchor:'bottom'}).setLngLat([D.center[1],D.center[0]]).addTo(map);
+}
+// If the map can't load: a grey panel with the owner's pin and the same dots, placed by hand.
+function mapFallback(box,D){
+  var h='<div class="mapfb" role="img" aria-label="Where you are on the map">';
+  var pts=D.examples?D.dots.map(function(d){return {lat:d[0],lng:d[1],ex:1};}):D.others;
+  pts.forEach(function(b){var x=50+(b.lng-D.center[1])*Math.cos(D.center[0]*Math.PI/180)*69/12.5*50,y=50-(b.lat-D.center[0])*69/10*50;
+    if(x>3&&x<97&&y>3&&y<97)h+='<span class="mdot'+(b.ex?' ex':'')+'" style="left:'+x.toFixed(1)+'%;top:'+y.toFixed(1)+'%"></span>';});
+  if(D.placed)h+='<span class="mpin'+(S.map.show?'':' off')+'" style="left:50%;top:50%"><b>You</b><i></i></span>';
+  box.innerHTML=h+'</div>';
+}
+function mapMake(box,D,full){
+  mlLoad(function(ok){
+    if(!ok){mapFallback(box,D);return;}
+    try{
+      var map=new maplibregl.Map({container:box,style:MAP_STYLE,center:[D.center[1],D.center[0]],zoom:full?10.5:10,interactive:!!full,attributionControl:{compact:true}});
+      if(full)map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
+      setTimeout(function(){if(!map.isStyleLoaded()){try{map.remove();}catch(e){}if(full)MAPF=null;else MAPM=null;mapFallback(box,D);}},12000);
+      drawPins(map,D,full);
+      if(full)MAPF=map;else MAPM=map;
+    }catch(e){mapFallback(box,D);}
+  });
+}
+function mapSlot(){
+  var slot=document.getElementById('mapslot');if(!slot)return;
+  if(!MAPEL){MAPEL=document.createElement('div');MAPEL.className='mapbox';MAPEL.setAttribute('data-a','map-open');MAPEL.setAttribute('role','button');MAPEL.setAttribute('tabindex','0');MAPEL.setAttribute('aria-label','Open the map full screen');}
+  slot.appendChild(MAPEL);
+  mapData(function(D){
+    var ex=document.getElementById('mapex');if(ex)ex.hidden=!D.examples;
+    if(MAPEL.dataset.key===JSON.stringify([D.center,D.others.length,D.show])){if(MAPM)MAPM.resize();return;}
+    MAPEL.dataset.key=JSON.stringify([D.center,D.others.length,D.show]);
+    if(MAPM){try{MAPM.remove();}catch(e){}MAPM=null;}
+    var inner=document.createElement('div');inner.className='mapgl';MAPEL.innerHTML='';MAPEL.appendChild(inner);
+    mapMake(inner,D,false);
+  });
+}
+window.aoMapReset=function(){MAPD=null;if(MAPEL)MAPEL.dataset.key='';render();};
+function mapOpen(){
+  if(!MAPD)return;
+  sheet('<div class="maptop"><h2>You on the map</h2><button class="btn line close48" type="button" data-close="1">Close</button></div><div class="mapfull" id="mapfull"></div>'+
+    (MAPD.examples?'<p class="fine">Other businesses will show up here as they join. These are examples.</p>':'<p class="fine">Tap a dot to see who it is.</p>'),'full');
+  mapMake(document.getElementById('mapfull'),MAPD,true);
+}
+function mapLine(m){
+  if(!m.show)return m.regulated?'You are off the map. Customers can’t find you there.':'You are off the map. Customers can’t find you there.';
+  if(!m.placed)return 'Your pin shows up within a day.';
+  var who=m.trade?(/^[aeiou]/i.test(m.trade)?'an ':'a ')+m.trade:'a business like yours';return 'Customers searching for '+who+(m.town?' near '+m.town.split(',')[0]:' nearby')+' find you here.';
+}
 function mapCard(){
   var m=S.map;if(!m)return '';
-  return '<div class="feature" id="map"><h3>The Always Open map</h3><p>Customers search it for a kind of business and only Always Open businesses come up, closest first. '+(m.show?'You are on it.':(m.regulated?'You are not on it. Regulated businesses are listed only if they turn it on in Settings.':'You are not on it right now. Turn it on in Settings.'))+'</p><div class="acts"><a class="btn line" href="/map?real=1" target="_blank" rel="noopener">Open the map</a></div></div>';
+  return '<div class="feature mapc" id="map"><h3>You on the map</h3><div id="mapslot"></div>'+
+    '<p class="mapline">'+esc(mapLine(m))+'</p><p class="fine" id="mapex" hidden>Other businesses will show up here as they join. These are examples.</p>'+
+    '<div class="sw"><div><b>Show me on the map</b></div><button class="switch" type="button" role="switch" aria-checked="'+(m.show?'true':'false')+'" data-a="map-show" aria-label="Show me on the map"><i></i></button></div>'+
+    '<div class="acts"><button class="btn line" type="button" data-a="bz-map">'+(m.phone||m.address?'Change your phone or address':'Add your phone or address')+'</button></div></div>';
 }
 function moreCard(){
   var r=[];
   if(!isTech()&&S.upgrades&&S.upgrades.list&&S.upgrades.list.length)r.push(row('up',ICON.check,'Upgrades for you','What fits your business, and why'));
-  if(S.map)r.push(row('map',ICON.shield,'The Always Open map','Customers searching nearby find you here'));
   return r.length?'<h2>More for your business</h2><div class="list">'+r.join('')+'</div>':'';
 }
 function cbCard(){
@@ -1202,10 +1302,12 @@ document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg],[data-mseg]');if(!t)return;
   if(t.dataset.mseg){MSEG=t.dataset.mseg;render();window.scrollTo(0,0);return;}
   if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
-  if(t.dataset.go){var g=t.dataset.go;if(g==='up'||g==='map'){TAB='home';SEG=g==='up'?'results':'customers';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var jt=document.getElementById(g==='up'?'upgrades':'map');if(jt)jt.scrollIntoView({behavior:'smooth',block:'start'});return;}if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
+  if(t.dataset.go){var g=t.dataset.go;if(g==='up'){TAB='home';SEG='results';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var jt=document.getElementById('upgrades');if(jt)jt.scrollIntoView({behavior:'smooth',block:'start'});return;}if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
   if(t.dataset.close){close();return;}
   if(t.dataset.tab){TAB=t.dataset.tab;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);return;}
   var a=t.dataset.a,id=t.dataset.id;
+  if(a==='map-open'){mapOpen();return;}
+  if(a==='map-show'){var on=t.getAttribute('aria-checked')!=='true';t.disabled=true;post('map',{show:on}).then(function(res){t.disabled=false;if(res.j.ok){S.map=res.j.map;toast(on?'You are on the map.':'You are off the map.');render();}else toast(res.j.error||'Could not save.');}).catch(function(){t.disabled=false;toast('No connection. Try again.');});return;}
   if(a==='approve')decide(id,'approve','');
   else if(a==='edit'){var it=(S.items||[]).filter(function(x){return x.id===id;})[0];if(it){EDIT[id]=it.text;render();var ta=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}}}
   else if(a==='cancel'){delete EDIT[id];render();}
@@ -1277,7 +1379,7 @@ function touch(t){if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&TOUCHED.ind
 document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;touch(t);if(t&&t.id==='lw')DIRTY=true;});
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#scrim').hidden)close();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#scrim').hidden)close();else if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('mapbox')){e.preventDefault();mapOpen();}});
 $('#refresh').addEventListener('click',function(){load();});
 /* swipe a card right to approve, left to skip */
 (function(){
