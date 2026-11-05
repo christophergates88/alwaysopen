@@ -103,6 +103,22 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
   if (!heldShot) { const d = await page.$('details:has(.said)'); if (d) { heldShot = true; await d.evaluate(x => { x.open = true; document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; }); }); await page.waitForTimeout(200); const card = await d.evaluateHandle(x => x.closest('article,.card,li,section') || x); if (shots) await card.asElement().screenshot({ path: path.join(shots, 'app-held-back.png') }); if (!(await page.$('.said p.held'))) problems.push(tab + ': the held-back line did not render'); } }
   if (shots) await page.screenshot({ path: path.join(shots, 'app-' + tab + '.png'), fullPage: true });
 }
+// the After-the-call screen, where the outreach card lives (Brief 3, Part 8d): same size rules, and a screenshot
+{ const mx = await page.$('[data-tab="max"]'); if (mx) { await mx.click(); await page.waitForTimeout(300); }
+  const af = await page.$('[data-mseg="after"]');
+  if (!af) problems.push('max: no After the call segment');
+  else {
+    await af.click(); await page.waitForTimeout(300);
+    const card = await page.evaluateHandle(() => { const h = [...document.querySelectorAll('h2')].find(x => /Outreach calls/.test(x.textContent)); return h ? h.nextElementSibling : null; });
+    const el = card && card.asElement();
+    if (!el) problems.push('after: no outreach card');
+    else {
+      const bad = await el.evaluate(c => { const out = []; c.querySelectorAll('button,input,textarea,label').forEach(x => { const b = x.getBoundingClientRect(); if (b.width && b.height && (b.height < 43.5) && !x.matches('label') ) out.push(x.tagName + ' ' + Math.round(b.height)); }); c.querySelectorAll('p,label,span,b').forEach(x => { const px = parseFloat(getComputedStyle(x).fontSize); if (px < 15 && !x.closest('.fine,small')) out.push('text ' + px + 'px'); }); return out; });
+      bad.forEach(x => problems.push('outreach card: ' + x));
+      if (shots) { await page.evaluate(() => document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; })); await el.evaluate(x => x.previousElementSibling.scrollIntoView()); await el.screenshot({ path: path.join(shots, 'app-outreach.png') }); }
+    }
+  }
+}
 await browser.close(); srv.close();
 errors.forEach(e => problems.push('page error: ' + e.slice(0, 120)));
 if (!heldShot) problems.push('no call transcript was shown on any tab');

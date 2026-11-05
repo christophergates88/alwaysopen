@@ -964,7 +964,22 @@ function afterCard(L){
     sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
     (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
     (S.features.jobs?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
-    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>'+outCard(L);
+    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>'+outCard(L)+outreachCard();
+}
+function outreachCard(){
+  var R=S.outreach;if(!R)return '';
+  var c=R.counts||{};
+  var h='<h2>'+esc(R.label)+'</h2><div class="card form">';
+  if(!R.live)h+='<p class="note" style="margin-top:0"><b>Not calling yet.</b> This is being reviewed before it goes live. You can set it up now, and nothing is dialed until then.</p>';
+  h+='<p class="fine">'+esc(R.sub)+'</p>';
+  if(!R.attested)return h+'<p>'+esc(R.attest)+'</p><div class="acts"><button class="btn red" type="button" data-a="or-attest">I confirm</button></div></div>';
+  h+='<label>What Max says for you (one sentence)<textarea id="or-pitch" maxlength="240" rows="3" placeholder="We clean commercial kitchen hoods and can work around your hours.">'+esc(R.pitch||'')+'</textarea></label>'+
+    '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span>Call my list when this goes live</span></label>'+
+    '<div class="acts"><button class="btn red" type="button" data-a="or-save">Save</button></div>'+
+    '<label>Businesses to call (one per line: name, phone, contact)<textarea id="or-list" rows="4" placeholder="Ace Diner, 478-555-0101, Sam"></textarea></label>'+
+    '<div class="acts"><button class="btn line" type="button" data-a="or-list">Check and add</button></div>'+
+    '<p class="fine">'+c.ready+' ready, '+c.skipped+' skipped (mobile numbers are never called), '+c.called+' called, '+c.interested+' interested, '+c.optout+' asked not to be called.</p>';
+  return h+'</div>';
 }
 function outCard(L){
   var O=S.outcalls;if(!O||!O.list)return '';
@@ -1239,6 +1254,8 @@ document.addEventListener('click',function(e){
   else if(a==='vc-save')lineSave({voice:$('#vc-voice').value,name:$('#vc-name').value});
   else if(a==='vc-up')voiceUpload();
   else if(a==='vc-rm')lineSave({action:'remove-greeting-audio'});
+  else if(a==='or-attest'||a==='or-save'||a==='or-list'){var ob=a==='or-attest'?{action:'attest'}:a==='or-save'?{action:'pitch',text:($('#or-pitch')||{}).value||'',on:!!(($('#or-on')||{}).checked)}:{action:'list',csv:($('#or-list')||{}).value||''};
+    api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ob)}).then(function(res){toast(res.j.ok?(res.j.message||'Saved.'):(res.j.error||'Could not save.'));if(res.j.ok)load(true);});}
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});

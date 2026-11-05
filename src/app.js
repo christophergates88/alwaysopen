@@ -21,6 +21,7 @@ import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { apiOutcalls, outcallsState } from './outcalls.js';
+import { outreachState, attest as outreachAttest, savePitch as outreachPitch, importList as outreachImport } from './outreach.js';
 import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
 import { upgradesState } from './upgrades.js';
@@ -298,6 +299,15 @@ export async function handleApp(req, env, ctx, url) {
       if (c.staff) return aj({ ok: false, error: 'Only the owner can change this.' }, 403);
       const r = await apiOutcalls(req, env, c);
       return aj(r, r.ok ? 200 : 400);
+    } else if (sub === '/api/outreach' && meth === 'POST') {
+      // Outreach calls to businesses (Brief 3, Part 8d): set up here; nothing dials until Christopher turns it on.
+      if (c.staff) return aj({ ok: false, error: 'Only the owner can change this.' }, 403);
+      let b = {}; try { b = await req.json(); } catch (e) {}
+      const r = b.action === 'attest' ? await outreachAttest(env, c, c.owner_name || 'owner')
+        : b.action === 'pitch' ? await outreachPitch(env, c, b.text, !!b.on)
+        : b.action === 'list' ? await outreachImport(env, c, String(b.csv || '').slice(0, 60000))
+        : { ok: false, error: 'Bad request' };
+      return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/handoff' && meth === 'POST') {
       const r = await apiHandoff(req, env, c);
       return aj(r, r.ok ? 200 : 400);
@@ -459,6 +469,7 @@ async function apiState(env, c, ctx) {
   try { out.handoff = (c.regulated || c.staff || !line) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
   try { out.checkins = (c.regulated || !line || !f.jobs) ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.outcalls = (c.regulated || !line || c.role === 'tech') ? null : await outcallsState(env, c); } catch (e) { out.outcalls = null; }
+  try { out.outreach = (c.regulated || !line || c.role === 'tech' || c.staff) ? null : await outreachState(env, c); } catch (e) { out.outreach = null; }
   if (!f.past) delete out.past;
   try { out.answer = f.calls ? await answerState(env, cid) : null; } catch (e) { out.answer = null; }
   // Calls Max is on right now, for the live card on Today.
