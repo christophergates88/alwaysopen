@@ -62,7 +62,9 @@ const srv = http.createServer(async (q, r) => {
   if (chunks.length) o.body = Buffer.concat(chunks).toString();
   try {
     const res = await site.call(q.url, o);
-    r.writeHead(res.status, { 'content-type': res.headers && res.headers.get ? (res.headers.get('content-type') || 'text/html') : 'text/html' });
+    const hd = { 'content-type': res.headers && res.headers.get ? (res.headers.get('content-type') || 'text/html') : 'text/html' };
+    const csp = res.headers && res.headers.get && res.headers.get('content-security-policy'); if (csp) hd['content-security-policy'] = csp;   // the real page's rules, so a blocked map shows up here
+    r.writeHead(res.status, hd);
     r.end(res.text);
   } catch (e) { r.writeHead(500); r.end(String(e)); }
 }).listen(0);

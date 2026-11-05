@@ -59,8 +59,9 @@ const H = {
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY'
 };
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-  "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+// The live map (Brief 4) loads MapLibre from cdnjs and its tiles from OpenFreeMap; MapLibre draws in a blob worker.
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
+  "font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org; worker-src blob:; child-src blob:; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 // ---------- Compliance Guard (same rules as Always Open HQ) ----------
 export const CG_RULES = [
