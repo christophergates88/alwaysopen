@@ -43,3 +43,21 @@ test('Max’s own line is rewritten from facts.js when it drifts, and left alone
   assert.doesNotMatch(f.notes, /Growth adds booking/);
   assert.equal(await V.syncOwnLine({ DB: db }), false, 'nothing to change the second time');
 });
+
+test('Part 8b: the own line says who Always Open is, once, and a second sync changes nothing', async () => {
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const V = await import('../src/voice.js');
+  const F = await import('../src/facts.js');
+  const DB = makeDB();
+  await DB.prepare("CREATE TABLE IF NOT EXISTS voice_lines (client_id TEXT PRIMARY KEY, facts TEXT, updated TEXT)").run();
+  await DB.prepare("INSERT INTO voice_lines (client_id, facts) VALUES ('always-open', ?1)").bind(JSON.stringify({ notes: 'The free audit is a one-page report. Email: hello@alwaysopenoffice.com.', services: 'old text' })).run();
+  assert.equal(await V.syncOwnLine({ DB }), true);
+  const f1 = JSON.parse((await DB.prepare("SELECT facts FROM voice_lines WHERE client_id = 'always-open'").first()).facts);
+  assert.equal(f1.notes.split('Always Open is a small team').length, 2, 'once');
+  assert.match(f1.notes, /Katie handles client support/);
+  assert.match(f1.notes, /The free audit is a one-page report/, 'other notes kept');
+  assert.equal(f1.services, F.SERVICES_DAY_FIRST_LIVE ? F.SERVICES_DAY_FIRST : F.SERVICES_REPORT_FIRST, 'the description comes from facts.js');
+  assert.doesNotMatch(f1.services, /Facebook review|approves anything/, 'retired claims are gone from the live line');
+  assert.equal(await V.syncOwnLine({ DB }), false, 'a second sync changes nothing');
+  assert.doesNotMatch(F.ownLineFacts().about, /Christopher|Gates|\d{3}/, 'no name or number until Christopher says so');
+});

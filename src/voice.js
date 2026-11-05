@@ -1327,7 +1327,8 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-le
 // g-history: on once it reads 'Max gave a safety step' as an emergency (it missed the ceiling-leak call before).
 // g-ask2 (narrowed): won its blind test 23 to 17, 5 of 7 emergency pairs (Nov 5, judgeset10). g-stock, g-sales, g-short
 // stay off: each cut things callers needed.
-export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2'];
+// g-audit: Part 8a, live on sight (it only removes a repeated offer of the free audit; Christopher's Nov 5 call).
+export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit'];
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
@@ -1338,7 +1339,7 @@ export function trimLead(lead, L, msgs) {
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
-export const HELD_LABEL = { 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+export const HELD_LABEL = { 'g-audit': 'offering the audit again', 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
 function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
 // The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
 export function transcriptOf(msgs, held) {
@@ -2637,9 +2638,9 @@ export async function syncOwnLine(env) {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
-    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app)/i.test(x)).join(' ');
-    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + notes).trim() });
-    if (next.prices === f.prices && next.notes === f.notes) return false;
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|Katie handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services });
+    if (next.prices === f.prices && next.notes === f.notes && next.services === f.services) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();
     return true;
   } catch (e) { return false; }

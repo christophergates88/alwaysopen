@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -148,6 +148,31 @@ function salesShape(s, ctx) {
   const asked = new Set(norm(ctx.said).split(' ').filter(w => w.length > 2 && !STOP.has(w)));
   return !norm(s).split(' ').some(w => asked.has(w));
 }
+// 8a (Brief 3, Part 8). The free audit is offered once. Christopher's Nov 5 call: "Want the free audit texted to you?"
+//    closed three replies in a row until he said "I don't want the free audit." After one offer they didn't take, a
+//    sentence offering it again is cut; after a no, any mention of it is.
+const AUDIT = /\b(free )?audit\b|\bauditor[ií]a\b/i;
+const AUDIT_OFFER = /\b(want|like|should i|can i|shall i|happy to)\b[^.?!]*\b(audit|auditor[ií]a)\b|\b(audit|auditor[ií]a)\b[^.?!]*\?/i;
+const TAKES = /\b(yes|yeah|yep|sure|ok(ay)?|please|text (it|me)|send (it|me)|go ahead|s[ií]|claro|m[aá]ndel[oa])\b/i;
+const NO_AUDIT = /\b(don'?t|do not|no) (want|need)\b[^.?!]*\baudit\b|\bno,? (thanks|thank you)\b|\bstop (asking|offering)\b|\bnot interested\b/i;
+export function auditState(msgs) {
+  let offered = 0, taken = false, declined = false, lastOffer = -1;
+  (msgs || []).forEach((m, i) => {
+    const t = String(m.t || '');
+    if (m.r === 'a' && AUDIT_OFFER.test(t)) { offered++; lastOffer = i; }
+    if (m.r === 'u') {
+      if (NO_AUDIT.test(t) || (AUDIT.test(t) && /\b(no|don'?t|not)\b/i.test(t))) declined = true;
+      else if (lastOffer > -1 && i === lastOffer + 1 && TAKES.test(t)) taken = true;
+    }
+  });
+  return { offered, taken, declined };
+}
+function auditOnce(s, ctx) {
+  if (!AUDIT.test(s)) return false;
+  const a = auditState(ctx.msgs);
+  if (a.declined) return true;
+  return a.offered >= 1 && !a.taken && AUDIT_OFFER.test(s);
+}
 // 3. A question that names a town the caller never said ("Are you in Milledgeville?", "Is that in Eatonton?").
 function noLeadingTown(s, ctx) {
   if (!isQ(s)) return false;
@@ -183,7 +208,7 @@ function shortReply(s, ctx) {
   return before >= ((ctx.urgent || ctx.danger) ? 3 : 5) || w + words(s) > 40;
 }
 
-const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

@@ -578,6 +578,16 @@
             "how soon can that start",
             "okay thanks"
           ]
+        },
+        {
+          "id": "h-ao-team",
+          "turns": [
+            "who's Katie and what's your team",
+            "so you can't tell me about the team?",
+            "where are you guys"
+          ],
+          "must": "the team facts on the line: small team, central Georgia near Lake Oconee, Katie handles client support",
+          "never": "invent a name, a number or anything not on the line"
         }
       ]
     }

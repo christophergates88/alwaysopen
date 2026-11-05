@@ -18,6 +18,20 @@ export const ADDONS = {
 };
 export const PROMISES = { refundDays: 30, setupFeeCents: 0, contract: 'month to month', reportDay: 2, support: 'Katie', supportReply: 'one business day', textingApproval: 'about two weeks', setup: 'about a week' };
 
+// Who Always Open is, for "who's Katie?" / "what's your team?" / "where are you based?" (Brief 3, Part 8b). Max had no
+// answer on Christopher's Nov 5 call and deferred to the callback twice. Christopher confirms the wording; his own name is
+// left out until he says to add it.
+export const TEAM = { place: 'central Georgia, near Lake Oconee', support: PROMISES.support, size: 'a small team' };
+// What Always Open does, as Max says it on its own line, day to day first and the monthly page last (Part 8c: the old
+// text told him to lead with the report, so "tell me about Always Open" got the report and not "you see every call live").
+export const SERVICES_DAY_FIRST = 'Day to day: every missed call is answered by a phone assistant like me, and the owner gets the caller\'s name, number and what they need on their phone right away, in the Always Open app. Every Google review is answered, the Google profile is kept current, and quotes and invoices that went quiet get followed up. Customers can book or ask for a quote on a page any hour. Review replies and posts wait for the owner\'s OK in the app. On the 2nd of each month, one page sums up what it all did and what it was worth. Say the day-to-day part first, in your own words, and the monthly page last. Owners are usually already out working, so never say they can "get back to work." It works on the number they already have, through call forwarding.';
+// The description as it was before Part 8c, report first, with two retired claims corrected (it said "every Google and
+// Facebook review" and "an app where the owner approves anything that goes out in their name"; test/wording.test.js
+// retired both, but that test reads files, and this text lived only in the database). The baseline for 8c's blind test.
+export const SERVICES_REPORT_FIRST = 'We handle the stuff that keeps a business open around the clock, like answering reviews and missed calls and following up with customers, so the owner can stay on the job they\'re already doing, and on the 2nd of every month they get one page that shows what it all did and what it was worth; say that much first, in your own words. Owners are usually already out working, so never say they can "get back to work." If they want detail: every Google review answered, the Google profile kept current, missed calls answered by a phone assistant like me, follow-ups on quotes and invoices, a one-page monthly report, and an app where the owner approves review replies and posts. It works on the number they already have, through call forwarding.';
+// Part 8c is live only once its blind test passes.
+export const SERVICES_DAY_FIRST_LIVE = false;
+
 // "$149", "$59", "$29"
 export const dollars = c => '$' + (c / 100).toLocaleString('en-US', { maximumFractionDigits: (c % 100) ? 2 : 0 });
 export const perMinute = () => 'about ' + Math.round(MAX.moreCents / MAX.moreMinutes) + ' cents a minute';
@@ -29,6 +43,8 @@ export function ownLineFacts() {
   return {
     prices: 'Starter is ' + dollars(p.Starter.cents) + ' a month, Growth is ' + dollars(p.Growth.cents) + ' a month, and Pro is ' + dollars(p.Pro.cents) + ' a month, about $' + p.Starter.perDay + ', $' + p.Growth.perDay + ' and $' + p.Pro.perDay + ' a day. There is no setup fee and no contract; it is ' + PROMISES.contract + ', and if the first month isn\'t worth it, it is refunded. ' +
       'Max, this phone assistant, comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
+    about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + '. ' + TEAM.support + ' handles client support and calls people back within ' + PROMISES.supportReply + '; she can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
+    services: SERVICES_DAY_FIRST_LIVE ? SERVICES_DAY_FIRST : SERVICES_REPORT_FIRST,
     plans: 'Every plan, Starter included, has a booking and quote page customers can use any hour. Growth adds review requests after every job, posts from their photos, matching listings, every lead logged, and competitor watch. Pro adds their own business number with missed-call text-back and reminders for quotes, appointments and invoices; texting starts once carriers approve the number, ' + PROMISES.textingApproval + '. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
   };
 }

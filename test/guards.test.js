@@ -230,3 +230,17 @@ test('Nov 5 real call: the business question is only cut once answered or asked 
   assert.equal(V.cutBizQ('Fair. What kind of business do you run?', V.askedBiz(twice)), 'Fair. ');
   assert.ok(V.IDLE_MS >= 6000 && V.IDLE_Q_MS >= 6000, 'a person waits more than a couple of seconds');
 });
+
+test('8a g-audit: the free audit is offered once; after a no it is not mentioned again (Christopher, Nov 5)', () => {
+  const AO = { business: 'Always Open', own: true };
+  const offer = 'Want the free audit texted to you?';
+  const m1 = call('do you outreach to people to get me sales', 'We follow up with your customers. ' + offer, 'why don\'t you cold call customers for me is that an option?');
+  assert.equal(run(AO, m1, 'x', ['g-audit'], 'Cold calling isn\'t part of what we do. ' + offer).text, 'Cold calling isn\'t part of what we do. ');
+  const m2 = m1.concat({ r: 'a', t: 'Not today.' }, { r: 'u', t: 'Now I don\'t want the free audit texted to me. What do you do?' });
+  assert.equal(run(AO, m2, 'x', ['g-audit'], 'Fair, I\'ll skip the audit. We follow up on quotes that went quiet.').text, 'We follow up on quotes that went quiet.');
+  // taken: it may be mentioned again (sending it)
+  const m3 = call('what is the audit', 'A one-page look at how you show up online. ' + offer, 'sure, text it to me');
+  assert.equal(run(AO, m3, 'x', ['g-audit'], 'Done, I\'ll text you the free audit after we hang up.').cuts.length, 0);
+  // the first offer always goes out
+  assert.equal(run(AO, call('what do you do'), 'x', ['g-audit'], 'We answer your calls. ' + offer).cuts.length, 0);
+});
