@@ -97,7 +97,8 @@ export async function queueOnWay(env, c, job, who, mins) {
 }
 
 // Dial one queued call, with every rule. True when Twilio took it.
-async function place(env, r) {
+async function place(env, r, now) {
+  now = now || Date.now();   // the cron's own clock, so a test at a fixed hour and a tick near midnight both read right
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return false;
   const line = await lineOf(env, r.client_id);
   const skip = (why, final) => env.DB.prepare('UPDATE outcalls SET status = ?1, result = ?2 WHERE id = ?3 AND status = \'pending\'').bind(final ? 'skipped' : 'pending', why, r.id).run().catch(() => {});
@@ -106,12 +107,12 @@ async function place(env, r) {
   const owner = !!(KINDS[r.kind] && KINDS[r.kind].owner);
   if (!owner) {
     if (await callOptedOut(env, r.client_id, r.phone)) { await skip('opted out', true); return false; }
-    if (!callHoursOk(await tzFor(env, r.client_id), Date.now(), r.phone)) return false;   // a later tick
+    if (!callHoursOk(await tzFor(env, r.client_id), now, r.phone)) return false;   // a later tick
   }
   if (+r.attempts >= 2) { await skip('tried twice', true); return false; }
-  if (r.kind === 'urgent' && Date.now() - Date.parse(r.created) > 3600e3) { await skip('too late to matter', true); return false; }
+  if (r.kind === 'urgent' && now - Date.parse(r.created) > 3600e3) { await skip('too late to matter', true); return false; }
   const claim = await env.DB.prepare("UPDATE outcalls SET attempts = attempts + 1, result = 'calling', due_at = ?1 WHERE id = ?2 AND status = 'pending' AND attempts = ?3")
-    .bind(new Date(Date.now() + 3 * 3600e3).toISOString(), r.id, r.attempts).run();
+    .bind(new Date(now + 3 * 3600e3).toISOString(), r.id, r.attempts).run();
   if (claim && claim.meta && claim.meta.changes === 0) return false;
   const d = await dialOut(env, { number: line.number }, r.phone, '/voice/oc/' + env.VOICE_KEY + '?id=' + r.id, '/voice/ocstatus/' + env.VOICE_KEY + '?id=' + r.id);
   if (!d.ok) { await env.DB.prepare('UPDATE outcalls SET result = ?1 WHERE id = ?2').bind('failed: ' + String(d.why || '').slice(0, 80), r.id).run().catch(() => {}); return false; }
@@ -229,7 +230,7 @@ export async function outCallsCron(env, now) {
     } catch (e) { /* one client's data never stops the rest */ }
   }
   const due = ((await env.DB.prepare("SELECT * FROM outcalls WHERE status = 'pending' AND due_at <= ?1 AND attempts < 2 ORDER BY due_at LIMIT 40").bind(iso(now)).all()).results) || [];
-  for (const r of due) if (await place(env, r)) stats.calls++;
+  for (const r of due) if (await place(env, r, now)) stats.calls++;
   return stats;
 }
 function sayHour(h, m) { const ap = h >= 12 ? 'PM' : 'AM', hh = h % 12 || 12; return hh + (m ? ' ' + (m < 10 ? 'oh ' : '') + m : '') + ' ' + ap; }
