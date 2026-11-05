@@ -44,6 +44,6 @@ test('regulated businesses and staff get no Fill my week at all', async () => {
 });
 
 test('the app panel has a button for each missing step, and the import screen explains how to get the file', () => {
-  for (const s of ['See Pro', 'Connect Google Calendar', 'Import my customers', 'Turn Fill my week on', ' past customers are', 'Nobody is due yet', 'of \'+st.length+\' ready']) assert.ok(BIZ_JS.includes(s), s);
+  for (const s of ['Ask Katie about Pro', 'Connect Google Calendar', 'Import my customers', 'Turn Fill my week on', ' past customers are', 'Nobody is due yet', 'of \'+st.length+\' ready']) assert.ok(BIZ_JS.includes(s), s);
   for (const s of ['QuickBooks Online', 'Jobber', 'Housecall Pro', 'Square', 'Google Contacts', 'hello@alwaysopenoffice.com']) assert.ok(PAST_JS.includes(s), s);
 });

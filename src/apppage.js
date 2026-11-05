@@ -19,14 +19,14 @@ export function appHtml({ base, business }) {
     '<style>' + CSS + '</style></head><body>' +
     '<header class="top"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>' +
     '<div><span class="kick">Always Open</span><b id="biz">' + biz + '</b></div></div>' +
-    '<button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>' +
+    '<div class="topr"><button class="btn line katie" type="button" data-a="katie">Text Katie</button><button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>' +
     '<div class="offline" id="offline" hidden>No connection. Showing what we had.</div>' +
     '<main id="view" tabindex="-1"><div class="loading"><span></span><span></span><span></span></div></main>' +
     '<nav class="tabs" aria-label="Sections">' +
-    tab('home', 'Home', '<path d="M4 11.2L12 4.5l8 6.7V20h-5.2v-5.4H9.2V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
-    tab('approve', 'Approve', '<path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>') +
-    tab('max', 'Calls', '<path d="M6.6 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.9 5.9l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
-    tab('ask', 'Ask us', '<path d="M4.5 6.5h15v10h-8l-4.5 3.5v-3.5H4.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
+    tab('today', 'Today', '<path d="M4 11.2L12 4.5l8 6.7V20h-5.2v-5.4H9.2V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
+    tab('customers', 'Customers', '<circle cx="9" cy="8.5" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 19.5c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.8c1.6.6 2.7 2.1 3 4.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>') +
+    tab('money', 'Money', '<path d="M12 3.5v17M16.5 7.5c-.7-1.5-2.4-2.3-4.5-2.3-2.6 0-4.3 1.3-4.3 3.2 0 4.4 9.1 2.4 9.1 7.1 0 2-1.9 3.4-4.6 3.4-2.3 0-4.1-.9-4.9-2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>') +
+    tab('max', 'Max', '<path d="M6.6 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.9 5.9l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>') +
     '</nav>' +
     '<div class="toast" id="toast" role="status" aria-live="polite"></div>' +
     '<div class="scrim" id="scrim" hidden></div>' +
@@ -34,8 +34,8 @@ export function appHtml({ base, business }) {
 }
 
 function tab(id, label, path) {
-  return '<button type="button" class="tab" data-tab="' + id + '" aria-label="' + label + '"' + (id === 'max' ? ' hidden' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg><span>' + label + '</span>' +
-    (id === 'approve' ? '<i class="badge" id="badge" hidden></i>' : (id === 'max' ? '<i class="badge" id="cbadge" hidden></i>' : '')) + '</button>';
+  return '<button type="button" class="tab" data-tab="' + id + '" aria-label="' + label + '"' + '' + '><svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg><span>' + label + '</span>' +
+    (id === 'today' ? '<i class="badge" id="badge" hidden></i>' : (id === 'max' ? '<i class="badge" id="cbadge" hidden></i>' : '')) + '</button>';
 }
 
 const CSS = `
@@ -44,7 +44,7 @@ const CSS = `
 --display:"Archivo","Arial Narrow",Arial,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,sans-serif;--mono:"DM Mono",ui-monospace,Menlo,monospace;color-scheme:dark}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background-color:var(--paper);background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:48px 48px;color:var(--ink);font:16px/1.45 var(--body);min-height:100vh;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+body{margin:0;background-color:var(--paper);background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:48px 48px;color:var(--ink);font:17px/1.45 var(--body);min-height:100vh;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:3px solid var(--sign);outline-offset:2px}
@@ -204,6 +204,10 @@ a.btn{color:inherit}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .scrim{position:fixed;inset:0;z-index:8;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center}
 .scrim[hidden]{display:none}
+.topr{display:flex;gap:8px;align-items:center}.katie{min-height:48px;padding:8px 12px;font-size:16px;white-space:nowrap}#refresh{width:48px;height:48px}
+.big3 b{font-size:2rem}
+#view p:not(.fine):not(.note):not(.sample){font-size:17px}#view .said p{font-size:17px}#view small{font-size:13px}#view span{font-size:max(15px,1em)}
+#view .btn,#view input,#view select,#view button.chip{min-height:48px}#view button.chip{font-size:15px;padding-left:14px;padding-right:14px}#view .chip{font-size:15px}.big3 span{font-size:16px}
 .sheet.full{width:100%;height:100%;max-height:100%;border-radius:0;grid-template-rows:auto 1fr auto;padding-top:calc(14px + env(safe-area-inset-top,0px))}
 .maptop{display:flex;align-items:center;justify-content:space-between;gap:12px}.close48{min-height:48px;min-width:96px}
 .mapfull{border-radius:14px;overflow:hidden;min-height:300px;position:relative;background:#1A2030}
@@ -295,7 +299,7 @@ const JS = `
 ${CLOCK_JS}${CLOCK_ANIM_JS}
 (function(){
 'use strict';
-var S=null,TAB='home',EDIT={},VERS={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
+var S=null,TAB='today',EDIT={},VERS={},MONTH='',LOADING=false,DEFER=null,DIRTY=false;
 var $=function(s){return document.querySelector(s);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function store(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}}
@@ -357,27 +361,27 @@ function load(quiet,auto){
 function hasMax(){return !!(S&&S.features&&(S.features.line||S.features.calls));}
 var KEEP=['msg','lh','lo','lt','lw','lg'];
 function render(){clearTimeout(render.clk);render.clk=setTimeout(function(){try{aoClockTick();aoClockAnim();}catch(e){}},0);
-  var hm=hasMax();if(S&&TAB==='max'&&!hm)TAB='home';
+  var hm=hasMax();if(S&&isTech()&&(TAB==='customers'||TAB==='money'))TAB='today';
   var bs=document.querySelectorAll('.tab');for(var i=0;i<bs.length;i++){if(bs[i].dataset.tab===TAB)bs[i].setAttribute('aria-current','page');else bs[i].removeAttribute('aria-current');}
   var n=S&&S.items?S.items.length:0,bd=$('#badge');bd.hidden=!n;bd.textContent=n>99?'99+':n;
-  var ct=document.querySelector('.tab[data-tab="max"]');ct.hidden=!hm;document.querySelector('.tabs').classList.toggle('five',false);
+  var ct=document.querySelector('.tab[data-tab="max"]');['customers','money'].forEach(function(k){var b=document.querySelector('.tab[data-tab="'+k+'"]');if(b)b.hidden=!!(S&&isTech());});document.querySelector('.tabs').classList.toggle('five',false);
   if(S&&S.line){var lb=ct.querySelector('span');if(lb)lb.textContent=S.line.name;}
   var nc=hm&&S?(S.calls||[]).filter(function(c){return c.status!=='handled';}).length:0,cb=$('#cbadge');cb.hidden=!nc;cb.textContent=nc>99?'99+':nc;
   if(!S)return;
-  var v={home:vHome,approve:vApprove,max:vMax,ask:vAsk}[TAB]||vHome;
+  var v={today:vToday,customers:vCustomers,money:vMoney,max:vMax}[TAB]||vToday;
   // what they were typing survives a refresh
   var keep={},act=document.activeElement;KEEP.forEach(function(k){var el=document.getElementById(k);if(el)keep[k]={v:el.value,f:act===el};});
   $('#view').innerHTML=sampleBar()+v();
   TOUCHED=TOUCHED.filter(function(el){return document.contains(el);});
   KEEP.forEach(function(k){var el=document.getElementById(k);if(!el||!keep[k])return;if(k==='msg'||DIRTY)el.value=keep[k].v;if(keep[k].f)el.focus({preventScroll:true});});
-  if(TAB==='ask'){var th=$('.thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
+  if(!$('#scrim').hidden){var th=$('#scrim .thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});}
   var si=$('#sidx');if(si){var hs=document.querySelectorAll('#view h2, #view .feature>h3');var out='';for(var j=0;j<hs.length;j++){var hd=hs[j],tt=hd.textContent.trim();if(!tt||tt.length>28)continue;hd.id=hd.id||('s-'+j);out+='<a href="#'+hd.id+'" data-a="jump" data-to="'+hd.id+'">'+esc(tt)+'</a>';}si.innerHTML=out;}
   var nb=$('#badge');if(nb&&nb.textContent!==LASTB){if(LASTB!=null){nb.classList.add('pop');setTimeout(function(){nb.classList.remove('pop');},300);}LASTB=nb.textContent;}
   mapSlot();
   livePoll();
 }
 var LASTB=null,LIVET=null;
-function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.live.length)?6000:(TAB==='home'&&SEG==='today'?30000:0);if(ms)LIVET=setTimeout(autoLoad,ms);}
+function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.live.length)?6000:(TAB==='today'?30000:0);if(ms)LIVET=setTimeout(autoLoad,ms);}
 
 /* ---------- Home ---------- */
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
@@ -457,7 +461,7 @@ function pulseLoad(){
   if(PULSE&&Date.now()-PULSE_AT<300000)return;
   if(PULSE_AT&&Date.now()-PULSE_AT<15000)return;
   PULSE_AT=Date.now();
-  api('pulse').then(function(res){if(res.j&&res.j.ok){PULSE=res.j.pulse;PULSE_AT=Date.now();if(TAB==='home'&&SEG==='results')render();}}).catch(function(){});
+  api('pulse').then(function(res){if(res.j&&res.j.ok){PULSE=res.j.pulse;PULSE_AT=Date.now();if(TAB==='money')render();}}).catch(function(){});
 }
 function md(day){var p=String(day).split('-');return (+p[1])+'/'+(+p[2]);}
 function dchg(ch){if(ch==null)return '';if(ch===0)return '<em>Same as the 30 days before</em>';return '<em class="'+(ch>0?'up':'')+'">'+(ch>0?'▲ ':'▼ ')+Math.abs(ch)+' vs the 30 days before</em>';}
@@ -513,6 +517,59 @@ function pulseBlock(){
   if((P.insights&&P.insights.length)||P.next)h+='<h2>What it means</h2><div class="card">'+(P.insights&&P.insights.length?'<ul class="ilist">'+P.insights.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'')+(P.next?'<p class="nexts"><b>One thing to try:</b> '+esc(P.next)+'</p>':'')+'</div>';
   return h;
 }
+
+/* ---------- the four screens (Brief 4, Part 3): Today, Customers, Money, Max. No segments, no doors. ---------- */
+var NEEDALL=false;
+function needCards(){
+  var out=[],f=S.features||{};
+  var calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).sort(function(a,b){return (b.urgent?1:0)-(a.urgent?1:0);});
+  calls.forEach(function(c){out.push(callCard(c));});
+  (S.items||[]).forEach(function(it){out.push(card(it));});
+  var due=(S.followups||[]).filter(isDue).sort(function(a,b){return String(a.due||'').localeCompare(String(b.due||''));}).slice(0,3);
+  due.forEach(function(x){out.push(fuCard(x));});
+  var leads=(S.leads||[]).filter(function(l){return l.status==='new';}).length;
+  if(leads)out.push('<div class="card"><b>'+leads+(leads===1?' new request':' new requests')+' from your booking page</b><div class="acts"><button class="btn line" type="button" data-a="go-leads">See who</button></div></div>');
+  return out;
+}
+function todayNums(){
+  var t=new Date().toDateString(),cs=(S.calls||[]).filter(function(c){return c.at&&new Date(c.at).toDateString()===t;});
+  var after=cs.filter(function(c){return isAfter(new Date(c.at));}).length,bk=cs.filter(function(c){return c.outcome==='booked';}).length;
+  var cell=function(n,l){return '<div><b>'+n+'</b><span>'+l+'</span></div>';};
+  return '<div class="tstrip big3" aria-label="Today so far">'+cell(cs.length,cs.length===1?'call today':'calls today')+cell(after,'after hours')+cell(bk,'booked')+'</div>';
+}
+function vToday(){
+  var first=(S.me&&S.me.name)||S.client.first||'';
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard();
+  var need=needCards();
+  h+='<h2>Needs you</h2>';
+  if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
+  else{h+=(NEEDALL?need:need.slice(0,5)).join('');if(need.length>5)h+='<div class="acts"><button class="btn line" type="button" data-a="need-more">'+(NEEDALL?'Show fewer':(need.length-5)+' more')+'</button></div>';}
+  if(S.line)h+='<h2>Today so far</h2>'+todayNums();
+  if(!isTech())h+=monthNowCard();
+  var f=S.features||{};
+  h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
+    (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+'</div>';
+  h+=flCard();
+  return h;
+}
+function vCustomers(){
+  var h='<h1>Customers</h1>'+mapCard();
+  var wk=Date.now()-7*86400000,cs=(S.calls||[]).filter(function(c){return c.at&&Date.parse(c.at)>wk;});
+  if(hasMax()||cs.length)h+='<h2>Who called this week</h2>'+(cs.length?cs.map(callCard).join(''):'<div class="empty slim"><b>No calls this week</b><span>Callers show up here, newest first.</span></div>');
+  h+=fuBlock()+jobsBlock()+(isTech()?'':(S.client.regulated?'':quotesBlock()+payBlock())+invBlock())+linkBlock()+pastBlock()+inboxRow();
+  return h;
+}
+function vMoney(){
+  var f=S.features||{};
+  var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+upCard()+vReviews()+shareCard()+referCard();
+  if(isOwner())h+='<h2>Your account</h2>'+setBlock()+teamBlock();
+  h+=metaBlock()+guardCard();
+  return h;
+}
+function katieSheet(){
+  sheet('<div class="maptop"><h2>Text Katie</h2><button class="btn line close48" type="button" data-close="1">Close</button></div>'+vAsk().replace('<h1>Ask us</h1>',''));
+  var th=$('#scrim .thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});
+}
 function vHome(){
   var f=S.features||{},first=(S.me&&S.me.name)||S.client.first||'';
   var items=(S.items||[]).length,calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).length;
@@ -552,14 +609,13 @@ function upItem(u){
   return '<li class="up"><div class="uph"><b>'+esc(u.name)+'</b><span class="fine">'+esc(u.price)+'</span></div><p class="fine" style="margin:2px 0 6px">'+esc(u.what)+'</p>'+
     '<div class="fitrow"><div class="fitbar" role="img" aria-label="Fit for your business: '+u.fit+' percent"><i style="width:'+u.fit+'%"></i></div><b>'+u.fit+'%</b></div><p class="fine" style="margin:2px 0 0">Fit for your business</p>'+
     '<ul class="why">'+u.why.map(function(w){return '<li>'+esc(w)+'</li>';}).join('')+'</ul>'+
-    '<div class="acts"><button class="btn line small" type="button" data-a="up-ask" data-id="'+esc(u.id)+'">Ask about this</button></div></li>';
+    '<div class="acts"><button class="btn line small" type="button" data-a="up-ask" data-id="'+esc(u.id)+'">Add it</button></div></li>';
 }
 function upCard(){
   var U=S.upgrades;if(!U||!U.list||!U.list.length)return '';
-  var list=UPALL?U.list:U.list.slice(0,3);
-  return '<div class="feature" id="upgrades"><h3>Upgrades for you</h3><p>What you could add, ranked by how well it fits your business, and why.</p><ul class="uplist">'+list.map(upItem).join('')+'</ul>'+
-    (U.list.length>3?'<div class="acts"><button class="btn ghost small" type="button" data-a="up-all">'+(UPALL?'Show fewer':'See all '+U.list.length)+'</button></div>':'')+
-    '<details style="margin-top:8px"><summary class="fine">How the fit is worked out</summary><p class="fine">'+esc(U.how)+'</p></details></div>';
+  var list=U.list.slice(0,1);
+  return '<div class="feature" id="upgrades"><h3>One thing to add</h3><p>What fits your business best right now.</p><ul class="uplist">'+list.map(upItem).join('')+'</ul>'+
+    '</div>';
 }
 /* ---------- the live map (Brief 4, Part 1): the map itself on Customers, never a link to it ---------- */
 var MLS='',MLQ=[],MAPEL=null,MAPM=null,MAPF=null,MAPD=null,MAPAT=0;
@@ -676,7 +732,7 @@ function lostCard(){
 function referCard(){
   var r=S.referrals||{},rows=r.list||[],h='<div class="feature"><h3>Know an owner who\\u2019d want this?</h3><p>Send them your link. They get the same free audit you did.</p><p><b>Refer a business. When they\\u2019ve stayed 3 months, you get a month free.</b></p>';
   if(rows.length)h+='<ul class="reflist">'+rows.map(function(x){return '<li><b>'+esc(x.business)+'</b><span>'+esc(x.label)+'</span></li>';}).join('')+'</ul><p class="fine">'+(r.bank?'Credit on your account: $'+Math.round(r.bank/100).toLocaleString('en-US')+'. ':'')+(r.used||0)+' of '+(r.cap||6)+' free months used in the last 12 months.</p>';
-  return h+'<div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div><p class="fine">Send us six businesses, we work for free half the year. Never for customers or reviews. <a href="/terms#referral-credit" target="_blank" rel="noopener">The rules</a></p></div>';
+  return h+'<div class="acts"><button class="btn line" type="button" data-a="refer">Share your link</button></div><p class="fine">Send us six businesses, we work for free half the year. Never for customers or reviews. <a href="/terms#referral-credit">The rules</a></p></div>';
 }
 function guardCard(){
   var g=S.complianceGuard;if(!g)return '';
@@ -695,7 +751,7 @@ function signBack(L){
     var cs=todayCalls(),n=cs.length,u=cs.filter(function(c){return c.urgency==='urgent';}).length;
     return '<b>'+(n?esc(L.name)+' took '+n+(n===1?' call':' calls')+' today':'No calls yet today')+'</b><span>'+(n?'Last one at '+esc(clock(cs[0].at))+(u?' \\u00b7 '+u+' urgent':''):esc(L.name)+' is listening, day and night.')+'</span>'+
       (R.calls!=null?'<span>This month: '+(+R.calls||0)+((+R.calls||0)===1?' call':' calls')+'</span>':'')+
-      '<div class="acts"><button class="btn line sm" type="button" data-tab="max">See calls</button><button class="btn ghost sm" type="button" data-a="sign">Back</button></div>';
+      '<div class="acts"><button class="btn ghost sm" type="button" data-a="sign">Back</button></div>';
   }
   return '<b>This month so far</b><span>'+(+R.reviews||0)+((+R.reviews||0)===1?' new review':' new reviews')+' \\u00b7 '+(+R.requests||0)+((+R.requests||0)===1?' request':' requests')+'</span><div class="acts"><button class="btn ghost sm" type="button" data-a="sign">Back</button></div>';
 }
@@ -760,8 +816,7 @@ function monthNowCard(){
   return '<div class="mnow"><div class="mnow-h"><b>'+esc(mo)+' so far</b><span>Live now. Sent on the 2nd.</span></div>'+
     '<div class="mnow-g">'+t.map(function(x){return '<div><b>'+(+x[0]||0)+'</b><span>'+esc(x[1])+'</span>'+(x[2]?'<small>'+esc(x[2])+'</small>':'')+'</div>';}).join('')+'</div>'+
     (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
-    (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+
-    '<div class="acts" style="margin-top:10px"><a class="btn line sm" href="'+esc(BASE+m.page)+'">Open '+esc(mo)+'\u2019s page</a>'+(m.year?'<a class="btn line sm" href="'+esc(BASE+m.year)+'">Your year</a>':'')+'</div></div>';
+    (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+'</div>';
 }
 // Max's clock: this month on one dial (server-drawn, clock.js), the two numbers, the one call, and the list behind it.
 function clockCard(){
@@ -785,7 +840,7 @@ function heroCard(){
     var on=L.onAir;
     if(on&&SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back to '+esc(L.name))+'<div class="hero-t">'+signBack(L)+'</div></div>';
     return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+(on?'Your office is open':(L.paused?'Calls are paused':'Calls are off'))+'</b><span>'+officeLine()+'</span><span class="sm">'+esc(L.name)+' \\u00b7 '+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
-      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-tab="ask">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+''+(isTech()?'':'<button class="btn ghost sm" type="button" data-tab="max">Settings</button>')+'</div></div></div>';
+      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-a="katie">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+''+(isTech()?'':'<button class="btn ghost sm" type="button" data-tab="max">Settings</button>')+'</div></div></div>';
   }
   if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
   return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Your office is open</b><span>'+officeLine()+(f.calls||S.client.regulated?'':' Max, your phone line, comes with your plan.')+'</span>'+
@@ -923,7 +978,7 @@ function revCard(r){
   var st=r.status==='pending'?'<span class="chip warn">Waiting for your OK</span>':(r.status==='approved'?'<span class="chip ok">Reply approved</span>':(r.status==='skipped'?'<span class="chip">No reply</span>':'<span class="chip ok">Handled by us</span>'));
   return '<article class="card"><div class="ch">'+(r.stars?'<span class="stars" aria-label="'+r.stars+' stars">'+stars(r.stars)+'</span>':'')+(r.name?'<span class="who">'+esc(r.name)+'</span>':'')+(r.at?'<span class="who">'+esc(when(r.at))+'</span>':'')+'</div>'+
     (r.review?'<blockquote>'+esc(r.review)+'</blockquote>':'<blockquote>Rating only, no written review.</blockquote>')+(r.reply?'<div class="lbl">Our reply</div><div class="draft">'+esc(r.reply)+'</div>':'')+
-    '<div class="ch">'+st+(r.status==='pending'?'<button class="btn line sm" type="button" data-tab="approve">Review it</button>':'')+'</div></article>';
+    '<div class="ch">'+st+(r.status==='pending'?'<button class="btn line sm" type="button" data-tab="today">Approve it on Today</button>':'')+'</div></article>';
 }
 function vReviews(){
   var f=S.features||{},rv=S.reviews||[];
@@ -934,7 +989,7 @@ function vReviews(){
   else h+='<div class="card score"><div class="big"><b>\\u2014</b><span class="who">Your star rating, and how it moves month to month, shows here once your Google profile is connected.</span></div></div>';
   h+='<h2>Latest reviews</h2>'+(rv.length?rv.map(revCard).join(''):'<div class="empty slim"><b>No reviews yet</b><span>New Google reviews land here with our reply, and every reply waits for your OK.</span></div>');
   if(f.qr&&S.client.qr)h+='<div class="feature"><h3>Your review QR code</h3><p>Show it at the counter or on a job. Ask every customer, not just the happy ones.</p><div class="acts"><button class="btn line" type="button" data-a="qr">Show the code</button></div></div>';
-  h+=rivalCard();
+  if((S.features||{}).competitors)h+=rivalCard();
   var rs=(S.months||[]).filter(function(m){return m.record;});
   h+='<h2>Monthly records</h2><p class="note" style="margin:-4px 2px 10px">Every public review, reply and post for a month, with who approved it. Open one and tap Save as PDF to keep it.</p>';
   h+=rs.length?'<div class="recs">'+rs.map(function(m){return '<a class="rec" href="'+esc(BASE+'/record/'+m.month)+'"><div><b>'+esc(m.label)+'</b><span>Record of public communications</span></div>'+ICON.chev+'</a>';}).join('')+'</div>':'<div class="empty slim"><b>No records yet</b><span>Your first record is made in the first days of next month.</span></div>';
@@ -962,8 +1017,8 @@ function vMax(){
     if(f.calls)h+='<h2>Calls</h2>'+callsList();
     return h;
   }
-  h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>'+mSegBar(L,f);
-  if(MSEG==='answer'){
+  h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>'+'';
+  {
     h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?' is answering':' is off')+'</b><span>'+(L.onAir?'Every call, day and night.':(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
@@ -978,16 +1033,16 @@ function vMax(){
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
       '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
     if(L.voices)h+=voiceCard(L);
-  } else if(MSEG==='job'){
+    if(f.calls)h+='<h2>Calls</h2>'+callsList();
+  }{
     h+=jobCard(L);
-  } else if(MSEG==='teach'){
-    h+=teachCard(L)||'<div class="empty slim"><b>Nothing to teach here</b><span>'+esc(L.name)+' answers from your hours and notes on the Answering tab.</span></div>';
-  } else if(MSEG==='book'){
+  }{
+    h+=teachCard(L)||'';
+  }{
     h+=bookCard(L);
-  } else if(MSEG==='after'){
+  }{
     h+=afterCard(L)+textbackCard();
-  } else if(MSEG==='calls'){
-    h+='<h2>Calls</h2>'+callsList();
+  }{
   }
   return h;
 }
@@ -1246,7 +1301,7 @@ function refer(){
 /* ---------- Ask us ---------- */
 function vAsk(){
   var f=S.features||{},reg=S.client.regulated;
-  var h='<h1>Ask us</h1><p class="lede">Goes straight to Katie at Always Open. Hours, changes, questions, anything. She answers, usually the same business day.</p>';
+  var h='<h1>Ask us</h1><p class="lede">Goes straight to Katie. She answers the same business day, usually.</p>';
   var ms=S.messages||[];
   h+=ms.length?'<div class="thread">'+ms.map(function(m){return '<div class="msg '+m.dir+'">'+esc(m.text)+'<small>'+(m.dir==='out'?'Always Open':esc(m.by||'You'))+' \\u00b7 '+esc(when(m.at))+'</small></div>';}).join('')+'</div>':'<p class="note" style="margin:14px 2px">Questions, changes, anything. We answer here.</p>';
   h+='<div class="compose"><label class="lbl" for="msg" style="margin:0">Message</label><textarea id="msg" maxlength="1000" placeholder="Type your message"></textarea>'+(reg?'<p class="fine">Please don\\u2019t include client names, policy or account numbers, or claim details.</p>':'')+'<div class="acts"><button class="btn red" type="button" data-a="send">Send</button></div></div>';
@@ -1303,11 +1358,13 @@ document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg],[data-mseg]');if(!t)return;
   if(t.dataset.mseg){MSEG=t.dataset.mseg;render();window.scrollTo(0,0);return;}
   if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
-  if(t.dataset.go){var g=t.dataset.go;if(g==='up'){TAB='home';SEG='results';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var jt=document.getElementById('upgrades');if(jt)jt.scrollIntoView({behavior:'smooth',block:'start'});return;}if(g==='fu'){TAB='home';SEG='today';render();var el=document.getElementById('fu');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}else{TAB=g;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);}return;}
+  if(t.dataset.go){TAB={approve:'today',up:'money',fu:'today',home:'today',ask:'today'}[t.dataset.go]||t.dataset.go;if(TABS.indexOf(TAB)<0)TAB='today';render();window.scrollTo(0,0);return;}
   if(t.dataset.close){close();return;}
   if(t.dataset.tab){TAB=t.dataset.tab;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);return;}
   var a=t.dataset.a,id=t.dataset.id;
   if(a==='map-open'){mapOpen();return;}
+  if(a==='katie'){katieSheet();return;}
+  if(a==='need-more'){NEEDALL=!NEEDALL;render();return;}
   if(a==='map-show'){var on=t.getAttribute('aria-checked')!=='true';t.disabled=true;post('map',{show:on}).then(function(res){t.disabled=false;if(res.j.ok){S.map=res.j.map;toast(on?'You are on the map.':'You are off the map.');render();}else toast(res.j.error||'Could not save.');}).catch(function(){t.disabled=false;toast('No connection. Try again.');});return;}
   if(a==='approve')decide(id,'approve','');
   else if(a==='edit'){var it=(S.items||[]).filter(function(x){return x.id===id;})[0];if(it){EDIT[id]=it.text;render();var ta=document.querySelector('[data-ed="'+CSS.escape(id)+'"]');if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}}}
@@ -1368,7 +1425,7 @@ document.addEventListener('click',function(e){
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
   else if(a==='ask-max')maxSetup(t);
-  else if(a==='go-leads'){SEG='customers';try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();window.scrollTo(0,0);}
+  else if(a==='go-leads'){TAB='customers';render();window.scrollTo(0,0);}
   else if(a==='reopen')send('hours','Open after all today ('+today()+').',function(){if(S.line)S.line.closedUntil='';render();toast('Got it. '+(S.line?(S.line.name||'Max')+' is back to your regular hours.':'We’ll update Google.'));},{reopen:true});
   else if(a==='call-done')markCall(id,'handled');
   else if(a==='call-reopen')markCall(id,'reopen');
@@ -1404,7 +1461,7 @@ $('#refresh').addEventListener('click',function(){load();});
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();DEFER=e;if(S)render();});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&!editing())load(true,true);});
 setInterval(function(){if(document.visibilityState==='visible'&&$('#scrim').hidden&&!Object.keys(EDIT).length&&!DIRTY&&!editing())load(true,true);},60000);
-var OLD={month:'home',record:'approve',reviews:'approve',calls:'max'},TABS=['home','approve','max','ask'];
+var OLD={home:'today',approve:'today',ask:'today',month:'money',record:'money',reviews:'money',calls:'max'},TABS=['today','customers','money','max'];
 function fromHash(){var h=(location.hash||'').slice(1);if(OLD[h])h=OLD[h];return TABS.indexOf(h)>-1?h:'';}
 window.addEventListener('hashchange',function(){var h=fromHash();if(h&&h!==TAB){TAB=h;render();window.scrollTo(0,0);}});
 TAB=fromHash()||TAB;

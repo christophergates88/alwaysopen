@@ -35,7 +35,8 @@ const b = await DB.prepare('SELECT code FROM billing WHERE session_id = ?1').bin
 const code = b.code;
 // something to look at: one reply waiting for approval and one call taken by Max
 try {
-  await DB.prepare("INSERT INTO app_queue (client_id, kind, title, body, status, created) VALUES (?1, 'reply', 'Reply to a 5-star review from R. Patel', 'Thank you, R. It was a pleasure helping with the water heater. Call any time.', 'open', ?2)").bind((await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id, new Date().toISOString()).run();
+  const qid = (await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id, now = new Date().toISOString();
+  await DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, hq_synced, checked, created, updated, notified, photo) VALUES ('itappcheck', ?1, 'reply', 'R. Patel left 5 stars', 'Fixed our water heater the same day.', 5, 'Thank you, R. Glad we could get the water heater going the same day. Call any time.', 'pending', 0, 1, ?2, ?2, 1, '')").bind(qid, now).run();
 } catch (e) { /* the queue table may be shaped differently; the page still renders */ }
 // a call Max took, with one line he held back (Brief 3): the owner sees it in plain words under the reply
 try {
@@ -77,8 +78,9 @@ const problems = [];
 let heldShot = false;
 await page.goto('http://localhost:' + port + '/app/' + code, { waitUntil: 'load' });
 await page.waitForTimeout(600);
-for (const tab of ['home', 'approve', 'max', 'ask']) {
-  const btn = await page.$('[data-tab="' + tab + '"], nav.tabs a[href*="' + tab + '"], nav.tabs button:has-text("' + ({ home: 'Home', approve: 'Approve', max: 'Calls', ask: 'Ask us' })[tab] + '")');
+for (const tab of ['today', 'customers', 'money', 'max']) {
+  const btn = await page.$('[data-tab="' + tab + '"]');
+  if (!btn) problems.push('no ' + tab + ' tab');
   if (btn) { await btn.click(); await page.waitForTimeout(400); }
   const r = await page.evaluate(() => {
     const out = { small: [], tiny: [] };
@@ -99,23 +101,27 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
       const label = /Mono|monospace/.test(s.fontFamily) || el.closest('small,em,.kick,.fine,.note,.tab,.segn') || s.textTransform === 'uppercase';   // a tab-bar caption under its icon reads at 12 px, like iOS
       if (px < (label ? 12 : 15)) out.tiny.push(el.tagName + '.' + (el.className || '') + ' ' + px + 'px "' + n.textContent.trim().slice(0, 30) + '"');
     }
+    // Brief 4: no doors, no segments, plain words, 17 px body, one column
+    document.querySelectorAll('#view [data-go], #view [data-seg], #view [data-mseg], #view .seg, #view a[target=_blank], #view details.drawer, #view .drawer, #view .accordion').forEach(x => { if (!x.closest('.maplibregl-ctrl')) (out.doors = out.doors || []).push(x.outerHTML.slice(0, 70)); });
+    const JARGON = /\b(configure|integration|sync|status|enable|dashboard|pending|queue|listing|segment|settings|feature)s?\b/i;
+    document.querySelectorAll('#view h1, #view h2, #view h3, #view button, #view .lede, #view b').forEach(x => { if (!vis(x)) return; const t = x.textContent.trim(); const m = t.match(JARGON); if (m) (out.jargon = out.jargon || []).push('"' + m[0] + '" in "' + t.slice(0, 50) + '"'); });
+    document.querySelectorAll('#view p').forEach(x => { if (!vis(x) || x.closest('.fine,.note,small,.maplibregl-ctrl,.sample') || x.matches('.fine,.note,.sample')) return; const px = parseFloat(getComputedStyle(x).fontSize); if (px < 16.9) (out.body = out.body || []).push(px + 'px "' + x.textContent.trim().slice(0, 30) + '"'); });
     out.ai = /\bAI\b|artificial intelligence/.test(document.body.innerText) ? (document.body.innerText.match(/[^.]*\bAI\b[^.]*/) || [''])[0] : '';
     return out;
   });
   if (r.docW > r.winW) problems.push(tab + ': scrolls sideways (' + r.docW + ' > ' + r.winW + ')');
   r.small.forEach(x => problems.push(tab + ': small tap target ' + x));
   r.tiny.forEach(x => problems.push(tab + ': small text ' + x));
+  (r.doors || []).forEach(x => problems.push(tab + ': door or segment: ' + x));
+  (r.jargon || []).forEach(x => problems.push(tab + ': jargon ' + x));
+  (r.body || []).forEach(x => problems.push(tab + ': body text under 17 px ' + x));
   if (r.ai) problems.push(tab + ': says "AI": ' + r.ai.trim().slice(0, 80));
-  if (tab === 'max' && !heldShot) { const cb = await page.$('[data-mseg="calls"]'); if (cb) { await cb.click(); await page.waitForTimeout(300); } }
   if (!heldShot) { const d = await page.$('details:has(.said)'); if (d) { heldShot = true; await d.evaluate(x => { x.open = true; document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; }); }); await page.waitForTimeout(200); const card = await d.evaluateHandle(x => x.closest('article,.card,li,section') || x); if (shots) await card.asElement().screenshot({ path: path.join(shots, 'app-held-back.png') }); if (!(await page.$('.said p.held'))) problems.push(tab + ': the held-back line did not render'); } }
   if (shots) await page.screenshot({ path: path.join(shots, 'app-' + tab + '.png'), fullPage: true });
 }
 // the After-the-call screen, where the outreach card lives (Brief 3, Part 8d): same size rules, and a screenshot
 { const mx = await page.$('[data-tab="max"]'); if (mx) { await mx.click(); await page.waitForTimeout(300); }
-  const af = await page.$('[data-mseg="after"]');
-  if (!af) problems.push('max: no After the call segment');
-  else {
-    await af.click(); await page.waitForTimeout(300);
+  {
     const card = await page.evaluateHandle(() => { const h = [...document.querySelectorAll('h2')].find(x => /Outreach calls/.test(x.textContent)); return h ? h.nextElementSibling : null; });
     const el = card && card.asElement();
     if (!el) problems.push('after: no outreach card');
@@ -127,8 +133,7 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
   }
 }
 // the live map (Brief 4, Part 1): the map itself on Customers, examples when nobody is near, a full-screen sheet on tap
-{ const hm = await page.$('[data-tab="home"]'); if (hm) { await hm.click(); await page.waitForTimeout(300); }
-  const cu = await page.$('[data-seg="customers"]'); if (cu) { await cu.click(); await page.waitForTimeout(300); }
+{ const cu = await page.$('[data-tab="customers"]'); if (cu) { await cu.click(); await page.waitForTimeout(300); }
   const box = await page.$('#map .mapbox');
   if (!box) problems.push('map: no live map on Customers');
   else {
@@ -172,6 +177,23 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
     if (live.ex || live.real !== 4 || live.note) problems.push('map: with 4 businesses nearby it showed ' + live.real + ' dots, ' + live.ex + ' examples' + (live.note ? ', and the examples line' : ''));
     await page.unroute(/\/api\/map\?/);
   }
+}
+// Text Katie: one sheet from any screen
+{ const k = await page.$('header [data-a="katie"]');
+  if (!k) problems.push('no Text Katie button');
+  else { await k.click(); await page.waitForTimeout(300);
+    const ok = await page.evaluate(() => !!document.querySelector('.sheet #msg') && document.querySelectorAll('.sheet').length === 1);
+    if (!ok) problems.push('Text Katie did not open the message box');
+    if (shots) await page.screenshot({ path: path.join(shots, 'app-katie.png') });
+    await page.click('.sheet [data-close]'); await page.waitForTimeout(200); }
+}
+// two taps or fewer for the tasks owners do most (Brief 4, Part 4): [task, tab, selector that must be on that screen]
+for (const [task, tab, sel] of [['see a call', 'today', '.call'], ['call back', 'today', '.call a[href^="tel:"]'], ['post a review reply', 'today', '[data-a="approve"]'],
+  ['see the map', 'customers', '#map .mapbox'], ['turn the map on', 'customers', '[data-a="map-show"]'], ['see the month\'s worth', 'money', 'h1'],
+  ['hear Max', 'max', 'a[href^="tel:"]'], ['close for today', 'today', '[data-a="closed"]'], ['turn Max off', 'max', '[data-a="line-toggle"]'],
+  ['text Katie', 'today', 'header [data-a="katie"]'], ['see what Max knows', 'max', '#lo']]) {
+  await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(250);
+  if (!(await page.$(sel))) problems.push('two taps: "' + task + '" is not on ' + tab);
 }
 await browser.close(); srv.close();
 errors.forEach(e => problems.push('page error: ' + e.slice(0, 120)));

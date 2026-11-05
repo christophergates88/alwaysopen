@@ -94,7 +94,7 @@ function setBlock(){
   if(S.fillWeek){var W=S.fillWeek,st=W.steps||[],nd=st.filter(function(x){return x.done;}).length;
     var calUrl='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());
     var act=function(x){if(x.done)return '';
-      if(x.k==='pro')return '<button class="btn line sm" type="button" data-go="up">See Pro</button>';
+      if(x.k==='pro')return '<button class="btn line sm" type="button" data-a="katie">Ask Katie about Pro</button>';
       if(x.k==='texting')return '<span class="fine" style="margin:0">The carriers usually approve it 1 to 2 weeks after signup. Nothing for you to do.</span>';
       if(x.k==='calendar')return '<a class="btn line sm" href="'+esc(calUrl)+'">Connect Google Calendar</a>';
       if(x.k==='customers')return '<button class="btn line sm" type="button" data-a="pc-import">Import my customers</button>';
@@ -118,7 +118,7 @@ function setBlock(){
     '<p class="note" style="margin:4px 0 0">'+(H.give?(H.nearby?H.nearby+' nearby business'+(H.nearby===1?'':'es')+' can take hand-offs right now.':'No nearby business takes hand-offs yet. Max will not offer any.'):'Off.')+(H.given||H.taken?' This month: sent '+H.given+', took '+H.taken+'.':'')+' Nearest first, never by plan. Only businesses on Always Open.</p>';}
   g3=g3+h;
   var card=function(t,x){return x?'<h2>'+t+'</h2><div class="card">'+x+'</div>':'';};
-  return card('Your preferences',g1)+card('Public listing',g2)+card('Texting',gT)+card('Automation',g3);
+  return card('Your preferences',g1)+card('What the public sees',g2)+card('Texting',gT)+card('What we do for you',g3);
 }
 function mapSheet(){var m=S.map||{};
   sheet('<h2>What the map shows</h2><p class="fine">Your name, trade and town. Your phone and street address show only if you add them. Changes show in about ten minutes.</p>'+
