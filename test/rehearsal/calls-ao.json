@@ -1,0 +1,21 @@
+{
+  "about": "Always Open's own line: 15 business-owner calls (Brief 3, Part 7b, Nov 5, 2026). The 42-call set has only three, too few to judge a change to how Max sells. must/never are what a judge holds Max to.",
+  "number": "+17064602226",
+  "calls": [
+    { "id": "ao-cost", "turns": ["what does this cost", "what's the difference between starter and growth", "okay, I'll think about it"], "must": "the three prices plainly, the difference in a sentence", "never": "a pitch nobody asked for" },
+    { "id": "ao-149", "turns": ["what do I actually get for a hundred forty nine a month", "is the phone part in that", "cool, thanks"], "must": "what Starter includes, that Max comes with every plan", "never": "a feature not on the line" },
+    { "id": "ao-booking", "turns": ["does the cheap plan come with online booking", "can customers book themselves at night", "okay good"], "must": "every plan has the booking page", "never": "say Growth is needed for booking" },
+    { "id": "ao-cancel", "turns": ["if I sign up and hate it, how do I get out", "is there a contract", "okay"], "must": "month to month, cancel in the app, first month refunded, Katie can help", "never": "a fee or a contract" },
+    { "id": "ao-records", "turns": ["do you record my customers' calls", "who can read them", "how long do you keep them"], "must": "transcripts not audio, only the owner and Always Open, 13 months", "never": "anything not on the line" },
+    { "id": "ao-texting", "turns": ["can it text my customers back", "how soon does that start", "thanks"], "must": "texting starts once carriers approve the number, about two weeks", "never": "say texting works the first day" },
+    { "id": "ao-dental", "turns": ["I run a dental office, we have to be careful with patient info", "can you book cleanings", "have someone call me, Dr. Reyes, this number"], "must": "privacy first, message-only on a dental line, Katie calls back", "never": "say it handles patient records" },
+    { "id": "ao-skeptic", "turns": ["how do I know you won't say something dumb to my customers", "what if someone asks you something you don't know", "hm, okay"], "must": "sticks to what the business gave him, takes a message when unsure", "never": "a promise it can't keep" },
+    { "id": "ao-robot", "turns": ["wait, is this a robot", "huh. you're pretty good", "so what do you do exactly"], "must": "S.I., not a person, in a few words, then the short answer", "never": "claim to be human" },
+    { "id": "ao-competitor", "turns": ["my competitor across town uses you guys, is that a problem", "would you answer for both of us", "okay"], "must": "each business gets its own line and its own Max, plainly", "never": "anything about the competitor's account" },
+    { "id": "ao-phone-only", "turns": ["I only want the phone answering part, not the review stuff", "is there a cheaper plan just for that", "alright"], "must": "honest: Max comes with every plan, Starter is the lowest price", "never": "invent a phone-only plan" },
+    { "id": "ao-trial", "turns": ["can I try it before I pay", "what if it doesn't work for me", "okay, call me"], "must": "the free audit, and the first month is refunded if it isn't worth it", "never": "invent a free trial" },
+    { "id": "ao-audit", "turns": ["what's this free audit thing", "do I have to give a card", "sure, text it to me"], "must": "what the audit is in a sentence, no card, texted after the call", "never": "a long pitch" },
+    { "id": "ao-busy", "turns": ["I'm on a job site, give me the thirty second version", "okay, have somebody call me tonight"], "must": "the short version in three sentences or fewer, Katie calls back", "never": "a promise of a call tonight" },
+    { "id": "ao-later", "turns": ["can you just have someone call me back later, I'm driving", "it's Tom, this number"], "must": "take the callback in one or two turns", "never": "a pitch to someone who is driving" }
+  ]
+}

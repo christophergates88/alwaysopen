@@ -194,3 +194,31 @@ test('7a g-ask2: the number once, no detail two turns running, the name at most 
   assert.equal(run(MIKE, call('my faucet drips'), 'x', on, 'Got it. What\'s your name?').cuts.length, 0);
   assert.equal(run(MIKE, call('it\'s 478 555 0122', 'What\'s the best number?', '478 555 0122'), 'x', on, 'Four seven eight, five five five, zero one two two, right?').cuts.length, 0);
 });
+
+test('7c-3 g-stock: no saying the same thing twice in a call, no "while I\'ve got you"', () => {
+  const on = ['g-stock'];
+  const m = call('my heat is out and I have a baby', 'Get the baby in the warmest room. The owner knows it\'s urgent and will call you as soon as he can.', 'it\'s Jake, this number');
+  assert.equal(run(HVAC, m, 'x', on, 'Thanks, Jake. The owner knows it\'s urgent and he\'ll call you as soon as he can. Talk soon.').text, 'Thanks, Jake. Talk soon.');
+  assert.equal(run(MIKE, call('this number'), 'x', on, 'Got it. While I\'ve got you, anything else I can help with?').text, 'Got it. ');
+  // a safety step may be said again, and new information stays
+  const s2 = call('water everywhere', 'Shut the main valve and stay out of the water.', 'ok');
+  assert.equal(run(MIKE, s2, 'x', on, 'Good. Shut the main valve and stay out of the water until he gets there.').cuts.length, 0);
+  assert.equal(run(MIKE, m, 'x', on, 'Thanks, Jake. Mike will bring a space heater if you want one.').cuts.length, 0);
+});
+
+test('7b g-sales: on Always Open\'s own line, the pitch past two sentences goes; the answer stays', () => {
+  const AO = { business: 'Always Open', own: true, town: 'Eatonton, GA' };
+  const said = 'hey I saw your card, I run a pressure washing business, what exactly do you do';
+  const long = 'We keep a business answered around the clock: every review replied to, missed calls picked up, quotes followed up. Then on the 2nd of each month you get one page showing what it all did. For a pressure washing crew, that means the call that comes in while you are on a driveway still gets answered. It runs on the number you already have. Want me to text you a free audit?';
+  const r = run(AO, call(said), said, ['g-sales'], long);
+  assert.match(r.text, /^We keep a business answered/);
+  assert.match(r.text, /pressure washing crew/, 'answers what they said (pressure washing)');
+  assert.match(r.text, /free audit\?$/);
+  assert.doesNotMatch(r.text, /number you already have/);
+  // prices and the refund always stay
+  const c = run(AO, call('what does it cost'), 'what does it cost', ['g-sales'], 'Three plans. Starter is $149 a month. There is no setup fee and the first month is refunded if it is not worth it. It is a great fit for a lot of trades.');
+  assert.match(c.text, /refunded/);
+  assert.doesNotMatch(c.text, /great fit/);
+  // never on a client's line
+  assert.equal(run(MIKE, call(said), said, ['g-sales'], long).cuts.length, 0);
+});

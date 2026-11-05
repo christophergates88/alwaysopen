@@ -1335,7 +1335,7 @@ export function trimLead(lead, L, msgs) {
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
-export const HELD_LABEL = { 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+export const HELD_LABEL = { 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
 function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
 // The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
 export function transcriptOf(msgs, held) {

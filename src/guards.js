@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -113,6 +113,32 @@ function askLess(s, ctx) {
   const blocked = k => st.have[k] || (st.lastAsked || []).includes(k) || (k === 'number' && callerId && (st.asked.number || 0) >= 1) || (k === 'name' && (st.asked.name || 0) >= 2);
   return a.every(blocked);
 }
+// 7c-3 (Brief 3, Part 7). Stock lines: a statement that says again what Max already said this call ("The owner knows it's
+//    urgent and will call you as soon as he can" three times), and the filler "while I've got you". Safety steps,
+//    questions and read-backs are never cut here. (Mining phrases across calls was skipped on purpose: "Katie calls back
+//    within one business day" is on most calls, and every caller still needs to hear it once.)
+const toks = t => new Set(norm(t).split(' ').filter(w => w.length > 2));
+function sameAs(a, b) { const x = toks(a), y = toks(b); if (x.size < 5 || y.size < 5) return false; let n = 0; for (const w of x) if (y.has(w)) n++; return n / (x.size + y.size - n) >= 0.6; }
+function noStock(s, ctx) {
+  if (/\bwhile i'?ve got you\b|\bmientras le tengo\b/i.test(s)) return true;
+  if (isQ(s) || SAFETY.test(s) || DIGITS.test(s)) return false;
+  const before = (ctx.msgs || []).filter(m => m.r === 'a').slice(1).flatMap(m => sentencesOf(m.t));   // the greeting is not counted
+  return before.concat(sentencesOf(ctx.spoken || '')).some(b => sameAs(s, b));
+}
+// 7b (Brief 3, Part 7). Always Open's own line runs long because its facts invite a pitch. Cut by shape, not by count:
+//    from the third sentence of a reply, a statement stays only if it answers what the caller asked (shares words with
+//    their turn) or carries something they need (a price, the booking page, Katie, S.I., refund, contract, cancel,
+//    transcripts, texting, the audit, a business day). Questions and safety steps always stay.
+const SALES_KEEP = /\$|\b(\d+|dollars?|price|cost|month|day|plan|starter|growth|pro|booking|book|katie|s\.i\.|refund\w*|contract|cancel\w*|transcripts?|record\w*|audio|13 months|text\w*|carriers?|approve\w*|audit|business day|privacy|patient|month to month|no setup)\b/i;
+const STOP = new Set(['the', 'and', 'for', 'you', 'your', 'that', 'this', 'with', 'what', 'can', 'are', 'how', 'just', 'like', 'okay', 'have', 'does', 'did', 'about', 'there', 'they', 'them', 'its', "it's", 'would', 'will', 'from', 'get', 'got']);
+function salesShape(s, ctx) {
+  if (!ctx.L || !ctx.L.own) return false;
+  if (isQ(s) || SAFETY.test(s)) return false;
+  if (sentencesOf(ctx.spoken || '').length < 2) return false;
+  if (SALES_KEEP.test(s)) return false;
+  const asked = new Set(norm(ctx.said).split(' ').filter(w => w.length > 2 && !STOP.has(w)));
+  return !norm(s).split(' ').some(w => asked.has(w));
+}
 // 3. A question that names a town the caller never said ("Are you in Milledgeville?", "Is that in Eatonton?").
 function noLeadingTown(s, ctx) {
   if (!isQ(s)) return false;
@@ -148,7 +174,7 @@ function shortReply(s, ctx) {
   return before >= ((ctx.urgent || ctx.danger) ? 3 : 5) || w + words(s) > 40;
 }
 
-const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it
