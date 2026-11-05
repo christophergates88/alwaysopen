@@ -134,3 +134,12 @@ test('the rewrite is four switches, each measured alone; a line or a practice ru
   assert.deepEqual(V.lineView(line({ facts: '{"features":["cutoff","bogus"]}' })).features, ['cutoff']);
   for (const k of V.FEATURES) assert.ok(V.systemPrompt(Object.assign({}, L, { features: [k] }), '+14785550142', 'en-US', false).length <= 14200, k);
 });
+
+test('rooms running side by side never take the same practice request', async () => {
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const db = makeDB();
+  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-05T00:00:00Z', 'rehearse-request', '{\"number\":\"+10000000000\",\"tag\":\"t\"}')").run();
+  await Promise.all([V.rehearse({ DB: db }), V.rehearse({ DB: db }), V.rehearse({ DB: db })]);
+  const r = await db.prepare("SELECT kind, COUNT(*) AS n FROM voice_log GROUP BY kind ORDER BY kind").all();
+  assert.deepEqual(r.results.map(x => x.kind + ':' + x.n), ['rehearse:1', 'rehearse-taken:1'], 'claimed once, run once');
+});

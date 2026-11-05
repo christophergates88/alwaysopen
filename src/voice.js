@@ -2455,9 +2455,9 @@ function rehearsalLine(line, j) {
 }
 async function rehearseOne(env) {
   let req = null;
-  try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return false; }
+  // claimed in one statement, so the rooms running side by side never take the same request
+  try { req = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1) AND kind = 'rehearse-request' RETURNING rowid AS id, detail").first(); } catch (e) { return false; }
   if (!req) return false;
-  await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = ?1").bind(req.id).run();
   const j = parse(req.detail) || {};
   // Score transcripts already run (the baseline from before a change), with the same rubric the new run gets.
   if (Array.isArray(j.score)) {
@@ -2528,12 +2528,18 @@ export async function syncOwnLine(env) {
   } catch (e) { return false; }
 }
 
+const REHEARSE_ROOMS = 6;
 export async function voiceCron(env) {
   await claudeCheck(env);
   await syncOwnLine(env);
   // Timers can run in any of Cloudflare's locations, and Claude refuses requests from some regions. Rehearsals run in a
   // room kept in the eastern US, like the calls themselves (Twilio connects from there).
-  try { await env.CALLROOM.get(env.CALLROOM.idFromName('rehearsals'), { locationHint: 'enam' }).rehearse(); } catch (e) { await rehearse(env).catch(() => {}); }
+  // Six rooms side by side (Nov 4, 2026: one room took about 3 minutes a request, so 80 queued requests took hours).
+  // Each claims requests on its own and starts its next batch seconds after the last; only rooms with work run.
+  const waiting = await env.DB.prepare("SELECT COUNT(*) AS n FROM voice_log WHERE kind = 'rehearse-request'").first().then(r => +(r && r.n) || 0).catch(() => 0);
+  const rooms = Math.min(REHEARSE_ROOMS, Math.max(waiting ? 1 : 0, Math.ceil(waiting / 2)));
+  await Promise.all(Array.from({ length: rooms }, (_, i) => env.CALLROOM.get(env.CALLROOM.idFromName(i ? 'rehearsals-' + i : 'rehearsals'), { locationHint: 'enam' }).rehearse().catch(() => {})));
+  if (!rooms) { try { await env.CALLROOM.get(env.CALLROOM.idFromName('rehearsals'), { locationHint: 'enam' }).rehearse(); } catch (e) { await rehearse(env).catch(() => {}); } }
   try {
     // A call still "live" 20 minutes on never got its write-up (or the write-up failed and is tried again here, from the
     // words the call room kept). One being put through (transferred = 2) waits for the dial's result, unless Twilio said
