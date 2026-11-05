@@ -158,7 +158,7 @@ test('Part 1d: a goodbye closes, "same number" settles it, no town assumed, no h
 
 test('a social question gets a social reaction', () => {
   assert.equal(V.leadIn("hey there, how's your evening going", 'en-US', [], () => 0).kind, 'social');
-  assert.equal(V.leadIn('should I unplug it?', 'en-US', [], () => 0).text, 'Let me see.');
+  assert.notEqual(V.leadIn('should I unplug it?', 'en-US', [], () => 0).text, 'Let me see.', 'no pretend looking-up before a plain answer (Nov 5, 5:57 PM call)');
 });
 
 test('a town is asked once, open, never named; an emergency\'s first reply ends on the caller, not their name', () => {

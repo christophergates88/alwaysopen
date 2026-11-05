@@ -212,7 +212,7 @@ test('7b g-sales: on Always Open\'s own line, the pitch past two sentences goes;
   assert.match(c.text, /refunded/);
   assert.doesNotMatch(c.text, /great fit/);
   // never on a client's line
-  assert.equal(run(MIKE, call(said), said, ['g-sales'], long).cuts.length, 0);
+  assert.equal(run(MIKE, call(said), said, ['g-sales'], long).cuts.filter(c => c.guard === 'g-sales').length, 0);
 });
 
 test('a web address is not the end of a sentence', () => {
@@ -221,9 +221,10 @@ test('a web address is not the end of a sentence', () => {
   assert.deepEqual(G.sentencesOf('No end punctuation'), ['No end punctuation']);
 });
 
-test('Nov 5 real call: the business question is only cut once answered or asked twice; the quiet check-in waits like a person', () => {
+test('the business question is asked once a call (Nov 5, 5:57 PM: asked again after a compliment); the quiet check-in waits like a person', () => {
   const asked = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'tell me about always open' }, { r: 'a', t: 'We answer calls. Do you run a business yourself?' }, { r: 'u', t: 'so I only get the report once a month' }];
-  assert.equal(V.cutBizQ('There is more to it. What kind of business do you run?', V.askedBiz(asked)), 'There is more to it. What kind of business do you run?', 'unanswered: ask again');
+  assert.equal(V.cutBizQ('There is more to it. What kind of business do you run?', V.askedBiz(asked)), 'There is more to it. ', 'asked once already: not again');
+  assert.equal(V.askedBiz(asked.slice(0, 2)), false, 'never asked: it may be asked');
   const answered = asked.concat({ r: 'a', t: 'What kind of business do you run?' }, { r: 'u', t: 'I have a mechanic shop' });
   assert.equal(V.cutBizQ('Calls are the big one. What kind of business do you run?', V.askedBiz(answered)), 'Calls are the big one. ');
   const twice = asked.concat({ r: 'a', t: 'What kind of business do you run?' }, { r: 'u', t: 'you never answered me' });
@@ -243,4 +244,15 @@ test('8a g-audit: the free audit is offered once; after a no it is not mentioned
   assert.equal(run(AO, m3, 'x', ['g-audit'], 'Done, I\'ll text you the free audit after we hang up.').cuts.length, 0);
   // the first offer always goes out
   assert.equal(run(AO, call('what do you do'), 'x', ['g-audit'], 'We answer your calls. ' + offer).cuts.length, 0);
+});
+
+test('Nov 5, 5:57 PM call: two statements and stop, unless they asked for more; what they asked about stays', () => {
+  const said = 'what is always open do for businesses to make them money';
+  const long = 'It keeps the business answering every review, every missed call, and every quote follow-up around the clock. On the 2nd of each month you get one page showing what it did. It works on the number you already have. What kind of business do you run?';
+  const r = run(MIKE, call(said), said, [], long);
+  assert.doesNotMatch(r.text, /number you already have/, 'the third statement goes');
+  assert.match(r.text, /What kind of business do you run\?$/, 'the question at the end stays');
+  const more = run(MIKE, call('tell me more about it'), 'tell me more about it', [], long);
+  assert.match(more.text, /number you already have/, 'asked for more: all of it');
+  assert.equal(G.guardOne('Want to test me the way one of your customers would?', { on: new Set(['g-canned']), msgs: [], said: '' }), 'g-canned');
 });

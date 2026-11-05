@@ -28,8 +28,9 @@ export const SERVICES_DAY_FIRST = 'Day to day: every missed call is answered by 
 // Facebook review" and "an app where the owner approves anything that goes out in their name"; test/wording.test.js
 // retired both, but that test reads files, and this text lived only in the database). The baseline for 8c's blind test.
 export const SERVICES_REPORT_FIRST = 'We handle the stuff that keeps a business open around the clock, like answering reviews and missed calls and following up with customers, so the owner can stay on the job they\'re already doing, and on the 2nd of every month they get one page that shows what it all did and what it was worth; say that much first, in your own words. Owners are usually already out working, so never say they can "get back to work." If they want detail: every Google review answered, the Google profile kept current, missed calls answered by a phone assistant like me, follow-ups on quotes and invoices, a one-page monthly report, and an app where the owner approves review replies and posts. It works on the number they already have, through call forwarding.';
-// Part 8c is live only once its blind test passes.
-export const SERVICES_DAY_FIRST_LIVE = false;
+// Part 8c lost its text-only blind test 8 to 9, but on Christopher's own call (Nov 5, 2026, 5:57 PM) the report-first
+// opening made him ask twice whether he'd see anything before the 2nd of the month. Real callers win: day-to-day first.
+export const SERVICES_DAY_FIRST_LIVE = true;
 
 // "$149", "$59", "$29"
 export const dollars = c => '$' + (c / 100).toLocaleString('en-US', { maximumFractionDigits: (c % 100) ? 2 : 0 });
@@ -41,7 +42,7 @@ export function ownLineFacts() {
   const p = PLANS;
   return {
     prices: 'Starter is ' + dollars(p.Starter.cents) + ' a month, Growth is ' + dollars(p.Growth.cents) + ' a month, and Pro is ' + dollars(p.Pro.cents) + ' a month, about $' + p.Starter.perDay + ', $' + p.Growth.perDay + ' and $' + p.Pro.perDay + ' a day. There is no setup fee and no contract; it is ' + PROMISES.contract + ', and if the first month isn\'t worth it, it is refunded. ' +
-      'Max, this phone assistant, comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
+      'Max, this phone assistant (you: say "I come with every plan"), comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
     about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + ', run by ' + TEAM.founder + '. ' + TEAM.support + ' handles client support and calls people back within ' + PROMISES.supportReply + '; she can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
     services: SERVICES_DAY_FIRST_LIVE ? SERVICES_DAY_FIRST : SERVICES_REPORT_FIRST,
     // Brief 5 (Nov 5, 2026): after the S.I. line, straight to the caller ("Sorry, legal stuff" sounded like a shrug), and

@@ -89,3 +89,10 @@ test('2d. after the S.I. line, straight to the caller; the quiet check-in asks, 
   assert.equal(f.greeting2, 'What can I do for you?');
   assert.doesNotMatch(f.nudge, /speechless|told you/i);
 });
+test('Nov 5, 5:57 PM: a compliment gets a thanks and nothing else; day-to-day comes first; "I come with every plan"', () => {
+  const s = { line: {}, msgs: [{ r: 'u', t: 'I think this is the first time you\'ve made me really happy during one of these calls' }] };
+  assert.match(String(V.callerNotes(s, s.msgs[0].t)), /compliment[^.]*\. Thank them[^.]*: no question and no pitch/);
+  const f = F.ownLineFacts();
+  assert.match(f.services, /^Day to day:/);
+  assert.match(f.prices, /I come with every plan/);
+});

@@ -1383,7 +1383,7 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-le
 // g-ask2 (narrowed): won its blind test 23 to 17, 5 of 7 emergency pairs (Nov 5, judgeset10). g-stock, g-sales, g-short
 // stay off: each cut things callers needed.
 // g-audit: Part 8a, live on sight (it only removes a repeated offer of the free audit; Christopher's Nov 5 call).
-export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit', 'g-canned'];
+export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit', 'g-canned', 'g-short'];
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
@@ -1893,9 +1893,9 @@ export const LEADS = {
   wait: ['Sure.', 'Sure, no rush.'],
   yes: ['Alright.', 'Good.', 'Got it.', 'Okay.', 'Sure.', 'Great.'],
   ask: ['Alright.', 'Okay.'],   // not "Sure." or "Absolutely.": the answer may be a no ("Absolutely. I can't throw out a number")
-  wh: ['Good question.', 'Okay, so.', 'Let me see.'],
+  wh: ['Good question.', 'Okay, so.'],   // no "Let me see.": it sounds like looking up what he already knows (Nov 5 call)
   worry: ['Fair question.', 'Good question.'],
-  yn: ['Let me see.', 'Good question.', 'Okay, so.'],   // never a word that sounds like yes before the answer ("should I unplug it?" "Sure. Please don't touch it.")
+  yn: ['Good question.', 'Okay, so.'],   // never a word that sounds like yes before the answer ("should I unplug it?" "Sure. Please don't touch it.")
   point: ['Fair point.', 'Good point.'],
   biz: ['Nice.', 'Okay, nice.'],
   pet: ['Nice.', 'That\'s great.'],
@@ -2199,6 +2199,7 @@ export function mentioned(said) {
 const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that's everything|no that's it|nope that's it|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go|thanks so much|thank you so much|adiós|adios|eso es todo|es todo|gracias,? eso es todo)\b/;
 const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
 const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
+const COMPLIMENT = /\b(you're doing (good|great|well)|you did (good|great|well)|made me (really |so )?happy|good job|great job|nice job|you sound (great|good|better|really good)|i'm impressed|that was (great|perfect)|love (it|this|how you))\b/;
 const MISSED_Q = /\b(that's not what i ask(ed)?|that is not what i ask(ed)?|not what i asked|you didn't answer|you did not answer|are you going to answer|answer (me|my question)|that's not my question)\b/;
 export function callerNotes(s, said) {
   const out = [];
@@ -2212,6 +2213,7 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  if (COMPLIMENT.test(String(said || '').toLowerCase())) out.push('The caller just paid you a compliment. Thank them in a few warm words and stop there: no question and no pitch in this reply.');
   // Brief 5 (Nov 5 call): "That's not what I asked" twice in a row, while Max restated his pitch. When the caller says
   // Max missed the question, the reply goes back to their own last question and answers it in its first sentence.
   if (MISSED_Q.test(String(said || '').toLowerCase())) {
@@ -2475,7 +2477,9 @@ const BIZ_ANSWER = /\b(i (run|own|have|manage|operate)|my (shop|business|company
 export function askedBiz(msgs) {
   const m = msgs || [];
   const asks = m.filter(x => x.r === 'a' && BIZ_Q.test(String(x.t || ''))).length;
-  if (asks >= 2) return true;
+  // Once is enough (Nov 5, 5:57 PM: asked again right after the caller's compliment). A reply that is only that
+  // question still says it, so a reply is never cut to nothing.
+  if (asks >= 1) return true;
   if (!asks) return false;
   const at = m.findIndex(x => x.r === 'a' && BIZ_Q.test(String(x.t || '')));
   return m.slice(at + 1).some(x => x.r === 'u' && BIZ_ANSWER.test(String(x.t || '')));

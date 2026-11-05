@@ -201,17 +201,24 @@ function noPromise(s, ctx) {
 }
 // 6. Past the length a person would say in one breath: three sentences on an urgent call, five otherwise, or about 40
 //    words. A question (always last) and a safety step are never cut.
+// Brief 5 follow-up (Nov 5, 5:57 PM call: answers of 50 and 60 words): two statements, then stop, unless the caller
+// asked for the detail. A question at the end is kept, and so is a safety step.
+const MORE = /\b(tell me more|more detail|in detail|explain|walk me through|everything|all of it|break it down|go on)\b/;
 function shortReply(s, ctx) {
   if (isQ(s) || SAFETY.test(s)) return false;
-  const before = sentencesOf(ctx.spoken || '').length, w = words(ctx.spoken || '');
+  if (MORE.test(lc(ctx.said))) return false;
+  // a sentence about what they just said ("For a pressure washing crew, ...") is the answer, not padding: kept
+  const mine = new Set((lc(ctx.said).match(/[a-z']{5,}/g) || []).filter(x => !/^(about|would|could|should|there|their|which|where|what's|exactly|really|thing|things|always|right)$/.test(x)));
+  if ((lc(s).match(/[a-z']{5,}/g) || []).some(x => mine.has(x))) return false;
+  const before = sentencesOf(ctx.spoken || '').filter(x => !isQ(x)).length, w = words(ctx.spoken || '');
   if (!before) return false;
-  return before >= ((ctx.urgent || ctx.danger) ? 3 : 5) || w + words(s) > 40;
+  return before >= ((ctx.urgent || ctx.danger) ? 3 : 2) || w + words(s) > 40;
 }
 
 // Brief 5 (Nov 5, 2026 call): canned comebacks that tell a caller they are talking to a script ("Give me a minute to
 // change your mind", "Ha, okay, you're testing me", "That's a sharp ear", "The voice is the part I can't fully smooth
 // out yet"). Max says he is an S.I. when asked and gets back to the question; he never remarks on his own voice.
-const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|earn(ed)? (that|the) reputation)\b|^\s*ha[,.!]/i;
+const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|earn(ed)? (that|the) reputation|test me|put me to the test)\b|^\s*ha[,.!]/i;
 function cannedLine(sentence) { return CANNED.test(lc(sentence)); }
 const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
