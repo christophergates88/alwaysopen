@@ -1,3 +1,4 @@
+import { PLANS, dollars } from './facts.js';
 // One-click audit: look a business up on Google (Places API, New), compare it with the nearest
 // competitors, check its website, and turn that into findings and a score.
 //   POST /audit/run    (x-key: LEADS_KEY)  full audit for Chris; saved to the audits table
@@ -232,7 +233,7 @@ textarea{font:inherit;padding:12px;border-radius:11px;border:1.5px solid #262E40
 <div class="msg" id="msg"></div>
 <details class="lt"><summary>Grade letters to print</summary><div class="ltg">
 <label>One business per line: name, town<textarea id="lines" rows="5" placeholder="Sinclair Plumbing, Eatonton&#10;Lane Electric, Eatonton"></textarea></label>
-<label>The offer on the letter<input id="offer" placeholder="Founding member: Starter at $149 a month, held for a year, starting the day you say yes."></label>
+<label>The offer on the letter<input id="offer" placeholder="Founding member: Starter at ${dollars(PLANS.Starter.cents)} a month, held for a year, starting the day you say yes."></label>
 <label>Your phone on the letter (optional)<input id="lphone" inputmode="tel" placeholder="Leave empty to use email"></label>
 <button type="button" id="mk">Make letters</button></div></details></div></div>
 <div class="wrap"><div id="out"></div></div>

@@ -17,6 +17,7 @@ const logAct = async (...a) => { try { return await (await import('./biz.js')).l
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
+import { ownLineFacts } from './facts.js';
 import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
@@ -2512,8 +2513,24 @@ async function rehearseOne(env) {
   return true;
 }
 
+// Max's own line says what facts.js says: prices and what each plan adds are rewritten from it whenever they differ
+// (Nov 4, 2026: the row still said $149 for extra minutes after the site said $59).
+export async function syncOwnLine(env) {
+  try {
+    const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
+    if (!row) return false;
+    const f = parse(row.facts) || {}, want = ownLineFacts();
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers)/i.test(x)).join(' ');
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + notes).trim() });
+    if (next.prices === f.prices && next.notes === f.notes) return false;
+    await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();
+    return true;
+  } catch (e) { return false; }
+}
+
 export async function voiceCron(env) {
   await claudeCheck(env);
+  await syncOwnLine(env);
   // Timers can run in any of Cloudflare's locations, and Claude refuses requests from some regions. Rehearsals run in a
   // room kept in the eastern US, like the calls themselves (Twilio connects from there).
   try { await env.CALLROOM.get(env.CALLROOM.idFromName('rehearsals'), { locationHint: 'enam' }).rehearse(); } catch (e) { await rehearse(env).catch(() => {}); }

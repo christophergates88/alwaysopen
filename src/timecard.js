@@ -7,11 +7,12 @@ import { tzFor, local, fromLocal, ensureCallbacks } from './callbacks.js';
 import { isAfterHours } from './answerrate.js';
 import { figure } from './money.js';
 import { hoursText } from './clock.js';
+import { PLANS, MAX } from './facts.js';
 
 export const HOURS = 168;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const PLAN_CENTS = { Starter: 14900, Growth: 29900, Pro: 49900 };   // billing.js PLANS
-const MORE_MINUTES_CENTS = 5900;   // billing.js MAX
+const PLAN_CENTS = Object.fromEntries(Object.entries(PLANS).map(([k, v]) => [k, v.cents]));   // facts.js
+const MORE_MINUTES_CENTS = MAX.moreCents;   // facts.js
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const dollars = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
 

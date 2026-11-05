@@ -1,3 +1,4 @@
+import { PLANS, dollars } from './facts.js';
 // The grade letter: one printed page Christopher hands a business owner. Their grade from the one-click audit (audit.js),
 // the three things we would fix first in plain words, one paragraph on what Always Open does for a business like theirs,
 // the offer, and how to reach us. Built fresh from a live audit every time: Google's terms let us keep only our own score,
@@ -7,7 +8,7 @@
 //   POST /audit/letter (x-key) { items: [{q, town}], offer, phone }  up to ten letters as one printable set + text versions
 import { industryOf } from './provision.js';
 
-export const DEFAULT_OFFER = 'Founding member: Starter at $149 a month, held for a year, starting the day you say yes.';
+export const DEFAULT_OFFER = 'Founding member: Starter at ' + dollars(PLANS.Starter.cents) + ' a month, held for a year, starting the day you say yes.';
 export const MAX_LETTERS = 10;
 const SITE = 'alwaysopenoffice.com';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

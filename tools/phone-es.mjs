@@ -1,3 +1,4 @@
+import * as F from '../src/facts.js';
 // The Spanish version of the public pages, next to the English they replace. tools/phone.mjs writes these into each page
 // as one JSON block that the ES/EN switch in the header swaps in place (no second page, no duplicate URLs).
 // Usted throughout, plain Latin American Spanish, the same promises as the English and nothing more.
@@ -22,16 +23,16 @@ const scene = (n, h3, aria, scn, why) => [
   { s: '#only .onlygrid > .scene:nth-child(' + n + ') .why', h: why }
 ];
 const PLANS = [
-  { name: 'Starter', price: '$149', per: 'Unos $5 al día', for: 'Cada reseña contestada. Hasta la del martes.', btn: ['line', 'Empezar con Starter'], items: [
+  { name: 'Starter', price: F.dollars(F.PLANS.Starter.cents), per: 'Unos $' + F.PLANS.Starter.perDay + ' al día', for: 'Cada reseña contestada. Hasta la del martes.', btn: ['line', 'Empezar con Starter'], items: [
     'Todas las reseñas en un solo lugar, cada una con respuesta', 'Aviso de reseñas malas el mismo día',
     'Perfil de Google al día: horario y fotos', 'Max, su línea telefónica, contesta sus llamadas de día y de noche (300 minutos al mes)', 'Una página para reservas y cotizaciones, abierta a toda hora', 'Informe mensual de una página', 'Un registro mensual de cada respuesta y publicación', 'Respuestas en español',
     'Su propia app: apruebe respuestas y publicaciones con un toque, vea su mes y escríbanos'] },
-  { name: 'Growth', price: '$299', per: 'Unos $10 al día', for: 'A cada cliente se le pide reseña. Cada publicación, escrita. Usted toca OK.', btn: ['primary', 'Empezar con Growth'], items: [
+  { name: 'Growth', price: F.dollars(F.PLANS.Growth.cents), per: 'Unos $' + F.PLANS.Growth.perDay + ' al día', for: 'A cada cliente se le pide reseña. Cada publicación, escrita. Usted toca OK.', btn: ['primary', 'Empezar con Growth'], items: [
     '<li class="plus">Todo lo de Starter, más:</li>', 'Solicitudes de reseña después de cada trabajo', 'Publicaciones en Facebook e Instagram con sus fotos<span class="soon" data-launch="meta">Próximamente</span>',
     'Los mismos datos en cada directorio<span class="soon">Próximamente</span>', 'Cada cliente potencial registrado', 'Vigilancia de la competencia',
     'Storm Desk: cuando llega un aviso del clima a su condado, una publicación queda lista', 'Respuestas a reseñas escritas con su estilo',
     'Lo que dicen de usted los asistentes: una revisión mensual de lo que los asistentes les dicen a los clientes, y corregimos lo que esté mal'] },
-  { name: 'Pro', price: '$499', per: 'Unos $16 al día', for: 'Su propio número, y nada se queda sin respuesta.', btn: ['line', 'Empezar con Pro'], note: 'Lo marcado como próximamente se activa en cuanto sale. Los mensajes de texto también necesitan que las compañías telefónicas aprueben el número de su negocio, normalmente unas dos semanas.', items: [
+  { name: 'Pro', price: F.dollars(F.PLANS.Pro.cents), per: 'Unos $' + F.PLANS.Pro.perDay + ' al día', for: 'Su propio número, y nada se queda sin respuesta.', btn: ['line', 'Empezar con Pro'], note: 'Lo marcado como próximamente se activa en cuanto sale. Los mensajes de texto también necesitan que las compañías telefónicas aprueben el número de su negocio, normalmente unas dos semanas.', items: [
     '<li class="plus">Todo lo de Growth, más:</li>', 'Su propio número de negocio', 'Mensaje automático por llamada perdida', 'Seguimiento de cotizaciones y clientes potenciales',
     'Llamadas de vuelta con hora fija. Si a usted se le pasa, Max llama para poner otra', 'La llamada de los tres días: Max llama al cliente, y un no le llega a usted de inmediato',
     'Pases: si alguien necesita otro oficio, Max lo comunica con un negocio cercano en Always Open, y ese negocio le puede mandar trabajo a usted', 'Confirmaciones y recordatorios de citas',

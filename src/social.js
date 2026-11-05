@@ -1,3 +1,4 @@
+import { PLANS, dollars } from './facts.js';
 // Always Open's own Facebook and Instagram, on their own. Three posts a week (Monday, Wednesday and Friday, in the
 // 10 AM hour Eastern): a branded card from public/social and a caption Claude writes from that week's real numbers,
 // posted to the Always Open Page and its Instagram through the same connection owners use (extras.js).
@@ -126,7 +127,7 @@ export async function socialCron(env, now, h, opts) {
   if (theme.name === 'caught') notes = 'This week, across the businesses we work for: ' + nums.calls + ' calls answered by Max, ' + nums.after + ' of them after hours or on the weekend, ' + nums.leads + ' new leads passed to owners, ' + nums.booked + ' jobs booked.';
   else if (theme.name === 'tip') notes = 'The tip: ' + TIPS[Math.floor(count / THEMES.length) % TIPS.length];
   else if (theme.name === 'max') notes = 'The number to call: (706) 460-2226.';
-  else notes = 'Website: alwaysopenoffice.com. Plans start at $149 a month; say that only if it fits naturally.';
+  else notes = 'Website: alwaysopenoffice.com. Plans start at ' + dollars(PLANS.Starter.cents) + ' a month; say that only if it fits naturally.';
   let text = '';
   try { text = await writeCaption(env, theme, notes); } catch (e) { text = ''; }
   const fell = !text;

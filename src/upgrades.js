@@ -1,3 +1,4 @@
+import { PLANS, MAX, ADDONS, dollars } from './facts.js';
 // Upgrades for you: every plan step and add-on this business doesn't have yet, each with a fit score (how useful it looks
 // for this business) and the plain reasons behind it, worked out from the business's own last 30 days and its kind of work.
 // It is a guide, not a promise: the score only moves on numbers we can see, and says so when we can't see much.
@@ -53,7 +54,7 @@ export function score(s, c) {
       if (s.calls >= 15) { f += 15; why.push('Max took ' + s.calls + ' calls in 30 days. That is steady work, and each finished job is a review and a post waiting to happen.'); }
       if (s.trades) { f += 10; why.push('Storm Desk is built for trades like yours: when a warning hits your county, a storm-day post is ready.'); }
     }
-    add({ id: 'plan-growth', kind: 'plan', name: 'Growth plan', price: '$299 a month', what: 'Review requests after every job, posts from your photos, competitor watch and Storm Desk.', fit: f, why, ask: 'I’d like to hear about moving to the Growth plan.' });
+    add({ id: 'plan-growth', kind: 'plan', name: 'Growth plan', price: dollars(PLANS.Growth.cents) + ' a month', what: 'Review requests after every job, posts from your photos, competitor watch and Storm Desk.', fit: f, why, ask: 'I’d like to hear about moving to the Growth plan.' });
   }
   if (tier !== 'Pro' && !reg) {
     let f = 25; const why = [];
@@ -63,13 +64,13 @@ export function score(s, c) {
     if (s.quotes >= 2) { f += 15; why.push('You have ' + s.quotes + ' quotes or follow-ups open. Pro keeps each one from going quiet.'); }
     if (!why.length) why.push('We don’t see unpaid invoices, hang-ups or open quotes in your last 30 days, so Pro’s extras would get little use right now.');
     if (tier === 'Starter') { f += 5; why.push('Includes everything in Growth.'); }
-    add({ id: 'plan-pro', kind: 'plan', name: 'Pro plan', price: '$499 a month', what: 'Follow-up reminders for quotes, invoices and appointments, and missed-call text-back from your own number.', fit: f, why, ask: 'I’d like to hear about moving to the Pro plan.' });
+    add({ id: 'plan-pro', kind: 'plan', name: 'Pro plan', price: dollars(PLANS.Pro.cents) + ' a month', what: 'Follow-up reminders for quotes, invoices and appointments, and missed-call text-back from your own number.', fit: f, why, ask: 'I’d like to hear about moving to the Pro plan.' });
   }
   if (s.hasLine) {
     const used = s.minutes / 300, why = ['You used ' + s.minutes + ' of your 300 Max minutes in the last 30 days.'];
     let f = used >= 0.85 ? 90 : used >= 0.6 ? 60 : used >= 0.4 ? 35 : 10;
-    why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so 300 more for $59 (about 20¢ a minute) is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
-    add({ id: 'addon-minutes', kind: 'addon', name: 'More Max minutes', price: '$59 a month for 300 more', what: 'Another 300 minutes a month of Max answering the calls you can’t.', fit: f, why, ask: 'I’d like to hear about more Max minutes.' });
+    why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so ' + MAX.moreMinutes + ' more for ' + dollars(MAX.moreCents) + ' (about ' + Math.round(MAX.moreCents / MAX.moreMinutes) + '¢ a minute) is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
+    add({ id: 'addon-minutes', kind: 'addon', name: 'More Max minutes', price: dollars(MAX.moreCents) + ' a month for ' + MAX.moreMinutes + ' more', what: 'Another 300 minutes a month of Max answering the calls you can’t.', fit: f, why, ask: 'I’d like to hear about more Max minutes.' });
   }
   {
     let f = 30; const why = [];
@@ -77,10 +78,10 @@ export function score(s, c) {
     else if (s.calls >= 40) { f -= 10; why.push('You are already busy: ' + s.calls + ' calls in 30 days. Ads matter most when you want more than you are getting.'); }
     else why.push('Max took ' + s.calls + ' calls in 30 days. Ads help if you want more of a certain kind of job or more towns.');
     why.push('You pay Google for the ads directly, so the ad money never passes through us.');
-    add({ id: 'addon-ads', kind: 'addon', name: 'Google Ads management', price: '$299 a month, or 15% of ad spend if higher', what: 'We set up and run your Google Ads and report the results each month.', fit: Math.min(f, 70), why, ask: 'I’d like to hear about Google Ads management.' });
+    add({ id: 'addon-ads', kind: 'addon', name: 'Google Ads management', price: dollars(ADDONS['Google Ads management'].cents) + ' a month, or ' + ADDONS['Google Ads management'].pctOfSpend + '% of ad spend if higher', what: 'We set up and run your Google Ads and report the results each month.', fit: Math.min(f, 70), why, ask: 'I’d like to hear about Google Ads management.' });
   }
-  if (!s.website) add({ id: 'addon-website', kind: 'addon', name: 'A new website', price: '$799 once, then $29 a month', what: 'A fast site of up to five pages, built for phones, with a request form that reaches you right away.', fit: 80, why: ['We don’t have a website on file for you. If you have one, tell us and this score drops.', 'The site comes with a request form that lands in this app.'], ask: 'I’d like to hear about a new website.' });
-  else add({ id: 'addon-website', kind: 'addon', name: 'A new website', price: '$799 once, then $29 a month', what: 'A fast site of up to five pages, built for phones, with a request form that reaches you right away.', fit: 15, why: ['You already have a website (' + s.website.replace(/^https?:\/\//, '').slice(0, 40) + '). Only worth it if it is old or hard to use on a phone.'], ask: 'I’d like to hear about a new website.' });
+  if (!s.website) add({ id: 'addon-website', kind: 'addon', name: 'A new website', price: dollars(ADDONS['A new website'].onceCents) + ' once, then ' + dollars(ADDONS['A new website'].cents) + ' a month', what: 'A fast site of up to five pages, built for phones, with a request form that reaches you right away.', fit: 80, why: ['We don’t have a website on file for you. If you have one, tell us and this score drops.', 'The site comes with a request form that lands in this app.'], ask: 'I’d like to hear about a new website.' });
+  else add({ id: 'addon-website', kind: 'addon', name: 'A new website', price: dollars(ADDONS['A new website'].onceCents) + ' once, then ' + dollars(ADDONS['A new website'].cents) + ' a month', what: 'A fast site of up to five pages, built for phones, with a request form that reaches you right away.', fit: 15, why: ['You already have a website (' + s.website.replace(/^https?:\/\//, '').slice(0, 40) + '). Only worth it if it is old or hard to use on a phone.'], ask: 'I’d like to hear about a new website.' });
   {
     let f = s.website ? 35 : 10; const why = [];
     if (!s.website) why.push('Chat goes on a website, so it needs one first.');
@@ -88,13 +89,13 @@ export function score(s, c) {
       why.push('A chat box on your site sends questions to your phone.');
       if (s.leads >= 5) { f += 15; why.push(s.leads + ' people sent requests through your booking page in 30 days. Chat catches the ones who would rather ask first.'); }
     }
-    add({ id: 'addon-chat', kind: 'addon', name: 'Website chat', price: '$49 a month', what: 'Visitors ask a question on your site and you answer from your phone.', fit: f, why, ask: 'I’d like to hear about website chat.' });
+    add({ id: 'addon-chat', kind: 'addon', name: 'Website chat', price: dollars(ADDONS['Website chat'].cents) + ' a month', what: 'Visitors ask a question on your site and you answer from your phone.', fit: f, why, ask: 'I’d like to hear about website chat.' });
   }
-  add({ id: 'addon-hiring', kind: 'addon', name: 'Help-wanted posts', price: '$99 a month', what: 'We write your job openings and post them on Google, Indeed and Facebook.', fit: 20, why: ['Nothing in your account tells us whether you are hiring. If you are, this saves writing and posting the ads.'], ask: 'I’d like to hear about help-wanted posts.' });
+  add({ id: 'addon-hiring', kind: 'addon', name: 'Help-wanted posts', price: dollars(ADDONS['Help-wanted posts'].cents) + ' a month', what: 'We write your job openings and post them on Google, Indeed and Facebook.', fit: 20, why: ['Nothing in your account tells us whether you are hiring. If you are, this saves writing and posting the ads.'], ask: 'I’d like to hear about help-wanted posts.' });
   {
     const f = s.food ? 65 : s.trades ? 55 : s.health ? 45 : s.insurance ? 35 : 40;
     const where = s.food ? 'Yelp and Facebook' : s.trades ? 'Angi, Nextdoor and Yelp' : s.insurance ? 'Facebook and the BBB' : 'Facebook, Yelp and the BBB';
-    add({ id: 'addon-alerts', kind: 'addon', name: 'Review alerts beyond Google', price: '$49 a month', what: 'We watch Facebook, Yelp, the BBB, Angi and Nextdoor and draft a reply to every new review.', fit: f, why: ['Customers of ' + (s.kind ? 'businesses like yours' : 'most businesses') + ' also leave reviews on ' + where + '.', 'Right now we only answer your Google reviews.'], ask: 'I’d like to hear about review alerts beyond Google.' });
+    add({ id: 'addon-alerts', kind: 'addon', name: 'Review alerts beyond Google', price: dollars(ADDONS['Review alerts beyond Google'].cents) + ' a month', what: 'We watch Facebook, Yelp, the BBB, Angi and Nextdoor and draft a reply to every new review.', fit: f, why: ['Customers of ' + (s.kind ? 'businesses like yours' : 'most businesses') + ' also leave reviews on ' + where + '.', 'Right now we only answer your Google reviews.'], ask: 'I’d like to hear about review alerts beyond Google.' });
   }
   return out.filter(u => !(feats && feats.split(',').map(x => x.trim()).includes(u.id))).sort((a, b) => b.fit - a.fit);
 }

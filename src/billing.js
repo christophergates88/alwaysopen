@@ -10,13 +10,12 @@ import { noteSignup, expireCredits, REF_RE } from './referral.js';
 import { firstLook } from './firstlook.js';
 import { queueLine, provisionLine, lineEnded } from './provision.js';
 
+import { PLANS as FACT_PLANS, MAX as FACT_MAX } from './facts.js';
+
 const SITE = 'https://alwaysopenoffice.com';
-export const PLANS = {
-  Starter: { cents: 14900, blurb: 'Every review answered, your Google profile kept current, Max answering your calls (300 minutes a month), a monthly report and your own app.' },
-  Growth: { cents: 29900, blurb: 'Starter, plus review requests after every job, posts from your photos, competitor watch and Storm Desk.' },
-  Pro: { cents: 49900, blurb: 'Growth, plus follow-up reminders and missed-call text-back from your own number.' }
-};
-const MAX = { cents: 5900, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
+// prices and plan wording live in facts.js, the one place they are set
+export const PLANS = FACT_PLANS;
+const MAX = { cents: FACT_MAX.moreCents, blurb: FACT_MAX.blurb };
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
 const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
 export const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
