@@ -209,3 +209,16 @@ test('v7: one job per reply after an emergency opens, no "I still need", no ques
   assert.match(dutyLines({}, { v7: true }).join(' '), /Skip it on an emergency, with an upset caller, or once they are wrapping up/);
   assert.match(dutyLines({}).join(' '), /Once, when it fits, ask when they last had/);
 });
+
+test('v7: when the caller wraps up, a question at the end of the reply is cut in code', () => {
+  assert.ok(V.wrappingUp('thanks'));
+  assert.ok(V.wrappingUp('okay bye'));
+  assert.ok(V.wrappingUp('gracias'));
+  assert.ok(!V.wrappingUp('thanks, what time does he open?'));
+  assert.ok(!V.wrappingUp('sí, gracias. el calentador de agua no prende'));
+  assert.equal(V.cutBizQ('The team will call the number you called from. And what\'s the street address and town?', false, true), 'The team will call the number you called from. ');
+  assert.equal(V.cutBizQ('Take care. Anything else I can help with?', false, true), 'Take care. ');
+  // a lone question is still said rather than dead air
+  assert.equal(V.cutBizQ('Is that the best number?', false, true), 'Is that the best number?');
+  assert.equal(V.cutBizQ('Got it. What town?', false, false), 'Got it. What town?');
+});
