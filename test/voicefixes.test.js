@@ -554,7 +554,7 @@ test('a quiet caller after a number question gets longer than after an ordinary 
   w.world.aiScript = ['What’s the best number to reach you?', 'And the street address?'];
   await w.say(x, 'my faucet drips');
   let s = await x.room.load();
-  assert.equal(x.room.nudgeWait(s), 4000 + 1500, 'a number question earns the extra 1.5 s');
+  assert.equal(x.room.nudgeWait(s), 7000 + 1500, 'a number question earns the extra 1.5 s');
   // nothing for a while: the first nudge reads the question, so it is "Take your time", not "Hello?"
   const real = Date.now, t0 = real();
   try {
@@ -566,5 +566,5 @@ test('a quiet caller after a number question gets longer than after an ordinary 
   } finally { Date.now = real; }
   await w.say(x, 'four seven eight five five five zero one four one');
   s = await x.room.load();
-  assert.equal(x.room.nudgeWait(s), 4000 + 1500, 'the address question too');
+  assert.equal(x.room.nudgeWait(s), 7000 + 1500, 'the address question too');
 });

@@ -220,3 +220,13 @@ test('a web address is not the end of a sentence', () => {
   assert.deepEqual(G.sentencesOf('Hi! Is it $1,450.00? Yes.'), ['Hi! ', 'Is it $1,450.00? ', 'Yes.']);
   assert.deepEqual(G.sentencesOf('No end punctuation'), ['No end punctuation']);
 });
+
+test('Nov 5 real call: the business question is only cut once answered or asked twice; the quiet check-in waits like a person', () => {
+  const asked = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'tell me about always open' }, { r: 'a', t: 'We answer calls. Do you run a business yourself?' }, { r: 'u', t: 'so I only get the report once a month' }];
+  assert.equal(V.cutBizQ('There is more to it. What kind of business do you run?', V.askedBiz(asked)), 'There is more to it. What kind of business do you run?', 'unanswered: ask again');
+  const answered = asked.concat({ r: 'a', t: 'What kind of business do you run?' }, { r: 'u', t: 'I have a mechanic shop' });
+  assert.equal(V.cutBizQ('Calls are the big one. What kind of business do you run?', V.askedBiz(answered)), 'Calls are the big one. ');
+  const twice = asked.concat({ r: 'a', t: 'What kind of business do you run?' }, { r: 'u', t: 'you never answered me' });
+  assert.equal(V.cutBizQ('Fair. What kind of business do you run?', V.askedBiz(twice)), 'Fair. ');
+  assert.ok(V.IDLE_MS >= 6000 && V.IDLE_Q_MS >= 6000, 'a person waits more than a couple of seconds');
+});

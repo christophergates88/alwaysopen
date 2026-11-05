@@ -47,9 +47,10 @@ const HEAD_CHARS = 40;           // how much of the AI's answer is looked at bef
 const MAX_CALL_MS = 9 * 60000;   // a call is wrapped up and ended after this
 const WRAP_MS = 7 * 60000;       // the AI is told to wrap up after this
 const MAX_TURNS = 40;
-const IDLE_MS = 2000;            // two seconds of silence after the AI finishes talking, then "Hello? Are you there?", like a person would
+export const IDLE_MS = 7000;            // seven seconds of silence after Max finishes a statement before "Hello? Are you there?" (it was 2 s until Nov 5,
+                                 // 2026: a caller with a hoarse voice got "Hello?" five times while thinking; a person waits)
 const IDLE_GREET_MS = 4500;      // right after the greeting, callers need time to take it in and think before Max's check-in
-const IDLE_Q_MS = 4000;          // but after it asks them something mid-call, they get longer to think before it checks on them
+export const IDLE_Q_MS = 7000;          // and the same after a question mid-call (a number or address gets 1.5 s more)
 const RESUME_GRACE_MS = 600;     // the caller started talking again before the answer began: it waits this long after they stop
 const RESUME_MAX_MS = 5000;      // and never holds an answer longer than this
 const IDLE_2_MS = 5000;          // still nothing: "I'm not hearing anything on my end..."
@@ -2330,7 +2331,17 @@ function lastBefore(msgs, r, at) { for (let i = Math.min(at, (msgs || []).length
 // The note after the instructions each turn: the reaction just said, and, once Max has asked what kind of business they run,
 // not to ask it again (left alone, the AI ends reply after reply with that question).
 const BIZ_Q = /\b(what|which) (kind|type|sort) of (business|company|work)\b|\b(do|did) you (run|have|own) (a|your own) (business|company)\b|\bare you (running|calling (about|for)|asking (about|for)) (a|your) (business|company)\b|\bare you a (small )?business owner\b|\b(calling|asking) (about|for) (a|your) business\b|\bwhat business are you in\b|\btell me about your business\b/i;
-function askedBiz(msgs) { return (msgs || []).some(x => x.r === 'a' && BIZ_Q.test(String(x.t || ''))); }
+// The business question is cut only once it was asked twice, or asked once and then answered (the caller named a trade
+// or said "my shop" / "I run a ..."). Cutting it after one unanswered ask turned every reply into a statement on Nov 5.
+const BIZ_ANSWER = /\b(i (run|own|have|manage|operate)|my (shop|business|company|office|practice|store|salon|crew|garage)|we('re| are) an?|mechanic|plumb\w*|hvac|heating|roof\w*|electric\w*|landscap\w*|dental|dentist|insurance|salon|marina|auto|restaurant|cleaning|pressure wash\w*|contractor|lawn|pest|pool|painting|painter|realtor|law firm|attorney|vet\w*|chiropract\w*|gym|daycare)\b/i;
+export function askedBiz(msgs) {
+  const m = msgs || [];
+  const asks = m.filter(x => x.r === 'a' && BIZ_Q.test(String(x.t || ''))).length;
+  if (asks >= 2) return true;
+  if (!asks) return false;
+  const at = m.findIndex(x => x.r === 'a' && BIZ_Q.test(String(x.t || '')));
+  return m.slice(at + 1).some(x => x.r === 'u' && BIZ_ANSWER.test(String(x.t || '')));
+}
 function bizQ(t) { t = String(t || '').trim(); return BIZ_Q.test(t) && /\?["')\]]*$/.test(t); }
 // The caller is wrapping up ("thanks", "bye", "that's it"): on every call since Nov 5, 2026, any question at the end of Max's reply is cut in code,
 // because the instructions alone did not hold (Nov 5 practice run: "thanks" -> "And what's the street address and town?").
