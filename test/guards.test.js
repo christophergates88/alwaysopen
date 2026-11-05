@@ -159,3 +159,38 @@ test('a Spanish line on Flux listens in "multi" from the first word (Nov 5: a Sp
   assert.equal(V.multiStt({ VOICE_FLUX: 'all' }, { spanish: 0, facts: '{}' }), false, 'English-only lines keep English Flux');
   assert.equal(V.multiStt({}, { spanish: 1, facts: '{}' }), false, 'a Spanish line not on Flux keeps its recognizer');
 });
+
+test('7c-1: no doubled or clipped openers after the spoken reaction', () => {
+  assert.equal(V.dropRepeat('Alright Gary, the team will call you back.', 'said'), 'Gary, the team will call you back.'.replace(/^Gary, t/, 'T'));
+  assert.equal(V.dropRepeat('Good. I\'m still missing your street.', 'said'), 'I\'m still missing your street.');
+  assert.equal(V.dropRepeat('Got it, Brian, first thing, you got it.', 'name'), 'First thing, you got it.');
+  assert.equal(V.dropRepeat('Got it, Timothy. Thanks.', 'said'), 'Thanks.');
+  // a name that starts the real sentence stays; an ordinary reply is untouched
+  assert.equal(V.dropRepeat('Alright, so here is the plan.', 'said'), 'So here is the plan.');
+  assert.equal(V.dropRepeat('The owner will call you.', 'said'), 'The owner will call you.');
+  assert.equal(V.dropRepeat('Good morning to you too.', 'said'), 'Good morning to you too.');
+});
+
+test('7a g-ask2: the number once, no detail two turns running, the name at most twice, never "I still need"', () => {
+  const on = ['g-ask2'];
+  // the number: asked once already, caller ID has it
+  const m1 = call('my boat is low in the water', 'Stay off the boat. What\'s the best number to reach you?', 'it\'s a 22 foot bowrider');
+  assert.equal(run(MIKE, m1, 'x', on, 'Got it, a bowrider. Is this the best number to reach you?').text, 'Got it, a bowrider. ');
+  // without caller ID the number may be asked again (not back to back)
+  const m1b = call('my boat is low in the water', 'What\'s the best number?', 'bowrider', 'Okay. Is the water still rising?', 'yes');
+  assert.equal(run(MIKE, m1b, 'yes', on, 'Okay. What\'s the best number to reach you?', { caller: '' }).cuts.length, 0);
+  // never the same detail two turns running
+  const m2 = call('my haircut is too short', 'I\'m sorry. What\'s your name?', 'I have an event this weekend');
+  assert.equal(run(MIKE, m2, 'x', on, 'That\'s a lot of pressure. Who am I speaking with?').cuts[0].guard, 'g-ask2');
+  // a turn later it may come back, once more; a third time it doesn't
+  const m3 = call('sink leaks', 'What\'s your name?', 'all day', 'Okay. Is it under the kitchen sink?', 'yes');
+  assert.equal(run(MIKE, m3, 'yes', on, 'Got it. And your name?').cuts.length, 0);
+  const m4 = call('sink leaks', 'What\'s your name?', 'all day', 'Is it the kitchen?', 'yes', 'And your name?', 'it drips', 'Got it.', 'ok');
+  assert.equal(run(MIKE, m4, 'ok', on, 'Okay. Who am I speaking with?').cuts[0].guard, 'g-ask2');
+  // "I still need" never
+  assert.equal(run(MIKE, call('what\'s it cost'), 'x', on, 'It\'s eighty-nine dollars. I still need your name, so who am I talking to?').text, 'It\'s eighty-nine dollars. ');
+  assert.equal(run(MIKE, call('hola'), 'x', on, 'Entiendo. Todavía no tengo su nombre, ¿cómo se llama?').text, 'Entiendo. ');
+  // an ordinary first ask and a read-back stay
+  assert.equal(run(MIKE, call('my faucet drips'), 'x', on, 'Got it. What\'s your name?').cuts.length, 0);
+  assert.equal(run(MIKE, call('it\'s 478 555 0122', 'What\'s the best number?', '478 555 0122'), 'x', on, 'Four seven eight, five five five, zero one two two, right?').cuts.length, 0);
+});

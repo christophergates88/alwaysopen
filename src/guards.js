@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -53,9 +53,11 @@ export function callState(msgs, L, helpers) {
   const asked = { name: 0, number: 0, address: 0, town: 0, time: 0 };
   const saidNorm = new Set(), saidCount = new Map();
   const us = [];
+  let lastAsked = [];
   for (const m of (msgs || [])) {
     if (m.r === 'u') { us.push(lc(m.t)); continue; }
-    for (const s of sentencesOf(m.t)) { const n = norm(s); saidNorm.add(n); saidCount.set(n, (saidCount.get(n) || 0) + 1); for (const k of asksFor(s)) asked[k]++; }
+    lastAsked = [];
+    for (const s of sentencesOf(m.t)) { const n = norm(s); saidNorm.add(n); saidCount.set(n, (saidCount.get(n) || 0) + 1); for (const k of asksFor(s)) { asked[k]++; lastAsked.push(k); } }
   }
   const all = us.join(' ');
   const have = {
@@ -63,7 +65,7 @@ export function callState(msgs, L, helpers) {
     town: placesIn(L).some(t => all.includes(lc(t))),
     address: !!(h.street && us.some(x => h.street.test(x)))
   };
-  return { asked, have, saidNorm, saidCount, safetyGiven: (msgs || []).some(m => m.r === 'a' && SAFETY.test(String(m.t || ''))) };
+  return { asked, have, saidNorm, saidCount, lastAsked: [...new Set(lastAsked)], safetyGiven: (msgs || []).some(m => m.r === 'a' && SAFETY.test(String(m.t || ''))) };
 }
 function placesIn(L) {
   const own = String(L.town || '').split(/,\s*/)[0];
@@ -97,6 +99,19 @@ function askOnce(s, ctx) {
   if (a.every(k => st.have[k])) return true;
   // the same ask, word for word, a third time
   return (st.saidCount.get(norm(s)) || 0) >= 2;
+}
+// 7a (Brief 3, Part 7). Asking more than a person would: the number is worth one ask (caller ID already has it), no
+//    detail is asked two turns running, the name at most twice, and "I still need ..." is never said.
+const STILL = /\b(i still need|i still don'?t have|still need (your|the|a)|i'?m still missing|todav[ií]a no tengo|todav[ií]a necesito|me falta (su|tu|el|la))\b/i;
+const DIGITS = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b(,? +\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b){2,}/i;
+function askLess(s, ctx) {
+  if (STILL.test(s)) return true;
+  const a = asksFor(s);
+  if (!a.length || DIGITS.test(s)) return false;
+  const st = ctx.state || { asked: {}, have: {}, lastAsked: [] };
+  const callerId = ctx.callerId !== false;
+  const blocked = k => st.have[k] || (st.lastAsked || []).includes(k) || (k === 'number' && callerId && (st.asked.number || 0) >= 1) || (k === 'name' && (st.asked.name || 0) >= 2);
+  return a.every(blocked);
 }
 // 3. A question that names a town the caller never said ("Are you in Milledgeville?", "Is that in Eatonton?").
 function noLeadingTown(s, ctx) {
@@ -133,7 +148,7 @@ function shortReply(s, ctx) {
   return before >= ((ctx.urgent || ctx.danger) ? 3 : 5) || w + words(s) > 40;
 }
 
-const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

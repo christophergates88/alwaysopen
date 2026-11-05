@@ -1335,7 +1335,7 @@ export function trimLead(lead, L, msgs) {
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
-export const HELD_LABEL = { biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+export const HELD_LABEL = { 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
 function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
 // The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
 export function transcriptOf(msgs, held) {
@@ -1348,7 +1348,8 @@ export function transcriptOf(msgs, held) {
 }
 export function guardCtx(L, msgs, said, st) {
   const us = (msgs || []).filter(m => m.r === 'u').map(m => String(m.t || '').toLowerCase()).join(' ');
-  return { L, msgs, said, urgent: !!(st && st.urgent), upset: !!(st && st.upset), danger: DANGER_CALL.test(us) || WATER_ELECTRIC.test(us), wrap: wrappingUp(said),
+  // caller ID: a live call knows it (s.caller); a practice call assumes it, as nearly every real call has one
+  return { L, msgs, said, callerId: st && 'caller' in st ? E164.test(String(st.caller || '')) : true, urgent: !!(st && st.urgent), upset: !!(st && st.upset), danger: DANGER_CALL.test(us) || WATER_ELECTRIC.test(us), wrap: wrappingUp(said),
     state: callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD }), on: guardsOn(L, LIVE_GUARDS) };
 }
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
@@ -2251,7 +2252,7 @@ function leadKindEs(raw) {
 
 // The AI was told not to open with its own "Got it" after the reaction, but if it does anyway, that part is dropped,
 // so the caller never hears "Got it. Got it, so...". Words with meaning (yes, no, nope) are never dropped.
-const ACK_BASE = ['ha', 'haha', 'heh', 'oh', 'ah', 'okay', 'ok', 'alright', 'all right', 'sure', 'sure thing', 'got it', 'gotcha', 'great', 'perfect', 'awesome', 'cool', 'nice', 'oh nice',
+const ACK_BASE = ['ha', 'haha', 'heh', 'oh', 'ah', 'okay', 'ok', 'alright', 'all right', 'sure', 'sure thing', 'got it', 'gotcha', 'got you', 'good', 'mm-hm', 'mhm', 'mm hm', 'uh huh', 'great', 'perfect', 'awesome', 'cool', 'nice', 'oh nice',
   'good question', 'great question', 'fair question', 'totally fair question', 'i hear you', 'totally', 'totally fair', 'fair enough', 'understood', 'sounds good',
   'fair worry', 'fair concern', 'good concern', 'totally fair concern', 'valid concern',
   'no problem', 'no worries', 'of course', 'you bet', 'my pleasure', 'you\'re welcome', 'anytime', 'so', 'well', 'hmm', 'right', 'i get it', 'yeah i get it', 'i get that',
@@ -2281,18 +2282,23 @@ function ackRe(kind) {
   const alt = ACK_BASE.concat(ACK_MORE[kind] || []).sort((a, b) => b.length - a.length)
     .map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, '[\'’]').replace(/ /g, '[\\s,]+')).join('|');
   ackCache[kind] = new RegExp('^\\s*(?:(?:' + alt + ')\\s*[,.!?;:…—–-]+\\s*)+', 'i');
+  ackCache[kind].bare = new RegExp('^\\s*(?:' + alt + ')\\s+(?=\\S)', 'i');
   return ackCache[kind];
 }
 export function dropRepeat(text, kind) {
   const t = String(text == null ? '' : text);
   let rest = t;
-  const m = rest.match(ackRe(kind || 'said'));
+  const re = ackRe(kind || 'said');
+  let m = rest.match(re);
+  // the same reaction run straight into a name, no comma: "Alright Gary, thanks" after "Alright." (Nov 5 judges:
+  // "Alright. Alright Gary")
+  if (!m) { const b = rest.match(re.bare); if (b && /^[A-Z][a-z'’]+[,.!?]/.test(rest.slice(b[0].length))) m = b; }
   // ("Good question, and yes, ..." loses its dangling "and" with the reaction)
   if (m) rest = rest.slice(m[0].length).replace(/^(and|but)\s+(?=\S)/i, '').replace(/^([¿¡"']?)(\p{Ll})/u, (x, p, c) => p + c.toUpperCase());
   // ...or tacks one onto the end of its first sentence: "Nice." then "A dental office, nice." -> "A dental office."
   rest = rest.replace(/^([^.!?]{3,60}?),\s*(?:nice|got it|gotcha|perfect|great|awesome|okay|ok|cool|sure|sounds good)(?=[.!?])/i, '$1');
   // ...and a name left stranded at the front ("Got it, Timothy. Thanks." -> "Timothy. Thanks.") goes with it
-  if (m) { const nm = rest.match(/^([A-Z][a-z'’]+)[.,]\s+(?=\S)/); if (nm && !/^(Yes|No|Yeah|Yep|Nope|Good|Great|Sure|Thanks|Right|Done|Alright|Okay|Ok|Absolutely|Definitely|Exactly|Correct|Totally|Understood|Noted|Booked|Perfect|Sorry|Well|So|Now|Then|Also|Hmm|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Mike|Max)$/.test(nm[1])) rest = rest.slice(nm[0].length); }
+  if (m) { const nm = rest.match(/^([A-Z][a-z'’]+)[.,]\s+(?=\S)/); if (nm && !/^(Yes|No|Yeah|Yep|Nope|Good|Great|Sure|Thanks|Right|Done|Alright|Okay|Ok|Absolutely|Definitely|Exactly|Correct|Totally|Understood|Noted|Booked|Perfect|Sorry|Well|So|Now|Then|Also|Hmm|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Mike|Max)$/.test(nm[1])) rest = rest.slice(nm[0].length);rest = rest.replace(/^([¿¡"']?)(\p{Ll})/u, (x, p, c) => p + c.toUpperCase()); }
   if (!/[a-z0-9áéíóúñ]/i.test(rest.replace(/\[[^\]]*\]?/g, ''))) return t;   // nothing left but the reaction: keep it as said
   return rest;
 }
