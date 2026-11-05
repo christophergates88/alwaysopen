@@ -1,0 +1,18 @@
+name: Diag
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Durable Object and Worker errors around the failed calls
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          acct=$(curl -sS -H "Authorization: Bearer $T" https://api.cloudflare.com/client/v4/accounts | jq -r '.result[0].id')
+          echo "account found: $([ -n "$acct" ] && echo yes)"
+          for win in "2026-11-05T16:40:00Z 2026-11-05T16:43:00Z" "2026-11-05T19:59:30Z 2026-11-05T20:02:30Z"; do
+            set -- $win
+            q=$(jq -n --arg a "$acct" --arg s "$1" --arg e "$2" '{query:"query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){d:durableObjectsInvocationsAdaptiveGroups(limit:50,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests errors} dimensions{status scriptName datetimeMinute}} w:workersInvocationsAdaptive(limit:50,filter:{datetime_geq:$s,datetime_leq:$e,scriptName:\"alwaysopen\"}){sum{requests errors subrequests} dimensions{status datetime}}}}}",variables:{a:$a,s:$s,e:$e}}')
+            echo "=== $1"
+            curl -sS -H "Authorization: Bearer $T" -H "content-type: application/json" https://api.cloudflare.com/client/v4/graphql -d "$q" | jq -c '.data.viewer.accounts[0] // .errors'
+          done
