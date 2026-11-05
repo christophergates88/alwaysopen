@@ -118,15 +118,6 @@ test('a complete number stays complete on later turns, and a yes-or-no question 
   for (const k of ['yn', 'ask', 'wh']) assert.ok(!V.LEADS[k].some(x => /^(Sure|Yeah|Absolutely|Yes|Of course)\b/.test(x)), k);
 });
 
-test('an emergency: the problem first, the name and number asked once, routine questions left for the callback', () => {
-  const base = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'my water heater is leaking all over the garage' }];
-  const first = V.callerNotes({ line: {}, urgent: true, msgs: base }, 'my water heater is leaking all over the garage');
-  assert.match(first, /This is an emergency\. Deal with the problem first[\s\S]*Ask for their name and best number once, as its own short question, after the safe step/);
-  const later = V.callerNotes({ line: {}, urgent: true, msgs: base.concat([{ r: 'a', t: 'Turn the cold valve on top. What\'s your name and best number?' }, { r: 'u', t: 'where is that valve' }]) }, 'where is that valve');
-  assert.match(later, /You already asked for their name and number, so don't add that ask to this reply/);
-  assert.doesNotMatch(V.callerNotes({ line: {}, msgs: base }, 'hi'), /This is an emergency/);
-});
-
 test('the rewrite is four switches, each measured alone; a line or a practice run names the ones it wants', () => {
   const L = V.lineView(line({ industry: 'plumbing' }));
   assert.deepEqual(L.features, []);

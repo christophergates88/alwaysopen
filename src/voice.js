@@ -17,7 +17,7 @@ const logAct = async (...a) => { try { return await (await import('./biz.js')).l
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
-import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore } from './grades.js';
+import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
 import { slotsFor, bookFor } from './availability.js';
@@ -1131,10 +1131,14 @@ async function writeUp(env, sid, s, why) {
       // how human he sounded: machine tells counted by code, and a rubric read (skipped for spam and one-line calls)
       g.tells = machineTells(msgs).length;
       if (!g.spam && heard >= 2) g.human = (await humanScore(env, msgs)).score;
+      // things he said that aren't true or allowed (a time, a price, a name, a booking, advice on a regulated line)
+      const hard = g.spam ? [] : hardErrors(msgs, (s && s.line) || {});
+      g.hard = hard.length;
       await saveGrade(env, call, g);
+      if (hard.length) await opsAlert(env, 'max-hard', call.client_id, 'Max said something he shouldn\'t have on a call: ' + hard.slice(0, 3).map(h => h.flag + ' ("' + h.quote + '")').join('; ') + '. The call is queued as a rehearsal so the fix can be checked.').catch(() => {});
       // Risky safety advice on a real call ("shut off the breaker", "go into the basement"): Christopher hears about it.
       if (g.unsafe) await opsAlert(env, 'max-unsafe', call.client_id, 'Max may have given risky safety advice on a call: "' + unsafeAdvice(maxText).slice(0, 160) + '". The call is queued as a rehearsal so the fix can be checked.').catch(() => {});
-      const f = failuresOf(g);
+      const f = failuresOf(g).concat(hard.length ? ['said something he shouldn\'t'] : []);
       if (f.length) await queueFromCall(env, call, msgs, f);
     } catch (e) { await vlog(env, 'grade-error', String((e && e.message) || e)); }
   }
@@ -2032,12 +2036,8 @@ export function callerNotes(s, said) {
     const promise = String(s.line.next || '').split(/(?<=[.!?])\s+/).filter(x => /\b(\d+|one|two|five|ten|fifteen|twenty|thirty|an?) (minutes?|hours?)\b|same (night|day)/i.test(x)).join(' ');
     out.push('They need someone fast and may call someone else. ' + (promise ? 'Restate the business\'s own emergency promise, confidently and in plain words: "' + promise + '" Never say you can\'t promise how fast; this is the business\'s own word.' : 'Say the owner already has it as urgent and will call the moment he is free; do not hedge or apologize.') + ' Do not ask for or read back their number again if you already have it.');
   }
-  // An emergency: the problem first, the details once. Blind judges (Nov 4, 2026) saw "What's your name and best number?"
-  // tacked onto every safety line, and "When did you last have a claim?" asked of a driver who'd just crashed.
-  if (s.urgent) {
-    const asked = (s.msgs || []).filter(m => m.r === 'a' && /\b(your name|best number|number to reach|good number|number for (you|the callback))\b/i.test(String(m.t || ''))).length;
-    out.push('This is an emergency. Deal with the problem first: the one safe step, and whether they are okay. ' + (asked ? 'You already asked for their name and number, so don\'t add that ask to this reply; come back to it once the safe step is done.' : 'Ask for their name and best number once, as its own short question, after the safe step.') + ' Leave routine questions (past claims, preferences, how they found us) for the callback.');
-  }
+  // (An "emergency: problem first, details once" note was tried Nov 4, 2026 and lost a blind test 20 to 22, with three
+  // emergency pairs lost, so it is out. Emergencies are handled by the talk rules' safety line.)
   // Once the address was checked, it is settled for the rest of the call, wrap-up included.
   { const us = (s.msgs || []).filter(m => m.r === 'u'); if (us.slice(0, -1).some(m => SPOKEN_ADDR.test(String(m.t || '').toLowerCase()))) out.push('The address is already confirmed. Never say it again, not even in the wrap-up; say "that address" if you must.'); }
   // A street number said as words ("eight eight twelve Main Street") can be 8812, 88-12 or 812: read it back as digits once.
@@ -2439,23 +2439,8 @@ export async function rehearse(env) {
 // What a rehearsal may set on the line it borrows, to try another kind of business (a marina, an insurance agency)
 // without a real line for it. Rehearsals only: a live call never reads this.
 const REHEARSE_KEYS = ['business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner', 'earlier'];
-async function rehearseOne(env) {
-  let req = null;
-  try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return false; }
-  if (!req) return false;
-  await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = ?1").bind(req.id).run();
-  const j = parse(req.detail) || {};
-  // Score transcripts already run (the baseline from before a change), with the same rubric the new run gets.
-  if (Array.isArray(j.score)) {
-    for (const c of j.score.slice(0, 12)) {
-      const msgs = (Array.isArray(c.msgs) ? c.msgs : []).map(m => ({ r: m.r === 'u' ? 'u' : 'a', t: String(m.t || '').slice(0, 600) }));
-      const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
-      await vlog(env, 'rehearse-score', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String(c.id || '').slice(0, 40), human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs) }), 4000);
-    }
-    return true;
-  }
-  const line = await lineFor(env, String(j.number || ''));
-  if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
+// The line a practice run talks on: a real line, plus what the request sets (another business, switches).
+function rehearsalLine(line, j) {
   const L = lineView(line);
   // A different business is set up whole: nothing of the borrowed line's own promises or owner notes carries over
   // (the Nov 4 v2 run let Mike's "within 15 minutes, there within the hour" leak into the HVAC and marina calls).
@@ -2465,6 +2450,28 @@ async function rehearseOne(env) {
   if (Array.isArray(j.features)) L.features = j.features.filter(k => FEATURES.includes(k));
   if (j.line && j.line.industry && !j.line.intake) L.intake = tradeDefaults(L.industry).intake;
   if (j.line && j.line.industry && !j.line.urgent) L.urgent = tradeDefaults(L.industry).urgent;
+  return L;
+}
+async function rehearseOne(env) {
+  let req = null;
+  try { req = await env.DB.prepare("SELECT rowid AS id, detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1").first(); } catch (e) { return false; }
+  if (!req) return false;
+  await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = ?1").bind(req.id).run();
+  const j = parse(req.detail) || {};
+  // Score transcripts already run (the baseline from before a change), with the same rubric the new run gets.
+  if (Array.isArray(j.score)) {
+    const sline = await lineFor(env, String(j.number || '')).catch(() => null);
+    for (const c of j.score.slice(0, 12)) {
+      const SL = sline ? rehearsalLine(sline, Object.assign({}, j, { line: c.line || j.line })) : {};
+      const msgs = (Array.isArray(c.msgs) ? c.msgs : []).map(m => ({ r: m.r === 'u' ? 'u' : 'a', t: String(m.t || '').slice(0, 600) }));
+      const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
+      await vlog(env, 'rehearse-score', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String(c.id || '').slice(0, 40), human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, SL) }), 4000);
+    }
+    return true;
+  }
+  const line = await lineFor(env, String(j.number || ''));
+  if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
+  const L = rehearsalLine(line, j);
   if (line.client_id !== OWN_ID) await addDuties(L, line);
   const more = greetingMore(line);
   L.heard2 = !!more;
@@ -2500,7 +2507,7 @@ async function rehearseOne(env) {
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), out }), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), out }), 20000);
   }
   return true;
 }
