@@ -208,7 +208,7 @@ a.btn{color:inherit}
 .maptop{display:flex;align-items:center;justify-content:space-between;gap:12px}.close48{min-height:48px;min-width:96px}
 .mapfull{border-radius:14px;overflow:hidden;min-height:300px;position:relative;background:#1A2030}
 .mapbox{height:260px;border-radius:14px;overflow:hidden;position:relative;background:#1A2030;cursor:pointer;border:1px solid var(--line)}
-.mapgl{position:absolute;inset:0}.mapbox .maplibregl-ctrl-attrib{font-size:11px}
+.mapgl{position:absolute!important;inset:0;width:100%;height:100%}.mapbox .maplibregl-ctrl-attrib{font-size:11px}
 .mapc .btn{min-height:48px}.mapc .switch{padding:6px 0}.mapc .switch i{top:10px}
 .feature .mapline{margin:0;font-size:17px;line-height:1.4;color:var(--ink)}
 .mapfb{position:absolute;inset:0;background:#232A3A;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px}
