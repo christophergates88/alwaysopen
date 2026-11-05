@@ -139,7 +139,7 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
     const r = await page.evaluate(() => {
       const card = document.getElementById('map'), out = { ex: card.querySelectorAll('.mdot.ex').length, note: !document.getElementById('mapex').hidden, pin: !!card.querySelector('.mpin'), small: [], doors: [] };
       card.querySelectorAll('button,a,input').forEach(x => { if (x.closest('.maplibregl-ctrl,.mapbox')) return; const b = x.getBoundingClientRect(); if (b.width && (b.height < 47.5 || b.width < 47.5)) out.small.push((x.textContent || x.getAttribute('aria-label') || '').trim().slice(0, 30) + ' ' + Math.round(b.width) + 'x' + Math.round(b.height)); });
-      document.querySelectorAll('#view a[target=_blank], #view [data-go="map"], #view a[href*="/map"]').forEach(x => out.doors.push(x.outerHTML.slice(0, 80)));
+      document.querySelectorAll('#view a[target=_blank], #view [data-go="map"], #view a[href*="/map"]').forEach(x => x.closest('.maplibregl-ctrl') || out.doors.push(x.outerHTML.slice(0, 80)));
       out.line = card.querySelector('.mapline').textContent; out.h = card.querySelector('.mapbox').getBoundingClientRect().height;
       return out;
     });

@@ -19,6 +19,9 @@ jobs:
           npx playwright install --with-deps chromium
           node tools/phonecheck.mjs
           APP_SHOTS=app-shots node tools/appcheck.mjs
+      - name: Print the map screenshots (read from the log)
+        if: always()
+        run: for f in app-shots/app-map*.png; do [ -f "$f" ] && echo "SHOT $f $(base64 -w0 "$f")"; done; true
       - name: Keep the app screenshots
         if: always()
         uses: actions/upload-artifact@v4
