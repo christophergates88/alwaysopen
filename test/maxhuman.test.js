@@ -126,3 +126,20 @@ test('an emergency: the problem first, the name and number asked once, routine q
   assert.match(later, /You already asked for their name and number, so don't add that ask to this reply/);
   assert.doesNotMatch(V.callerNotes({ line: {}, msgs: base }, 'hi'), /This is an emergency/);
 });
+
+test('the rewrite is four switches, each measured alone; a line or a practice run names the ones it wants', () => {
+  const L = V.lineView(line({ industry: 'plumbing' }));
+  assert.deepEqual(L.features, []);
+  const base = V.systemPrompt(L, '', 'en-US', false);
+  assert.doesNotMatch(base, /How it sounds/);
+  const ex = V.systemPrompt(Object.assign({}, L, { features: ['examples'] }), '', 'en-US', false);
+  assert.match(ex, /How it sounds/); assert.match(ex, /Is the water off\? \.\.\. Good\. I'm getting the owner on this now/, 'examples alone keep the old talk rules');
+  const t2 = V.systemPrompt(Object.assign({}, L, { features: ['talk2'] }), '', 'en-US', false);
+  assert.doesNotMatch(t2, /How it sounds/); assert.doesNotMatch(t2, /getting the owner on this now/);
+  const said = "there's water coming through my kitchen ceiling like a lot of it";
+  const msgs = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: said }];
+  assert.match(V.callerNotes({ line: { features: ['mentioned'] }, msgs }, said), /They just mentioned/);
+  assert.doesNotMatch(V.callerNotes({ line: { features: ['cutoff'] }, msgs }, said), /They just mentioned/);
+  assert.deepEqual(V.lineView(line({ facts: '{"features":["cutoff","bogus"]}' })).features, ['cutoff']);
+  for (const k of V.FEATURES) assert.ok(V.systemPrompt(Object.assign({}, L, { features: [k] }), '+14785550142', 'en-US', false).length <= 14200, k);
+});

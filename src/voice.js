@@ -1300,10 +1300,17 @@ export function closedToday(line, now) {
   return '';
 }
 
+// The Nov 4 rewrite's four ideas, each a switch of its own so each is measured alone (Brief 2, Part 1b): "talk2" (the
+// shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
+// "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
+// it; style "v2" means all four.
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff'];
+export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
   const pick = k => oneLine(String(f[k] || '')).slice(0, 3000);
   return {
+    features: Array.isArray(f.features) ? f.features.filter(k => FEATURES.includes(k)) : [],
     business: line.business || 'the business', town: line.town || '', regulated: !!+line.regulated, industry: line.industry || '', spanish: !!+line.spanish,
     own: line.client_id === OWN_ID, lostOff: (() => { try { return JSON.parse(line.owner_set || '{}').lostAsk === false; } catch (e) { return false; } })(),
     canTransfer: E164.test(line.transfer_to || '') && line.transfer_when !== 'never', transferWhen: line.transfer_when || 'never',
@@ -1343,10 +1350,9 @@ function soundsLike(L) {
     ['"this is the third time I\'ve called today"', '"Three times is too many, I\'m sorry. Let\'s make sure this one gets to the owner tonight. What\'s going on?"'],
     ['"how much for a new system, ballpark"', '"That one really depends on the house, so the owner goes over it on the callback. Want me to set that up?"']
   ];
-  return ex.concat([
-    ['"it\'s Tom Becker, 88 Pine Hill Road"', '"Thanks, Tom. Is the number you\'re calling from the best one?"'],
-    ['"hey there, how\'s your evening going"', '"Not bad at all. What can I do for you tonight?"'],
-    ['"nope, that\'s everything"', '"Alright Tom, talk soon."']
+  // two of the business's own, one chatty: the old talk rules leave room for three under the 14,200-character budget
+  return ex.slice(0, 2).concat([
+    ['"hey there, how\'s your evening going"', '"Not bad at all. What can I do for you tonight?"']
   ]).map(([c, m]) => '- Caller: ' + c + ' You: ' + m);
 }
 // How Max talks. OLD_TALK is what callers get: in a blind side-by-side on the same 23 calls (Nov 4, 2026) it beat the
@@ -1407,7 +1413,8 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
     'How you talk:',
-    ...(L.style === 'v2' ? NEW_TALK.concat(['', 'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):'], soundsLike(L)) : OLD_TALK),
+    ...(hasFeature(L, 'talk2') ? NEW_TALK : OLD_TALK),
+    ...(hasFeature(L, 'examples') ? ['', 'How it sounds (copy the manner, not the words; facts come only from this call and the notes below):'].concat(soundsLike(L)) : []),
     '',
     'Your job, in order:',
     L.goal ? '1. ' + L.goal : '1. Find out what they need.',
@@ -2071,15 +2078,14 @@ export function callerNotes(s, said) {
   if (wordsOf(said) > 120) out.push('The caller said a lot at once. Pick the one thing that matters most, confirm it in one short sentence, and ask the one next question.');
   // They talked over Max: what they heard of his last line, so he neither repeats it nor acts as if they heard the rest.
   // (both notes below came with the Nov 4 rewrite and go with it: style "v2" only, until a fair rematch says otherwise)
-  const v2 = !!(s.line && s.line.style === 'v2');
-  if (v2) { const ia = lastBefore(s.msgs || [], 'a', (s.msgs || []).length - 1);
+  if (hasFeature(s.line, 'cutoff')) { const ia = lastBefore(s.msgs || [], 'a', (s.msgs || []).length - 1);
     const t = ia >= 0 ? String(s.msgs[ia].t || '') : '';
     if (/ —$/.test(t) || t === '(interrupted)') {
       const heard = t.replace(/ —$/, '').replace(/^\(interrupted\)$/, '');
       out.push('They cut you off' + (heard ? ' after "' + heard.slice(-120) + '"' : ' before you said anything') + '. Do not say that part again and do not finish the old sentence; answer what they just said. If you had a question that got cut, ask it later only if you still need it, in new words.');
     } }
   // The specific things they just named, so the first words of the reply can show they were heard.
-  const named = v2 ? mentioned(said) : [];
+  const named = hasFeature(s.line, 'mentioned') ? mentioned(said) : [];
   if (named.length) out.push('They just mentioned: ' + named.join(', ') + '. Let your first few words show you caught one of these, in your own words.');
   return out.length ? ' ' + out.join(' ') : '';
 }
@@ -2456,6 +2462,7 @@ async function rehearseOne(env) {
   if (j.line && typeof j.line === 'object' && j.line.business) for (const k of ['next', 'owner', 'notes', 'booking', 'prices', 'services', 'area', 'hours', 'urgent', 'intake']) L[k] = '';
   if (j.line && typeof j.line === 'object') for (const k of REHEARSE_KEYS) if (j.line[k] != null) L[k] = k === 'regulated' ? !!j.line[k] : oneLine(String(j.line[k])).slice(0, 600);
   if (j.style === 'v2') L.style = 'v2';
+  if (Array.isArray(j.features)) L.features = j.features.filter(k => FEATURES.includes(k));
   if (j.line && j.line.industry && !j.line.intake) L.intake = tradeDefaults(L.industry).intake;
   if (j.line && j.line.industry && !j.line.urgent) L.urgent = tradeDefaults(L.industry).urgent;
   if (line.client_id !== OWN_ID) await addDuties(L, line);

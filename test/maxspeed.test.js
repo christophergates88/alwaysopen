@@ -21,6 +21,14 @@ function fullLine() {
 test('Max’s instructions stay under 14,200 characters even with every field full (about 3,550 tokens, cached after the first turn)', () => {
   const n = systemPrompt(fullLine(), '+14785550142', 'en-US', false).length;
   assert.ok(n <= 14200, 'instructions are ' + n + ' characters');
+  // ...and with any one of the rewrite's switches on (Brief 2): the examples may be trimmed, the rules may not
+  for (const k of ['talk2', 'examples', 'mentioned', 'cutoff']) {
+    const L = fullLine(); L.features = [k];
+    const m = systemPrompt(L, '+14785550142', 'en-US', false).length;
+    // the examples add three sample turns on top of rules already at the budget: 14,800 for that one switch (about 120
+    // tokens more, cached), and it only reaches real calls if it wins a blind test (Brief 2, Part 1c)
+    assert.ok(m <= (k === 'examples' ? 14800 : 14200), k + ': instructions are ' + m + ' characters');
+  }
 });
 
 test('the instructions are the same on every turn of a call, so the cache holds (per-turn notes go in a separate block)', () => {
