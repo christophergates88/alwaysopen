@@ -39,9 +39,9 @@ test('g-once: the same ask word for word, a third ask, or an ask for what they a
   // a second ask in fresh words is allowed
   const m2 = call('my sink is leaking', 'What\'s your name?', 'it\'s been leaking all day');
   assert.equal(run(MIKE, m2, 'it\'s been leaking all day', ['g-once'], 'Got it. And your name?').text, 'Got it. And your name?');
-  // a third ask for the same detail goes
+  // a third ask in new words stays (cutting it lost callback numbers on Nov 5); only a third word-for-word ask goes
   const m3 = call('my sink is leaking', 'What\'s your name?', 'all day', 'And your name?', 'under the kitchen sink');
-  assert.equal(run(MIKE, m3, 'under the kitchen sink', ['g-once'], 'Okay. Who am I speaking with?').cuts[0].guard, 'g-once');
+  assert.equal(run(MIKE, m3, 'under the kitchen sink', ['g-once'], 'Okay. Who am I speaking with?').cuts.length, 0);
   // "same number" settles it
   const m4 = call('boat is taking on water', 'Stay off the boat. What\'s your name?', 'Greg, call me back on this number');
   assert.equal(run(MIKE, m4, 'Greg, call me back on this number', ['g-once'], 'Thanks, Greg. Is this the best number to reach you?').cuts[0].guard, 'g-once');
@@ -117,4 +117,20 @@ test('g-leads: from the third caller turn, "Got it."-style reactions go; questio
   assert.deepEqual(V.trimLead({ kind: 'trouble', text: 'Oh no.' }, L, m3), { kind: 'trouble', text: 'Oh no.' });
   assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, L, m3.slice(0, 4)), { kind: 'name', text: 'Got it.' });
   assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, {}, m3), { kind: 'name', text: 'Got it.' });
+});
+
+test('fixes from the Nov 5 guard runs: tags kept, open town ask kept, read-backs and first asks kept, "first thing I\'m flagging" is not a promise', () => {
+  // [END] alone is never cut, so the call still hangs up
+  assert.match(run(HVAC, call('heat is out'), 'thank you', G.GUARDS, 'The owner will call you at that number. Keep that baby warm tonight. Talk soon. [END]', { urgent: true }).text, /\[END\]/);
+  // the open town ask stays even when the street has a word like "Pine"
+  assert.equal(run(MIKE, call('it\'s Tom Becker, 88 Pine Hill Road'), 'x', ['g-town'], 'Thanks, Tom. What town is Pine Hill Road in?').cuts.length, 0);
+  // a first or second ask for the name stays; a Spanish read-back stays
+  assert.equal(run(HVAC, call('what\'s a tune-up cost', 'It\'s ninety-five dollars. Who am I talking to?', 'what\'s that cost'), 'what\'s that cost', ['g-once'], 'The service call is ninety-five dollars. Who am I talking to?').cuts.length, 0);
+  assert.equal(run(MIKE, call('me llamo Rosa, cuatro siete ocho cinco cinco cinco dos cinco tres tres'), 'x', ['g-once'], 'Le leo el número: cuatro siete ocho, cinco cinco cinco, dos cinco tres tres, ¿está bien?').cuts.length, 0);
+  // a third word-for-word ask goes
+  const q = 'What\'s your name?';
+  assert.equal(run(MIKE, call('sink leaks', q, 'all day', q, 'kitchen'), 'kitchen', ['g-once'], 'Okay. ' + q).cuts[0].guard, 'g-once');
+  // "the first thing I'm flagging" is not a time promise; "call you first thing" is
+  assert.equal(run(MIKE, call('my boat is sinking'), 'x', ['g-promise'], 'The owner knows it\'s urgent and will call you as soon as he can, and the bilge pump is the first thing I\'m flagging for him.').cuts.length, 0);
+  assert.equal(run(HVAC, call('heat is out'), 'x', ['g-promise'], 'Got it. Someone will call you back first thing. Is everyone warm?').cuts[0].guard, 'g-promise');
 });

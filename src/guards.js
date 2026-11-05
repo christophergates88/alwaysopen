@@ -51,11 +51,11 @@ export function callState(msgs, L, helpers) {
   L = L || {};
   const h = helpers || {};
   const asked = { name: 0, number: 0, address: 0, town: 0, time: 0 };
-  const saidNorm = new Set();
+  const saidNorm = new Set(), saidCount = new Map();
   const us = [];
   for (const m of (msgs || [])) {
     if (m.r === 'u') { us.push(lc(m.t)); continue; }
-    for (const s of sentencesOf(m.t)) { saidNorm.add(norm(s)); for (const k of asksFor(s)) asked[k]++; }
+    for (const s of sentencesOf(m.t)) { const n = norm(s); saidNorm.add(n); saidCount.set(n, (saidCount.get(n) || 0) + 1); for (const k of asksFor(s)) asked[k]++; }
   }
   const all = us.join(' ');
   const have = {
@@ -63,7 +63,7 @@ export function callState(msgs, L, helpers) {
     town: placesIn(L).some(t => all.includes(lc(t))),
     address: !!(h.street && us.some(x => h.street.test(x)))
   };
-  return { asked, have, saidNorm, safetyGiven: (msgs || []).some(m => m.r === 'a' && SAFETY.test(String(m.t || ''))) };
+  return { asked, have, saidNorm, saidCount, safetyGiven: (msgs || []).some(m => m.r === 'a' && SAFETY.test(String(m.t || ''))) };
 }
 function placesIn(L) {
   const own = String(L.town || '').split(/,\s*/)[0];
@@ -83,12 +83,13 @@ function safetyThenAsk(s, ctx) {
 function askOnce(s, ctx) {
   const a = asksFor(s);
   if (!a.length) return false;
-  const st = ctx.state || { asked: {}, have: {}, saidNorm: new Set() };
-  if (st.saidNorm.has(norm(s))) return true;
-  if (a.some(k => (st.asked[k] || 0) >= 2)) return true;
+  const st = ctx.state || { asked: {}, have: {}, saidCount: new Map() };
+  // a read-back ("four seven eight, five five five ... right?") is a check, not a new ask
+  if (/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b(,? +\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b){2,}/i.test(s)) return false;
   // an ask only about a detail they already gave ("is this the best number?" after "same number")
   if (a.every(k => st.have[k])) return true;
-  return false;
+  // the same ask, word for word, a third time
+  return (st.saidCount.get(norm(s)) || 0) >= 2;
 }
 // 3. A question that names a town the caller never said ("Are you in Milledgeville?", "Is that in Eatonton?").
 function noLeadingTown(s, ctx) {
@@ -97,7 +98,7 @@ function noLeadingTown(s, ctx) {
   for (const t of placesIn(ctx.L || {})) if (new RegExp('\\b' + t.replace(/ /g, '\\s+') + '\\b').test(s) && !said.includes(lc(t))) return true;
   // "Which town is Gray in?": the place they named is the town
   const w = /\b([Ww]hich|[Ww]hat) (town|city) is ([A-Z][a-z]+)\b/.exec(s);
-  if (w && said.includes(lc(w[3]))) return true;
+  if (w && said.includes(lc(w[3])) && placesIn(ctx.L || {}).some(t => lc(t) === lc(w[3]))) return true;
   return false;
 }
 // 4. The past-service question on an emergency, with an upset caller, at the goodbye, or on a regulated line.
@@ -126,7 +127,8 @@ function shortReply(s, ctx) {
 const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
-  if (!String(sentence || '').trim()) return '';
+  // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it
+  if (!/[a-z0-9]/i.test(String(sentence || '').replace(/\[[^\]]*\]?/g, ''))) return '';
   for (const [k, f] of ORDER) if (ON(ctx, k) && f(sentence, ctx)) return k;
   return '';
 }

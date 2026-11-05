@@ -1316,7 +1316,7 @@ export function closedToday(line, now) {
 // it; style "v2" means all four.
 export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', ...GUARDS];
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
-export const LIVE_GUARDS = [];
+export const LIVE_GUARDS = ['g-safety'];   // g-safety: Nov 5, fired once in 42 calls, on the smoke call, correctly
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
