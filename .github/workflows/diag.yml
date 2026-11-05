@@ -10,7 +10,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, urllib.request
-          T = os.environ['T']
+          T = os.environ['T'].strip()
           def call(url, body=None):
               r = urllib.request.Request(url, data=json.dumps(body).encode() if body else None, headers={'Authorization': 'Bearer ' + T, 'content-type': 'application/json'})
               return json.load(urllib.request.urlopen(r))
