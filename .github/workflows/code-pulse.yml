@@ -1,0 +1,32 @@
+# Gates HQ "Happening now", live: every minute, all day, in this public repo (GitHub doesn't charge public repos).
+# One run lasts about 5 hours 45 minutes and starts the next; the hourly schedule restarts it if a run is ever lost.
+name: Gates HQ live code pulse
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: hq-code-pulse
+  cancel-in-progress: false
+jobs:
+  pulse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm i -g wrangler@4 --no-audit --no-fund
+      - name: File a pulse every minute
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/codepulse_loop.py
+      - name: Start the next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run code-pulse.yml -R "$GITHUB_REPOSITORY" --ref main
