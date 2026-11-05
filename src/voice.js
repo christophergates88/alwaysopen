@@ -2475,6 +2475,10 @@ export async function rehearse(env) {
 // without a real line for it. Rehearsals only: a live call never reads this.
 const REHEARSE_KEYS = ['overflowNow', 'business', 'town', 'industry', 'regulated', 'services', 'area', 'hours', 'prices', 'booking', 'intake', 'urgent', 'next', 'notes', 'name', 'owner', 'earlier'];
 // The line a practice run talks on: a real line, plus what the request sets (another business, switches).
+export function rehearsalOpening(line, j, L) {
+  const borrowed = !!(j && j.line && typeof j.line === 'object' && j.line.business);
+  return { opening: borrowed ? greetingText(L.business, !!(line && +line.spanish)) : greeting(line), more: borrowed ? '' : greetingMore(line) };
+}
 function rehearsalLine(line, j) {
   const L = lineView(line);
   // A different business is set up whole: nothing of the borrowed line's own promises or owner notes carries over
@@ -2508,13 +2512,15 @@ async function rehearseOne(env) {
   if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
   const L = rehearsalLine(line, j);
   if (line.client_id !== OWN_ID) await addDuties(L, line);
-  const more = greetingMore(line);
+  // A rehearsal for a different business opens as that business (every practice call opened "Mike's Plumbing, this is
+  // Max" for salons, marinas and dentists until Nov 4, 2026, and the human scorer marked the mismatch down).
+  const { opening, more } = rehearsalOpening(line, j, L);
   L.heard2 = !!more;
   // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
   const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
   let budget = 80;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
-    const msgs = [{ r: 'a', t: greeting(line) }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
+    const msgs = [{ r: 'a', t: opening }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
     let leads = [], rlang = 'en-US', esTold = false;
     const turns = Array.isArray(script) ? script : (script && Array.isArray(script.turns) ? script.turns : []);
     const callId = script && !Array.isArray(script) ? String(script.id || '').slice(0, 40) : '';

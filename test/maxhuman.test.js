@@ -179,3 +179,15 @@ test('a town is asked once, open, never named; an emergency\'s first reply ends 
   assert.doesNotMatch(V.callerNotes({ line: {}, urgent: true, msgs: [g, { r: 'u', t: 'heat is out' }, { r: 'a', t: 'Is everyone warm?' }, { r: 'u', t: 'yes' }, { r: 'a', t: 'Good.' }, { r: 'u', t: 'x' }] }, 'it is Jake'), /not their name or number/);
   assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [g, { r: 'u', t: 'x' }] }, 'I want a quote for a new faucet'), /not their name or number/);
 });
+
+test('a practice call for another business opens as that business, not as the borrowed line', () => {
+  const mike = line({ business: "Mike's Plumbing", industry: 'plumbing', spanish: 0, facts: '{"greeting":"Mike\'s Plumbing, this is Max. What can I do for you?","greeting2":"Yep, I said that fast."}' });
+  const j = { line: { business: 'Harbor Point Marina', industry: 'marina' } };
+  const o = V.rehearsalOpening(mike, j, V.rehearsalLine ? V.rehearsalLine(mike, j) : { business: 'Harbor Point Marina' });
+  assert.match(o.opening, /Harbor Point Marina/);
+  assert.doesNotMatch(o.opening, /Mike/);
+  assert.equal(o.more, '');
+  const same = V.rehearsalOpening(mike, { tag: 't' }, V.lineView(mike));
+  assert.match(same.opening, /Mike's Plumbing/);
+  assert.equal(same.more, 'Yep, I said that fast.');
+});
