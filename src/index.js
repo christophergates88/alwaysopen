@@ -180,6 +180,18 @@ async function serve(req, env, ctx) {
       const r = await sendText(env, { clientId: String(b.client || 'always-open'), to: String(b.to || ''), body: String(b.body || 'Always Open texting is on. This is the only test.'), kind: 'test' });
       return json(r, r.ok ? 200 : 400);
     }
+    if (path === '/ops/hq-code') {
+      // Gates HQ "Happening now": the live code pulse (tools/codepulse_loop.py, every minute) files one row here;
+      // the Gates HQ page reads it through the owner's Cloudflare connection. Key-guarded, one row, size-capped.
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const body = await req.text();
+      if (body.length > 200000) return json({ ok: false, error: 'too big' }, 413);
+      let at = ''; try { at = String(JSON.parse(body).at || ''); } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_code (id INTEGER PRIMARY KEY, at TEXT, json TEXT)').run();
+      await env.DB.prepare('INSERT OR REPLACE INTO hq_code (id, at, json) VALUES (1, ?1, ?2)').bind(at, body).run();
+      return json({ ok: true, at });
+    }
     if (path === '/ops/push-queue') {
       // The Gates HQ agent on the Mac relays phone pushes ntfy refused from here (push.js). GET takes, POST reports.
       const k = req.headers.get('x-key') || '';
