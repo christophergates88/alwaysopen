@@ -764,8 +764,8 @@ export class CallRoom extends DurableObject {
         if (!m) return;
         const one = sent.slice(0, m.index + m[0].length);
         sent = sent.slice(m.index + m[0].length);
-        { const g = cutQ(one); if (g) { if ((sp.spoken + sp.pending).trim()) this.mark('Z', g + ': ' + one.trim().slice(0, 60)); else heldQ = one; continue; } }
-        if (heldQ) { this.mark('Z', (cutQ(heldQ) || 'cut') + ': ' + heldQ.trim().slice(0, 60)); heldQ = ''; }
+        { const g = cutQ(one); if (g) { if ((sp.spoken + sp.pending).trim()) { this.mark('Z', g + ': ' + one.trim().slice(0, 60)); heldBack(s, g); } else heldQ = one; continue; } }
+        if (heldQ) { const hg = cutQ(heldQ) || 'cut'; this.mark('Z', hg + ': ' + heldQ.trim().slice(0, 60)); heldBack(s, hg); heldQ = ''; }
         sp.push(one);
       }
     };
@@ -773,7 +773,7 @@ export class CallRoom extends DurableObject {
       const rest = sent; sent = '';
       const rg = rest ? cutQ(rest) : '';
       if (rest && !rg) { if (heldQ && /[a-z0-9]/i.test(rest.replace(/\[[^\]]*\]?/g, ''))) heldQ = ''; sp.push((heldQ || '') + rest); heldQ = ''; return; }
-      if (rest && (sp.spoken + sp.pending).trim()) { this.mark('Z', rg + ': ' + rest.trim().slice(0, 60)); if (heldQ) heldQ = ''; return; }
+      if (rest && (sp.spoken + sp.pending).trim()) { this.mark('Z', rg + ': ' + rest.trim().slice(0, 60)); heldBack(s, rg); if (heldQ) heldQ = ''; return; }
       if (heldQ || rest) { sp.push(heldQ + rest); heldQ = ''; }
     };
     const onTok = t => {
@@ -1123,7 +1123,7 @@ async function writeUp(env, sid, s, why) {
   const summary = note ? note.summary : (outcome === 'failed' ? 'The phone line could not start this call. Call them back.'
     : putThrough ? 'Max put them through to you.' + talked
       : notPickedUp ? 'They asked to be put through, and nobody picked up. Call them back.' : 'They hung up before leaving a message.');
-  const transcript = JSON.stringify(msgs.slice(0, 80).map(x => ({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) }))).slice(0, 24000);
+  const transcript = transcriptOf(msgs, s && s.held);
   if (s && s.lat && s.lat.length) await vlog(env, 'latency', JSON.stringify({ sid, model: (s && s.model) || '', firstWordMs: s.lat }));
   await env.DB.prepare('UPDATE app_calls SET transferred = CASE WHEN transferred = 2 THEN 0 ELSE transferred END, caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')
     .bind((note && note.name) || call.caller_name || '', (note && note.reason) || '', (note && note.details) || '', (note && note.when) || '', callback, note && note.urgent ? 'urgent' : 'normal',
@@ -1318,6 +1318,18 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', ...GU
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
 export const LIVE_GUARDS = [];
 // What a guard needs from the call, built the same way for live calls and practice calls.
+// What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
+export const HELD_LABEL = { biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
+// The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
+export function transcriptOf(msgs, held) {
+  const out = [], h = Array.isArray(held) ? held : [];
+  (msgs || []).slice(0, 80).forEach((x, i) => {
+    out.push({ w: x.r === 'u' ? 'caller' : 'ai', t: String(x.t || '').slice(0, 600) });
+    if (x.r === 'a') { const g = [...new Set(h.filter(y => y.i === i).map(y => y.g))]; for (const k of g) out.push({ w: 'held', t: HELD_LABEL[k] }); }
+  });
+  return JSON.stringify(out).slice(0, 24000);
+}
 export function guardCtx(L, msgs, said, st) {
   const us = (msgs || []).filter(m => m.r === 'u').map(m => String(m.t || '').toLowerCase()).join(' ');
   return { L, msgs, said, urgent: !!(st && st.urgent), upset: !!(st && st.upset), danger: DANGER_CALL.test(us) || WATER_ELECTRIC.test(us), wrap: wrappingUp(said),

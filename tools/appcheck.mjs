@@ -37,6 +37,15 @@ const code = b.code;
 try {
   await DB.prepare("INSERT INTO app_queue (client_id, kind, title, body, status, created) VALUES (?1, 'reply', 'Reply to a 5-star review from R. Patel', 'Thank you, R. It was a pleasure helping with the water heater. Call any time.', 'open', ?2)").bind((await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id, new Date().toISOString()).run();
 } catch (e) { /* the queue table may be shaped differently; the page still renders */ }
+// a call Max took, with one line he held back (Brief 3): the owner sees it in plain words under the reply
+try {
+  const cid = (await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id;
+  const tr = JSON.stringify([{ w: 'ai', t: 'Sinclair Plumbing, this is Max. I\'m S.I., and this call may be recorded. What can I do for you?' }, { w: 'caller', t: 'water is pouring out of my water heater onto the floor' },
+    { w: 'ai', t: 'Oh no, okay. Shut the cold water valve on top of the tank, only if you can reach it dry. Can you get to it?' }, { w: 'held', t: 'asking for their details in the middle of a safety step' },
+    { w: 'caller', t: 'yeah it\'s off now' }, { w: 'ai', t: 'Good. Dana gets an urgent alert now. What\'s your name?' }, { w: 'caller', t: 'Tom Reyes, this number' }, { w: 'ai', t: 'Thanks, Tom. Dana will call you back on this number. Take care.' }]);
+  await DB.prepare("UPDATE app_clients SET feats = 'calls' WHERE client_id = ?1").bind(cid).run();
+  await DB.prepare("INSERT INTO app_calls (id, client_id, at, caller, caller_name, reason, summary, transcript, outcome, status, urgency, test, turns) VALUES ('CAappcheck', ?1, ?2, '+14785550199', 'Tom Reyes', 'Water heater leaking', 'Water heater pouring onto the floor; cold valve shut. Call Tom back.', ?3, 'done', 'new', 'urgent', 0, 4)").bind(cid, new Date().toISOString(), tr).run();
+} catch (e) { console.error('sample call not added: ' + String(e).slice(0, 120)); }
 
 // the worker, reachable by a real browser
 const srv = http.createServer(async (q, r) => {
@@ -58,6 +67,7 @@ const page = await ctx.newPage();
 const errors = []; page.on('pageerror', e => errors.push(String(e)));
 const shots = process.env.APP_SHOTS; if (shots) fs.mkdirSync(shots, { recursive: true });
 const problems = [];
+let heldShot = false;
 await page.goto('http://localhost:' + port + '/app/' + code, { waitUntil: 'load' });
 await page.waitForTimeout(600);
 for (const tab of ['home', 'approve', 'max', 'ask']) {
@@ -79,7 +89,7 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
       const el = n.parentElement; if (!el || seen.has(el)) continue; seen.add(el);
       if (el.closest('script,style,noscript,[role="img"],svg')) continue; if (!vis(el)) continue;
       const s = getComputedStyle(el), px = parseFloat(s.fontSize);
-      const label = /Mono|monospace/.test(s.fontFamily) || el.closest('small,em,.kick,.fine,.note,.tab') || s.textTransform === 'uppercase';   // a tab-bar caption under its icon reads at 12 px, like iOS
+      const label = /Mono|monospace/.test(s.fontFamily) || el.closest('small,em,.kick,.fine,.note,.tab,.segn') || s.textTransform === 'uppercase';   // a tab-bar caption under its icon reads at 12 px, like iOS
       if (px < (label ? 12 : 15)) out.tiny.push(el.tagName + '.' + (el.className || '') + ' ' + px + 'px "' + n.textContent.trim().slice(0, 30) + '"');
     }
     out.ai = /\bAI\b|artificial intelligence/.test(document.body.innerText) ? (document.body.innerText.match(/[^.]*\bAI\b[^.]*/) || [''])[0] : '';
@@ -89,10 +99,13 @@ for (const tab of ['home', 'approve', 'max', 'ask']) {
   r.small.forEach(x => problems.push(tab + ': small tap target ' + x));
   r.tiny.forEach(x => problems.push(tab + ': small text ' + x));
   if (r.ai) problems.push(tab + ': says "AI": ' + r.ai.trim().slice(0, 80));
+  if (tab === 'max' && !heldShot) { const cb = await page.$('[data-mseg="calls"]'); if (cb) { await cb.click(); await page.waitForTimeout(300); } }
+  if (!heldShot) { const d = await page.$('details:has(.said)'); if (d) { heldShot = true; await d.evaluate(x => { x.open = true; document.querySelectorAll('.seg').forEach(e => { e.style.position = 'static'; }); }); await page.waitForTimeout(200); const card = await d.evaluateHandle(x => x.closest('article,.card,li,section') || x); if (shots) await card.asElement().screenshot({ path: path.join(shots, 'app-held-back.png') }); if (!(await page.$('.said p.held'))) problems.push(tab + ': the held-back line did not render'); } }
   if (shots) await page.screenshot({ path: path.join(shots, 'app-' + tab + '.png'), fullPage: true });
 }
 await browser.close(); srv.close();
 errors.forEach(e => problems.push('page error: ' + e.slice(0, 120)));
+if (!heldShot) problems.push('no call transcript was shown on any tab');
 if (problems.length) { console.error('App check failed:\n  ' + problems.join('\n  ')); process.exit(1); }
 console.log('App check passed (4 tabs at 390 px).');
 process.exit(0);

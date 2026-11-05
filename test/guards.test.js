@@ -99,3 +99,12 @@ test('no guard fires when its switch is off, and each guard is fast', () => {
   const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 20;
   assert.ok(ms < 5, 'a sentence took ' + ms.toFixed(2) + ' ms with all guards on and 60 messages');
 });
+
+test('the owner sees "held back" lines in plain words after the reply they belong to', () => {
+  const msgs = [{ r: 'a', t: 'Hi, I\'m S.I.' }, { r: 'u', t: 'water everywhere' }, { r: 'a', t: 'Shut the main valve.' }, { r: 'u', t: 'done, thanks' }, { r: 'a', t: 'Take care.' }];
+  const t = JSON.parse(V.transcriptOf(msgs, [{ i: 2, g: 'g-safety' }, { i: 4, g: 'wrap' }]));
+  assert.deepEqual(t.map(x => x.w), ['ai', 'caller', 'ai', 'held', 'caller', 'ai', 'held']);
+  assert.equal(t[3].t, 'asking for their details in the middle of a safety step');
+  assert.ok(!t.some(x => /\bg-|\bAI\b/.test(x.t)), 'no code names, no "AI"');
+  assert.deepEqual(JSON.parse(V.transcriptOf(msgs)).map(x => x.w), ['ai', 'caller', 'ai', 'caller', 'ai']);
+});

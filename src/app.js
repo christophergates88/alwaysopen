@@ -499,7 +499,7 @@ function callOut(r) {
     id: r.id, at: r.at || '', name: r.caller_name || '', number: num(r.caller), numberText: fmt(r.caller), callback: back, callbackText: fmt(back),
     reason: r.reason || '', details: r.details || '', when: r.wants || '', urgent: r.urgency === 'urgent', summary: r.summary || '',
     outcome: r.outcome || '', status: r.status === 'handled' ? 'handled' : 'new', by: r.handled_by || '', handledAt: r.handled_at || '',
-    transcript: Array.isArray(t) ? t.filter(x => x && x.t).map(x => ({ w: x.w === 'caller' ? 'caller' : 'ai', t: String(x.t) })) : []
+    transcript: Array.isArray(t) ? t.filter(x => x && x.t).map(x => ({ w: x.w === 'caller' ? 'caller' : x.w === 'held' ? 'held' : 'ai', t: String(x.t) })) : []
   };
 }
 
