@@ -750,7 +750,7 @@ export class CallRoom extends DurableObject {
     let heard = false, head = heardNow ? '' : null, raw = '';
     // Once Max has asked what kind of business they run, that question is cut from later replies: the AI keeps asking it
     // whatever it is told. Replies then go out a sentence at a time; a lone question is still said if it is all there is.
-    const askedQ = askedBiz(s.msgs), wrapQ = (hasFeature(s.line, 'v7') || hasFeature(s.line, 'wrapcut')) && wrappingUp(said);
+    const askedQ = askedBiz(s.msgs), wrapQ = wrappingUp(said);
     const cutQ = one => (askedQ && bizQ(one)) || (wrapQ && anyQ(one));
     let sent = '', heldQ = '';
     const say = t => {
@@ -1310,7 +1310,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'wrapcut'];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7'];
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
@@ -2284,8 +2284,9 @@ function lastBefore(msgs, r, at) { for (let i = Math.min(at, (msgs || []).length
 const BIZ_Q = /\b(what|which) (kind|type|sort) of (business|company|work)\b|\b(do|did) you (run|have|own) (a|your own) (business|company)\b|\bare you (running|calling (about|for)|asking (about|for)) (a|your) (business|company)\b|\bare you a (small )?business owner\b|\b(calling|asking) (about|for) (a|your) business\b|\bwhat business are you in\b|\btell me about your business\b/i;
 function askedBiz(msgs) { return (msgs || []).some(x => x.r === 'a' && BIZ_Q.test(String(x.t || ''))); }
 function bizQ(t) { t = String(t || '').trim(); return BIZ_Q.test(t) && /\?["')\]]*$/.test(t); }
-// The caller is wrapping up ("thanks", "bye", "that's it"): from v7, any question at the end of Max's reply is cut in code,
+// The caller is wrapping up ("thanks", "bye", "that's it"): on every call since Nov 5, 2026, any question at the end of Max's reply is cut in code,
 // because the instructions alone did not hold (Nov 5 practice run: "thanks" -> "And what's the street address and town?").
+// On alone, it never fired in 42 practice calls and changed nothing else (human 5.5 either way), so it is a guard, not a change.
 export function wrappingUp(said) {
   const w = String(said || '').toLowerCase();
   return BYE_NOW.test(w) || (/\b(thanks|thank you|gracias)\b/.test(w) && w.split(/\s+/).filter(Boolean).length <= 4 && !/\?/.test(w));
@@ -2555,7 +2556,7 @@ async function rehearseOne(env) {
       if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
       else try { r = env.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
       const sp = new Speaker(() => {}, rlang);
-      sp.push(cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), (hasFeature(L, 'v7') || hasFeature(L, 'wrapcut')) && wrappingUp(said)));
+      sp.push(cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)));
       const spoken = sp.end();
       msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
