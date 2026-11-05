@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      minutes: { description: "How long this run lasts", default: "345" }
 permissions:
   contents: read
   actions: write
@@ -24,9 +26,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 tools/codepulse_loop.py
+          RUN_FOR_MIN: ${{ inputs.minutes || '345' }}
+        run: RUN_FOR_SEC=$(( RUN_FOR_MIN * 60 )) python3 tools/codepulse_loop.py
       - name: Start the next run
-        if: always()
+        if: ${{ !cancelled() && (inputs.minutes || '345') == '345' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run code-pulse.yml -R "$GITHUB_REPOSITORY" --ref main
