@@ -219,7 +219,7 @@ function shortReply(s, ctx) {
 // Brief 5 (Nov 5, 2026 call): canned comebacks that tell a caller they are talking to a script ("Give me a minute to
 // change your mind", "Ha, okay, you're testing me", "That's a sharp ear", "The voice is the part I can't fully smooth
 // out yet"). Max says he is an S.I. when asked and gets back to the question; he never remarks on his own voice.
-const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|earn(ed)? (that|the) reputation|test me|put me to the test)\b|^\s*ha[,.!]/i;
+const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|earn(ed)? (that|the) reputation|test me|put me to the test|outside (of )?my lane|outside what i can help with|sounds interesting, though)\b|^\s*ha[,.!]/i;
 function cannedLine(sentence) { return CANNED.test(lc(sentence)); }
 const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 

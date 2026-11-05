@@ -21,10 +21,9 @@ test('S.I., Mr., a.m. and prices never split a sentence', () => {
   assert.deepEqual(sent.map(words), ["I'm an S.I. and calls are recorded.", 'Mr. Lane can come at 9 a.m. on Monday.', 'The tank is $1,450.00 installed.']);
 });
 
-test('a long sentence goes out at a comma after its eighth word, never mid-clause', () => {
-  const { sent } = run(['We answer every Google review in your voice for the business, ', 'and missed calls get picked up day and night by me.']);
-  assert.equal(sent.length, 2);
-  assert.match(sent[0].token, /for the business,$/);
+test('a long sentence stays one utterance (Nov 5, 6:29 PM: the tone changed where it was split at a comma)', () => {
+  const { sent } = run(['Okay. An electric bill is a bit outside my lane too, ', "that one's for your utility company or an electrician."]);
+  assert.deepEqual(sent.map(words), ['Okay.', "An electric bill is a bit outside my lane too, that one's for your utility company or an electrician."]);
 });
 
 test('tags still work, and nothing after a question is said', () => {
@@ -39,7 +38,7 @@ test('the first sentence goes out on time even if it runs long', async () => {
   const sent = []; const sp = new V.Speaker(o => sent.push(o), 'en-US');
   sp.push('So the way it works for a shop like yours, every call');
   assert.equal(sent.length, 0, 'held while it may still finish');
-  await new Promise(r => setTimeout(r, 950));
+  await new Promise(r => setTimeout(r, 1550));
   assert.equal(sent.length, 1, 'out after the cap');
   assert.match(sent[0].token, /like yours,$/);
   sp.push(' gets answered. Then more.');
@@ -95,4 +94,14 @@ test('Nov 5, 5:57 PM: a compliment gets a thanks and nothing else; day-to-day co
   const f = F.ownLineFacts();
   assert.match(f.services, /^Day to day:/);
   assert.match(f.prices, /I come with every plan/);
+});
+
+test('6:29 PM call: a personal curveball gets a person\'s reaction and a human answer, not a referral and a pitch', () => {
+  assert.equal(V.leadIn('I have a child that is not wanting me to hold them only to mom. What do I do?', 'en-US', [], () => 0).kind, 'personal');
+  const notes = String(V.callerNotes({ line: {}, msgs: [] }, 'I have a child that is not wanting me to hold them only to mom. What do I do?'));
+  assert.match(notes, /own life/);
+  assert.match(notes, /do not ask what business they run/);
+  for (const t of ['An electric bill is a bit outside my lane too.', 'Parenting advice is outside what I can help with here.', 'Multilayered sounds interesting, though.'])
+    assert.equal(G.guardOne(t, { on, msgs: [], said: '' }), 'g-canned', t);
+  assert.notEqual(V.leadIn('my customers keep calling after hours, what do I do?', 'en-US', [], () => 0).kind, 'personal', 'business talk is not personal');
 });

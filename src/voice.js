@@ -1738,7 +1738,7 @@ async function sse(body, onData) {
 // fall (Christopher, Nov 5, 2026: "instead of your sentence fluctuating together, every word is choosing its own
 // fluctuation"). A long sentence goes out at a comma after its eighth word; the first sentence of a reply goes out
 // as it stands if it is still unfinished FIRST_CAP_MS after its first word, so the caller is never left waiting.
-const FIRST_CAP_MS = 900;
+const FIRST_CAP_MS = 1500;   // the reaction ("Okay.") is already playing, so the first sentence can wait to be whole
 const ABBR = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr\.|a\.m\.|p\.m\.|vs\.|etc\.|e\.g\.|i\.e\.)$/i;
 // The end of the first whole sentence in t (the index just past its closing punctuation and spaces), or -1.
 export function sentenceEnd(t) {
@@ -1810,7 +1810,7 @@ export class Speaker {
       if (this.stopped) return;
       let k = sentenceEnd(this.pending);
       if (k < 0 && /[.?]["')\]]*$/.test(this.pending.trim()) && this.asked) k = this.pending.length;   // the question that ends the reply
-      if (k < 0) k = clauseEnd(this.pending);
+      // a long sentence is never split at a comma any more: the 6:29 PM call (Nov 5) heard the tone change mid-sentence
       if (k < 0) break;
       this.out(this.pending.slice(0, k));
       this.pending = this.pending.slice(k);
@@ -1868,6 +1868,7 @@ export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s|tal
 // said, never one of the last few used, and "good question" at most once a call. Each is short and complete, so Twilio can
 // say it at once and the AI's answer starts a fresh sentence after it.
 export const LEADS = {
+  personal: ['Oh, man.', 'Oh, that\'s a tough one.', 'Oof.'],
   repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
   urgent: ['Alright.', 'Got it.', 'Okay, right.'],
@@ -2199,6 +2200,8 @@ export function mentioned(said) {
 const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that's everything|no that's it|nope that's it|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go|thanks so much|thank you so much|adiós|adios|eso es todo|es todo|gracias,? eso es todo)\b/;
 const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
 const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
+// A caller's own life, not their business (Nov 5, 6:29 PM: "I have a child that is not wanting me to hold them").
+const PERSONAL = /\b(my (child|kid|kids|son|daughter|baby|toddler|wife|husband|girlfriend|boyfriend|marriage|family)|a child|a toddler|parenting|my (health|doctor|diet)|my (electric|power|light|water) bill|feel(ing)? (down|sad|lonely|stressed))\b/;
 const COMPLIMENT = /\b(you're doing (good|great|well)|you did (good|great|well)|made me (really |so )?happy|good job|great job|nice job|you sound (great|good|better|really good)|i'm impressed|that was (great|perfect)|love (it|this|how you))\b/;
 const MISSED_Q = /\b(that's not what i ask(ed)?|that is not what i ask(ed)?|not what i asked|you didn't answer|you did not answer|are you going to answer|answer (me|my question)|that's not my question)\b/;
 export function callerNotes(s, said) {
@@ -2213,6 +2216,7 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  if (PERSONAL.test(String(said || '').toLowerCase()) && !/\b(customers?|clients?|my (business|company|shop|crew))\b/.test(String(said || '').toLowerCase())) out.push('This is about the caller\'s own life, not a business. Answer the way a friendly person on a business phone line would: one short, warm, human line about it (a plain thought is fine, like "kids go through phases like that"), and say simply that you are just the phone line here. Do not list professionals to call, do not use phrases like "outside my lane" or "outside what I can help with", do not pitch, and do not ask what business they run. End by asking what else you can do for them.');
   if (COMPLIMENT.test(String(said || '').toLowerCase())) out.push('The caller just paid you a compliment. Thank them in a few warm words and stop there: no question and no pitch in this reply.');
   // Brief 5 (Nov 5 call): "That's not what I asked" twice in a row, while Max restated his pitch. When the caller says
   // Max missed the question, the reply goes back to their own last question and answers it in its first sentence.
@@ -2315,6 +2319,8 @@ function leadKindEn(raw, orig) {
   if (!w || /^(um+|uh+|hm+|mm+|er+|ah+|so|well|like|and|but|or|oh)$/.test(w)) return '';
   const n = w.split(' ').length;
   const has = re => re.test(w);
+  // a caller's own life (Nov 5, 6:29 PM): a person's reaction, before anything else reads it as a plain question
+  if (has(PERSONAL) && !has(/\b(customers?|clients?|my (business|company|shop|crew)|we (do|fix|install))\b/)) return 'personal';
   // the real ask, without "yeah so", "um" or "hi" in front of it
   const core = w.replace(/^((yeah|yes|yep|so|um+|uh+|well|okay|ok|oh|hi|hey|hello|and|but|like|alright|all right|thanks|thank you|max)\s+)+/, '');
   if (/^(what|huh|sorry|pardon|pardon me|excuse me|come again|what was that|what did you say|say again)$/.test(w) ||
