@@ -8,11 +8,17 @@ jobs:
         env:
           T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          acct=$(curl -sS -H "Authorization: Bearer $T" https://api.cloudflare.com/client/v4/accounts | jq -r '.result[0].id')
-          echo "account found: $([ -n "$acct" ] && echo yes)"
-          for win in "2026-11-05T16:40:00Z 2026-11-05T16:43:00Z" "2026-11-05T19:59:30Z 2026-11-05T20:02:30Z"; do
-            set -- $win
-            q=$(jq -n --arg a "$acct" --arg s "$1" --arg e "$2" '{query:"query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){d:durableObjectsInvocationsAdaptiveGroups(limit:50,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests errors} dimensions{status scriptName datetimeMinute}} w:workersInvocationsAdaptive(limit:50,filter:{datetime_geq:$s,datetime_leq:$e,scriptName:\"alwaysopen\"}){sum{requests errors subrequests} dimensions{status datetime}}}}}",variables:{a:$a,s:$s,e:$e}}')
-            echo "=== $1"
-            curl -sS -H "Authorization: Bearer $T" -H "content-type: application/json" https://api.cloudflare.com/client/v4/graphql -d "$q" | jq -c '.data.viewer.accounts[0] // .errors'
-          done
+          python3 - <<'PY'
+          import json, os, urllib.request
+          T = os.environ['T']
+          def call(url, body=None):
+              r = urllib.request.Request(url, data=json.dumps(body).encode() if body else None, headers={'Authorization': 'Bearer ' + T, 'content-type': 'application/json'})
+              return json.load(urllib.request.urlopen(r))
+          acct = call('https://api.cloudflare.com/client/v4/accounts')['result'][0]['id']
+          Q = '''query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){
+            d:durableObjectsInvocationsAdaptiveGroups(limit:50,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests errors} dimensions{status datetimeMinute}}
+            w:workersInvocationsAdaptive(limit:50,filter:{datetime_geq:$s,datetime_leq:$e,scriptName:"alwaysopen"}){sum{requests errors} dimensions{status datetime}}}}}'''
+          for s, e in [('2026-11-05T16:40:00Z', '2026-11-05T16:43:00Z'), ('2026-11-05T19:59:30Z', '2026-11-05T20:02:30Z')]:
+              print('===', s)
+              print(json.dumps(call('https://api.cloudflare.com/client/v4/graphql', {'query': Q, 'variables': {'a': acct, 's': s, 'e': e}}))[:6000])
+          PY
