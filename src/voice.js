@@ -180,6 +180,10 @@ async function incoming(env, f) {
     // also answer in Spanish get Flux once fluxFor says so (Nov 4 2026, tried on a line first), for both languages: Flux
     // is multilingual now (Spanish among its ten), so Spanish callers get the same quick, natural turn-taking.
     (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux" eotThreshold="0.8" speechTimeout="3000" partialPrompts="true"' : '') +
+    // A line that answers in Spanish listens in "multi" from the first word: with language="en-US" alone, Flux heard a
+    // Spanish caller as nothing at all (Nov 5, 2026 test call: one word, "."), so Max never switched and hung up after two
+    // "I'm not hearing anything". The two <Language> entries below are the hints toward English and Spanish.
+    (multiStt(env, line) ? ' transcriptionLanguage="multi"' : '') +
     (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux"' : '') + '/>' : '') + '</ConversationRelay></Connect>');
 }
 
@@ -681,7 +685,7 @@ export class CallRoom extends DurableObject {
     // A caller who speaks Spanish gets Spanish from here on (when the line answers in Spanish).
     if (s.lang === 'en-US' && s.line && s.line.spanish && (looksSpanish(said) || (s.msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) {
       s.lang = 'es-US';
-      this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
+      this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: multiStt(this.env, s.line) ? 'multi' : 'es-US' });
       this.mark('ES', 'auto');
     }
     // The AI may already be writing the answer to these exact words (started from the partial prompts).
@@ -900,7 +904,7 @@ export class CallRoom extends DurableObject {
   async onDtmf(s, d) {
     if (d === '2' && s.line.spanish && s.lang === 'en-US') {
       s.lang = 'es-US';
-      this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
+      this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: multiStt(this.env, s.line) ? 'multi' : 'es-US' });
       s.esTold = true;
       return this.say(s, 'Claro. Soy S.I., y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
     }
@@ -2384,6 +2388,8 @@ const STEADY_VOICE = '1.0_0.6_0.8';   // speed_stability_similarity
 // No voice set on the line: Max's usual voice, with the steady settings below (not ElevenLabs' swingier defaults).
 const DEFAULT_VOICE_ID = 'UgBBYS2sOqTuMpoF3BR0';
 // Flux on every English line (VOICE_FLUX=all), or on one line to try it (facts.flux), or on English-only lines as before.
+// Spanish lines on Flux listen in "multi" (Deepgram picks the language each turn; Twilio needs Deepgram for it).
+export function multiStt(env, line) { return !!(line && +line.spanish && fluxFor(env, line)); }
 export function fluxFor(env, line) {
   if (!+line.spanish) return true;
   const f = parse(line.facts) || {};

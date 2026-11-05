@@ -153,3 +153,9 @@ test('the emergency detector hears a ceiling leak and Spanish water; the history
   const m = call('my ceiling has a stain', 'Shut the main water valve if you can.', 'yeah this number\'s fine');
   assert.equal(run(MIKE, m, 'yeah this number\'s fine', ['g-history'], 'We\'ll call you back at this number. One quick thing for his note: when did you last have plumbing work done up there, and who did it?').cuts[0].guard, 'g-history');
 });
+
+test('a Spanish line on Flux listens in "multi" from the first word (Nov 5: a Spanish caller was heard as nothing)', () => {
+  assert.equal(V.multiStt({ VOICE_FLUX: 'all' }, { spanish: 1, facts: '{}' }), true);
+  assert.equal(V.multiStt({ VOICE_FLUX: 'all' }, { spanish: 0, facts: '{}' }), false, 'English-only lines keep English Flux');
+  assert.equal(V.multiStt({}, { spanish: 1, facts: '{}' }), false, 'a Spanish line not on Flux keeps its recognizer');
+});
