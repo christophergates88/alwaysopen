@@ -615,6 +615,7 @@ function mapMake(box,D,full){
       if(full)map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
       setTimeout(function(){if(!map.isStyleLoaded()){try{map.remove();}catch(e){}if(full)MAPF=null;else MAPM=null;mapFallback(box,D);}},12000);
       drawPins(map,D,full);
+      map.once('load',function(){var a=box.querySelector('.maplibregl-compact-show');if(a)a.classList.remove('maplibregl-compact-show');});
       if(full)MAPF=map;else MAPM=map;
     }catch(e){mapFallback(box,D);}
   });
