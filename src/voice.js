@@ -1679,7 +1679,7 @@ export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s|tal
 // What a person says the instant someone stops talking, while they think of the real answer. Picked to fit what the caller
 // said, never one of the last few used, and "good question" at most once a call. Each is short and complete, so Twilio can
 // say it at once and the AI's answer starts a fresh sentence after it.
-const LEADS = {
+export const LEADS = {
   repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
   urgent: ['Alright.', 'Got it.', 'Okay, right.'],
@@ -1703,10 +1703,10 @@ const LEADS = {
   hi: ['Hi.', 'Hi there.'],
   wait: ['Sure.', 'Sure, no rush.'],
   yes: ['Alright.', 'Good.', 'Got it.', 'Okay.', 'Sure.', 'Great.'],
-  ask: ['Sure.', 'Alright.', 'Yeah, of course.', 'Absolutely.'],
-  wh: ['Good question.', 'Sure.', 'Okay, so.', 'Let me see.', 'Yeah, so.'],
+  ask: ['Alright.', 'Okay.'],   // not "Sure." or "Absolutely.": the answer may be a no ("Absolutely. I can't throw out a number")
+  wh: ['Good question.', 'Okay, so.', 'Let me see.'],
   worry: ['Fair question.', 'Good question.'],
-  yn: ['Okay.', 'Sure.', 'Let me see.', 'Yeah, so.'],
+  yn: ['Let me see.', 'Good question.', 'Okay, so.'],   // never a word that sounds like yes before the answer ("should I unplug it?" "Sure. Please don't touch it.")
   point: ['Fair point.', 'Good point.'],
   biz: ['Nice.', 'Okay, nice.'],
   pet: ['Nice.', 'That\'s great.'],
@@ -1718,7 +1718,7 @@ const LEADS = {
 
 const LEADS_ES = {
   repeat: ['Perdón.'], danger: ['Entiendo.'], thanks: ['Con gusto.', 'De nada.'], hi: ['Hola.'],
-  wh: ['Buena pregunta.', 'Claro.', 'Muy bien.'], said: ['Claro.', 'Entiendo.', 'Ajá.']
+  wh: ['Buena pregunta.', 'A ver.'], said: ['Claro.', 'Entiendo.', 'Ajá.']
 };
 
 // Spoken with the pitch held up ("Got it," not "Got it."), so the reaction flows into the answer like one breath instead
@@ -2040,7 +2040,11 @@ export function callerNotes(s, said) {
       ? 'They just gave a phone number. Code counted it: ten digits, complete. If you check it, say exactly "' + ph.say + '". It is complete and correct: never say it is short, missing a digit or different from the number they are calling from, and never ask for it again.'
       : ph.n === 7
         ? 'They gave a seven-digit phone number with no area code (code counted it). Ask once, briefly, for just the area code.'
-        : 'Code counted ' + N_WORD[ph.n] + ' digits in the phone number they gave, so a digit may be ' + (ph.n < 10 ? 'missing' : 'extra') + '. Ask them once, kindly, to say the whole number again.'); }
+        : 'Code counted ' + N_WORD[ph.n] + ' digits in the phone number they gave, so a digit may be ' + (ph.n < 10 ? 'missing' : 'extra') + '. Ask them once, kindly, to say the whole number again.');
+    // ...and on every later turn: a complete number stays complete (Max said "that number sounded a digit short" one
+    // turn after a full ten digits, in two practice runs on Nov 4, 2026).
+    if (!ph) { const done = (s.msgs || []).slice(0, -1).filter(m => m.r === 'u').map(m => phoneReadback(m.t)).filter(x => x && x.n === 10).pop();
+      if (done) out.push('The phone number they gave earlier is complete and correct (code counted ten digits: "' + done.say + '"). Never say it was short or missing a digit, and never ask for it again.'); } }
   // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
   if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. No repair steps; at most, closing a water valve that is easy and safe to reach if something is actively leaking. Never anything electrical or gas.');
   // When they ask how soon the owner calls: the business's own emergency callback time if it set one, otherwise a polite "as soon as he's free".

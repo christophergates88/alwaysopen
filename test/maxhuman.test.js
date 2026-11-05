@@ -110,3 +110,10 @@ test('practice runs say when more may be waiting, so the next batch starts right
   const { makeDB } = await import('./rehearsal/harness.js');
   assert.equal(await V.rehearse({ DB: makeDB() }), false, 'nothing queued: no next batch');
 });
+
+test('a complete number stays complete on later turns, and a yes-or-no question never gets a yes-sounding reaction', () => {
+  const said = 'my name is Priya Shah, the number is four seven eight five five five zero one six six';
+  const s = { line: {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'drain backing up' }, { r: 'a', t: 'Name and number?' }, { r: 'u', t: said }, { r: 'a', t: 'And the address?' }, { r: 'u', t: 'the address is 1430 Old Phoenix Road' }] };
+  assert.match(V.callerNotes(s, 'the address is 1430 Old Phoenix Road'), /earlier is complete and correct \(code counted ten digits: "four seven eight, five five five, zero one six six"\)\. Never say it was short/);
+  for (const k of ['yn', 'ask', 'wh']) assert.ok(!V.LEADS[k].some(x => /^(Sure|Yeah|Absolutely|Yes|Of course)\b/.test(x)), k);
+});
