@@ -210,7 +210,8 @@ function shortReply(s, ctx) {
   // a sentence about what they just said ("For a pressure washing crew, ...") is the answer, not padding: kept
   const mine = new Set((lc(ctx.said).match(/[a-z']{5,}/g) || []).filter(x => !/^(about|would|could|should|there|their|which|where|what's|exactly|really|thing|things|always|right)$/.test(x)));
   if ((lc(s).match(/[a-z']{5,}/g) || []).some(x => mine.has(x))) return false;
-  const before = sentencesOf(ctx.spoken || '').filter(x => !isQ(x)).length, w = words(ctx.spoken || '');
+  // a short opener ("Fair pushback.", "Yep.") is not one of the two: on Nov 5 it cut the actual answer after it
+  const before = sentencesOf(ctx.spoken || '').filter(x => !isQ(x) && words(x) > 3).length, w = words(ctx.spoken || '');
   if (!before) return false;
   return before >= ((ctx.urgent || ctx.danger) ? 3 : 2) || w + words(s) > 40;
 }

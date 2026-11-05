@@ -256,3 +256,10 @@ test('Nov 5, 5:57 PM call: two statements and stop, unless they asked for more; 
   assert.match(more.text, /number you already have/, 'asked for more: all of it');
   assert.equal(G.guardOne('Want to test me the way one of your customers would?', { on: new Set(['g-canned']), msgs: [], said: '' }), 'g-canned');
 });
+
+test('a short opener is not one of the two statements (Nov 5 practice: "Fair pushback." left the answer out)', () => {
+  const said = 'it sounds like an answering service';
+  const r = run(MIKE, call(said), said, [], 'Fair pushback. An answering service takes messages. This answers any hour and sends you the name and number on your phone. Starter is $149 a month, no contract.');
+  assert.match(r.text, /sends you the name and number/, 'the answer itself stays');
+  assert.doesNotMatch(r.text, /Starter is/, 'the third statement still goes');
+});
