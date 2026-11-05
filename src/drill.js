@@ -15,10 +15,10 @@ const WAIT_MS = 4 * 60e3, RETRY_MS = 15 * 60e3;
 const HOUR = 4;
 const REJECT = 'https://twimlets.com/echo?Twiml=' + encodeURIComponent('<Response><Reject/></Response>');
 // What the test caller says. Max's greeting runs first; the pauses leave room for him to answer.
-export const SCRIPT = '<Response><Pause length="10"/><Say voice="Polly.Joanna">Hi. I run a plumbing company in Eatonton, and I would like the free audit. Can someone call me back tomorrow morning?</Say>' +
+export const SCRIPT = '<Response><Pause length="7"/><Say voice="Polly.Joanna">Hi. I run a plumbing company in Eatonton, and I would like the free audit. Can someone call me back tomorrow morning?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Joanna">No, that is everything. Thank you. Goodbye.</Say><Pause length="5"/><Hangup/></Response>';
 // A Spanish caller, for the recognizer and the Spanish reactions (Brief 2, Part 4b): drill_meta now = 'requested-es'
-export const SCRIPT_ES = '<Response><Pause length="10"/><Say voice="Polly.Lupe" language="es-US">Hola. Tengo una plomería en Eatonton y quisiera la auditoría gratis. ¿Me pueden llamar mañana por la mañana?</Say>' +
+export const SCRIPT_ES = '<Response><Pause length="7"/><Say voice="Polly.Lupe" language="es-US">Hola. Tengo una plomería en Eatonton y quisiera la auditoría gratis. ¿Me pueden llamar mañana por la mañana?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Lupe" language="es-US">No, eso es todo. Gracias. Adiós.</Say><Pause length="5"/><Hangup/></Response>';
 const WANTED = /plumb|audit|plomer|auditor/i;
 
