@@ -217,7 +217,8 @@ a.btn{color:inherit}
 .feature .mapline{margin:0;font-size:17px;line-height:1.4;color:var(--ink)}
 .mapfb{position:absolute;inset:0;background:#232A3A;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px}
 .mapfb .mdot,.mapfb .mpin{position:absolute;transform:translate(-50%,-50%)}.mapfb .mpin{transform:translate(-50%,-100%)}
-.mdot{width:16px;height:16px;border-radius:50%;background:var(--ok);border:2px solid #fff;padding:0;box-shadow:0 0 0 4px rgba(92,201,164,.25)}
+.mtap{width:48px;height:48px;padding:0;border:0;background:none;display:grid;place-items:center}.mhold{display:grid;place-items:center}
+.mdot{display:block;width:16px;height:16px;border-radius:50%;background:var(--ok);border:2px solid #fff;padding:0;box-shadow:0 0 0 4px rgba(92,201,164,.25)}
 .mdot.ex{background:var(--slate);opacity:.55;box-shadow:none;border-color:rgba(255,255,255,.6)}
 .mpin{display:grid;justify-items:center;pointer-events:none}.mpin b{background:var(--sign);color:var(--on-sign);font:800 15px var(--display);padding:4px 10px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .mpin i{width:3px;height:12px;background:var(--sign)}.mpin.off b{background:var(--slate)}.mpin.off i{background:var(--slate)}
@@ -646,10 +647,10 @@ function pinEl(you){var e=document.createElement('div');
   if(you){e.className='mpin'+(S.map.show?'':' off');e.innerHTML='<b>You</b><i></i>';}
   else{e.className='mdot';}
   return e;}
-function dotEl(ex){var e=document.createElement('button');e.type='button';e.className='mdot'+(ex?' ex':'');e.setAttribute('aria-label',ex?'Example':'Business');return e;}
+function dotEl(ex,full){var d='<span class="mdot'+(ex?' ex':'')+'"></span>';var e=document.createElement(full?'button':'div');if(full){e.type='button';e.className='mtap';e.setAttribute('aria-label',ex?'Example':'Business');}else{e.className='mhold';}e.innerHTML=d;return e;}
 function drawPins(map,D,full){
   (D.examples?D.dots.map(function(d){return {lat:d[0],lng:d[1],ex:true};}):D.others).forEach(function(b){
-    var el=dotEl(b.ex),mk=new maplibregl.Marker({element:el}).setLngLat([b.lng,b.lat]);
+    var el=dotEl(b.ex,full),mk=new maplibregl.Marker({element:el}).setLngLat([b.lng,b.lat]);
     if(full)mk.setPopup(new maplibregl.Popup({offset:12,closeButton:false}).setText(b.ex?'Example':b.name+(b.kind?' · '+b.kind:'')));
     mk.addTo(map);});
   if(D.placed)new maplibregl.Marker({element:pinEl(true),anchor:'bottom'}).setLngLat([D.center[1],D.center[0]]).addTo(map);
