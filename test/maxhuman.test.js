@@ -148,7 +148,7 @@ test('Part 1d: a goodbye closes, "same number" settles it, no town assumed, no h
   const base = (x) => ({ line: x || {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'leak under the sink' }, { r: 'a', t: 'What\'s the best number?' }, { r: 'u', t: 'same number is fine' }] });
   assert.match(V.callerNotes(base(), 'nope that\'s it, thanks'), /They are wrapping up\. Close in one short, warm line/);
   assert.match(V.callerNotes(base(), 'okay'), /The number is settled: never ask about it/);
-  assert.match(V.callerNotes(base(), "it's 1430 Old Phoenix Road"), /If they did not say the town, ask once; never assume one/);
+  assert.match(V.callerNotes(base(), "it's 1430 Old Phoenix Road"), /ask once, open: "and what town is that in\?" Never name a town yourself/);
   assert.match(V.callerNotes(base({ regulated: true }), 'can I get in tomorrow'), /never say a day or time is held, booked/i);
   assert.doesNotMatch(V.callerNotes(base(), 'can I get in tomorrow'), /held, booked/);
   assert.match(V.callerNotes(Object.assign(base(), { urgent: true }), 'okay'), /Leave routine questions/);

@@ -2101,15 +2101,13 @@ export function callerNotes(s, said) {
     if (us.some(x => SAME_NUM.test(x))) out.push('They said to use the number they are calling from. The number is settled: never ask about it, confirm it or read it back again.');
     // a town is never assumed: asked once, open, and never named by Max (v5 asked "is that Milledgeville?" twice, then
     // "put it down as Milledgeville"; that lost hvac-no-heat on Nov 4)
-    if (!hasFeature(L, 'v6')) { if (STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.'); }
-    else {
-      if (STREET_WORD.test(w)) out.push('They gave a street. If they did not say the town, ask once, open: "and what town is that in?" Never name a town yourself, not as a guess, not as a yes-or-no question, not as a default.');
-      else { const streetAt = us.findIndex(x => STREET_WORD.test(x));
-        if (streetAt > -1 && streetAt < us.length - 1 && (s.msgs || []).some(m => m.r === 'a' && /\btown\b/i.test(String(m.t || '')))) out.push('You already asked for the town once. Do not ask again, and never name a town or "put one down"; if they did not give it, the team checks on the callback.'); }
-      // an emergency's first reply ends on them, not on their name (v5 bolted "What's your name?" onto every safety line
-      // of plumb-electric-smoke and lost it; the no-heat call asked for a number before any safe step)
-      if (us.length <= 2 && (s.urgent || DANGER_CALL.test(w) || WATER_ELECTRIC.test(w))) out.push('Something is going wrong right now. This reply: one safe step for this minute if there is one (keep the baby in the warmest room, stay out of the water), then end on a question about them (are you clear of it, is everyone okay, is everyone warm), not their name or number. The name and number come next turn, once.');
-    }
+    // (live since Nov 4, 2026: beat the previous notes 28 to 13 blind, with every emergency it was written for)
+    if (STREET_WORD.test(w)) out.push('They gave a street. If they did not say the town, ask once, open: "and what town is that in?" Never name a town yourself, not as a guess, not as a yes-or-no question, not as a default.');
+    else { const streetAt = us.findIndex(x => STREET_WORD.test(x));
+      if (streetAt > -1 && streetAt < us.length - 1 && (s.msgs || []).some(m => m.r === 'a' && /\btown\b/i.test(String(m.t || '')))) out.push('You already asked for the town once. Do not ask again, and never name a town or "put one down"; if they did not give it, the team checks on the callback.'); }
+    // an emergency's first reply ends on them, not on their name (v5 bolted "What's your name?" onto every safety line
+    // of plumb-electric-smoke and lost it; the no-heat call asked for a number before any safe step)
+    if (us.length <= 2 && (s.urgent || DANGER_CALL.test(w) || WATER_ELECTRIC.test(w))) out.push('Something is going wrong right now. This reply: one safe step for this minute if there is one (keep the baby in the warmest room, stay out of the water), then end on a question about them (are you clear of it, is everyone okay, is everyone warm), not their name or number. The name and number come next turn, once.');
     // a regulated line never holds a time
     if (L.regulated && /\b(appointment|come in|get in|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|soon|cita|mañana|hoy)\b/.test(w)) out.push('On this line the office calls back to set any time. Never say a day or time is held, booked, or that the team will confirm one; say they will call to find a time.');
     // no routine closing question for someone in trouble or upset
