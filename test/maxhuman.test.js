@@ -191,3 +191,8 @@ test('a practice call for another business opens as that business, not as the bo
   assert.match(same.opening, /Mike's Plumbing/);
   assert.equal(same.more, 'Yep, I said that fast.');
 });
+
+test('"9 Cypress Point" and "14 Harbor Cove" count as streets for the town note', () => {
+  for (const a of ['it\'s Nina Ford, 9 Cypress Point', '14 Harbor Cove', '220 Oak Ridge', '7 Mill Run']) assert.match(V.callerNotes({ line: { features: ['v6'] }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, a), /Never name a town yourself/, a);
+  assert.doesNotMatch(V.callerNotes({ line: { features: ['v6'] }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, 'it\'s 3 degrees out and the point is the heat is dead'), /Never name a town/);
+});

@@ -2022,7 +2022,7 @@ export function mentioned(said) {
 }
 const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that's everything|no that's it|nope that's it|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go|thanks so much|thank you so much|adiós|adios|eso es todo|es todo|gracias,? eso es todo)\b/;
 const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
-const STREET_WORD = /\b(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|calle|avenida|camino)\b/;
+const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
 export function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -2101,10 +2101,10 @@ export function callerNotes(s, said) {
     if (us.some(x => SAME_NUM.test(x))) out.push('They said to use the number they are calling from. The number is settled: never ask about it, confirm it or read it back again.');
     // a town is never assumed: asked once, open, and never named by Max (v5 asked "is that Milledgeville?" twice, then
     // "put it down as Milledgeville"; that lost hvac-no-heat on Nov 4)
-    if (!hasFeature(L, 'v6')) { if (/\d/.test(w) && STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.'); }
+    if (!hasFeature(L, 'v6')) { if (STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.'); }
     else {
-      if (/\d/.test(w) && STREET_WORD.test(w)) out.push('They gave a street. If they did not say the town, ask once, open: "and what town is that in?" Never name a town yourself, not as a guess, not as a yes-or-no question, not as a default.');
-      else { const streetAt = us.findIndex(x => /\d/.test(x) && STREET_WORD.test(x));
+      if (STREET_WORD.test(w)) out.push('They gave a street. If they did not say the town, ask once, open: "and what town is that in?" Never name a town yourself, not as a guess, not as a yes-or-no question, not as a default.');
+      else { const streetAt = us.findIndex(x => STREET_WORD.test(x));
         if (streetAt > -1 && streetAt < us.length - 1 && (s.msgs || []).some(m => m.r === 'a' && /\btown\b/i.test(String(m.t || '')))) out.push('You already asked for the town once. Do not ask again, and never name a town or "put one down"; if they did not give it, the team checks on the callback.'); }
       // an emergency's first reply ends on them, not on their name (v5 bolted "What's your name?" onto every safety line
       // of plumb-electric-smoke and lost it; the no-heat call asked for a number before any safe step)
