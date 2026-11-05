@@ -14,7 +14,8 @@ const v2 = (L) => Object.assign(L, { style: 'v2' });
 
 test('live calls get the wording that won the blind test; the rewrite only under style v2', () => {
   const p = V.systemPrompt(V.lineView(line()), '+14785550142', 'en-US', false);
-  assert.match(p, /Is the water off\? \.\.\. Good\. I'm getting Mike on this now/);
+  assert.match(p, /Is the water off\? \.\.\. Good\. I'm getting the owner on this now/);
+  assert.doesNotMatch(p, /Mike/, 'no example owner name a line could pick up');
   assert.match(p, /give the instruction as its own short statement and only then ask/);
   assert.doesNotMatch(p, /How it sounds/);
   assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, "there's water coming through my kitchen ceiling like a lot of it"), /They just mentioned/);
@@ -103,4 +104,9 @@ test('the human grade reads a fixed rubric and keeps only the number', async () 
   const cut = async () => new Response(JSON.stringify({ content: [{ text: '{"score": 6, "why": "Warm and quick, but he asks for the town tw' }] }));
   assert.deepEqual(await G.humanScore({ ANTHROPIC_API_KEY: 'k' }, msgs, cut), { score: 6, why: 'Warm and quick, but he asks for the town tw' }, 'a reply cut off mid-why still counts');
   assert.equal(sent.max_tokens, 200);
+});
+
+test('practice runs say when more may be waiting, so the next batch starts right away', async () => {
+  const { makeDB } = await import('./rehearsal/harness.js');
+  assert.equal(await V.rehearse({ DB: makeDB() }), false, 'nothing queued: no next batch');
 });

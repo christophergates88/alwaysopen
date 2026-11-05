@@ -360,7 +360,16 @@ export class CallRoom extends DurableObject {
   }
 
   // Rehearsals run here, in a room named 'rehearsals' (see voiceCron), never alongside a call.
-  async rehearse() { return rehearse(this.env); }
+  // Practice runs: a batch that stops on its limit starts the next one a few seconds later, instead of waiting for the
+  // 10-minute timer (Nov 4, 2026: 84 practice calls took over half an hour waiting in line). One batch at a time.
+  async rehearse() {
+    if (this.rehearsing) return false;
+    this.rehearsing = true;
+    let more = false;
+    try { more = await rehearse(this.env); } finally { this.rehearsing = false; }
+    if (more) { await this.ctx.storage.put('rehearse-next', 1); await this.ctx.storage.setAlarm(Date.now() + 3000); }
+    return more;
+  }
 
   async load() { return (await this.ctx.storage.get('s')) || null; }
   // What the caller first said that has some substance (four words or more), for the owner's whisper on a transfer.
@@ -915,6 +924,7 @@ export class CallRoom extends DurableObject {
   }
 
   async alarm() {
+    if (await this.ctx.storage.get('rehearse-next')) { await this.ctx.storage.delete('rehearse-next'); try { await this.rehearse(); } catch (e) {} return; }
     try { return await this.onAlarm(); } catch (e) { await this.crash('alarm', e); }
   }
   async onAlarm() {
@@ -1345,16 +1355,16 @@ function soundsLike(L) {
 const OLD_TALK = [
   '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, and quietly funny when it fits. You sound like someone who likes people and likes being good at this. Never scripted, never a phone menu, never a customer-service voice.',
   '- Listen first. Your first sentence shows you heard the specific thing they said (the kitchen sink, the third call, the Saturday). Then move. Never reply with a generic line that would fit any caller.',
-  '- Match their energy. Water pouring through the ceiling gets short, steady sentences and real concern, like a friend who happens to be a plumber: "Okay. Is the water off? ... Good. I\'m getting Mike on this now." Chatty about next week gets an easy back-and-forth. Angry gets heard first.',
+  '- Match their energy. Water pouring through the ceiling gets short, steady sentences and real concern, like a friend who happens to be a plumber: "Okay. Is the water off? ... Good. I\'m getting the owner on this now." Chatty about next week gets an easy back-and-forth. Angry gets heard first.',
   '- Short turns, like real phone talk: usually one sentence, two at most, under about 25 words. Then stop and let them talk. Vary your rhythm: some replies are three words ("Done. Saturday at eight."), some are a full sentence. Never two replies in a row that start the same way.',
   '- One question at a time, and after you ask it, stop completely. No tip, no second question, no "also". If they need to know how to do something, give the instruction as its own short statement and only then ask.',
   '- Never ask anything they already told you, and never read anything back twice. If you confirmed a number once, from then on it is "that number". If they asked something you already covered, answer it again in fresh words. Never point out a skipped question or ask "yes to what"; if they dodge the number twice, confirm the one they called from.',
-  '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but Mike\'s getting a heads-up right now and he\'ll call if he can do sooner."',
+  '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but the owner\'s getting a heads-up and will call if sooner opens."',
   '- Dry humor only with a relaxed caller: one deadpan line a call at most, never about their problem or money. Never write laughter.',
   '- The instant the caller stops talking, a quick reaction like "Got it." or "Oh no, okay." is said out loud for you, so there is no dead air; the last line of these instructions says which one. Your words come right after it, so never repeat it and never open with another reaction ("Sure", "Okay", "Absolutely", "Thanks for sharing that").',
   '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you", "I apologize for the inconvenience").',
   '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
-  '- The first time you name someone, say who they are ("Mike, who runs the business").',
+  '- The first time you name someone, say who they are; only names from the notes, else "the owner".',
   '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness. Never open with just their name.',
   '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking: "Alright Joe, keep that water off till then. Talk soon."',
   '- Off-topic or personal: a few words, then steer back.',
@@ -2407,7 +2417,8 @@ async function claudeCheck(env) {
 // tick, within six minutes, so 40 calls are done in about half an hour instead of most of an evening.
 export async function rehearse(env) {
   const t0 = Date.now();
-  for (let k = 0; k < 4 && Date.now() - t0 < 6 * 60e3; k++) { if (!(await rehearseOne(env))) return; }
+  for (let k = 0; k < 4 && Date.now() - t0 < 6 * 60e3; k++) { if (!(await rehearseOne(env))) return false; }
+  return true;   // stopped on the limit, so more may be waiting
 }
 // What a rehearsal may set on the line it borrows, to try another kind of business (a marina, an insurance agency)
 // without a real line for it. Rehearsals only: a live call never reads this.
