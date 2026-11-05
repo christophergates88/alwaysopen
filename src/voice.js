@@ -1324,7 +1324,9 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-le
 // g-town: one cut in 42, correct ("¿Eso es en Eatonton?"). g-once, g-promise: no cut in 42 after their fixes; their one
 // real catch (dental "rinse ... chew on the other side") was right. g-short stays off: fewer tells but a lower human score.
 // g-history: on once it reads 'Max gave a safety step' as an emergency (it missed the ceiling-leak call before).
-export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history'];
+// g-ask2 (narrowed): won its blind test 23 to 17, 5 of 7 emergency pairs (Nov 5, judgeset10). g-stock, g-sales, g-short
+// stay off: each cut things callers needed.
+export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2'];
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);

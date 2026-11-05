@@ -41,7 +41,7 @@ test('g-once: the same ask word for word, a third ask, or an ask for what they a
   assert.equal(run(MIKE, m2, 'it\'s been leaking all day', ['g-once'], 'Got it. And your name?').text, 'Got it. And your name?');
   // a third ask in new words stays (cutting it lost callback numbers on Nov 5); only a third word-for-word ask goes
   const m3 = call('my sink is leaking', 'What\'s your name?', 'all day', 'And your name?', 'under the kitchen sink');
-  assert.equal(run(MIKE, m3, 'under the kitchen sink', ['g-once'], 'Okay. Who am I speaking with?').cuts.length, 0);
+  assert.equal(run(MIKE, m3, 'under the kitchen sink', ['g-once'], 'Okay. Who am I speaking with?').cuts.length, 1, 'g-once lets it through; g-ask2 (live) caps the name at two asks');
   // "same number" settles it
   const m4 = call('boat is taking on water', 'Stay off the boat. What\'s your name?', 'Greg, call me back on this number');
   assert.equal(run(MIKE, m4, 'Greg, call me back on this number', ['g-once'], 'Thanks, Greg. Is this the best number to reach you?').cuts[0].guard, 'g-once');
