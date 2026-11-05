@@ -202,6 +202,26 @@ async function serve(req, env, ctx) {
       if (!row || !row.token || !(await sameKey(t, row.token))) return json({ ok: false }, 404);
       return new Response(row.json || '{}', { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
     }
+    if (path === '/ops/hq-health') {
+      // Gates HQ health: the Gates HQ iPhone app sends one row per day from Apple Health (sleep, resting heart rate,
+      // HRV, steps, energy, exercise) with the widget's private token; the Gates HQ page reads them from D1.
+      const t = url.searchParams.get('t') || '';
+      if (req.method !== 'POST' || t.length < 24) return json({ ok: false }, 404);
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_widget (id INTEGER PRIMARY KEY, token TEXT, at TEXT, json TEXT)').run();
+      const row = await env.DB.prepare('SELECT token FROM hq_widget WHERE id = 1').first();
+      if (!row || !row.token || !(await sameKey(t, row.token))) return json({ ok: false }, 404);
+      const body = await req.text();
+      if (body.length > 400000) return json({ ok: false, error: 'too big' }, 413);
+      let days = []; try { days = JSON.parse(body).days || []; } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_health (d TEXT PRIMARY KEY, sleep_h REAL, deep_h REAL, rem_h REAL, bed TEXT, wake TEXT, rhr REAL, hrv REAL, steps INTEGER, kcal REAL, ex_min REAL, at TEXT)').run();
+      const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null), str = (v) => (typeof v === 'string' ? v.slice(0, 10) : null);
+      const now = new Date().toISOString();
+      const stmts = days.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d || '')).slice(0, 400).map(x => env.DB.prepare(
+        'INSERT OR REPLACE INTO hq_health (d, sleep_h, deep_h, rem_h, bed, wake, rhr, hrv, steps, kcal, ex_min, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)')
+        .bind(x.d, num(x.sleep_h), num(x.deep_h), num(x.rem_h), str(x.bed), str(x.wake), num(x.rhr), num(x.hrv), num(x.steps), num(x.kcal), num(x.ex_min), now));
+      if (stmts.length) await env.DB.batch(stmts);
+      return json({ ok: true, saved: stmts.length });
+    }
     if (path === '/ops/push-queue') {
       // The Gates HQ agent on the Mac relays phone pushes ntfy refused from here (push.js). GET takes, POST reports.
       const k = req.headers.get('x-key') || '';
