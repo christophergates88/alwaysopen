@@ -2025,6 +2025,12 @@ export function callerNotes(s, said) {
     const promise = String(s.line.next || '').split(/(?<=[.!?])\s+/).filter(x => /\b(\d+|one|two|five|ten|fifteen|twenty|thirty|an?) (minutes?|hours?)\b|same (night|day)/i.test(x)).join(' ');
     out.push('They need someone fast and may call someone else. ' + (promise ? 'Restate the business\'s own emergency promise, confidently and in plain words: "' + promise + '" Never say you can\'t promise how fast; this is the business\'s own word.' : 'Say the owner already has it as urgent and will call the moment he is free; do not hedge or apologize.') + ' Do not ask for or read back their number again if you already have it.');
   }
+  // An emergency: the problem first, the details once. Blind judges (Nov 4, 2026) saw "What's your name and best number?"
+  // tacked onto every safety line, and "When did you last have a claim?" asked of a driver who'd just crashed.
+  if (s.urgent) {
+    const asked = (s.msgs || []).filter(m => m.r === 'a' && /\b(your name|best number|number to reach|good number|number for (you|the callback))\b/i.test(String(m.t || ''))).length;
+    out.push('This is an emergency. Deal with the problem first: the one safe step, and whether they are okay. ' + (asked ? 'You already asked for their name and number, so don\'t add that ask to this reply; come back to it once the safe step is done.' : 'Ask for their name and best number once, as its own short question, after the safe step.') + ' Leave routine questions (past claims, preferences, how they found us) for the callback.');
+  }
   // Once the address was checked, it is settled for the rest of the call, wrap-up included.
   { const us = (s.msgs || []).filter(m => m.r === 'u'); if (us.slice(0, -1).some(m => SPOKEN_ADDR.test(String(m.t || '').toLowerCase()))) out.push('The address is already confirmed. Never say it again, not even in the wrap-up; say "that address" if you must.'); }
   // A street number said as words ("eight eight twelve Main Street") can be 8812, 88-12 or 812: read it back as digits once.
