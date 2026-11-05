@@ -56,7 +56,7 @@ test('g-town: never names a town the caller didn\'t say', () => {
   assert.equal(run(HVAC, m2, 'x', ['g-town'], 'Thanks, Jake. Is 301 Hammock Road in Milledgeville?').cuts[0].guard, 'g-town');
   assert.equal(run(HVAC, m2, 'x', ['g-town'], 'Thanks, Jake. And what town is that in?').text, 'Thanks, Jake. And what town is that in?');
   const m3 = call('it\'s Cody Lane, Cody\'s Pressure Washing in Gray');
-  assert.equal(run(MIKE, m3, 'x', ['g-town'], 'Good to meet you, Cody. Which town is Gray in, so I get the right one?').cuts[0].guard, 'g-town');
+  assert.equal(run(MIKE, m3, 'x', ['g-town'], 'Good to meet you, Cody. Which town is Gray in, so I get the right one?').cuts.length, 1, 'cut by g-town or g-once (Gray is a town they gave)');
   const m4 = call('I\'m over in Milledgeville');
   assert.equal(run(HVAC, m4, 'x', ['g-town'], 'Got it. So that\'s Milledgeville, right?').cuts.length, 0);
   assert.equal(run(MIKE, call('hola, se está saliendo el agua'), 'x', ['g-town'], 'Entiendo. ¿Está en Eatonton?').cuts[0].guard, 'g-town');
@@ -133,4 +133,15 @@ test('fixes from the Nov 5 guard runs: tags kept, open town ask kept, read-backs
   // "the first thing I'm flagging" is not a time promise; "call you first thing" is
   assert.equal(run(MIKE, call('my boat is sinking'), 'x', ['g-promise'], 'The owner knows it\'s urgent and will call you as soon as he can, and the bilge pump is the first thing I\'m flagging for him.').cuts.length, 0);
   assert.equal(run(HVAC, call('heat is out'), 'x', ['g-promise'], 'Got it. Someone will call you back first thing. Is everyone warm?').cuts[0].guard, 'g-promise');
+});
+
+test('g-safety stands down once they are safe, and after the third turn, so the name still gets taken', () => {
+  const m = call('there\'s water under my heater and I smell burning by the outlet', 'Stay out of the water. Are you clear of it?', 'okay we\'re outside now');
+  assert.equal(run(MIKE, m, 'okay we\'re outside now', ['g-safety'], 'Good, stay out there. What\'s your name?').cuts.length, 0);
+  const es = call('se está saliendo el agua debajo del fregadero', 'Cierre la llave de abajo. ¿Puede llegar a ella?', 'sí, ya cerré la llave de abajo');
+  assert.equal(run(MIKE, es, 'sí, ya cerré la llave de abajo', ['g-safety'], 'Bien hecho. Si sigue, cierre la llave principal. ¿Me da su nombre?').cuts.length, 0);
+  const late = call('water everywhere', 'Shut the main.', 'ok', 'Good.', 'still dripping', 'Keep it off.', 'what now');
+  assert.equal(run(MIKE, late, 'what now', ['g-safety'], 'Keep the valve shut. What\'s your name?', { urgent: true }).cuts.length, 0);
+  // still cuts on the early unsafe turn
+  assert.equal(run(MIKE, call('water is pouring from the heater'), 'should I unplug it', ['g-safety'], 'Don\'t touch it. Stay out of the water. What\'s your name?', { urgent: true }).cuts[0].guard, 'g-safety');
 });

@@ -75,9 +75,16 @@ const ON = (ctx, k) => !!(ctx.on && (ctx.on.has('all') || ctx.on.has(k)));
 
 // ---- the six guards ----
 // 1. A name, number or address ask in the same reply as a safety step (it comes next turn instead).
+// Once they say they're safe or the step is done ("we're outside", "I'm not there", "ya cerré la llave"), a reminder like
+// "Good, stay out there." no longer holds the name back (Nov 5: the smoke call never got a name), and it only applies in
+// the first three caller turns, so details always get taken.
+const SAFE_NOW = /\b(we'?re|i'?m|everyone'?s|we are|i am|they'?re) (all )?(out|outside|out of the (house|building|boat)|not (there|home|on it|near it|in there))\b|\bnot there\b|\b(it'?s|it is|water'?s|water is|gas is|power is|valve is) (off|shut|closed)\b|\b(turned|shut|closed|switched) (it|that|the (water|valve|main|gas|breaker))( off)?\b|\b(yes|yeah|yep|ok|okay),? (it'?s|i did|done|off)\b|\bya (cerr|apagu|sal)\w*|\b(estamos|estoy) (afuera|fuera)\b|\bafuera\b/i;
 function safetyThenAsk(s, ctx) {
   const a = asksFor(s);
-  return a.some(k => k === 'name' || k === 'number' || k === 'address' || k === 'town') && SAFETY.test(ctx.spoken || '') && (ctx.urgent || ctx.danger);
+  if (!a.some(k => k === 'name' || k === 'number' || k === 'address' || k === 'town')) return false;
+  if (!(ctx.urgent || ctx.danger) || !SAFETY.test(ctx.spoken || '')) return false;
+  if (SAFE_NOW.test(String(ctx.said || ''))) return false;
+  return (ctx.msgs || []).filter(m => m.r === 'u').length <= 3;
 }
 // 2. The same ask again: word for word, a third time for the same detail, or for a detail the caller already gave.
 function askOnce(s, ctx) {
