@@ -854,6 +854,80 @@ footer span,footer a,footer .entity{font-size:15px}
 #regulated .cg{margin:0;padding:20px 16px}
 #regulated .reglink{display:block;margin:0;font-size:15px;color:var(--slate)}
 #regulated .reglink a{color:var(--sign);font-weight:700;text-underline-offset:3px}
+/* ===== the lower half, lit like the top (Nov 4, 2026): pricing and the form are night bands with the neon sign's glow;
+   the sections between stay light, as cards you tap open ===== */
+#pricing,#plans{background:radial-gradient(130% 55% at 50% 0%,#1C2538 0%,rgba(15,19,27,0) 70%),#0F131B;color:#ECEEF3;border-top:1px solid rgba(255,106,94,.3)}
+#plans.ao-open>.ao-foldbar,#pricing .ao-open>.ao-foldbar{background:#0F131B;color:#ECEEF3;border-color:#262E40;box-shadow:0 10px 18px -14px #000}
+#plans .ao-foldbar .ao-fs,#pricing .ao-foldbar .ao-fs{color:#A3ACBF}
+#pricing p,#plans p,#pricing li,#plans li{color:#B9C1D0}
+#pricing .eyebrow,#plans .eyebrow{color:#FF8C82}
+#pricing .head h2,#plans .head h2{color:#ECEEF3;font-size:clamp(1.9rem,8.4vw,2.3rem);line-height:1.04}
+#pricing .head p,#plans .head p,#pricing .addons-sub{color:#A3ACBF}
+.ao-plantabs{background:#0B0F16;border-color:#262E40}
+.ao-plantabs button{color:#C9D0DC}
+.ao-plantabs button small{color:#8F98AB}
+.ao-plantabs button[aria-selected="true"]{background:#FF5A4D;color:#1A0605;box-shadow:0 0 20px -4px rgba(255,90,77,.75)}
+.ao-plantabs button[aria-selected="true"] small{color:#1A0605;opacity:.75}
+.ao-plantabs button:focus-visible{outline-color:#ECEEF3}
+#pricing .plan,#plans .plan{background:#171C27;border:1px solid #2A3245;color:#ECEEF3;border-radius:20px}
+#pricing .plan.feat,#plans .plan.feat{border:2px solid #FF6A5E;box-shadow:0 0 0 1px rgba(255,106,94,.22),0 0 34px -8px rgba(255,90,77,.6)}
+#pricing .plan.feat::before,#plans .plan.feat::before{background:#FF5A4D;color:#1A0605;box-shadow:0 0 14px rgba(255,90,77,.6)}
+#pricing .plan h3,#plans .plan h3{color:#ECEEF3;font:700 1.15rem var(--display);letter-spacing:.01em}
+#pricing .plan .price b,#plans .plan .price b{color:#FFFFFF;font-size:3.3rem;letter-spacing:-.02em}
+#pricing .plan .price span,#plans .plan .price span{color:#A3ACBF}
+#pricing .perday,#plans .perday{color:#7FD8B9}
+#pricing .plan .for,#plans .plan .for{color:#C9D0DC;font-size:1.02rem}
+#pricing .plan ul,#plans .plan ul{color:#DCE1EA}
+#pricing .plan li svg,#plans .plan li svg{color:#7FD8B9}
+#pricing .plan li.plus,#plans .plan li.plus{color:#FF8C82}
+#pricing .plan .soon,#plans .plan .soon{background:transparent;border-color:#3A4357;color:#C9D0DC}
+#pricing .plan .plan-note,#plans .plan .plan-note{color:#A3ACBF;border-top-color:#3A4357}
+#pricing .btn.line,#plans .btn.line{border-color:rgba(236,238,243,.55);color:#ECEEF3;background:transparent}
+#pricing .btn.primary,#plans .btn.primary{background:#FF5A4D;color:#1A0605;box-shadow:0 10px 26px -10px rgba(255,90,77,.8)}
+#pricing .guarantee,#plans .guarantee{background:rgba(92,201,164,.06);border:1.5px solid rgba(127,216,185,.55);border-radius:18px;padding:18px;box-shadow:inset 0 0 26px -14px rgba(92,201,164,.7)}
+#pricing .guarantee b,#plans .guarantee b{display:block;color:#7FD8B9;font:850 1.7rem/1.1 var(--display)}
+#pricing .guarantee p,#plans .guarantee p{color:#C9D0DC}
+/* add-ons, inside the night band */
+.js #pricing [data-fold]:not(.ao-open){background:transparent!important;color:inherit!important}
+#pricing .ao-addons:not(.ao-open)>.ao-foldbar{margin-top:22px;padding:16px 16px 16px 18px;border:1px solid #2A3245;border-left:4px solid #FF6A5E;border-radius:16px;background:#171C27;color:#ECEEF3}
+#pricing .ao-addons .ao-foldbar svg{color:#FF8C82}
+#pricing .addon{background:#171C27;border-color:#2A3245;color:#ECEEF3}
+#pricing .addon h3{color:#ECEEF3}
+#pricing .addon .price b{color:#FF8C82}
+#pricing .addon .price span,#pricing .addon .what,#pricing .addon dd{color:#C9D0DC}
+#pricing .addon dt{color:#8F98AB}
+#pricing .addon p a,#pricing .addon dd a{color:#FF8C82}
+#pricing .ao-moreb{color:#ECEEF3}
+#pricing .ao-addons .fine{color:#8F98AB!important}
+/* the sections between: each closed one a card with the sign's red edge */
+#compare:not(.ao-open)>.ao-foldbar,#rules:not(.ao-open)>.ao-foldbar,#regulated:not(.ao-open)>.ao-foldbar,#faq:not(.ao-open)>.ao-foldbar,#questions:not(.ao-open)>.ao-foldbar{margin:12px 0;padding:16px 14px 16px 16px;border:1px solid var(--line);border-left:4px solid var(--sign);border-radius:16px;background:var(--card);box-shadow:0 12px 26px -20px rgba(23,27,38,.55)}
+#compare:not(.ao-open)>.ao-foldbar{margin-top:26px}
+#compare>.ao-foldbar svg,#rules>.ao-foldbar svg,#regulated>.ao-foldbar svg,#faq>.ao-foldbar svg,#questions>.ao-foldbar svg{width:36px;height:36px;padding:7px;border-radius:50%;background:var(--sign-soft)}
+#faq:not(.ao-open),#questions:not(.ao-open){padding-bottom:26px!important}
+/* compared: our answer is the one that stands out */
+.tablewrap td.us{background:var(--sign-soft)!important;border-radius:10px;padding:8px 10px;margin:2px -10px}
+.tablewrap td.us::before{color:var(--sign)!important;font-weight:700}
+/* three rules: cards with a heavy top edge */
+#rules .rule{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--ink);border-radius:14px;padding:16px}
+#rules .rules{gap:12px}
+/* questions: a plus that turns to a minus, and the open one marked */
+.faq details{border-radius:14px}
+.faq summary{list-style:none;display:flex;align-items:center;gap:14px;font-size:1.02rem}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";flex:none;margin-left:auto;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--sign-soft);color:var(--sign);font:500 22px/1 var(--body)}
+.faq details[open]{border-color:var(--sign);box-shadow:inset 4px 0 0 var(--sign)}
+.faq details[open] summary::after{content:"–"}
+/* get started: a night band, the form a lit card */
+#contact{background:radial-gradient(130% 45% at 50% 0%,#1C2538 0%,rgba(15,19,27,0) 70%),#0F131B;color:#ECEEF3;border-top:1px solid rgba(255,106,94,.3)}
+#contact .who .eyebrow{color:#FF8C82}
+#contact .who h2{color:#ECEEF3;font-size:clamp(1.9rem,8.4vw,2.3rem);line-height:1.04}
+#contact .who p{color:#A3ACBF}
+#contact .who .callus a{color:#FF8C82}
+#contact .who .addr,#contact .who .addr *{color:#C9D0DC!important}
+#contact form.lead label,#contact form.lead .optin span{color:var(--ink)}
+#contact form.lead .fineprint,#contact form.lead .txtnote{color:var(--slate)}
+#contact form.lead{color:var(--ink);border:1.5px solid rgba(255,106,94,.6);box-shadow:0 0 0 1px rgba(255,106,94,.2),0 0 38px -10px rgba(255,90,77,.6)}
+#contact+footer{border-top:1px solid #262E40}
 }
 </style>
 <script>(function () {
