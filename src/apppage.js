@@ -205,7 +205,7 @@ a.btn{color:inherit}
 .scrim{position:fixed;inset:0;z-index:8;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center}
 .scrim[hidden]{display:none}
 .topr{display:flex;gap:8px;align-items:center}.katie{min-height:48px;padding:8px 12px;font-size:16px;white-space:nowrap}#refresh{width:48px;height:48px}
-.big3 b{font-size:2rem}
+.call.example{opacity:.6;border-style:dashed}.big3 b{font-size:2rem}
 #view p:not(.fine):not(.note):not(.sample){font-size:17px}#view .said p{font-size:17px}#view small{font-size:13px}#view span{font-size:max(15px,1em)}
 #view .btn,#view input,#view select,#view button.chip{min-height:48px}#view button.chip{font-size:15px;padding-left:14px;padding-right:14px}#view .chip{font-size:15px}.big3 span{font-size:16px}
 .sheet.full{width:100%;height:100%;max-height:100%;border-radius:0;grid-template-rows:auto 1fr auto;padding-top:calc(14px + env(safe-area-inset-top,0px))}
@@ -553,16 +553,19 @@ function vToday(){
   h+=flCard();
   return h;
 }
+function exampleCall(){
+  return '<article class="call example" aria-label="Example"><div class="top2"><span class="nm">A caller</span><span class="chip">Example</span></div><p class="sum">Needs a quote for a repair. Wants a call back after 3.</p><div class="acts"><span class="btn ok" aria-disabled="true">Call back</span><span class="btn line" aria-disabled="true">Text</span></div><p class="fine">This is an example. Your real callers show up here.</p></article>';
+}
 function vCustomers(){
   var h='<h1>Customers</h1>'+mapCard();
   var wk=Date.now()-7*86400000,cs=(S.calls||[]).filter(function(c){return c.at&&Date.parse(c.at)>wk;});
-  if(hasMax()||cs.length)h+='<h2>Who called this week</h2>'+(cs.length?cs.map(callCard).join(''):'<div class="empty slim"><b>No calls this week</b><span>Callers show up here, newest first.</span></div>');
+  if(hasMax()||cs.length)h+='<h2>Who called this week</h2>'+(cs.length?cs.map(callCard).join(''):((S.calls||[]).length?'<div class="empty slim"><b>No calls this week</b><span>Callers show up here, newest first.</span></div>':exampleCall()));
   h+=fuBlock()+jobsBlock()+(isTech()?'':(S.client.regulated?'':quotesBlock()+payBlock())+invBlock())+linkBlock()+pastBlock()+inboxRow();
   return h;
 }
 function vMoney(){
   var f=S.features||{};
-  var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+upCard()+vReviews()+shareCard()+referCard();
+  var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+upCard()+vReviews();
   if(isOwner())h+='<h2>Your account</h2>'+setBlock()+teamBlock();
   h+=metaBlock()+guardCard();
   return h;
@@ -988,7 +991,7 @@ function vReviews(){
   if(rated.length){var last=rated[rated.length-1],r=+last.stats.rating,cnt=last.stats.count;
     h+='<div class="card score glow"><div class="big"><b>'+r.toFixed(1)+'</b><span class="stars" aria-label="'+r.toFixed(1)+' stars">'+stars(r)+'</span><span class="who">'+(cnt!=null&&cnt!==''&&!isNaN(+cnt)?esc((+cnt).toLocaleString('en-US'))+' reviews on Google':'Your Google rating')+'</span></div>'+chart(rated)+'</div>';}
   else h+='<div class="card score"><div class="big"><b>\\u2014</b><span class="who">Your star rating, and how it moves month to month, shows here once your Google profile is connected.</span></div></div>';
-  h+='<h2>Latest reviews</h2>'+(rv.length?rv.map(revCard).join(''):'<div class="empty slim"><b>No reviews yet</b><span>New Google reviews land here with our reply, and every reply waits for your OK.</span></div>');
+  h+='<h2>Latest reviews</h2>'+(rv.length?rv.slice(0,3).map(revCard).join(''):'<div class="empty slim"><b>No reviews yet</b><span>New Google reviews land here with our reply, and every reply waits for your OK.</span></div>');
   if(f.qr&&S.client.qr)h+='<div class="feature"><h3>Your review QR code</h3><p>Show it at the counter or on a job. Ask every customer, not just the happy ones.</p><div class="acts"><button class="btn line" type="button" data-a="qr">Show the code</button></div></div>';
   if((S.features||{}).competitors)h+=rivalCard();
   var rs=(S.months||[]).filter(function(m){return m.record;});

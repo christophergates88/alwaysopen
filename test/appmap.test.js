@@ -45,3 +45,10 @@ test('map state gives the owner the same pin the public sees', async () => {
   assert.equal(none.placed, false);
   assert.equal(none.lat, undefined);
 });
+
+test('an empty account sees one honest example caller, with no real-looking name', () => {
+  const ex = html.slice(html.indexOf('function exampleCall'), html.indexOf('function vCustomers'));
+  assert.match(ex, />Example</);
+  assert.match(ex, /A caller/);
+  assert.doesNotMatch(ex, /tel:|sms:|\d{3}-\d{4}/, 'no number, nothing that dials');
+});
