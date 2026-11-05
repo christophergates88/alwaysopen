@@ -36,18 +36,19 @@ const WHO = { plumbing: ['plumbers', 'Lane Plumbing', 'Oconee Plumbing', 'Lake D
   dental: ['dental offices', 'Lane Family Dental', 'Oconee Smiles', 'Lake Dental Care'], insurance: ['agencies', 'Lane Insurance', 'Oconee Insurance Group', 'Lake Country Agency'] };
 const rivalsFor = p => { const [plural, a, b, c] = WHO[p] || WHO.plumbing; return '<div style="font-family:Instrument Sans,system-ui,sans-serif;color:#ECEEF3;padding:18px 16px;background:#0F131B;min-height:560px">' +
   '<div style="font:600 13px/1.2 DM Mono,ui-monospace,monospace;letter-spacing:.08em;color:#A3ACBF;text-transform:uppercase">Competitor watch · checked just now</div>' +
-  '<div style="margin:14px 0;padding:26px 14px 22px;text-align:center;border:2px solid #FF6A5E;border-radius:18px;background:#0A0D13;box-shadow:0 0 10px #FF6A5E,0 0 30px rgba(255,90,77,.5)">' +
-  '<div style="font:400 44px/1.05 ' + NEON + ';color:#fff;' + glow('#FF6A5E') + '">YOU’RE #2</div><div style="margin-top:8px;font:600 16px/1.3 Instrument Sans,system-ui,sans-serif">of 6 ' + plural + ' near Eatonton, on rating</div></div>' +
+  '<div class="w-sign" style="margin:14px 0;padding:26px 14px 22px;text-align:center;border:2px solid #FF6A5E;border-radius:18px;background:#0A0D13;box-shadow:0 0 10px #FF6A5E,0 0 30px rgba(255,90,77,.5)">' +
+  '<div style="font:400 44px/1.05 ' + NEON + ';color:#fff;' + glow('#FF6A5E') + '">YOU’RE <span class="w-num" data-n="2" data-from="6">#2</span></div><div style="margin-top:8px;font:600 16px/1.3 Instrument Sans,system-ui,sans-serif">of 6 ' + plural + ' near Eatonton, on rating</div></div>' +
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
-  '<div style="background:#171C27;border:1px solid #262E40;border-radius:14px;padding:14px"><div style="font:400 34px/1 ' + NEON + ';color:#fff;' + glow('#5CC9A4') + '">4.7★</div><div style="color:#A3ACBF;font-size:13px;margin-top:4px">you · 30 reviews</div></div>' +
-  '<div style="background:#171C27;border:1px solid #262E40;border-radius:14px;padding:14px"><div style="font:400 34px/1 ' + NEON + ';color:#fff;' + glow('#FF6A5E') + '">4.8★</div><div style="color:#A3ACBF;font-size:13px;margin-top:4px">the leader · 36 reviews</div></div></div>' +
-  '<div style="margin-top:14px;font:600 14px Instrument Sans,system-ui,sans-serif">To be #1</div><div style="color:#A3ACBF;font-size:14px;line-height:1.4;margin-top:4px">7 more 5-star reviews. At your pace, about 6 weeks. Every finished job already gets the ask.</div>' +
-  '<div style="margin-top:14px;display:grid;gap:8px;font-size:14px">' + [[a, '4.8★ · 36'], ['You', '4.7★ · 30'], [b, '4.5★ · 44'], [c, '4.3★ · 102']].map((r, i) =>
-    '<div style="display:flex;justify-content:space-between;padding:10px 12px;border-radius:12px;background:' + (r[0] === 'You' ? 'rgba(255,90,77,.1);border:1px solid rgba(255,106,94,.5)' : '#171C27;border:1px solid #262E40') + '"><span>' + (i + 1) + '. ' + r[0] + '</span><span style="color:#A3ACBF">' + r[1] + '</span></div>').join('') + '</div>' +
+  '<div style="background:#171C27;border:1px solid #262E40;border-radius:14px;padding:14px"><div style="font:400 34px/1 ' + NEON + ';color:#fff;' + glow('#5CC9A4') + '"><span class="w-num" data-n="4.7" data-d="1">4.7</span>★</div><div style="color:#A3ACBF;font-size:13px;margin-top:4px">you · 30 reviews</div></div>' +
+  '<div style="background:#171C27;border:1px solid #262E40;border-radius:14px;padding:14px"><div style="font:400 34px/1 ' + NEON + ';color:#fff;' + glow('#FF6A5E') + '"><span class="w-num" data-n="4.8" data-d="1">4.8</span>★</div><div style="color:#A3ACBF;font-size:13px;margin-top:4px">the leader · 36 reviews</div></div></div>' +
+  '<div class="w-late" style="margin-top:14px;font:600 14px Instrument Sans,system-ui,sans-serif">To be #1</div><div class="w-late" style="color:#A3ACBF;font-size:14px;line-height:1.4;margin-top:4px">7 more 5-star reviews. At your pace, about 6 weeks. Every finished job already gets the ask.</div>' +
+  '<div class="w-rows" style="margin-top:14px;display:grid;gap:8px;font-size:14px">' + [[a, '4.8★ · 36'], ['You', '4.7★ · 30'], [b, '4.5★ · 44'], [c, '4.3★ · 102']].map((r, i) =>
+    '<div class="w-row' + (r[0] === 'You' ? ' w-you' : '') + '" style="display:flex;justify-content:space-between;padding:10px 12px;border-radius:12px;background:' + (r[0] === 'You' ? 'rgba(255,90,77,.1);border:1px solid rgba(255,106,94,.5)' : '#171C27;border:1px solid #262E40') + '"><span>' + (i + 1) + '. ' + r[0] + '</span><span style="color:#A3ACBF">' + r[1] + '</span></div>').join('') + '</div>' +
   '<div style="margin-top:12px;color:#6F7A90;font-size:11px">Numbers from Google Maps, looked up when you tap Check now, and not kept.</div></div>'; };
 
 // Max's Monday text, as an iMessage thread.
-const bubble = (t, mine) => '<div style="max-width:88%;margin:' + (mine ? '6px 0 6px auto' : '6px 0') + ';padding:10px 14px;border-radius:18px;background:' + (mine ? '#2F7CF6' : '#26262B') + ';color:#fff;font:15px/1.35 -apple-system,Instrument Sans,system-ui,sans-serif;white-space:pre-line">' + esc(t) + '</div>';
+let step = 0;   // the thread plays in order: dots, bubble, your question, dots, bubble
+const bubble = (t, mine) => (mine ? '' : '<div class="w-typ w-s' + (++step) + '"><i></i><i></i><i></i></div>') + '<div class="w-bub w-s' + (++step) + (mine ? ' w-mine' : '') + '" style="max-width:88%;margin:' + (mine ? '6px 0 6px auto' : '6px 0') + ';padding:10px 14px;border-radius:18px;background:' + (mine ? '#2F7CF6' : '#26262B') + ';color:#fff;font:15px/1.35 -apple-system,Instrument Sans,system-ui,sans-serif;white-space:pre-line">' + esc(t) + '</div>';
 const timecard = '<div style="background:#000;min-height:560px;padding:14px 12px;font-family:-apple-system,system-ui,sans-serif">' +
   '<div style="text-align:center;color:#8E8E93;font-size:12px;margin:4px 0 10px">Monday 8:04 AM</div>' + bubble(tcText) +
   bubble('What did the after hours calls come from', true) +
@@ -57,28 +58,28 @@ const timecard = '<div style="background:#000;min-height:560px;padding:14px 12px
 const guard = '<div style="font-family:Instrument Sans,system-ui,sans-serif;color:#ECEEF3;padding:18px 16px;background:#0F131B;min-height:560px">' +
   '<div style="font:600 13px/1.2 DM Mono,ui-monospace,monospace;letter-spacing:.08em;color:#A3ACBF;text-transform:uppercase">Reply to approve · Google review</div>' +
   '<div style="margin-top:12px;background:#171C27;border:1px solid #262E40;border-radius:14px;padding:14px"><div style="color:#F2C46B">★★☆☆☆</div><div style="margin-top:6px;font-size:14px;line-height:1.4;color:#C9D0DC">“Called about my claim three times and nobody called back. Rates went up again too.”</div><div style="margin-top:6px;color:#6F7A90;font-size:12px">R. Patel · 2 days ago</div></div>' +
-  '<div style="margin:12px 0 0;padding:14px;border-radius:14px;background:#0A0D13;border:2px solid #5CC9A4;box-shadow:0 0 10px rgba(92,201,164,.6)"><div style="font:400 26px/1.05 ' + NEON + ';color:#fff;' + glow('#5CC9A4') + '">COMPLIANCE GUARD</div>' +
+  '<div class="w-sign w-green" style="margin:12px 0 0;padding:14px;border-radius:14px;background:#0A0D13;border:2px solid #5CC9A4;box-shadow:0 0 10px rgba(92,201,164,.6)"><div style="font:400 26px/1.05 ' + NEON + ';color:#fff;' + glow('#5CC9A4') + '">COMPLIANCE GUARD</div>' +
   '<div style="margin-top:8px;font-size:14px;line-height:1.45">Draft reply, checked against your approved wording:</div>' +
-  '<div style="margin-top:8px;padding:12px;border-radius:10px;background:#171C27;font-size:14px;line-height:1.45;color:#ECEEF3">' + esc(libraryText('claim', 'en', 'R.', '(478) 555-0142')) + '</div>' +
-  '<div style="margin-top:10px;display:grid;gap:6px;font-size:13px;color:#A3ACBF"><div><span style="color:#5CC9A4">✓</span> No claim details mentioned</div><div><span style="color:#5CC9A4">✓</span> No rates, discounts or promises</div><div><span style="color:#5CC9A4">✓</span> Approved wording only</div></div></div>' +
-  '<div style="margin-top:12px;display:flex;gap:8px"><div style="flex:1;text-align:center;padding:12px;border-radius:12px;background:#5CC9A4;color:#06231A;font-weight:700;font-size:14px">Approve</div><div style="flex:1;text-align:center;padding:12px;border-radius:12px;border:1.5px solid #3A4357;font-weight:600;font-size:14px">Change the words</div></div></div>';
+  '<div class="w-draft" style="margin-top:8px;padding:12px;border-radius:10px;background:#171C27;font-size:14px;line-height:1.45;color:#ECEEF3">' + esc(libraryText('claim', 'en', 'R.', '(478) 555-0142')) + '</div>' +
+  '<div class="w-checks" style="margin-top:10px;display:grid;gap:6px;font-size:13px;color:#A3ACBF"><div class="w-check"><span style="color:#5CC9A4">✓</span> No claim details mentioned</div><div class="w-check"><span style="color:#5CC9A4">✓</span> No rates, discounts or promises</div><div class="w-check"><span style="color:#5CC9A4">✓</span> Approved wording only</div></div></div>' +
+  '<div class="w-btns" style="margin-top:12px;display:flex;gap:8px"><div class="w-ok" style="flex:1;text-align:center;padding:12px;border-radius:12px;background:#5CC9A4;color:#06231A;font-weight:700;font-size:14px">Approve</div><div style="flex:1;text-align:center;padding:12px;border-radius:12px;border:1.5px solid #3A4357;font-weight:600;font-size:14px">Change the words</div></div></div>';
 
 const clockFrame = '<div style="background:#0F131B;min-height:560px;padding:18px 16px;font-family:Instrument Sans,system-ui,sans-serif;color:#ECEEF3">' +
-  '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font:800 19px Archivo,system-ui,sans-serif">Max’s clock</b><span style="font:12px DM Mono,ui-monospace,monospace;color:#FF6A5E">● on a call now</span></div>' +
+  '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font:800 19px Archivo,system-ui,sans-serif">Max’s clock</b><span style="font:12px DM Mono,ui-monospace,monospace;color:#FF6A5E"><i class="w-dot">●</i> on a call now</span></div>' +
   '<div class="wallclk" style="display:grid;place-items:center;margin-top:8px">' + clock + '</div>' +
-  '<div style="display:flex;gap:14px;margin-top:6px;font-size:13px;color:#A3ACBF"><span><b style="color:#FF6A5E;font-size:18px">$6,400</b><br>caught closed</span><span><b style="color:#fff;font-size:18px">744h</b><br>on the clock</span><span><b style="color:#fff;font-size:18px">60</b><br>calls</span><span><b style="color:#FF6A5E;font-size:18px">3</b><br>to you</span></div></div>';
+  '<div class="w-stats" style="display:flex;gap:14px;margin-top:6px;font-size:13px;color:#A3ACBF"><span><b style="color:#FF6A5E;font-size:18px">$<span class="w-num" data-n="6400">6,400</span></b><br>caught closed</span><span><b style="color:#fff;font-size:18px"><span class="w-num" data-n="744">744</span>h</b><br>on the clock</span><span><b style="color:#fff;font-size:18px"><span class="w-num" data-n="60">60</span></b><br>calls</span><span><b style="color:#FF6A5E;font-size:18px"><span class="w-num" data-n="3">3</span></b><br>to you</span></div></div>';
 
 // An app card the client approves, as the app draws it: a sign, what it is about, the words, Approve / Edit first.
 const card = (sign, color, about, label, words, extra) => '<div style="font-family:Instrument Sans,system-ui,sans-serif;color:#ECEEF3;padding:18px 16px;background:#0F131B;min-height:560px">' + (extra || '') +
-  '<div style="margin-top:12px;padding:14px;border-radius:14px;background:#0A0D13;border:2px solid ' + color + ';box-shadow:0 0 10px ' + color + '"><div style="font:400 26px/1.05 ' + NEON + ';color:#fff;' + glow(color) + '">' + sign + '</div>' +
+  '<div class="w-sign" style="margin-top:12px;padding:14px;border-radius:14px;background:#0A0D13;border:2px solid ' + color + ';box-shadow:0 0 10px ' + color + '"><div style="font:400 26px/1.05 ' + NEON + ';color:#fff;' + glow(color) + '">' + sign + '</div>' +
   '<div style="margin-top:8px;font-size:14px;line-height:1.45;color:#C9D0DC">' + esc(about) + '</div></div>' +
-  '<div style="margin-top:12px;font:600 13px/1.2 DM Mono,ui-monospace,monospace;letter-spacing:.06em;color:#A3ACBF">' + esc(label) + '</div>' +
-  '<div style="margin-top:8px;padding:12px;border-radius:12px;background:#171C27;border:1px solid #262E40;font-size:14px;line-height:1.45">' + esc(words) + '</div>' +
-  '<div style="margin-top:12px;display:flex;gap:8px"><div style="flex:1;text-align:center;padding:12px;border-radius:12px;background:#5CC9A4;color:#06231A;font-weight:700;font-size:14px">Approve</div><div style="flex:1;text-align:center;padding:12px;border-radius:12px;border:1.5px solid #3A4357;color:#ECEEF3;font-weight:600;font-size:14px">Edit first</div></div></div>';
+  '<div class="w-late" style="margin-top:12px;font:600 13px/1.2 DM Mono,ui-monospace,monospace;letter-spacing:.06em;color:#A3ACBF">' + esc(label) + '</div>' +
+  '<div class="w-late w-draft" style="margin-top:8px;padding:12px;border-radius:12px;background:#171C27;border:1px solid #262E40;font-size:14px;line-height:1.45">' + esc(words) + '</div>' +
+  '<div class="w-btns" style="margin-top:12px;display:flex;gap:8px"><div class="w-ok" style="flex:1;text-align:center;padding:12px;border-radius:12px;background:#5CC9A4;color:#06231A;font-weight:700;font-size:14px">Approve</div><div style="flex:1;text-align:center;padding:12px;border-radius:12px;border:1.5px solid #3A4357;color:#ECEEF3;font-weight:600;font-size:14px">Edit first</div></div></div>';
 const phone = '(478) 555-0142';
 const stormFor = kind => card('FLOOD WARNING', '#FF6A5E', 'Flash Flood Warning for Putnam County, GA, until 9:30 AM. Your post is written and waiting.', 'YOUR GOOGLE POST · READY FOR YOUR OK', TEMPLATES[kind].flood.replace('{phone}', phone));
 const note = radarNotes([{ cid: 'c', town: 'Eatonton, GA' }], [{ town: 'Eatonton, GA', wave: true, why: 'rate', rate: 4, low: 3 }])[0].note.aps.alert;
-const push = '<div style="padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid #262E40"><div style="display:flex;justify-content:space-between;color:#A3ACBF;font-size:12px"><b style="color:#ECEEF3">Always Open</b><span>Mon 8:17 AM</span></div>' +
+const push = '<div class="w-push" style="padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid #262E40"><div style="display:flex;justify-content:space-between;color:#A3ACBF;font-size:12px"><b style="color:#ECEEF3">Always Open</b><span>Mon 8:17 AM</span></div>' +
   '<div style="margin-top:4px;font-weight:700;font-size:14px">' + esc(note.title) + '</div><div style="margin-top:2px;font-size:13px;line-height:1.4;color:#C9D0DC">' + esc(note.body) + '</div></div>';
 const radar = card('RATES RISING', '#FF6A5E', 'Unhappy reviews about rate increases are piling up at agencies in your town this month.', 'YOUR GOOGLE POST · READY FOR YOUR OK', RADAR_POST.text, push);
 
@@ -107,12 +108,41 @@ const css = CLOCK_CSS + '.wallclk{--clk-ink:#fff;--clk-mute:#A3ACBF;--clk-line:r
   '@media (max-width:900px){.wall-rail{grid-template-columns:repeat(2,minmax(0,1fr))}}' +
   '@media (max-width:760px){.wall-rail{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 12px;scrollbar-width:none}.wall-rail::-webkit-scrollbar{display:none}.wall-item{flex:0 0 78vw;max-width:320px;scroll-snap-align:start}}';
 
-const sectionFor = p => { const frames = framesFor(p); return '<!-- wall:start -->\n<div class="wall" id="wall"><style>' + css + '</style>' +
+// Each screen plays once as it scrolls into view (Nov 4, 2026: "is there no way to make these animated?"): the sign
+// flickers on, numbers count up, rows and bubbles arrive one at a time, checks tick in, Approve lights last. A tap
+// replays it. Reduced motion: everything just appears.
+const WALL_CSS = '.wall-frame{cursor:pointer}.wall-frame .w-sign,.wall-frame .w-row,.wall-frame .w-late,.wall-frame .w-bub,.wall-frame .w-typ,.wall-frame .w-check,.wall-frame .w-push,.wall-frame .w-draft,.wall-frame .w-btns{opacity:0}' +
+  '.wall-frame.on .w-sign{animation:wSign 1.1s steps(1,end) .3s forwards}.wall-frame.on .w-push{animation:wDrop .5s cubic-bezier(.2,.8,.2,1) forwards}' +
+  '.wall-frame.on .w-row{animation:wUp .45s ease-out forwards}.wall-frame.on .w-row:nth-child(1){animation-delay:1.3s}.wall-frame.on .w-row:nth-child(2){animation-delay:1.5s}.wall-frame.on .w-row:nth-child(3){animation-delay:1.7s}.wall-frame.on .w-row:nth-child(4){animation-delay:1.9s}' +
+  '.wall-frame.on .w-you{animation:wUp .45s ease-out 1.5s forwards,wPulse 1.6s ease-in-out 2.4s 2}' +
+  '.wall-frame.on .w-late{animation:wUp .5s ease-out forwards}.wall-frame[data-w=rivals].on .w-late{animation-delay:2.3s}.wall-frame[data-w=storm].on .w-late,.wall-frame[data-w=radar].on .w-late{animation-delay:1.6s}' +
+  '.wall-frame[data-w=storm].on .w-draft,.wall-frame[data-w=radar].on .w-draft{animation-delay:1.9s}.wall-frame[data-w=guard].on .w-draft{animation:wUp .5s ease-out 1.6s forwards}' +
+  '.wall-frame.on .w-check{animation:wTick .4s cubic-bezier(.2,.9,.3,1.4) forwards}.wall-frame.on .w-check:nth-child(1){animation-delay:2.3s}.wall-frame.on .w-check:nth-child(2){animation-delay:2.7s}.wall-frame.on .w-check:nth-child(3){animation-delay:3.1s}' +
+  '.wall-frame.on .w-btns{animation:wUp .5s ease-out 2.4s forwards}.wall-frame[data-w=guard].on .w-btns{animation-delay:3.6s}.wall-frame.on .w-ok{animation:wGlow 1.4s ease-in-out 3.2s 2}.wall-frame[data-w=guard].on .w-ok{animation-delay:4.2s}' +
+  '.wall-frame.on .w-typ{animation:wTyp 1.1s steps(1,end) forwards}.wall-frame.on .w-bub{animation:wUp .4s cubic-bezier(.2,.8,.2,1) forwards}' +
+  '.wall-frame.on .w-s1{animation-delay:.3s}.wall-frame.on .w-s2{animation-delay:1.4s}.wall-frame.on .w-s3{animation-delay:2.4s}.wall-frame.on .w-s4{animation-delay:3.1s}.wall-frame.on .w-s5{animation-delay:4.2s}' +
+  '.w-typ{width:52px;padding:11px 14px;margin:6px 0;border-radius:18px;background:#26262B;display:flex;gap:4px;align-items:center}.w-typ i{width:7px;height:7px;border-radius:50%;background:#8E8E93;animation:wDots 1s ease-in-out infinite}.w-typ i:nth-child(2){animation-delay:.15s}.w-typ i:nth-child(3){animation-delay:.3s}' +
+  '.wall-frame.on .w-dot{animation:wBlink 1.2s ease-in-out infinite}' +
+  '@keyframes wSign{0%{opacity:0}8%{opacity:1}14%{opacity:.2}20%{opacity:1}34%{opacity:.6}40%{opacity:1}100%{opacity:1}}' +
+  '@keyframes wUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes wDrop{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:none}}' +
+  '@keyframes wTick{from{opacity:0;transform:scale(.6) translateX(-6px)}to{opacity:1;transform:none}}@keyframes wPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 2px rgba(255,106,94,.6),0 0 18px rgba(255,90,77,.5)}}' +
+  '@keyframes wGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(92,201,164,.35),0 0 22px rgba(92,201,164,.7)}}@keyframes wTyp{0%{opacity:0}1%{opacity:1}99%{opacity:1}100%{opacity:0;height:0;padding:0;margin:0}}' +
+  '@keyframes wDots{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-3px);opacity:1}}@keyframes wBlink{0%,100%{opacity:1}50%{opacity:.25}}' +
+  '@media (prefers-reduced-motion:reduce){.wall-frame .w-sign,.wall-frame .w-row,.wall-frame .w-late,.wall-frame .w-bub,.wall-frame .w-check,.wall-frame .w-push,.wall-frame .w-draft,.wall-frame .w-btns{opacity:1;animation:none!important}.wall-frame .w-typ{display:none}.wall-frame .w-dot,.wall-frame .w-you,.wall-frame .w-ok{animation:none!important}}';
+const WALL_JS = `(function(){var d=document,reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fmt(n,dp){return dp?n.toFixed(dp):Math.round(n).toLocaleString('en-US')}
+function count(f){f.querySelectorAll('.w-num').forEach(function(el){var n=+el.getAttribute('data-n'),dp=+(el.getAttribute('data-d')||0),from=+(el.getAttribute('data-from')||0),pre=el.textContent.charAt(0)==='#'?'#':'';if(reduce){el.textContent=pre+fmt(n,dp);return}el.textContent=pre+fmt(from,dp);var t0=null,dur=from?2200:1400,delay=from?1400:700;function step(t){if(t0===null)t0=t;var p=Math.min(1,(t-t0-delay)/dur);if(p<0){requestAnimationFrame(step);return}var e=1-Math.pow(1-p,3);el.textContent=pre+fmt(from+(n-from)*e,dp);if(p<1)requestAnimationFrame(step)}requestAnimationFrame(step)})}
+function play(f){f.classList.remove('on');void f.offsetWidth;f.classList.add('on');count(f)}
+var frames=[].slice.call(d.querySelectorAll('.wall-frame'));frames.forEach(function(f){f.addEventListener('click',function(){play(f)})});
+if(!('IntersectionObserver' in window)){frames.forEach(play);return}
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting&&!e.target.classList.contains('on')){play(e.target);io.unobserve(e.target)}})},{threshold:.45});
+frames.forEach(function(f){io.observe(f)})})();`;
+const sectionFor = p => { const frames = framesFor(p); return '<!-- wall:start -->\n<div class="wall" id="wall"><style>' + css + WALL_CSS + '</style>' +
   '<div class="head"><p class="eyebrow">What it looks like</p><h2 id="wall-h">Real screens. Each one is what you get.</h2><p>Not a feature list. These are the actual texts and app screens Always Open sends, filled in for made-up businesses.</p></div>' +
   '<div class="wall-rail' + (frames.length === 4 ? ' n4' : '') + '" role="list">' + frames.map(f => {
     const w = f.w, s = f.scale, fw = Math.round(w * s);
-    return '<div class="wall-item" role="listitem"><div class="wall-frame" style="max-width:' + fw + 'px" role="img" aria-label="' + esc(f.name + ': ' + f.cap) + '"><div style="width:' + w + 'px;transform:scale(' + s + ')">' + f.body + '</div></div><h3>' + esc(f.name) + '</h3><p>' + esc(f.cap) + '</p></div>';
-  }).join('') + '</div></div>\n<!-- wall:end -->\n'; };
+    return '<div class="wall-item" role="listitem"><div class="wall-frame" data-w="' + f.k + '" style="max-width:' + fw + 'px" role="img" aria-label="' + esc(f.name + ': ' + f.cap) + '"><div style="width:' + w + 'px;transform:scale(' + s + ')">' + f.body + '</div></div><h3>' + esc(f.name) + '</h3><p>' + esc(f.cap) + '</p></div>';
+  }).join('') + '</div><script>' + WALL_JS + '</script></div>\n<!-- wall:end -->\n'; };
 
 const PAGES = ['index', 'plumbing', 'hvac', 'builders', 'auto-repair', 'marine', 'marinas', 'insurance', 'dental', 'salons', 'restaurants'];
 for (const p of PAGES) {
