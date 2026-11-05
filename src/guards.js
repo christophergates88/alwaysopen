@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -208,7 +208,12 @@ function shortReply(s, ctx) {
   return before >= ((ctx.urgent || ctx.danger) ? 3 : 5) || w + words(s) > 40;
 }
 
-const ORDER = [['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+// Brief 5 (Nov 5, 2026 call): canned comebacks that tell a caller they are talking to a script ("Give me a minute to
+// change your mind", "Ha, okay, you're testing me", "That's a sharp ear", "The voice is the part I can't fully smooth
+// out yet"). Max says he is an S.I. when asked and gets back to the question; he never remarks on his own voice.
+const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|earn(ed)? (that|the) reputation)\b|^\s*ha[,.!]/i;
+function cannedLine(sentence) { return CANNED.test(lc(sentence)); }
+const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

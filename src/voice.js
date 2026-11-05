@@ -788,7 +788,7 @@ export class CallRoom extends DurableObject {
     const heardNow = lead ? lead.text : (skipLead ? prev.lead : '');
     const kind = lead ? lead.kind : (skipLead && prev.kind ? prev.kind : 'said');
     const mine = { turn: my, cut: null, sp: null, lead: lead ? lead.text : '', kind: lead ? lead.kind : '', t0: Date.now(), first: null, held: [], started: false, resumed: 0, resumedOff: 0, ctl: null };
-    mine.sp = new Speaker(o => this.send(mine, o), s.lang);
+    mine.sp = new Speaker(o => this.send(mine, o), s.lang, { chunk: this.env.VOICE_CHUNK });
     const sp = mine.sp;
     this.live = mine; this.cur = mine;
     if (opts && opts.early) { const n = qNorm(said); this.early = { L: mine, norm: n, words: n.split(' ').length, cancelled: false }; }
@@ -963,7 +963,7 @@ export class CallRoom extends DurableObject {
   }
 
   async say(s, text) {
-    const sp = new Speaker(o => this.out(o), s.lang);
+    const sp = new Speaker(o => this.out(o), s.lang, { chunk: this.env.VOICE_CHUNK });
     sp.push(text);
     const spoken = sp.end();
     s.msgs.push({ r: 'a', t: spoken });
@@ -1339,7 +1339,15 @@ function quietText(line) {
 function moreText(t) { t = oneLine(String(t || '')); return t.length >= 2 && t.length <= 320 && !/[<>\[\]]/.test(t) && !contradicts(t) ? t : ''; }
 // A line's own answer to "Are you AI?" (Max: "I could sing for you, but you wouldn't like it."), said as written right after
 // the one-word honest reaction ("Guilty." / "Nope."), once a call; after that the AI answers in its own words.
-function fixedReply(L, lead, msgs) {
+export function fixedReply(L, lead, msgs) {
+  // "Hello?" or "Are you there?" after Max asked something (Nov 5 call: "Yep, I'm here. Hey, I'm here," and nothing):
+  // the reaction says he is here, and he asks his last question again, word for word. No AI, no second sentence.
+  if (lead && lead.kind === 'hear') {
+    const lastA = [...(msgs || [])].reverse().find(x => x.r === 'a');
+    const qs = String(lastA && lastA.t || '').match(/[^.?!]*\?/g);
+    const q = qs && qs.length ? qs[qs.length - 1].trim() : '';
+    return /hear me|still there|you there/i.test(q) ? '' : q;
+  }
   if (!lead || (lead.kind !== 'isai' && lead.kind !== 'ishuman') || !L || !L.aiJoke) return '';
   return (msgs || []).some(x => x.r === 'a' && String(x.t || '').indexOf(L.aiJoke) > -1) ? '' : L.aiJoke;
 }
@@ -1375,7 +1383,7 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-le
 // g-ask2 (narrowed): won its blind test 23 to 17, 5 of 7 emergency pairs (Nov 5, judgeset10). g-stock, g-sales, g-short
 // stay off: each cut things callers needed.
 // g-audit: Part 8a, live on sight (it only removes a repeated offer of the free audit; Christopher's Nov 5 call).
-export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit'];
+export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit', 'g-canned'];
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
@@ -1725,8 +1733,40 @@ async function sse(body, onData) {
 
 // Turns the AI's text stream into what Twilio speaks: strips the [END]/[TRANSFER] controls and anything
 // that should not be read aloud, and marks the last piece of each reply.
+// What Max says goes to the voice one whole sentence at a time, each its own utterance (last: true), so the voice
+// shapes the pitch of a sentence as one breath. Fed word by word, the voice gave every few words their own rise and
+// fall (Christopher, Nov 5, 2026: "instead of your sentence fluctuating together, every word is choosing its own
+// fluctuation"). A long sentence goes out at a comma after its eighth word; the first sentence of a reply goes out
+// as it stands if it is still unfinished FIRST_CAP_MS after its first word, so the caller is never left waiting.
+const FIRST_CAP_MS = 900;
+const ABBR = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr\.|a\.m\.|p\.m\.|vs\.|etc\.|e\.g\.|i\.e\.)$/i;
+// The end of the first whole sentence in t (the index just past its closing punctuation and spaces), or -1.
+export function sentenceEnd(t) {
+  const re = /[.!?]+["')\]]*(\s+)/g;
+  let m;
+  while ((m = re.exec(t))) {
+    const before = t.slice(0, m.index + m[0].length - m[1].length);
+    if (ABBR.test(before) || /\d[.]$/.test(before) && /^\d/.test(t.slice(m.index + m[0].length))) continue;
+    return m.index + m[0].length;
+  }
+  return -1;
+}
+// For a long unfinished sentence: the end of a clause (a comma after the eighth word), or -1.
+function clauseEnd(t) {
+  const words = t.trim().split(/\s+/);
+  if (words.length < 15) return -1;
+  const re = /,\s+/g;
+  let m;
+  while ((m = re.exec(t))) { if (t.slice(0, m.index).trim().split(/\s+/).length >= 8) return m.index + m[0].length; }
+  return -1;
+}
 export class Speaker {
-  constructor(send, lang) { this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null, handoff: '' }; this.stopped = false; this.asked = false; }
+  constructor(send, lang, opts) {
+    this.send = send; this.lang = lang; this.buf = ''; this.pending = ''; this.spoken = ''; this.flags = { end: false, transfer: false, book: null, handoff: '' };
+    this.stopped = false; this.asked = false;
+    // VOICE_CHUNK=word brings back the old way (pieces as they come) if sentence utterances ever misbehave on a call.
+    this.whole = !(opts && opts.chunk === 'word'); this.sent = 0; this.capT = null;
+  }
   push(tok) {
     if (this.stopped) return;
     this.buf += String(tok || '');
@@ -1752,21 +1792,64 @@ export class Speaker {
     if (this.asked) return;
     const q = t.indexOf('?');
     if (q >= 0) { this.asked = true; t = t.slice(0, q + 1); }
-    if (!t.trim()) { this.pending += t; return; }   // keep spaces with the words, so the last piece is never just a space
-    if (this.pending) { this.send(this.msg(this.pending, false)); this.spoken += this.pending; }
-    this.pending = t;
+    if (!this.whole) {
+      if (!t.trim()) { this.pending += t; return; }   // keep spaces with the words, so the last piece is never just a space
+      if (this.pending) { this.send(this.msg(this.pending, false)); this.spoken += this.pending; }
+      this.pending = t;
+      return;
+    }
+    this.pending += t;
+    if (!this.sent && !this.capT && this.pending.trim() && FIRST_CAP_MS > 0) {
+      this.capT = setTimeout(() => { this.capT = null; this.early(); }, FIRST_CAP_MS);
+    }
+    this.flush(false);
+  }
+  // Sends every whole sentence (and a long sentence's first clause) waiting in pending, each as its own utterance.
+  flush(all) {
+    for (;;) {
+      if (this.stopped) return;
+      let k = sentenceEnd(this.pending);
+      if (k < 0 && /[.?]["')\]]*$/.test(this.pending.trim()) && this.asked) k = this.pending.length;   // the question that ends the reply
+      if (k < 0) k = clauseEnd(this.pending);
+      if (k < 0) break;
+      this.out(this.pending.slice(0, k));
+      this.pending = this.pending.slice(k);
+    }
+    if (all && this.pending.trim()) { this.out(this.pending); this.pending = ''; }
+  }
+  // The first sentence is taking long to arrive: what there is goes out now, up to the last comma or word.
+  early() {
+    if (this.stopped || this.sent || !this.pending.trim()) return;
+    const t = this.pending, c = t.lastIndexOf(', '), w = t.lastIndexOf(' ');
+    const k = c > 0 ? c + 2 : (w > 0 ? w + 1 : t.length);
+    this.out(t.slice(0, k));
+    this.pending = t.slice(k);
+  }
+  out(piece) {
+    const p = piece.replace(/\s+$/, '');
+    if (!p.trim()) return;
+    if (this.capT) { clearTimeout(this.capT); this.capT = null; }
+    this.send(this.msg((this.sent ? ' ' : '') + p.replace(/^\s+/, ''), true));   // a space between utterances keeps the joined text readable
+    this.spoken += (this.spoken && !/\s$/.test(this.spoken) ? ' ' : '') + p + ' ';
+    this.sent++;
   }
   msg(token, last) { const o = { type: 'text', token, last }; if (this.lang && this.lang !== 'en-US') o.lang = this.lang; return o; }
   end() {
     if (this.buf && !this.stopped) { const b = this.buf.replace(/\[[^\]]*$/, ''); if (b) this.emit(b); }
     this.buf = '';
+    if (this.capT) { clearTimeout(this.capT); this.capT = null; }
+    if (this.whole) {
+      if (!this.stopped) this.flush(true);
+      this.pending = '';
+      return this.spoken.replace(/\s+/g, ' ').trim();
+    }
     const fin = this.pending.replace(/\s+$/, '');
     if (!this.stopped && (fin || this.spoken)) this.send(this.msg(fin || '.', true));
     this.spoken += fin;
     this.pending = '';
     return this.spoken.replace(/\s+/g, ' ').trim();
   }
-  stop() { this.stopped = true; }
+  stop() { this.stopped = true; if (this.capT) { clearTimeout(this.capT); this.capT = null; } }
 }
 
 export function earlyEnd(msgs, spoken) {
@@ -1792,10 +1875,10 @@ export const LEADS = {
   trouble: ['Oh no, okay.', 'Oh, I\'m sorry, okay.', 'Oh no.', 'Oh, okay.'],
   upset: ['I hear you.', 'I understand.'],
   aiq: ['Fair question.'],
-  isai: ['Guilty.', 'Yep.'],
+  isai: ['Yep.'],
   ishuman: ['Nope.'],
-  sing: ['You asked for it.', 'Okay. You asked for it.'],
-  nicetry: ['Nice try.'],
+  sing: ['Okay.'],
+  nicetry: ['Hmm.'],
   private: ['Hmm.'],
   tech: ['Good one.'],
   aimad: ['I hear you.', 'That\'s fair.', 'I get it.'],
@@ -2116,6 +2199,7 @@ export function mentioned(said) {
 const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that's everything|no that's it|nope that's it|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go|thanks so much|thank you so much|adiós|adios|eso es todo|es todo|gracias,? eso es todo)\b/;
 const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
 const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
+const MISSED_Q = /\b(that's not what i ask(ed)?|that is not what i ask(ed)?|not what i asked|you didn't answer|you did not answer|are you going to answer|answer (me|my question)|that's not my question)\b/;
 export function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -2128,6 +2212,12 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  // Brief 5 (Nov 5 call): "That's not what I asked" twice in a row, while Max restated his pitch. When the caller says
+  // Max missed the question, the reply goes back to their own last question and answers it in its first sentence.
+  if (MISSED_Q.test(String(said || '').toLowerCase())) {
+    const asked = [...s.msgs].reverse().filter(m => m.r === 'u').map(m => String(m.t || '')).find(t => /\?|\b(are you|so you're|so you are|can you|do you|does it|will you|is it)\b/i.test(t) && !MISSED_Q.test(t.toLowerCase()));
+    out.push('The caller says you did not answer their question.' + (asked ? ' Their question was: "' + oneLine(asked).slice(0, 200) + '".' : '') + ' Answer that question in your first sentence: yes, no, or the plain fact, in under 15 words. Do not repeat what you already said, and do not ask them anything in this reply.');
+  }
   // An urgent caller pushing for speed ("pretty quick", "or I'll call someone else"): the business's own emergency promise,
   // said with confidence. Hedging it ("I can't promise how fast") is what sends them to the next plumber.
   if (s.urgent && PUSH_FAST.test(String(said || '').toLowerCase())) {
@@ -2686,8 +2776,8 @@ export async function syncOwnLine(env) {
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
     const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|Katie handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
-    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services });
-    if (next.prices === f.prices && next.notes === f.notes && next.services === f.services) return false;
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge });
+    if (next.prices === f.prices && next.notes === f.notes && next.services === f.services && next.greeting2 === f.greeting2 && next.nudge === f.nudge) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();
     return true;
   } catch (e) { return false; }

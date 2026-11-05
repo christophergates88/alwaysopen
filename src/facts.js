@@ -44,6 +44,10 @@ export function ownLineFacts() {
       'Max, this phone assistant, comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
     about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + ', run by ' + TEAM.founder + '. ' + TEAM.support + ' handles client support and calls people back within ' + PROMISES.supportReply + '; she can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
     services: SERVICES_DAY_FIRST_LIVE ? SERVICES_DAY_FIRST : SERVICES_REPORT_FIRST,
+    // Brief 5 (Nov 5, 2026): after the S.I. line, straight to the caller ("Sorry, legal stuff" sounded like a shrug), and
+    // the check-in when a caller goes quiet asks, it doesn't tease ("See? Told you I was good. Left you speechless.").
+    greeting2: 'What can I do for you?',
+    nudge: 'Still there? I can tell you what we do, what it costs, or how it works on your number.',
     plans: 'Every plan, Starter included, has a booking and quote page customers can use any hour. Growth adds review requests after every job, posts from their photos, matching listings, every lead logged, and competitor watch. Pro adds their own business number with missed-call text-back and reminders for quotes, appointments and invoices; texting starts once carriers approve the number, ' + PROMISES.textingApproval + '. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
   };
 }
