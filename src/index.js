@@ -192,6 +192,16 @@ async function serve(req, env, ctx) {
       await env.DB.prepare('INSERT OR REPLACE INTO hq_code (id, at, json) VALUES (1, ?1, ?2)').bind(at, body).run();
       return json({ ok: true, at });
     }
+    if (path === '/ops/hq-widget') {
+      // Gates HQ home-screen widget: the Gates HQ page and the chief-of-staff task save one row in D1 (hq_widget);
+      // the iPhone widget reads it here with its private token. Read-only, no key needed beyond the token.
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_widget (id INTEGER PRIMARY KEY, token TEXT, at TEXT, json TEXT)').run();
+      const t = url.searchParams.get('t') || '';
+      if (req.method !== 'GET' || t.length < 24) return json({ ok: false }, 404);
+      const row = await env.DB.prepare('SELECT token, at, json FROM hq_widget WHERE id = 1').first();
+      if (!row || !row.token || !(await sameKey(t, row.token))) return json({ ok: false }, 404);
+      return new Response(row.json || '{}', { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+    }
     if (path === '/ops/push-queue') {
       // The Gates HQ agent on the Mac relays phone pushes ntfy refused from here (push.js). GET takes, POST reports.
       const k = req.headers.get('x-key') || '';
