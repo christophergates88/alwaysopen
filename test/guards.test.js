@@ -116,7 +116,7 @@ test('g-leads: from the third caller turn, "Got it."-style reactions go; questio
   assert.deepEqual(V.trimLead({ kind: 'wh', text: 'Good question.' }, L, m3), { kind: 'wh', text: 'Good question.' });
   assert.deepEqual(V.trimLead({ kind: 'trouble', text: 'Oh no.' }, L, m3), { kind: 'trouble', text: 'Oh no.' });
   assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, L, m3.slice(0, 4)), { kind: 'name', text: 'Got it.' });
-  assert.deepEqual(V.trimLead({ kind: 'name', text: 'Got it.' }, {}, m3), { kind: 'name', text: 'Got it.' });
+  assert.equal(V.trimLead({ kind: 'name', text: 'Got it.' }, {}, m3), null, 'on for every call since Nov 5');
 });
 
 test('fixes from the Nov 5 guard runs: tags kept, open town ask kept, read-backs and first asks kept, "first thing I\'m flagging" is not a promise', () => {
@@ -144,4 +144,12 @@ test('g-safety stands down once they are safe, and after the third turn, so the 
   assert.equal(run(MIKE, late, 'what now', ['g-safety'], 'Keep the valve shut. What\'s your name?', { urgent: true }).cuts.length, 0);
   // still cuts on the early unsafe turn
   assert.equal(run(MIKE, call('water is pouring from the heater'), 'should I unplug it', ['g-safety'], 'Don\'t touch it. Stay out of the water. What\'s your name?', { urgent: true }).cuts[0].guard, 'g-safety');
+});
+
+test('the emergency detector hears a ceiling leak and Spanish water; the history guard cuts after a safety step', () => {
+  assert.ok(V.activeProblem('water is coming through my ceiling from the bathroom upstairs'));
+  assert.ok(V.activeProblem('hola, se está saliendo el agua debajo del fregadero de la cocina'));
+  assert.ok(!V.activeProblem('how much to replace a kitchen faucet'));
+  const m = call('my ceiling has a stain', 'Shut the main water valve if you can.', 'yeah this number\'s fine');
+  assert.equal(run(MIKE, m, 'yeah this number\'s fine', ['g-history'], 'We\'ll call you back at this number. One quick thing for his note: when did you last have plumbing work done up there, and who did it?').cuts[0].guard, 'g-history');
 });

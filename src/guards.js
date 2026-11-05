@@ -111,7 +111,9 @@ function noLeadingTown(s, ctx) {
 // 4. The past-service question on an emergency, with an upset caller, at the goodbye, or on a regulated line.
 function noHistoryQ(s, ctx) {
   if (!isQ(s) || !HISTORY.test(s)) return false;
-  return !!(ctx.urgent || ctx.upset || ctx.danger || ctx.wrap || (ctx.L && ctx.L.regulated));
+  // once Max has given a safety step this call, it is an emergency, whatever the detector said (Nov 5: 'water is coming
+  // through my ceiling' was not flagged urgent)
+  return !!(ctx.urgent || ctx.upset || ctx.danger || ctx.wrap || (ctx.state && ctx.state.safetyGiven) || (ctx.L && ctx.L.regulated));
 }
 // 5. Anything the hard-error scanner would flag: a promise, a price, a booking, an invented name, town or record,
 //    advice on a regulated line, reassurance he can't give. The scanner's allowances (the caller's own words, the line's
