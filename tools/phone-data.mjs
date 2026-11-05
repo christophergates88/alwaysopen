@@ -91,6 +91,7 @@ const PLUMB = {
 };
 
 export const PAGES = {
+  // Nov 4, 2026: below pricing nothing folds on a phone ("it's all drawers"); those sections are open, kept short.
   index: {
     heading: 'What nobody else does. Tap to try it.',
     sub: 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.',
@@ -260,23 +261,14 @@ export const FOLDS = {
     day: 'What happens at 2 AM, 7 AM and 4:45 PM while you work.',
     only: 'Tap to open all six.',
     what: 'Reviews, your Google profile, posts and follow-ups, in detail.',
-    audit: 'What the free audit covers, with a sample report.',
-    compare: 'How we differ from software you have to run yourself.',
-    rules: 'No fake reviews, every customer asked, you approve what matters.',
-    regulated: 'How insurance agencies and practices use us safely.',
-    'addons-all': 'Google Ads, a new website, more Max minutes and more.',
-    faq: 'Contracts, cancelling, who you’re dealing with, and more.'
+    audit: 'What the free audit covers, with a sample report.'
   },
   trade: {
     calls: 'How calls, follow-ups and reviews work for a business like yours.',
-    only: 'Tap to open all three.',
-    rules: 'No fake reviews, every customer asked, you approve what matters.',
-    questions: 'Answers to what owners ask first.'
+    only: 'Tap to open all three.'
   },
   dental: {
-    calls: 'How Max answers, and what reaches the front desk.',
-    rules: 'No fake reviews, replies that protect privacy, you approve what matters.',
-    questions: 'Answers to what practice owners ask first.'
+    calls: 'How Max answers, and what reaches the front desk.'
   },
   insurance: {
     guard: 'Write a reply and watch Compliance Guard check it.',
@@ -284,7 +276,6 @@ export const FOLDS = {
     max: 'How Max takes messages after hours, and what he never discusses.',
     posts: 'Educational posts you approve, plus your profile and monthly page.',
     record: 'Every public review, reply and post, kept on file.',
-    privacy: 'Nothing private comes in, and replies say nothing private.',
-    questions: 'Answers to what agency owners ask first.'
+    privacy: 'Nothing private comes in, and replies say nothing private.'
   }
 };
