@@ -160,3 +160,22 @@ test('a social question gets a social reaction', () => {
   assert.equal(V.leadIn("hey there, how's your evening going", 'en-US', [], () => 0).kind, 'social');
   assert.equal(V.leadIn('should I unplug it?', 'en-US', [], () => 0).text, 'Let me see.');
 });
+
+test('a town is asked once, open, never named; an emergency\'s first reply ends on the caller, not their name', () => {
+  const g = { r: 'a', t: 'Lane Heating, this is Max.' };
+  // the street turn
+  const street = V.callerNotes({ line: { features: ['v6'] }, msgs: [g, { r: 'u', t: 'our heat is out' }, { r: 'a', t: 'Oh no. What is your name and address?' }, { r: 'u', t: 'x' }] }, 'it\'s Jake Turner, 301 Hammock Road');
+  assert.match(street, /ask once, open: "and what town is that in\?" Never name a town yourself/);
+  // after Max asked for the town once, he never asks again or fills one in
+  const later = V.callerNotes({ line: { features: ['v6'] }, msgs: [g, { r: 'u', t: 'our heat is out' }, { r: 'a', t: 'Oh no. Your name and address?' }, { r: 'u', t: 'it\'s Jake Turner, 301 Hammock Road' }, { r: 'a', t: 'Thanks Jake. And what town is that in?' }, { r: 'u', t: 'x' }] }, 'this number is good');
+  assert.match(later, /already asked for the town once\. Do not ask again, and never name a town/);
+  assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [g, { r: 'u', t: 'hi' }, { r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, 'this number is good'), /asked for the town/);
+  // the first reply of an emergency: a safe step, then a question about them
+  const first = V.callerNotes({ line: { features: ['v6'] }, urgent: true, msgs: [g, { r: 'u', t: 'x' }] }, 'our heat is out and I have a newborn');
+  assert.match(first, /end on a question about them \(are you clear of it, is everyone okay, is everyone warm\), not their name or number/);
+  const smoke = V.callerNotes({ line: { features: ['v6'] }, msgs: [g, { r: 'u', t: 'x' }] }, 'there is water under my water heater and I smell burning by the outlet');
+  assert.match(smoke, /not their name or number/);
+  // not on turn three, and not on a routine call
+  assert.doesNotMatch(V.callerNotes({ line: {}, urgent: true, msgs: [g, { r: 'u', t: 'heat is out' }, { r: 'a', t: 'Is everyone warm?' }, { r: 'u', t: 'yes' }, { r: 'a', t: 'Good.' }, { r: 'u', t: 'x' }] }, 'it is Jake'), /not their name or number/);
+  assert.doesNotMatch(V.callerNotes({ line: {}, msgs: [g, { r: 'u', t: 'x' }] }, 'I want a quote for a new faucet'), /not their name or number/);
+});

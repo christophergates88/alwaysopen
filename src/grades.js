@@ -148,7 +148,10 @@ export function hardErrors(msgs, L) {
     for (const x of times) {
       const num = (x.match(/\d+/) || [])[0], unit = (x.match(/minutes?|hours?|hour|night|day|first thing|mañana|hora|minutos?/) || [''])[0];
       const word = Object.keys(NUMW).find(k => NUMW[k] === +num);
-      const ok = allowedTime.includes(x) || (unit && (num ? allowedTime.includes(num + ' ' + unit.replace(/s$/, '')) || (word && allowedTime.includes(word + ' ' + unit.replace(/s$/, ''))) : allowedTime.includes(unit)));
+      // the caller's own words ("call me first thing", "mañana en la mañana está bien") may be noted back; a time the
+      // caller never said is Max's promise
+      const theirs = lc(before).includes(x.replace(/^(call|calls|calling|get back to) (you )?(back )?/, '')) || (unit && /tomorrow|tonight|mañana|first thing|hoy/.test(x) && new RegExp('\\b' + (x.match(/tomorrow|tonight|mañana|first thing|hoy/) || [''])[0] + '\\b').test(lc(before)));
+      const ok = theirs || allowedTime.includes(x) || (unit && (num ? allowedTime.includes(num + ' ' + unit.replace(/s$/, '')) || (word && allowedTime.includes(word + ' ' + unit.replace(/s$/, ''))) : allowedTime.includes(unit)));
       if (!ok) hit('time-promise', x);
     }
     // a price

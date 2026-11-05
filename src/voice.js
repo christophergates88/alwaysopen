@@ -1309,7 +1309,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff'];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v6'];
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
@@ -2099,8 +2099,17 @@ export function callerNotes(s, said) {
     if (us.length <= 2 && /\b(two things|and also|also,? |another thing|second thing|y también|y tambien|otra cosa|dos cosas)\b/.test(w)) out.push('They brought up two things. Both go in the message, in your own words, the urgent or active one first; before you close, name the second one so they know it was heard.');
     // "same number" / "this number" settles the number for the whole call
     if (us.some(x => SAME_NUM.test(x))) out.push('They said to use the number they are calling from. The number is settled: never ask about it, confirm it or read it back again.');
-    // a town is never assumed
-    if (/\d/.test(w) && STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.');
+    // a town is never assumed: asked once, open, and never named by Max (v5 asked "is that Milledgeville?" twice, then
+    // "put it down as Milledgeville"; that lost hvac-no-heat on Nov 4)
+    if (!hasFeature(L, 'v6')) { if (/\d/.test(w) && STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.'); }
+    else {
+      if (/\d/.test(w) && STREET_WORD.test(w)) out.push('They gave a street. If they did not say the town, ask once, open: "and what town is that in?" Never name a town yourself, not as a guess, not as a yes-or-no question, not as a default.');
+      else { const streetAt = us.findIndex(x => /\d/.test(x) && STREET_WORD.test(x));
+        if (streetAt > -1 && streetAt < us.length - 1 && (s.msgs || []).some(m => m.r === 'a' && /\btown\b/i.test(String(m.t || '')))) out.push('You already asked for the town once. Do not ask again, and never name a town or "put one down"; if they did not give it, the team checks on the callback.'); }
+      // an emergency's first reply ends on them, not on their name (v5 bolted "What's your name?" onto every safety line
+      // of plumb-electric-smoke and lost it; the no-heat call asked for a number before any safe step)
+      if (us.length <= 2 && (s.urgent || DANGER_CALL.test(w) || WATER_ELECTRIC.test(w))) out.push('Something is going wrong right now. This reply: one safe step for this minute if there is one (keep the baby in the warmest room, stay out of the water), then end on a question about them (are you clear of it, is everyone okay, is everyone warm), not their name or number. The name and number come next turn, once.');
+    }
     // a regulated line never holds a time
     if (L.regulated && /\b(appointment|come in|get in|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|soon|cita|mañana|hoy)\b/.test(w)) out.push('On this line the office calls back to set any time. Never say a day or time is held, booked, or that the team will confirm one; say they will call to find a time.');
     // no routine closing question for someone in trouble or upset

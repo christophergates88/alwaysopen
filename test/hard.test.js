@@ -92,3 +92,11 @@ test('the Spanish disclosure says S.I., never inteligencia artificial, and the s
   assert.deepEqual(flags(call('hola', 'Soy el asistente de inteligencia artificial de Mike\'s Plumbing.')), ['ai-word']);
   assert.deepEqual(flags(call('¿eres un robot?', 'Soy una IA, no una persona.')), ['ai-word']);
 });
+
+test('a time the caller said first may be noted back; one they never said is a promise', () => {
+  assert.deepEqual(flags(call('it\'s Brian, call me first thing', 'Brian, first thing, you got it. What\'s the best number?')), []);
+  assert.deepEqual(flags(call('I want someone to call me tomorrow', 'Got it. Lisa Grant, wants a call tomorrow. The owner will call you.')), []);
+  assert.deepEqual(flags(call('mañana en la mañana está bien', 'Mañana en la mañana suele haber espacio, y el equipo le confirma la hora.')), []);
+  assert.deepEqual(flags(call('my faucet leaks', 'Someone will call you back first thing.')), ['time-promise']);
+  assert.deepEqual(flags(call('my faucet leaks', 'We\'ll get back to you tomorrow.')), ['time-promise']);
+});
