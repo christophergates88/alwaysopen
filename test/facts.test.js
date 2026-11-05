@@ -59,5 +59,6 @@ test('Part 8b: the own line says who Always Open is, once, and a second sync cha
   assert.equal(f1.services, F.SERVICES_DAY_FIRST_LIVE ? F.SERVICES_DAY_FIRST : F.SERVICES_REPORT_FIRST, 'the description comes from facts.js');
   assert.doesNotMatch(f1.services, /Facebook review|approves anything/, 'retired claims are gone from the live line');
   assert.equal(await V.syncOwnLine({ DB }), false, 'a second sync changes nothing');
-  assert.doesNotMatch(F.ownLineFacts().about, /Christopher|Gates|\d{3}/, 'no name or number until Christopher says so');
+  assert.match(F.ownLineFacts().about, /run by Christopher Gates\./, 'Christopher said on Nov 5 to name him');
+  assert.doesNotMatch(F.ownLineFacts().about, /\d{3}|@/, 'no phone numbers or email addresses for people');
 });
