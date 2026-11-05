@@ -142,7 +142,7 @@ export function hardErrors(msgs, L) {
     const saidNums = new Set((before.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []).concat((lc(before).match(new RegExp(MONEY_W, 'g')) || []).map(x => String(spokenAmount(x))).filter(x => x !== 'null')));
     let r;
     if ((r = /\b(i'?m|i am) (a )?(real )?(person|human)\b|\bnot a (robot|bot|machine|computer)\b|(?<!no )\bsoy (una )?persona\b/.exec(w))) hit('human', r[0]);
-    if ((r = /\bAI\b|\bA\.I\.|[Aa]rtificial intelligence/.exec(t))) hit('ai-word', r[0]);
+    if ((r = /\bAI\b|\bA\.I\.|[Aa]rtificial intelligence|\bIA\b|[Ii]nteligencia artificial/.exec(t))) hit('ai-word', r[0]);
     // a callback or arrival time
     const times = w.match(/\bwithin (the|an|a) (hour|half hour)\b|\b(within|in|under|in about|in the next) (\d+|a few|ten|fifteen|twenty|thirty|forty five|an?|one|two) (minutes?|hours?)\b|\bfirst thing\b|\bsame (night|day)\b|\b(call|calls|calling|get back to) (you )?(back )?(tomorrow|tonight|this (morning|afternoon|evening))\b|\ben menos de (una|\d+|quince|diez|veinte|treinta) (hora|minutos?)\b|\bmañana (en|por) la mañana\b|\ba primera hora\b|\bhoy mismo\b/g) || [];
     for (const x of times) {

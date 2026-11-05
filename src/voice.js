@@ -897,7 +897,7 @@ export class CallRoom extends DurableObject {
       s.lang = 'es-US';
       this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: 'es-US' });
       s.esTold = true;
-      return this.say(s, 'Claro. Soy el asistente de inteligencia artificial y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
+      return this.say(s, 'Claro. Soy S.I., y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
     }
     if (d === '0') {
       // 0 puts them through only when the owner takes calls whenever a caller asks (and not in quiet hours, see onSetup).
@@ -2283,7 +2283,7 @@ function turnNote(heard, msgs) {
 function justSaid(text) {
   return 'You just said "' + text + '" out loud, the instant the caller stopped talking. Your reply is spoken right after it, so go straight to the point: do not say it again, and do not open with another reaction. One or two short sentences, like a person on the phone.';
 }
-const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are the business\'s AI assistant (asistente de inteligencia artificial) and that this call may be recorded (esta llamada puede ser grabada), then answer what they said.';
+const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are an S.I. (write it "S.I.", said as two letters; never "inteligencia artificial" or "IA") and that this call may be recorded ("Soy S.I., y esta llamada puede ser grabada."), then answer what they said.';
 const ES_WORDS = new Set(('hola buenos buenas dias días tardes noches necesito quiero quisiera por favor gracias habla hablo español espanol usted ustedes tengo tiene mi mis casa ayuda ayudar puede pueden cuanto cuánto cuesta precio ' +
   'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí ' +
   // the everyday words that carry a Spanish sentence (Nov 4, 2026: "es la tercera vez que llamo y nadie me regresa la llamada" and

@@ -86,3 +86,9 @@ test('the hard practice set: 40 or more calls, unique ids, every one with a must
   for (const c of calls) { assert.ok(c.must && c.never && c.turns.length >= 2, c.id); assert.ok(!('line' in c), c.id + ': a line is set per group'); }
   for (const g of d.groups) assert.ok(g.calls.length <= 10, g.name + ': ten calls a request at most');
 });
+
+test('the Spanish disclosure says S.I., never inteligencia artificial, and the scanner catches the Spanish AI words', () => {
+  assert.deepEqual(flags(call('hola', 'Soy S.I., y esta llamada puede ser grabada. ¿En qué le puedo ayudar?')), []);
+  assert.deepEqual(flags(call('hola', 'Soy el asistente de inteligencia artificial de Mike\'s Plumbing.')), ['ai-word']);
+  assert.deepEqual(flags(call('¿eres un robot?', 'Soy una IA, no una persona.')), ['ai-word']);
+});
