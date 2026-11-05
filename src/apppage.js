@@ -218,8 +218,10 @@ a.btn{color:inherit}
 .mapfb{position:absolute;inset:0;background:#232A3A;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px}
 .mapfb .mdot,.mapfb .mpin{position:absolute;transform:translate(-50%,-50%)}.mapfb .mpin{transform:translate(-50%,-100%)}
 .mtap{width:48px;height:48px;padding:0;border:0;background:none;display:grid;place-items:center}.mhold{display:grid;place-items:center}
-.mdot{display:block;width:16px;height:16px;border-radius:50%;background:var(--ok);border:2px solid #fff;padding:0;box-shadow:0 0 0 4px rgba(92,201,164,.25)}
-.mdot.ex{background:var(--slate);opacity:.55;box-shadow:none;border-color:rgba(255,255,255,.6)}
+.mdot{display:block;font:800 10px/1 var(--display);letter-spacing:.12em;color:var(--sign);background:rgba(0,0,0,.6);border:1.5px solid var(--sign);border-radius:5px;padding:3px 5px;box-shadow:0 0 8px rgba(255,106,94,.7),inset 0 0 6px rgba(255,106,94,.25);text-shadow:0 0 6px rgba(255,106,94,.9);animation:mhum 2.2s ease-in-out infinite alternate}
+.mtap .mdot{font-size:12px;padding:4px 7px}.mhold:nth-child(2n) .mdot{animation-delay:-.7s}.mhold:nth-child(3n) .mdot{animation-delay:-1.3s}
+@keyframes mhum{from{opacity:.65;box-shadow:0 0 3px rgba(255,106,94,.4)}to{opacity:1;box-shadow:0 0 12px rgba(255,106,94,.95),inset 0 0 6px rgba(255,106,94,.3)}}
+@media (prefers-reduced-motion:reduce){.mdot{animation:none}}
 .mpin{display:grid;justify-items:center;pointer-events:none}.mpin b{background:var(--sign);color:var(--on-sign);font:800 15px var(--display);padding:4px 10px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .mpin i{width:3px;height:12px;background:var(--sign)}.mpin.off b{background:var(--slate)}.mpin.off i{background:var(--slate)}
 .maplibregl-popup-content{background:var(--card);color:var(--ink);font:600 16px var(--body);border-radius:10px;padding:10px 12px}.maplibregl-popup-tip{border-top-color:var(--card)!important;border-bottom-color:var(--card)!important}
@@ -546,6 +548,7 @@ function vToday(){
   if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
   else{h+=(NEEDALL?need:need.slice(0,5)).join('');if(need.length>5)h+='<div class="acts"><button class="btn line" type="button" data-a="need-more">'+(NEEDALL?'Show fewer':(need.length-5)+' more')+'</button></div>';}
   if(S.line)h+='<h2>Today so far</h2>'+todayNums();
+  h+=clockCard();
   if(!isTech())h+=monthNowCard();
   var f=S.features||{};
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
@@ -650,7 +653,7 @@ function pinEl(you){var e=document.createElement('div');
   if(you){e.className='mpin'+(S.map.show?'':' off');e.innerHTML='<b>You</b><i></i>';}
   else{e.className='mdot';}
   return e;}
-function dotEl(ex,full){var d='<span class="mdot'+(ex?' ex':'')+'"></span>';var e=document.createElement(full?'button':'div');if(full){e.type='button';e.className='mtap';e.setAttribute('aria-label',ex?'Example':'Business');}else{e.className='mhold';}e.innerHTML=d;return e;}
+function dotEl(ex,full){var d='<span class="mdot'+(ex?' ex':'')+'">OPEN</span>';var e=document.createElement(full?'button':'div');if(full){e.type='button';e.className='mtap';e.setAttribute('aria-label',ex?'Example':'Business');}else{e.className='mhold';}e.innerHTML=d;return e;}
 function drawPins(map,D,full){
   (D.examples?D.dots.map(function(d){return {lat:d[0],lng:d[1],ex:true};}):D.others).forEach(function(b){
     var el=dotEl(b.ex,full),mk=new maplibregl.Marker({element:el}).setLngLat([b.lng,b.lat]);
@@ -663,7 +666,7 @@ function mapFallback(box,D){
   var h='<div class="mapfb" role="img" aria-label="Where you are on the map">';
   var pts=D.examples?D.dots.map(function(d){return {lat:d[0],lng:d[1],ex:1};}):D.others;
   pts.forEach(function(b){var x=50+(b.lng-D.center[1])*Math.cos(D.center[0]*Math.PI/180)*69/12.5*50,y=50-(b.lat-D.center[0])*69/10*50;
-    if(x>3&&x<97&&y>3&&y<97)h+='<span class="mdot'+(b.ex?' ex':'')+'" style="left:'+x.toFixed(1)+'%;top:'+y.toFixed(1)+'%"></span>';});
+    if(x>3&&x<97&&y>3&&y<97)h+='<span class="mdot'+(b.ex?' ex':'')+'" style="left:'+x.toFixed(1)+'%;top:'+y.toFixed(1)+'%">OPEN</span>';});
   if(D.placed)h+='<span class="mpin'+(S.map.show?'':' off')+'" style="left:50%;top:50%"><b>You</b><i></i></span>';
   box.innerHTML=h+'</div>';
 }
