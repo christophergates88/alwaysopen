@@ -282,7 +282,7 @@ export async function addDuties(L, line) {
     const d = await import('./duties.js');
     if (typeof d.dutyLines !== 'function') return;
     let saved = false; try { saved = !!JSON.parse(line.owner_set || '{}').duties; } catch (e) { saved = false; }
-    let rules = d.dutyLines(line) || [];
+    let rules = d.dutyLines(line, { v7: Array.isArray(L.features) && L.features.includes('v7') }) || [];
     if (!saved && L.prices) rules = rules.filter(x => !/^Never give a price/.test(x));
     L.duties = rules.map(x => String(x).slice(0, 500)).slice(0, 12);
     L.dutyAllDay = typeof d.dutiesOf === 'function' ? !!d.dutiesOf(line).allDay : false;
@@ -1309,7 +1309,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v6'];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7'];
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
@@ -2112,6 +2112,13 @@ export function callerNotes(s, said) {
     if (L.regulated && /\b(appointment|come in|get in|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|soon|cita|mañana|hoy)\b/.test(w)) out.push('On this line the office calls back to set any time. Never say a day or time is held, booked, or that the team will confirm one; say they will call to find a time.');
     // no routine closing question for someone in trouble or upset
     if (s.urgent || s.upset) out.push('Leave routine questions (past claims, preferences, "anything else") for the callback; close with what happens next.');
+    // v7 (Nov 5): after the first exchange of an emergency, one job per reply. The v6 round still bolted "What's your
+    // name?" onto a later safety reminder (plumb-no-hot-water, plumb-sewer-backup) and nagged "I still need your name".
+    if (hasFeature(L, 'v7')) {
+      if (us.length > 2 && (s.urgent || DANGER_CALL.test(us.join(' ')) || WATER_ELECTRIC.test(us.join(' ')))) out.push('One job per reply: if you repeat a safety step, do not ask for their name or number in the same reply; if you ask for a detail, ask only that, in a few words.');
+      if ((s.msgs || []).some(m => m.r === 'a' && /\b(name|number)\b/i.test(String(m.t || '')) && /\?/.test(String(m.t || '')))) out.push('If you still need a detail you asked for, ask for it once more in fresh, plain words ("And your name?"). Never say "I still need" or "I still don\'t have".');
+      if (BYE_NOW.test(w) || (/\b(thanks|thank you|gracias)\b/.test(w) && w.split(/\s+/).length <= 4)) out.push('No questions now: not about past work, who did it, whether they have been in before, or anything else.');
+    }
   }
   const named = hasFeature(s.line, 'mentioned') ? mentioned(said) : [];
   if (named.length) out.push('They just mentioned: ' + named.join(', ') + '. Let your first few words show you caught one of these, in your own words.');

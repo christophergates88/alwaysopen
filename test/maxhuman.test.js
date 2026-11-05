@@ -196,3 +196,16 @@ test('"9 Cypress Point" and "14 Harbor Cove" count as streets for the town note'
   for (const a of ['it\'s Nina Ford, 9 Cypress Point', '14 Harbor Cove', '220 Oak Ridge', '7 Mill Run']) assert.match(V.callerNotes({ line: { features: ['v6'] }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, a), /Never name a town yourself/, a);
   assert.doesNotMatch(V.callerNotes({ line: { features: ['v6'] }, msgs: [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }] }, 'it\'s 3 degrees out and the point is the heat is dead'), /Never name a town/);
 });
+
+test('v7: one job per reply after an emergency opens, no "I still need", no questions after thanks, past service skipped at the end', async () => {
+  const g = { r: 'a', t: 'Mike\'s Plumbing, this is Max.' };
+  const urgent = { line: { features: ['v7'] }, urgent: true, msgs: [g, { r: 'u', t: 'water is pouring from the water heater' }, { r: 'a', t: 'Shut the cold valve on top. Can you reach it dry?' }, { r: 'u', t: 'yes it is off' }, { r: 'a', t: 'Good. What is your name?' }, { r: 'u', t: 'x' }] };
+  const n = V.callerNotes(urgent, 'it is still dripping a little');
+  assert.match(n, /One job per reply/);
+  assert.match(n, /Never say "I still need"/);
+  assert.match(V.callerNotes(urgent, 'okay thanks'), /No questions now: not about past work/);
+  assert.doesNotMatch(V.callerNotes(Object.assign({}, urgent, { line: {} }), 'it is still dripping a little'), /One job per reply/);
+  const { dutyLines } = await import('../src/duties.js');
+  assert.match(dutyLines({}, { v7: true }).join(' '), /Skip it on an emergency, with an upset caller, or once they are wrapping up/);
+  assert.match(dutyLines({}).join(' '), /Once, when it fits, ask when they last had/);
+});

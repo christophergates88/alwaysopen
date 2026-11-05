@@ -46,12 +46,15 @@ export function cleanDuties(b, prev) {
 
 // Plain rules for Max's instructions, one per line. Always returns the rules for every duty, on or off, so Max never
 // guesses (a price he wasn't given is never said).
-export function dutyLines(x) {
+// Nov 5: the tighter past-service wording is tested behind the v7 switch before it reaches real callers.
+let PAST_SERVICE_V7 = false;
+export function dutyLines(x, opts) {
+  PAST_SERVICE_V7 = !!(opts && opts.v7);
   const d = dutiesOf(x), out = [];
   out.push(d.allDay ? 'You answer during business hours too, whenever the owner can’t get to the phone. Treat those callers exactly the same.' : 'You mostly answer when the business is closed. If someone calls during open hours, help them the same way.');
   if (d.prices && d.priceList) out.push('You may give these standard prices, exactly as written, and no others: ' + d.priceList + '. For anything not on this list, say the owner will quote it.');
   else out.push('Never give a price or a price range. Say the owner will quote it after hearing about the job.');
-  if (d.pastService) out.push('Once, when it fits, ask when they last had this kind of work done and who did it. Put it in your note.');
+  if (d.pastService) out.push(PAST_SERVICE_V7 ? 'Once, mid-call on a routine job, ask when they last had this kind of work done and who did it. Put it in your note. Skip it on an emergency, with an upset caller, or once they are wrapping up.' : 'Once, when it fits, ask when they last had this kind of work done and who did it. Put it in your note.');
   if (d.plans && d.planText) out.push('Once, near the end and only if it fits, mention the service plan in one sentence: ' + d.planText + ' Never push it.');
   if (d.payments && d.payText) out.push('If asked how they can pay: ' + d.payText);
   else out.push('If asked how they can pay, say the owner will go over that with them.');
