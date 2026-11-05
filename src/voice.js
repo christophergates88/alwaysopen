@@ -1713,6 +1713,7 @@ export const LEADS = {
   thanks: ['Of course.', 'Sure thing.', 'You bet.'],
   hear: ['Yep, I\'m here.', 'Yeah, I\'m here.'],
   hi: ['Hi.', 'Hi there.'],
+  social: ['Doing well, thanks.', 'Good, thanks.'],
   wait: ['Sure.', 'Sure, no rush.'],
   yes: ['Alright.', 'Good.', 'Got it.', 'Okay.', 'Sure.', 'Great.'],
   ask: ['Alright.', 'Okay.'],   // not "Sure." or "Absolutely.": the answer may be a no ("Absolutely. I can't throw out a number")
@@ -2019,6 +2020,9 @@ export function mentioned(said) {
   }
   return out;
 }
+const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that's everything|no that's it|nope that's it|have a (good|great|nice) (one|day|night|evening|weekend)|talk to you later|gotta go|got to go|thanks so much|thank you so much|adiós|adios|eso es todo|es todo|gracias,? eso es todo)\b/;
+const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
+const STREET_WORD = /\b(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|calle|avenida|camino)\b/;
 export function callerNotes(s, said) {
   const out = [];
   // Put through on asking only when the owner takes calls whenever a caller asks (and it is not quiet hours, see onSetup);
@@ -2060,7 +2064,7 @@ export function callerNotes(s, said) {
     if (!ph) { const done = (s.msgs || []).slice(0, -1).filter(m => m.r === 'u').map(m => phoneReadback(m.t)).filter(x => x && x.n === 10).pop();
       if (done) out.push('The phone number they gave earlier is complete and correct (code counted ten digits: "' + done.say + '"). Never say it was short or missing a digit, and never ask for it again.'); } }
   // "Can I fix it myself?": never a how-to over the phone. Shutting water or power off to stop damage is still fine.
-  if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. No repair steps; at most, closing a water valve that is easy and safe to reach if something is actively leaking. Never anything electrical or gas.');
+  if (DIY_ASK.test(String(said || '').toLowerCase())) out.push('They asked how to fix it themselves. Say kindly, in your own words, that you can\'t troubleshoot it over the phone: it\'s hard to do without seeing it, and for liability reasons it\'s best to have someone come out and take a look. Then offer to set that up. You may say in a few words what it often turns out to be ("often the flapper"), never how to fix it. No repair steps; at most, closing a water valve that is easy and safe to reach if something is actively leaking. Never anything electrical or gas.');
   // When they ask how soon the owner calls: the business's own emergency callback time if it set one, otherwise a polite "as soon as he's free".
   if (CALLBACK_ASK.test(String(said || '').toLowerCase())) {
     // the business's own callback promise, quoted straight from its settings when it names a time
@@ -2086,6 +2090,19 @@ export function callerNotes(s, said) {
       out.push('They cut you off' + (heard ? ' after "' + heard.slice(-120) + '"' : ' before you said anything') + '. Do not say that part again and do not finish the old sentence; answer what they just said. If you had a question that got cut, ask it later only if you still need it, in new words.');
     } }
   // The specific things they just named, so the first words of the reply can show they were heard.
+  // Brief 2, Part 1d: what the blind judges kept catching on the live wording.
+  { const L = s.line || {}, w = String(said || '').toLowerCase(), us = (s.msgs || []).filter(m => m.r === 'u').map(m => String(m.t || '').toLowerCase());
+    // a goodbye ends it: no "one more thing", no asking again for what is missing
+    if (BYE_NOW.test(w)) out.push('They are wrapping up. Close in one short, warm line with what happens next. Do not ask for anything else; if a detail is missing, the team will call the number they called from.');
+    // "same number" / "this number" settles the number for the whole call
+    if (us.some(x => SAME_NUM.test(x))) out.push('They said to use the number they are calling from. The number is settled: never ask about it, confirm it or read it back again.');
+    // a town is never assumed
+    if (/\d/.test(w) && STREET_WORD.test(w)) out.push('If they did not say the town, ask once; never assume one or fill it in yourself.');
+    // a regulated line never holds a time
+    if (L.regulated && /\b(appointment|come in|get in|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|soon|cita|mañana|hoy)\b/.test(w)) out.push('On this line the office calls back to set any time. Never say a day or time is held, booked, or that the team will confirm one; say they will call to find a time.');
+    // no routine closing question for someone in trouble or upset
+    if (s.urgent || s.upset) out.push('Leave routine questions (past claims, preferences, "anything else") for the callback; close with what happens next.');
+  }
   const named = hasFeature(s.line, 'mentioned') ? mentioned(said) : [];
   if (named.length) out.push('They just mentioned: ' + named.join(', ') + '. Let your first few words show you caught one of these, in your own words.');
   return out.length ? ' ' + out.join(' ') : '';
@@ -2138,6 +2155,8 @@ function leadKindEn(raw, orig) {
   if (!isQ && has(/\b(thanks|thank you|thank ya|appreciate (it|that|you))\b/)) return 'thanks';
   if (has(/\b(are you there|you still there|can you hear me|anybody there|anyone there|is anyone there|is somebody there)\b/) || (q && /^(hello|hi|hey)( there)?$/.test(w))) return 'hear';
   if (/^(hi|hello|hey|hey there|hi there|hello there|yo|howdy|good morning|good afternoon|good evening|hey max|hi max|hello max)$/.test(w)) return 'hi';
+  // "how's your evening going": a social question gets a social answer, not "Got it." (blind judges, Nov 4, 2026)
+  if (/\bhow('?s| is| are)( it going| you| your (day|evening|night|morning|afternoon)( going)?)\b|\bhow (you|ya) doing\b/.test(w) && n <= 10) return 'social';
   if (/^(hold on|hang on|one sec|one second|just a sec|just a second|give me a sec|give me a second|give me a minute|wait|wait a sec|wait a second|let me (check|see|think|look|find|grab|get))\b/.test(w)) return 'wait';
   if (n <= 4 && /^(yes|yeah|yep|yup|ya|yea|sure|correct|right|exactly|absolutely|definitely|of course|ok|okay|sounds good|perfect|that's right|that's correct|that works|uh huh|mm hmm|please|great|cool|awesome|sure thing|you got it|that's me|it is|i do|we do)\b/.test(w)) return 'yes';
   if (isQ) {
