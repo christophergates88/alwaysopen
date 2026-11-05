@@ -69,3 +69,7 @@ class_name = "CallRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CallRoom"]
+
+# Worker logs kept (Nov 5, 2026): two Max calls dropped mid-call and there was nothing to read about why.
+[observability]
+enabled = true

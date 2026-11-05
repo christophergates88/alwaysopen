@@ -174,8 +174,14 @@ async function incoming(env, f) {
   const hints = hintsFor(line);
   const vv = voiceFor(line);
   const audio = (parse(line.facts) || {}).greetAudio;
-  return twiml((sample ? sample.tw : '') + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
-    (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greeting(line)) + '" welcomeGreetingInterruptible="none" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
+  return twiml((sample ? sample.tw : '') + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + relayConnect(env, line, sid, t, greeting(line), 'none', hints));
+}
+
+// The <Connect> that puts a caller on with Max: the first answer, and a reconnect when the line to Max dropped mid-call.
+function relayConnect(env, line, sid, t, greet, greetInterrupt, hints) {
+  const vv = voiceFor(line);
+  return '<Connect action="' + SITE + '/voice/after/' + env.VOICE_KEY + '"><ConversationRelay url="wss://' + HOST + '/voice/ws/' + sid + '?t=' + t + '"' +
+    (vv ? ' ttsProvider="' + vv.provider + '" voice="' + xa(vv.voice) + '"' : '') + ' welcomeGreeting="' + xa(greet) + '" welcomeGreetingInterruptible="' + greetInterrupt + '" interruptible="speech" interruptSensitivity="medium" ignoreBackchannel="true" events="speaker-events" dtmfDetection="true" language="en-US"' +
     // English uses Deepgram Flux, which ends the caller's turn when they finish their thought, not after a fixed silence.
     // Partial prompts send their words as they come, so the answer can start before the turn is confirmed over. Lines that
     // also answer in Spanish get Flux once fluxFor says so (Nov 4 2026, tried on a line first), for both languages: Flux
@@ -185,7 +191,7 @@ async function incoming(env, f) {
     // Spanish caller as nothing at all (Nov 5, 2026 test call: one word, "."), so Max never switched and hung up after two
     // "I'm not hearing anything". The two <Language> entries below are the hints toward English and Spanish.
     (multiStt(env, line) ? ' transcriptionLanguage="multi"' : '') +
-    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux"' : '') + '/>' : '') + '</ConversationRelay></Connect>');
+    (hints ? ' hints="' + xa(hints) + '"' : '') + '>' + (+line.spanish ? '<Language code="en-US"/><Language code="es-US"' + (fluxFor(env, line) ? ' transcriptionProvider="Deepgram" speechModel="flux"' : '') + '/>' : '') + '</ConversationRelay></Connect>';
 }
 
 // Max's interview call to the owner (interview.js). Twilio asks what to say once the owner picks up.
@@ -245,6 +251,19 @@ async function afterRelay(env, ctx, f) {
     await dialing();
     return twiml('<Dial timeout="20" action="' + SITE + '/voice/dial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '">' +
       '<Number url="' + xa(SITE + '/voice/whisper/' + env.VOICE_KEY + '?c=' + sid) + '">' + xa(line.transfer_to) + '</Number></Dial>');
+  }
+  // The line to Max dropped mid-call (64105: the socket closed without an end; 64102/64103: Twilio could not keep it):
+  // the caller gets Max back where they were, instead of a voicemail beep in the middle of a sentence (Nov 5, 2026: two
+  // calls, 11:41 AM and 3:01 PM, went to voicemail mid-conversation). At most twice a call.
+  const code = String(f.get('ErrorCode') || '');
+  if (failed && line && /^641(02|03|05)$/.test(code)) {
+    let back = false;
+    try { back = await room.resume(code); } catch (e) { back = false; }
+    await vlog(env, 'relay-drop', JSON.stringify({ sid, code, dur, back }));
+    if (back) {
+      const t = await callToken(env, sid);
+      return twiml(relayConnect(env, line, sid, t, 'Sorry, we got cut off for a second. I\u2019m still here. Go ahead.', 'speech', hintsFor(line)));
+    }
   }
   ctx.waitUntil(room.finalize(sid, failed ? 'failed' : 'ended').catch(() => {}));
   if (failed) ctx.waitUntil(opsAlert(env, 'max-call', (call && call.client_id) || '', 'A Max call ended in failure (relay error ' + (f.get('ErrorCode') || f.get('SessionStatus') || '?') + ')'));
@@ -474,10 +493,24 @@ export class CallRoom extends DurableObject {
   }
 
   // The socket closing is the end of the call, unless Max just handed it to Twilio to put through (see finalize).
-  async webSocketClose(ws, code) {
+  async webSocketClose(ws, code, reason) {
     try { ws.close(1000, 'bye'); } catch (e) { /* already closed */ }
     const s = await this.load();
-    if (s && s.sid) await this.finalize(s.sid, 'closed').catch(() => { /* kept for the 10-minute cron's retry */ });
+    if (!s || !s.sid) return;
+    await vlog(this.env, 'ws-close', JSON.stringify({ sid: s.sid, code, reason: String(reason || '').slice(0, 80), secs: Math.round((Date.now() - s.started) / 1000), done: !!s.done, turn: s.turn }));
+    // Mid-call, the call may come right back (afterRelay reconnects a dropped line): the alarm writes it up in 20
+    // seconds if it doesn't. Twilio's status callback writes it up at once when the caller really hung up.
+    if (!s.done) { s.closedAt = Date.now(); await this.keep(s); await this.ctx.storage.setAlarm(Date.now() + 2000); return; }
+    await this.finalize(s.sid, 'closed').catch(() => { /* kept for the 10-minute cron's retry */ });
+  }
+  // Called by afterRelay when the line to Max dropped: true when the call can pick up where it was.
+  async resume(code) {
+    const s = await this.load();
+    if (!s || s.done || s.finalized || (s.resumes || 0) >= 2 || s.endAt) return false;
+    s.resumes = (s.resumes || 0) + 1; s.resuming = 1; s.closedAt = Date.now(); s.lastDrop = code;
+    this.stopLive();
+    await this.keep(s);
+    return true;
   }
 
   async webSocketError() {
@@ -486,7 +519,18 @@ export class CallRoom extends DurableObject {
   }
 
   async onSetup(m) {
-    if (await this.load()) return;
+    const was = await this.load();
+    if (was && was.resuming && !was.done) {
+      // Back on after a dropped line: the same call, same words so far; Max picks up where it was.
+      const now = Date.now();
+      was.resuming = 0; was.closedAt = 0; was.callerTalking = false; was.agentTalking = false;
+      was.msgs.push({ r: 'a', t: 'Sorry, we got cut off for a second. I’m still here. Go ahead.' });
+      was.last = now + 4000;
+      await this.keep(was);
+      await this.ctx.storage.setAlarm(now + TICK_MS);
+      return;
+    }
+    if (was) return;
     const sid = String(m.callSid || '');
     const call = SID_RE.test(sid) ? await this.env.DB.prepare('SELECT id, client_id, number, caller, test FROM app_calls WHERE id = ?1').bind(sid).first() : null;
     if (!call) { this.out({ type: 'end', handoffData: '{"reason":"unknown"}' }); return; }
@@ -942,7 +986,10 @@ export class CallRoom extends DurableObject {
     let s = await this.load();
     if (!s || s.done) return;
     const now = Date.now();
-    if (!this.ctx.getWebSockets().length) { await this.finalize(s.sid, 'closed'); return; }
+    if (!this.ctx.getWebSockets().length) {
+      if (s.closedAt && now - s.closedAt < 20000) { await this.ctx.storage.setAlarm(now + TICK_MS); return; }   // a reconnect may be on its way
+      await this.finalize(s.sid, 'closed'); return;
+    }
     if (s.endAt && now >= s.endAt) {
       s.done = true;
       await this.keep(s);

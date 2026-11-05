@@ -568,3 +568,36 @@ test('a quiet caller after a number question gets longer than after an ordinary 
   s = await x.room.load();
   assert.equal(x.room.nudgeWait(s), 7000 + 1500, 'the address question too');
 });
+
+// ---------- Nov 5, 2026: the line to Max dropped mid-call and the caller heard a voicemail beep ----------
+test('a dropped line mid-call gets Max back, twice at most, instead of the voicemail', async () => {
+  const w = await mk();
+  const sid = sidOf(905), from = '+14785550905';
+  const x = await w.room(sid, from);
+  await w.say(x, 'I need to know what you all do');
+  const before = w.said(x).length;
+  assert.ok(before > 0, 'Max answered');
+  // The socket closes on its own (Twilio's 64105): the call is not written up yet, a reconnect may be coming
+  await x.room.webSocketClose(x.ws, 1006, '');
+  assert.equal((await w.row(sid)).outcome, 'live', 'not written up while a reconnect may come');
+  const drop = () => w.hook('after', { CallSid: sid, SessionStatus: 'failed', ErrorCode: '64105', SessionDuration: '40' });
+  let r = await drop();
+  assert.match(r.text, /<ConversationRelay/, 'Max comes back on the line');
+  assert.match(r.text, /cut off for a second/);
+  assert.doesNotMatch(r.text, /<Record/, 'no voicemail');
+  // Twilio opens a new socket: same call, same words, and Max keeps going
+  await x.room.webSocketMessage(x.ws, JSON.stringify({ type: 'setup', callSid: sid, from }));
+  const s = await x.room.load();
+  assert.equal(s.resuming, 0);
+  assert.ok(s.msgs.some(m => /what you all do/.test(m.t)), 'the conversation so far is kept');
+  await w.say(x, 'okay, how much is it');
+  assert.ok(w.said(x).length > before, 'Max answers after the reconnect');
+  // A second drop comes back too; a third goes to the voicemail as before
+  r = await drop(); assert.match(r.text, /<ConversationRelay/);
+  await x.room.webSocketMessage(x.ws, JSON.stringify({ type: 'setup', callSid: sid, from }));
+  r = await drop(); assert.doesNotMatch(r.text, /<ConversationRelay/, 'not a third time');
+  // A normal end never reconnects
+  const sid2 = sidOf(906), y = await w.room(sid2, '+14785550906');
+  r = await w.hook('after', { CallSid: sid2, SessionStatus: 'ended', SessionDuration: '30' });
+  assert.doesNotMatch(r.text, /<ConversationRelay/);
+});
