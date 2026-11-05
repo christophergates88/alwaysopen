@@ -524,3 +524,47 @@ test('15. a write-up that fails keeps the call for a retry; once saved, the call
   assert.deepEqual(st, { sid, finalized: true, done: true }, 'no transcript left in the call room');
   assert.equal(w.pushes().length, 1, 'one note to the owner');
 });
+
+// ---------- Brief 2, Part 4d: interruptions and quiet callers, in a test that fails when they break ----------
+test('talked over mid-sentence: what they heard is kept with the cut marker, and the next answer does not repeat it', async () => {
+  const w = await mk();
+  const x = await w.room(sidOf(140), '+14785550140');
+  w.world.aiScript = ['Okay, so Saturday at eight for the sink, and Mike will call you first to confirm the time.', 'Thursday it is. Mike will call you first.'];
+  await w.say(x, 'I need someone for a slow sink, Saturday morning works');
+  // Twilio reports the words the caller actually heard, reaction included ("Alright. So Saturday at eight")
+  const all = w.said(x), at = all.indexOf('So Saturday at eight');
+  const heard = all.slice(Math.max(0, at - 9), at + 20).trim();
+  await w.send(x, { type: 'interrupt', utteranceUntilInterrupt: heard, durationUntilInterruptMs: 1200 });
+  let s = await x.room.load();
+  const cut = s.msgs.filter(m => m.r === 'a').at(-1).t;
+  assert.match(cut, / —$|\(interrupted\)$/, 'the cut turn carries the marker: ' + cut);
+  assert.match(cut, /Saturday at eight/, 'what they heard is kept');
+  assert.doesNotMatch(cut, /confirm the time/, 'what they never heard is not kept as said');
+  const seen = w.world.aiSeen.length;
+  await w.say(x, 'wait, actually make that Thursday');
+  s = await x.room.load();
+  assert.equal(w.world.aiSeen.length, seen + 1, 'the correction starts a new answer');
+  const chat = w.world.aiSeen.at(-1).messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+  assert.match(chat, /Saturday at eight —|\(interrupted\)/, 'the model sees the cut turn as cut');
+});
+
+test('a quiet caller after a number question gets longer than after an ordinary one, then "Take your time", never the same line twice', async () => {
+  const w = await mk();
+  const x = await w.room(sidOf(141), '+14785550141');
+  w.world.aiScript = ['What’s the best number to reach you?', 'And the street address?'];
+  await w.say(x, 'my faucet drips');
+  let s = await x.room.load();
+  assert.equal(x.room.nudgeWait(s), 4000 + 1500, 'a number question earns the extra 1.5 s');
+  // nothing for a while: the first nudge reads the question, so it is "Take your time", not "Hello?"
+  const real = Date.now, t0 = real();
+  try {
+    Date.now = () => t0 + 12000; await x.room.alarm();
+    s = await x.room.load();
+    assert.equal(s.nudged, 1);
+    assert.match(w.said(x), /Take your time\.|No rush\./, w.said(x).slice(-80));
+    assert.doesNotMatch(w.said(x), /Hello\? Are you there/);
+  } finally { Date.now = real; }
+  await w.say(x, 'four seven eight five five five zero one four one');
+  s = await x.room.load();
+  assert.equal(x.room.nudgeWait(s), 4000 + 1500, 'the address question too');
+});

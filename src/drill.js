@@ -17,7 +17,10 @@ const REJECT = 'https://twimlets.com/echo?Twiml=' + encodeURIComponent('<Respons
 // What the test caller says. Max's greeting runs first; the pauses leave room for him to answer.
 export const SCRIPT = '<Response><Pause length="10"/><Say voice="Polly.Joanna">Hi. I run a plumbing company in Eatonton, and I would like the free audit. Can someone call me back tomorrow morning?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Joanna">No, that is everything. Thank you. Goodbye.</Say><Pause length="5"/><Hangup/></Response>';
-const WANTED = /plumb|audit/i;
+// A Spanish caller, for the recognizer and the Spanish reactions (Brief 2, Part 4b): drill_meta now = 'requested-es'
+export const SCRIPT_ES = '<Response><Pause length="10"/><Say voice="Polly.Lupe" language="es-US">Hola. Tengo una plomería en Eatonton y quisiera la auditoría gratis. ¿Me pueden llamar mañana por la mañana?</Say>' +
+  '<Pause length="14"/><Say voice="Polly.Lupe" language="es-US">No, eso es todo. Gracias. Adiós.</Say><Pause length="5"/><Hangup/></Response>';
+const WANTED = /plumb|audit|plomer|auditor/i;
 
 const ready = new WeakSet();
 export async function ensureDrill(env) {
@@ -68,8 +71,8 @@ async function buyNumber(env, h) {
   return '';
 }
 
-async function placeCall(env, from, to, h) {
-  const r = await tw(env, h, '/Calls.json', { To: to, From: from, Twiml: SCRIPT, Timeout: '25', TimeLimit: '150' });
+async function placeCall(env, from, to, h, script) {
+  const r = await tw(env, h, '/Calls.json', { To: to, From: from, Twiml: script || SCRIPT, Timeout: '25', TimeLimit: '150' });
   const j = await r.json().catch(() => ({}));
   return r.ok && j.sid ? { sid: j.sid } : { error: 'Twilio would not place the test call (' + r.status + (j.message ? ': ' + String(j.message).slice(0, 80) : '') + ')' };
 }
@@ -115,9 +118,10 @@ export async function drillCron(env, now, h) {
   await listAsTester(env, from);
   // One test call right now, on request (drill_meta 'now' = 'requested'): used after a change to Max to hear it on a
   // real call with the real ears and voice. The call is a tester's, so it is marked a test and keeps its timeline.
-  if (await getMeta(env, 'now') === 'requested') {
+  const want = await getMeta(env, 'now');
+  if (want === 'requested' || want === 'requested-es') {
     await setMeta(env, 'now', 'placing ' + new Date(now).toISOString());
-    const p = await placeCall(env, from, line.number, h);
+    const p = await placeCall(env, from, line.number, h, want === 'requested-es' ? SCRIPT_ES : SCRIPT);
     await setMeta(env, 'now', p.sid ? 'called ' + p.sid + ' ' + new Date(now).toISOString() : 'failed ' + String(p.error || '').slice(0, 120));
     return { placed: 'on request', sid: p.sid || '' };
   }
