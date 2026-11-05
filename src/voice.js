@@ -1373,12 +1373,12 @@ const OLD_TALK = [
   '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but the owner\'s getting a heads-up and will call if sooner opens."',
   '- Dry humor only with a relaxed caller: one deadpan line a call at most, never about their problem or money. Never write laughter.',
   '- The instant the caller stops talking, a quick reaction like "Got it." or "Oh no, okay." is said out loud for you, so there is no dead air; the last line of these instructions says which one. Your words come right after it, so never repeat it and never open with another reaction ("Sure", "Okay", "Absolutely", "Thanks for sharing that").',
-  '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you", "I apologize for the inconvenience").',
+  '- Contractions, everyday words, no exclamation marks, no corporate phrases ("assist you").',
   '- Speech recognition makes small mistakes: go with what they most likely meant; ask once if a name is truly unclear. Never count phone digits yourself: a note says if a number is short.',
   '- The first time you name someone, say who they are; only names from the notes, else "the owner".',
   '- Safety: one safe step that stops the damage (water off, no flushing), once; never into water or touch power or gas. Never repeat a tip or ask about sickness. Never open with just their name.',
-  '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one short line and never repeats the booking: "Alright Joe, keep that water off till then. Talk soon."',
-  '- Off-topic or personal: a few words, then steer back.',
+  '- Read-backs are short and in plain speech: "So Saturday at eight for the sink, sound right?" Weekday and time only. The goodbye is one line, never repeating the booking: "Alright Joe, keep that water off till then. Talk soon." "You\'re set" only when a time was booked here.',
+  '- Off-topic: a few words, then steer back.',
   '- No lists or symbols. Phone numbers digit by digit in groups ("four seven eight, five five five, zero one four two").',
   '- Never invent details. If you do not know, say the team will have the answer on the callback, as a normal thing, not an apology. Never say what the team will NOT do ("nobody will text you"); if asked who will contact them or how, say the team will, at that number.',
 ];
@@ -1784,7 +1784,7 @@ export function quickQuestion(t) {
 // Callers who want a person, and callers who are upset: counted per call (callerNotes) as well as reacted to.
 const WANT_PERSON = /\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real|someone|somebody|the owner|a manager|chris)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b|\b(real|live|actual) (person|human)\b/;
 // An active problem, or a caller who says it can't wait. A business owner describing their trade ("we fix leaks") is not one.
-const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|no heating|no cooling|no hot water|no water|no (ac|a c|air)|no power|no electricity|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|on fire|fire|burning|carbon monoxide|gas smell|smell gas|smells? (like )?gas|water everywhere|pouring|sewage|sewer|caving in|caved in|collapsed|collapsing|fell (on|through)|broke into|broken into|broke in|break-?in|burglar(y|ized)?|robbed|accident|crashed|wrecked|totaled|stranded|locked out|can't breathe|on oxygen|heat'?s out|heat is out|ac'?s out|taking on water|sinking|broke (a|my) tooth|in (a lot of )?pain|really hurts|toothache|(furnace|heater|heat pump|boiler|water heater|ac|a c|compressor|pump|freezer|fridge|refrigerator) (died|is dead|quit|is out|went out|is down|broke|stopped|won't (start|turn on|work|run)|not (working|starting|running)|isn't (working|running|starting))|broke down|stopped working|(fuga|fugas|inunda|inundo|inundado|inundacion|inundando|emergencia|urgente|incendio|humo|ladrones|robaron|choque|accidente|reventado|reviento|tubo roto|se rompio|derrumb\w*|no tengo (calefaccion|agua|luz|aire|electricidad|gas)|sin calefaccion|sin agua|sin luz|sin aire|sin electricidad|huele a gas|olor a gas|hay gas|aguas negras|drenaje tapado))\b/;
+const ACTIVE = /\b(emergency|urgent|asap|as soon as possible|right away|can't wait|cannot wait|leak|leaks|leaking|leaked|flood|flooding|flooded|burst|bursting|no heat|heat('s| is| has)? (out|stopped|quit|gone|died|not working)|heat (stopped|quit|went out|just stopped)|furnace (stopped|quit|died|won't|is out|went out)|no heating|no cooling|no hot water|no water|no (ac|a c|air)|no power|no electricity|power('s| is) out|backed up|backing up|overflowing|sparking|smoke|smoking|on fire|fire|burning|carbon monoxide|gas smell|smell gas|smells? (like )?gas|water everywhere|pouring|sewage|sewer|caving in|caved in|collapsed|collapsing|fell (on|through)|broke into|broken into|broke in|break-?in|burglar(y|ized)?|robbed|accident|crashed|wrecked|totaled|stranded|locked out|can't breathe|on oxygen|heat'?s out|heat is out|ac'?s out|taking on water|sinking|broke (a|my) tooth|in (a lot of )?pain|really hurts|toothache|(furnace|heater|heat pump|boiler|water heater|ac|a c|compressor|pump|freezer|fridge|refrigerator) (died|is dead|quit|is out|went out|is down|broke|stopped|won't (start|turn on|work|run)|not (working|starting|running)|isn't (working|running|starting))|broke down|stopped working|(fuga|fugas|inunda|inundo|inundado|inundacion|inundando|emergencia|urgente|incendio|humo|ladrones|robaron|choque|accidente|reventado|reviento|tubo roto|se rompio|derrumb\w*|no tengo (calefaccion|agua|luz|aire|electricidad|gas)|sin calefaccion|sin agua|sin luz|sin aire|sin electricidad|huele a gas|olor a gas|hay gas|aguas negras|drenaje tapado))\b/;
 const OWN_TRADE = /\b(we|i) (do|fix|repair|handle|clean|restore|install|service|specialize in)\b|\b(my|our) (company|business|customers|clients)\b/;
 const PAST = /\b(was|were|had been|used to|last (year|month|week|winter|summer|time)|(years?|months?|weeks?) ago|a while ago|got fixed|was fixed|is fixed|fixed it|thank(s| you)|in case (of )?|if (there'?s|there is|we have|i have) an? (emergency|leak))\b/;
 const NOW_WORDS = /\b(now|currently|right now|today|tonight|still|again|just|this (morning|afternoon|evening))\b/;
@@ -2093,7 +2093,10 @@ export function callerNotes(s, said) {
   // Brief 2, Part 1d: what the blind judges kept catching on the live wording.
   { const L = s.line || {}, w = String(said || '').toLowerCase(), us = (s.msgs || []).filter(m => m.r === 'u').map(m => String(m.t || '').toLowerCase());
     // a goodbye ends it: no "one more thing", no asking again for what is missing
-    if (BYE_NOW.test(w)) out.push('They are wrapping up. Close in one short, warm line with what happens next. Do not ask for anything else; if a detail is missing, the team will call the number they called from.');
+    const shortThanks = /\b(thanks|thank you|gracias|that's it|es todo)\b/.test(w) && w.split(/\s+/).length <= 4 && !/\?/.test(w);
+    if (BYE_NOW.test(w) || shortThanks) out.push('They are wrapping up. Close in one short, warm line with what happens next. Do not ask for anything else; if a detail is missing, the team will call the number they called from.');
+    // two things in one breath: both go in the message, the urgent one first
+    if (us.length <= 2 && /\b(two things|and also|also,? |another thing|second thing|y también|y tambien|otra cosa|dos cosas)\b/.test(w)) out.push('They brought up two things. Both go in the message, in your own words, the urgent or active one first; before you close, name the second one so they know it was heard.');
     // "same number" / "this number" settles the number for the whole call
     if (us.some(x => SAME_NUM.test(x))) out.push('They said to use the number they are calling from. The number is settled: never ask about it, confirm it or read it back again.');
     // a town is never assumed
@@ -2282,7 +2285,10 @@ function justSaid(text) {
 }
 const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are the business\'s AI assistant (asistente de inteligencia artificial) and that this call may be recorded (esta llamada puede ser grabada), then answer what they said.';
 const ES_WORDS = new Set(('hola buenos buenas dias días tardes noches necesito quiero quisiera por favor gracias habla hablo español espanol usted ustedes tengo tiene mi mis casa ayuda ayudar puede pueden cuanto cuánto cuesta precio ' +
-  'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí').split(' '));
+  'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí ' +
+  // the everyday words that carry a Spanish sentence (Nov 4, 2026: "es la tercera vez que llamo y nadie me regresa la llamada" and
+  // "soy martha, este número" read as English, so an English "Got it." landed in Spanish calls)
+  'el la los las de del que es son un y o pero se le lo nos les su sus al en como más mas ya aquí aqui allí ahí este esto ese esa eso hay están soy eres era fue ser estar tener hacer hace hizo puedo podemos quiere queremos vez veces desde hasta entre sobre sin todo todos nunca siempre ahora luego después despues antes qué quién cómo cuál mucho mucha muchos poco otra otro mismo misma número numero teléfono telefono dirección direccion calle ciudad pueblo nombre llame llamar llamada regresa fuga gotera inodoro fregadero llave caliente calentador drenaje tubería tuberia plomero plomería cobran cobra jueves lunes martes miércoles miercoles viernes sábado sabado domingo tarde noche semana hora minutos adiós adios bueno vale nadie alguien algo ustedes dígame digame').split(' '));
 // The first words of a Spanish caller, as an English listener tends to write them down ("hola" -> "ola", "español" ->
 // "spaniel", "necesito" -> "nay say toe"). Checked only on the caller's first two turns, where a garbled opener is the
 // whole problem; later on, looksSpanish has full sentences to go on.
@@ -2539,7 +2545,7 @@ export async function syncOwnLine(env) {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
-    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers)/i.test(x)).join(' ');
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app)/i.test(x)).join(' ');
     const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + notes).trim() });
     if (next.prices === f.prices && next.notes === f.notes) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();

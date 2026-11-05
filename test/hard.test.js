@@ -27,6 +27,7 @@ test('a price that is not on the line', () => {
   assert.deepEqual(flags(call('what is the service call', 'It’s eighty-nine dollars, and that goes toward the repair.'), MIKE), []);
   assert.deepEqual(flags(call('new water heater cost', 'Replacement usually runs fourteen fifty to nineteen hundred installed.'), MIKE), ['price']);
   assert.deepEqual(flags(call('ballpark', 'Usually around $1,200.'), HVAC), ['price']);
+  assert.deepEqual(flags(call('you charged me four hundred dollars for twenty minutes', 'Four hundred for twenty minutes, I hear you. Mike will call you himself.'), MIKE), [], 'the caller’s own figure');
 });
 
 test('a booking that was never made, and never one on a regulated line', () => {
@@ -36,6 +37,7 @@ test('a booking that was never made, and never one on a regulated line', () => {
   assert.deepEqual(flags(call('Saturday works', 'The team will call to confirm the time.'), MIKE), [], 'what an ordinary line is told to say');
   assert.deepEqual(flags(call('Saturday works', 'The team will confirm Saturday’s time.'), MIKE), ['booked'], 'a named day sounds like a slot');
   assert.deepEqual(flags(call('can I come in', 'The team will call to confirm a time.'), { business: 'Oconee Family Dental', regulated: true }), ['booked'], 'never on a regulated line');
+  assert.deepEqual(flags(call('can I come in', 'The office will call you to find a time.'), { business: 'Oconee Family Dental', regulated: true }), [], 'the right wording on a regulated line');
   assert.deepEqual(flags(call('se inunda', 'Mike puede llegar en menos de una hora.'), MIKE), [], 'Mike’s own promise, in Spanish');
 });
 

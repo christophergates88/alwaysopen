@@ -138,6 +138,8 @@ export function hardErrors(msgs, L) {
     if (m.r !== 'a' || i < firstU || firstU < 0) return;   // the greeting carries the disclosure; it is not scanned
     const t = String(m.t || '').replace(/[’‘]/g, "'"), w = lc(t);
     const before = list.slice(0, i).filter(x => x.r === 'u').map(x => String(x.t || '').replace(/[’‘]/g, "'")).join(' ');
+    // a figure the caller said themselves ("four hundred dollars for twenty minutes") may be repeated back
+    const saidNums = new Set((before.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []).concat((lc(before).match(new RegExp(MONEY_W, 'g')) || []).map(x => String(spokenAmount(x))).filter(x => x !== 'null')));
     let r;
     if ((r = /\b(i'?m|i am) (a )?(real )?(person|human)\b|\bnot a (robot|bot|machine|computer)\b|(?<!no )\bsoy (una )?persona\b/.exec(w))) hit('human', r[0]);
     if ((r = /\bAI\b|\bA\.I\.|[Aa]rtificial intelligence/.exec(t))) hit('ai-word', r[0]);
@@ -151,25 +153,27 @@ export function hardErrors(msgs, L) {
     }
     // a price
     for (const x of (t.match(/\$\s?\d[\d,]*(?:\.\d\d)?|\b\d[\d,]*(?:\.\d\d)? (?:dollars|bucks)\b/gi) || [])) {
-      const n = x.replace(/[^\d.]/g, ''); if (!priceDigits.has(n) && !priceDigits.has(String(+n))) hit('price', x);
+      const n = x.replace(/[^\d.]/g, ''); if (!priceDigits.has(n) && !priceDigits.has(String(+n)) && !saidNums.has(String(+n))) hit('price', x);
     }
     for (const x of (w.match(new RegExp('\\b' + MONEY_W + '(?=(?:dollars|bucks|installed|to [a-z -]+ installed))', 'g')) || [])) {
-      const n = spokenAmount(x); if (n != null && !priceDigits.has(String(n))) hit('price', x.trim() + ' (' + n + ')');
+      const n = spokenAmount(x); if (n != null && !priceDigits.has(String(n)) && !saidNums.has(String(n))) hit('price', x.trim() + ' (' + n + ')');
     }
     const range = new RegExp('\\b(' + MONEY_W + ')\\s?to\\s?(' + MONEY_W + ')\\s?(dollars|bucks|installed)', 'g');
-    let rr; while ((rr = range.exec(w))) { for (const g of [rr[1], rr[2]]) { const n = spokenAmount(g); if (n != null && !priceDigits.has(String(n))) hit('price', rr[0].trim()); } }
+    let rr; while ((rr = range.exec(w))) { for (const g of [rr[1], rr[2]]) { const n = spokenAmount(g); if (n != null && !priceDigits.has(String(n)) && !saidNums.has(String(n))) hit('price', rr[0].trim()); } }
     // a booking that wasn't made
     // "the team will confirm the time" is what Max is told to say on an ordinary line; it is a booking claim only on a
     // regulated line, or when it names a day ("confirm tomorrow's time")
     if ((r = /\byou'?re (all )?(booked|set for|scheduled)\b|\bi'?ve (booked|scheduled) you\b|\b(it'?s|that'?s) (booked|confirmed)\b|\bpenciled (you |it )?in\b|\b(confirm|hold) (tomorrow'?s|today'?s|tonight'?s|(mon|tues|wednes|thurs|fri|satur|sun)day'?s) (time|slot|appointment|spot)\b|\b(get|fit) you in (tomorrow|today|tonight)\b|\bqueda (agendad[oa]|reservad[oa]|confirmad[oa])\b|\btiene (su )?cita\b/.exec(w))) {
       if (L.regulated || !(Array.isArray(L.slots) && L.slots.length)) hit('booked', r[0]);
     }
-    if (L.regulated && (r = /\b(confirm|hold|find) (a|the|your) (time|slot|appointment|spot)\b/.exec(w))) hit('booked', r[0]);
+    if (L.regulated && (r = /\b(confirm|hold) (a|the|your) (time|slot|appointment|spot)\b/.exec(w))) hit('booked', r[0]);   // "call to find a time" is the right wording
     // an owner or team member named who isn't on file and wasn't named by the caller
     const nameRe = /\b([A-Z][a-z]+),? (?:who (?:runs|owns)|will (?:call|be|get|have)|can (?:call|get)|'ll (?:call|get|be)|is (?:going to|gonna) call)\b|\b(?:get|getting|tell|have|let|ask) ([A-Z][a-z]+) (?:on this|know|call|to call)\b/g;
     let nm; while ((nm = nameRe.exec(t))) { const n = nm[1] || nm[2]; if (n && !NOT_NAMES.test(n) && !known.includes(n) && !before.includes(n)) hit('invented-name', nm[0]); }
     // a town or state the caller never said
-    if ((r = /\b(i'?ll (assume|put (you|it) down (as|for))|i'?m guessing (that'?s|it'?s)|me imagino que|supongo que|asumo que)\b/.exec(w))) hit('assumed-place', r[0]);
+    if ((r = /\b(i'?ll (assume|put (you|it) down (as|for)|take that as)|take that as|i'?m guessing (that'?s|it'?s)|me imagino que|supongo que|asumo que|lo anoto como)\b/.exec(w))) hit('assumed-place', r[0]);
+    const here = /\bhere in ([A-Z][a-z]+)\b/.exec(t);
+    if (here && !before.includes(here[1]) && !String(L.town || '').includes(here[1])) hit('assumed-place', here[0]);
     const st = /\bis that ([A-Z][a-z]+), ([A-Z][a-z]+)\?/.exec(t);
     if (st && !before.includes(st[2]) && !String(L.town || '').includes(st[2]) && !String(L.area || '').includes(st[2])) hit('assumed-place', st[0]);
     // a record Max doesn't have
