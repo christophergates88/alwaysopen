@@ -23,7 +23,13 @@ const words = t => (String(t || '').match(/[A-Za-zÀ-ÿ0-9']+/g) || []).length;
 const KEEP = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.)|\d\.\d/g;
 export function sentencesOf(text) {
   const t = String(text || '').replace(KEEP, m => m.replace(/\./g, '\u0001'));
-  return (t.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || []).map(x => x.replace(/\u0001/g, '.')).filter(x => x.length);
+  // a sentence ends where the live call ends one: end punctuation followed by a space or the end, so
+  // "alwaysopenoffice.com" stays whole (the old split cut it into "alwaysopenoffice." and "com ...", Nov 5)
+  const out = [], re = /[.!?]+["')\]]*(?:\s+|$)/g;
+  let last = 0, m;
+  while ((m = re.exec(t))) { if (!m[0].length) { re.lastIndex++; continue; } out.push(t.slice(last, m.index + m[0].length)); last = m.index + m[0].length; }
+  if (last < t.length) out.push(t.slice(last));
+  return out.map(x => x.replace(/\u0001/g, '.')).filter(x => x.length);
 }
 
 // What a question asks for, by detail.
@@ -104,13 +110,16 @@ function askOnce(s, ctx) {
 //    detail is asked two turns running, the name at most twice, and "I still need ..." is never said.
 const STILL = /\b(i still need|i still don'?t have|still need (your|the|a)|i'?m still missing|todav[ií]a no tengo|todav[ií]a necesito|me falta (su|tu|el|la))\b/i;
 const DIGITS = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b(,? +\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d)\b){2,}/i;
+// Narrowed after the first run (33 cuts, many leaving a flat 'A 24 foot pontoon.' with nothing to move the call on):
+// asking again a turn later is what a good receptionist does ("Got it. And your name?"), and an "I still need ..."
+// sentence is usually the only question, so cutting it drops the ask with the wording. What stays: the number once
+// when caller ID has it, the name at most twice, nothing they already gave.
 function askLess(s, ctx) {
-  if (STILL.test(s)) return true;
   const a = asksFor(s);
   if (!a.length || DIGITS.test(s)) return false;
-  const st = ctx.state || { asked: {}, have: {}, lastAsked: [] };
+  const st = ctx.state || { asked: {}, have: {} };
   const callerId = ctx.callerId !== false;
-  const blocked = k => st.have[k] || (st.lastAsked || []).includes(k) || (k === 'number' && callerId && (st.asked.number || 0) >= 1) || (k === 'name' && (st.asked.name || 0) >= 2);
+  const blocked = k => st.have[k] || (k === 'number' && callerId && (st.asked.number || 0) >= 1) || (k === 'name' && (st.asked.name || 0) >= 2);
   return a.every(blocked);
 }
 // 7c-3 (Brief 3, Part 7). Stock lines: a statement that says again what Max already said this call ("The owner knows it's

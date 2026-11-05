@@ -171,26 +171,18 @@ test('7c-1: no doubled or clipped openers after the spoken reaction', () => {
   assert.equal(V.dropRepeat('Good morning to you too.', 'said'), 'Good morning to you too.');
 });
 
-test('7a g-ask2: the number once, no detail two turns running, the name at most twice, never "I still need"', () => {
+test('7a g-ask2 (narrowed): the number once when caller ID has it, the name at most twice, nothing they gave', () => {
   const on = ['g-ask2'];
-  // the number: asked once already, caller ID has it
   const m1 = call('my boat is low in the water', 'Stay off the boat. What\'s the best number to reach you?', 'it\'s a 22 foot bowrider');
   assert.equal(run(MIKE, m1, 'x', on, 'Got it, a bowrider. Is this the best number to reach you?').text, 'Got it, a bowrider. ');
-  // without caller ID the number may be asked again (not back to back)
   const m1b = call('my boat is low in the water', 'What\'s the best number?', 'bowrider', 'Okay. Is the water still rising?', 'yes');
   assert.equal(run(MIKE, m1b, 'yes', on, 'Okay. What\'s the best number to reach you?', { caller: '' }).cuts.length, 0);
-  // never the same detail two turns running
+  // asking again the next turn is fine
   const m2 = call('my haircut is too short', 'I\'m sorry. What\'s your name?', 'I have an event this weekend');
-  assert.equal(run(MIKE, m2, 'x', on, 'That\'s a lot of pressure. Who am I speaking with?').cuts[0].guard, 'g-ask2');
-  // a turn later it may come back, once more; a third time it doesn't
-  const m3 = call('sink leaks', 'What\'s your name?', 'all day', 'Okay. Is it under the kitchen sink?', 'yes');
-  assert.equal(run(MIKE, m3, 'yes', on, 'Got it. And your name?').cuts.length, 0);
-  const m4 = call('sink leaks', 'What\'s your name?', 'all day', 'Is it the kitchen?', 'yes', 'And your name?', 'it drips', 'Got it.', 'ok');
+  assert.equal(run(MIKE, m2, 'x', on, 'That\'s a lot of pressure. Who am I speaking with?').cuts.length, 0);
+  // a third name ask is not
+  const m4 = call('sink leaks', 'What\'s your name?', 'it drips', 'And your name?', 'ok');
   assert.equal(run(MIKE, m4, 'ok', on, 'Okay. Who am I speaking with?').cuts[0].guard, 'g-ask2');
-  // "I still need" never
-  assert.equal(run(MIKE, call('what\'s it cost'), 'x', on, 'It\'s eighty-nine dollars. I still need your name, so who am I talking to?').text, 'It\'s eighty-nine dollars. ');
-  assert.equal(run(MIKE, call('hola'), 'x', on, 'Entiendo. Todavía no tengo su nombre, ¿cómo se llama?').text, 'Entiendo. ');
-  // an ordinary first ask and a read-back stay
   assert.equal(run(MIKE, call('my faucet drips'), 'x', on, 'Got it. What\'s your name?').cuts.length, 0);
   assert.equal(run(MIKE, call('it\'s 478 555 0122', 'What\'s the best number?', '478 555 0122'), 'x', on, 'Four seven eight, five five five, zero one two two, right?').cuts.length, 0);
 });
@@ -221,4 +213,10 @@ test('7b g-sales: on Always Open\'s own line, the pitch past two sentences goes;
   assert.doesNotMatch(c.text, /great fit/);
   // never on a client's line
   assert.equal(run(MIKE, call(said), said, ['g-sales'], long).cuts.length, 0);
+});
+
+test('a web address is not the end of a sentence', () => {
+  assert.deepEqual(G.sentencesOf('Take your time, the website is alwaysopenoffice.com whenever you want a look. Talk soon.'), ['Take your time, the website is alwaysopenoffice.com whenever you want a look. ', 'Talk soon.']);
+  assert.deepEqual(G.sentencesOf('Hi! Is it $1,450.00? Yes.'), ['Hi! ', 'Is it $1,450.00? ', 'Yes.']);
+  assert.deepEqual(G.sentencesOf('No end punctuation'), ['No end punctuation']);
 });
