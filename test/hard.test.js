@@ -33,6 +33,10 @@ test('a booking that was never made, and never one on a regulated line', () => {
   assert.deepEqual(flags(call('broken tooth', 'The team will confirm tomorrow’s time on the callback.'), { business: 'Oconee Family Dental', regulated: true }), ['booked']);
   assert.deepEqual(flags(call('Saturday', 'You’re all set for Saturday at eight.'), MIKE), ['booked']);
   assert.deepEqual(flags(call('Saturday', 'You’re all set for Saturday at eight.'), Object.assign({ slots: [{ say: 'Saturday at 8 AM' }] }, MIKE)), []);
+  assert.deepEqual(flags(call('Saturday works', 'The team will call to confirm the time.'), MIKE), [], 'what an ordinary line is told to say');
+  assert.deepEqual(flags(call('Saturday works', 'The team will confirm Saturday’s time.'), MIKE), ['booked'], 'a named day sounds like a slot');
+  assert.deepEqual(flags(call('can I come in', 'The team will call to confirm a time.'), { business: 'Oconee Family Dental', regulated: true }), ['booked'], 'never on a regulated line');
+  assert.deepEqual(flags(call('se inunda', 'Mike puede llegar en menos de una hora.'), MIKE), [], 'Mike’s own promise, in Spanish');
 });
 
 test('an owner name that is not on file, a place the caller never said, a record Max does not have', () => {

@@ -125,7 +125,11 @@ export function hardErrors(msgs, L) {
   L = L || {};
   const list = Array.isArray(msgs) ? msgs : [];
   const firstU = list.findIndex(m => m.r === 'u');
-  const allowedTime = lc([L.next, L.hours, L.owner, L.notes, L.booking].join(' '));
+  let allowedTime = lc([L.next, L.hours, L.owner, L.notes, L.booking].join(' '));
+  // the business's own promise, as Max says it in Spanish
+  if (/within the hour|within an hour/.test(allowedTime)) allowedTime += ' en menos de una hora dentro de una hora';
+  for (const m of allowedTime.matchAll(/within (\d+) minutes/g)) allowedTime += ' en menos de ' + m[1] + ' minutos en ' + m[1] + ' minutos' + (m[1] === '15' ? ' en menos de quince minutos quince minutos' : '');
+  if (/same (night|day)/.test(allowedTime)) allowedTime += ' hoy mismo esta misma noche';
   const priceDigits = new Set((String(L.prices || '') + ' ' + String(L.notes || '') + ' ' + String(L.owner || '') + ' ' + String(L.services || '')).replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []);
   const known = String([L.owner, L.next, L.notes, L.name, L.business, L.booking, L.services, L.memory, L.earlier].join(' '));
   const out = [], seen = new Set();
@@ -155,9 +159,12 @@ export function hardErrors(msgs, L) {
     const range = new RegExp('\\b(' + MONEY_W + ')\\s?to\\s?(' + MONEY_W + ')\\s?(dollars|bucks|installed)', 'g');
     let rr; while ((rr = range.exec(w))) { for (const g of [rr[1], rr[2]]) { const n = spokenAmount(g); if (n != null && !priceDigits.has(String(n))) hit('price', rr[0].trim()); } }
     // a booking that wasn't made
-    if ((r = /\byou'?re (all )?(booked|set for|scheduled)\b|\bi'?ve (booked|scheduled) you\b|\b(it'?s|that'?s) (booked|confirmed)\b|\bpenciled (you |it )?in\b|\b(confirm|hold) (tomorrow'?s|your|the|a) (time|slot|appointment|spot)\b|\b(get|fit) you in (tomorrow|today|tonight)\b|\bqueda (agendad[oa]|reservad[oa]|confirmad[oa])\b|\btiene (su )?cita\b/.exec(w))) {
+    // "the team will confirm the time" is what Max is told to say on an ordinary line; it is a booking claim only on a
+    // regulated line, or when it names a day ("confirm tomorrow's time")
+    if ((r = /\byou'?re (all )?(booked|set for|scheduled)\b|\bi'?ve (booked|scheduled) you\b|\b(it'?s|that'?s) (booked|confirmed)\b|\bpenciled (you |it )?in\b|\b(confirm|hold) (tomorrow'?s|today'?s|tonight'?s|(mon|tues|wednes|thurs|fri|satur|sun)day'?s) (time|slot|appointment|spot)\b|\b(get|fit) you in (tomorrow|today|tonight)\b|\bqueda (agendad[oa]|reservad[oa]|confirmad[oa])\b|\btiene (su )?cita\b/.exec(w))) {
       if (L.regulated || !(Array.isArray(L.slots) && L.slots.length)) hit('booked', r[0]);
     }
+    if (L.regulated && (r = /\b(confirm|hold|find) (a|the|your) (time|slot|appointment|spot)\b/.exec(w))) hit('booked', r[0]);
     // an owner or team member named who isn't on file and wasn't named by the caller
     const nameRe = /\b([A-Z][a-z]+),? (?:who (?:runs|owns)|will (?:call|be|get|have)|can (?:call|get)|'ll (?:call|get|be)|is (?:going to|gonna) call)\b|\b(?:get|getting|tell|have|let|ask) ([A-Z][a-z]+) (?:on this|know|call|to call)\b/g;
     let nm; while ((nm = nameRe.exec(t))) { const n = nm[1] || nm[2]; if (n && !NOT_NAMES.test(n) && !known.includes(n) && !before.includes(n)) hit('invented-name', nm[0]); }
