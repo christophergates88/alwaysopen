@@ -19,12 +19,9 @@ jobs:
     timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm i -g wrangler@4 --no-audit --no-fund
       - name: File a pulse every minute
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_FOR_MIN: ${{ inputs.minutes || '345' }}
         run: RUN_FOR_SEC=$(( RUN_FOR_MIN * 60 )) python3 tools/codepulse_loop.py
