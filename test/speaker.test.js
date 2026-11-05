@@ -105,3 +105,17 @@ test('6:29 PM call: a personal curveball gets a person\'s reaction and a human a
     assert.equal(G.guardOne(t, { on, msgs: [], said: '' }), 'g-canned', t);
   assert.notEqual(V.leadIn('my customers keep calling after hours, what do I do?', 'en-US', [], () => 0).kind, 'personal', 'business talk is not personal');
 });
+
+test('6:35 PM call: a very long sentence breaks where a person breathes, not where the voice engine cuts it', () => {
+  const { sent } = run(["For a day care, every call you miss while you're with the kids gets answered, and you get the parent's name, number and what they need on your phone right away."]);
+  assert.equal(sent.length, 2);
+  assert.match(sent[0].token, /gets answered,$/);
+  assert.ok(sent.every(o => o.token.length <= 112));
+  const short = run(["An electric bill is a bit outside my lane too, that one's for your utility company."]);
+  assert.equal(short.sent.length, 1, 'under 110 characters: one breath');
+});
+test('6:35 PM call: "I really don\'t like talking to AI" gets a dry joke about being good at the job', () => {
+  const said = "I really don't like talking to AI at all, but I run a business, and I need to know if your company can help.";
+  assert.equal(V.leadIn(said, 'en-US', [], () => 0).kind, 'hateai');
+  assert.match(String(V.callerNotes({ line: {}, msgs: [] }, said)), /dry, confident joke about being good at your job/);
+});

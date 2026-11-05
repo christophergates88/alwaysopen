@@ -1468,7 +1468,7 @@ const OLD_TALK = [
   '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, and quietly funny when it fits. You sound like someone who likes people and likes being good at this. Never scripted, never a phone menu, never a customer-service voice.',
   '- Listen first. Your first sentence shows you heard the specific thing they said (the kitchen sink, the third call, the Saturday). Then move. Never reply with a generic line that would fit any caller.',
   '- Match their energy. Water pouring through the ceiling gets short, steady sentences and real concern, like a friend who happens to be a plumber: "Okay. Is the water off? ... Good. I\'m getting the owner on this now." Chatty about next week gets an easy back-and-forth. Angry gets heard first.',
-  '- Short turns, like real phone talk: usually one sentence, two at most, under about 25 words. Then stop and let them talk. Vary your rhythm: some replies are three words ("Done. Saturday at eight."), some are a full sentence. Never two replies in a row that start the same way.',
+  '- Short turns, like real phone talk: one or two sentences, 15 words or fewer each. Then stop and let them talk. Vary your rhythm: some replies are three words ("Done. Saturday at eight."), some are a full sentence. Never two replies in a row that start the same way.',
   '- One question at a time, and after you ask it, stop completely. No tip, no second question, no "also". If they need to know how to do something, give the instruction as its own short statement and only then ask.',
   '- Never ask anything they already told you, and never read anything back twice. If you confirmed a number once, from then on it is "that number". If they asked something you already covered, answer it again in fresh words. Never point out a skipped question or ask "yes to what"; if they dodge the number twice, confirm the one they called from.',
   '- When you have to say no (nothing sooner, can\'t answer that), say what you CAN do in the same breath: "Saturday at eight is the first slot, but the owner\'s getting a heads-up and will call if sooner opens."',
@@ -1487,7 +1487,7 @@ const NEW_TALK = [
   '- This is a phone call with a real person who may be stressed, busy or just curious. You are the best receptionist this business has ever had: calm, quick, warm, quietly funny when it fits. Never scripted, never a phone menu, never a customer-service voice.',
   '- Your first few words show you caught the specific thing they just said (the ceiling, the third call, the Saturday, the pontoon), in your own words. Never a line that would fit any caller.',
   '- Match their energy: an emergency gets short, steady sentences; a chatty caller an easy back-and-forth; an angry caller is heard first.',
-  '- Short turns: usually one sentence, two at most, under about 25 words. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
+  '- Short turns: one or two sentences, 15 words or fewer each. One question at a time, and after it, stop. Vary your rhythm; never two replies in a row that start the same way.',
   '- When a question\'s reason isn\'t obvious, give it in a few words: "What\'s the address, so he heads to the right place?"',
   '- Never ask anything they already told you, and never read anything back twice: once confirmed, a number is "that number". If they answer something else, take it and don\'t re-ask in your very next reply; ask for any one detail twice a call at most, then let it go. If they dodge the number twice, use the one they called from.',
   '- A no comes with what you CAN do, in the same breath.',
@@ -1751,6 +1751,14 @@ export function sentenceEnd(t) {
   }
   return -1;
 }
+function breathEnd(t) {
+  if (t.length <= 110) return -1;
+  const head = t.slice(0, 110);
+  let m, best = -1, any = -1;
+  const re = /,\s+(?=(and|so|but|or|because|which|then)\b)|;\s+|,\s+/g;
+  while ((m = re.exec(head))) { if (m.index < 30) continue; if (m[1] || /;/.test(m[0])) best = m.index + m[0].length; any = m.index + m[0].length; }
+  return best > 0 ? best : any;
+}
 // For a long unfinished sentence: the end of a clause (a comma after the eighth word), or -1.
 function clauseEnd(t) {
   const words = t.trim().split(/\s+/);
@@ -1810,7 +1818,10 @@ export class Speaker {
       if (this.stopped) return;
       let k = sentenceEnd(this.pending);
       if (k < 0 && /[.?]["')\]]*$/.test(this.pending.trim()) && this.asked) k = this.pending.length;   // the question that ends the reply
-      // a long sentence is never split at a comma any more: the 6:29 PM call (Nov 5) heard the tone change mid-sentence
+      // A sentence is kept whole up to about 110 characters. Past that the voice engine cuts it itself at an arbitrary
+      // point (Nov 5, 6:35 PM: a pause and a tone change mid-clause), so Max breaks it first where a person breathes:
+      // at ", and" / ", so" / ", but", or else the last comma before 110 characters.
+      if (k < 0) k = breathEnd(this.pending);
       if (k < 0) break;
       this.out(this.pending.slice(0, k));
       this.pending = this.pending.slice(k);
@@ -1868,6 +1879,7 @@ export function saidGoodbye(t) { return /\b(good-?bye|bye(?: now)?|adi[oó]s|tal
 // said, never one of the last few used, and "good question" at most once a call. Each is short and complete, so Twilio can
 // say it at once and the AI's answer starts a fresh sentence after it.
 export const LEADS = {
+  hateai: ['Fair enough.', 'Totally fair.'],
   personal: ['Oh, man.', 'Oh, that\'s a tough one.', 'Oof.'],
   repeat: ['Sorry about that.', 'Sorry.'],
   danger: ['Okay.'],
@@ -2202,6 +2214,8 @@ const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (f
 const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
 // A caller's own life, not their business (Nov 5, 6:29 PM: "I have a child that is not wanting me to hold them").
 const PERSONAL = /\b(my (child|kid|kids|son|daughter|baby|toddler|wife|husband|girlfriend|boyfriend|marriage|family)|a child|a toddler|parenting|my (health|doctor|diet)|my (electric|power|light|water) bill|feel(ing)? (down|sad|lonely|stressed))\b/;
+// "I really don't like talking to AI" (Nov 5, 6:35 PM): Christopher wants a dry joke about being good at the job.
+const HATE_AI = /\b((don't|do not|never) (like|love|enjoy|trust|want)( talking| to talk| speaking| to speak)? (to |with )?(an? )?(ai|a i|robots?|bots?|machines?|computers?|automated)|hate (ai|a i|robots|bots|machines|talking to)|not a fan of (ai|robots|bots))\b/;
 const COMPLIMENT = /\b(you're doing (good|great|well)|you did (good|great|well)|made me (really |so )?happy|good job|great job|nice job|you sound (great|good|better|really good)|i'm impressed|that was (great|perfect)|love (it|this|how you))\b/;
 const MISSED_Q = /\b(that's not what i ask(ed)?|that is not what i ask(ed)?|not what i asked|you didn't answer|you did not answer|are you going to answer|answer (me|my question)|that's not my question)\b/;
 export function callerNotes(s, said) {
@@ -2217,6 +2231,7 @@ export function callerNotes(s, said) {
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
   if (PERSONAL.test(String(said || '').toLowerCase()) && !/\b(customers?|clients?|my (business|company|shop|crew))\b/.test(String(said || '').toLowerCase())) out.push('This is about the caller\'s own life, not a business. Answer the way a friendly person on a business phone line would: one short, warm, human line about it (a plain thought is fine, like "kids go through phases like that"), and say simply that you are just the phone line here. Do not list professionals to call, do not use phrases like "outside my lane" or "outside what I can help with", do not pitch, and do not ask what business they run. End by asking what else you can do for them.');
+  if (HATE_AI.test(String(said || '').toLowerCase().replace(/[’‘]/g, "'"))) out.push('The caller just said they don\'t like talking to AI. Start with one short, dry, confident joke about being good at your job, in your own words (the idea: "Fair. Most of them are bad at this. I\'m annoyingly good at it."). Then answer what they asked. No apology, no thanks for sticking around, and never "test me" or "change your mind".');
   if (COMPLIMENT.test(String(said || '').toLowerCase())) out.push('The caller just paid you a compliment. Thank them in a few warm words and stop there: no question and no pitch in this reply.');
   // Brief 5 (Nov 5 call): "That's not what I asked" twice in a row, while Max restated his pitch. When the caller says
   // Max missed the question, the reply goes back to their own last question and answers it in its first sentence.
@@ -2344,6 +2359,7 @@ function leadKindEn(raw, orig) {
   if (/\b(i have|i've got|i got|got|just have|have) (a|one|another|a couple|a few)( quick| couple| few)? questions?\b|^quick question\b/.test(core)) return 'ask';
   // wanting a person ("Can I talk to a real person?") is not asking what Max is: it gets "I hear you." and a real answer
   if (has(/\b(talk|speak) (to|with) (a |an )?(real |live |actual )?(human|person|someone real|somebody real)\b|\bis there (a |an )?(real |live |actual )?(person|human|someone|somebody)\b/)) return 'aimad';
+  if (has(HATE_AI)) return 'hateai';
   if (has(UPSET)) return 'upset';
   // turning down what was offered, hard ("Monday? Absolutely not."): heard, never "Fair question."
   if (has(/\b(absolutely not|no way|unacceptable|not acceptable|ridiculous|not good enough|(call|calling|go to|going to|go with|find) (someone|somebody) else)\b/)) return 'upset';
