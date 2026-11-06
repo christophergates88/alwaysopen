@@ -11,6 +11,7 @@ import sys
 import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 OWNER = "christophergates88"
 NAMES = {"alwaysopen": "Always Open", "gates-hq-agent": "Gates HQ", "lookout": "Lookout", "slope": "Slope",
@@ -18,6 +19,9 @@ NAMES = {"alwaysopen": "Always Open", "gates-hq-agent": "Gates HQ", "lookout": "
 WINDOW_H = 48
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 RUN_FOR = int(os.environ.get("RUN_FOR_SEC", str(5 * 3600 + 45 * 60)))
+LOCAL = ZoneInfo("America/New_York")
+STATS_EVERY = 1800   # the 30-day numbers change slowly: refresh each repo's every 30 minutes
+DETAIL_MAX = 40      # +/- lines and files for up to this many recent commits per repo (each read once, then cached)
 
 
 def get(path):
@@ -44,26 +48,72 @@ def iso(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-cache = {}   # repo -> {"pushed": ..., "commits": [...]}
+cache = {}    # repo -> {"pushed": ..., "commits": [...]}
+details = {}  # full sha -> {"add", "del", "nfiles", "files", "diff"}: a commit never changes, so each is read once
+stats = {}    # repo -> {"t": epoch, "s": {...}}
+
+
+def detail(name, sha):
+    if sha not in details:
+        d = get(f"/repos/{OWNER}/{name}/commits/{sha}")
+        st, files = d.get("stats") or {}, d.get("files") or []
+        diff = []
+        for f in files[:4]:
+            diff += [f["filename"].split("/")[-1]] + lines(f.get("patch"))
+        details[sha] = {"add": st.get("additions", 0), "del": st.get("deletions", 0), "nfiles": len(files),
+                        "files": [f["filename"].split("/")[-1] for f in files[:6]], "diff": diff[:16]}
+    return details[sha]
 
 
 def read_repo(name, pushed):
     since = (datetime.now(timezone.utc) - timedelta(hours=WINDOW_H)).strftime("%Y-%m-%dT%H:%M:%SZ")
     commits = []
-    for i, c in enumerate(get(f"/repos/{OWNER}/{name}/commits?since={since}&per_page=8")):
+    for i, c in enumerate(get(f"/repos/{OWNER}/{name}/commits?since={since}&per_page=50")):
         item = {"sha": c["sha"][:7], "at": c["commit"]["committer"]["date"], "msg": c["commit"]["message"].split("\n")[0][:120]}
-        if i < 3:
-            d = get(f"/repos/{OWNER}/{name}/commits/{c['sha']}")
-            st, files = d.get("stats") or {}, d.get("files") or []
-            item.update({"add": st.get("additions", 0), "del": st.get("deletions", 0), "nfiles": len(files),
-                         "files": [f["filename"].split("/")[-1] for f in files[:6]]})
-            if i == 0:
-                diff = []
-                for f in files[:4]:
-                    diff += [f["filename"].split("/")[-1]] + lines(f.get("patch"))
-                item["diff"] = diff[:16]
+        if i < DETAIL_MAX:
+            try:
+                d = detail(name, c["sha"])
+                item.update({k: d[k] for k in ("add", "del", "nfiles", "files")})
+                if i == 0:
+                    item["diff"] = d["diff"]
+            except Exception:  # noqa: BLE001 - one unreadable commit keeps its message only
+                pass
         commits.append(item)
     cache[name] = {"pushed": pushed, "commits": commits}
+
+
+def repo_stats(name):
+    """The analytics in Gates HQ: 30 days of commits by local day and hour, 8 weeks of lines, 7 days of builds."""
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    days, hours, n = {}, [0] * 24, 0
+    for page in (1, 2, 3, 4):
+        cs = get(f"/repos/{OWNER}/{name}/commits?since={since}&per_page=100&page={page}")
+        for c in cs:
+            t = iso(c["commit"]["committer"]["date"]).astimezone(LOCAL)
+            k = t.strftime("%Y-%m-%d")
+            days[k] = days.get(k, 0) + 1
+            hours[t.hour] += 1
+            n += 1
+        if len(cs) < 100:
+            break
+    out = {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "days": days, "hours": hours, "n30": n}
+    try:   # weekly lines added / removed (GitHub answers 202 with nothing while it works them out)
+        wk = get(f"/repos/{OWNER}/{name}/stats/code_frequency")
+        if isinstance(wk, list) and wk:
+            out["weeks"] = [[datetime.fromtimestamp(w[0], timezone.utc).strftime("%Y-%m-%d"), w[1], -w[2]] for w in wk[-8:]]
+    except Exception:  # noqa: BLE001
+        pass
+    try:   # builds and deploys started by a push, last 7 days
+        d7 = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        runs = get(f"/repos/{OWNER}/{name}/actions/runs?created=%3E%3D{d7}&event=push&per_page=100").get("workflow_runs", [])
+        done = [w for w in runs if w.get("status") == "completed" and w.get("conclusion") in ("success", "failure", "timed_out")]
+        bad = [w for w in done if w.get("conclusion") != "success"]
+        out["runs7"] = {"ok": len(done) - len(bad), "fail": len(bad),
+                        "last_fail": ({"name": bad[0]["name"], "at": bad[0]["updated_at"]} if bad else None)}
+    except Exception:  # noqa: BLE001
+        pass
+    return out
 
 
 def pulse():
@@ -92,6 +142,13 @@ def pulse():
             if cache.get(name, {}).get("pushed") != r["pushed"]:
                 read_repo(name, r["pushed"])
             r["commits"] = cache[name]["commits"]
+            if time.time() - stats.get(name, {}).get("t", 0) > STATS_EVERY:
+                try:
+                    stats[name] = {"t": time.time(), "s": repo_stats(name)}
+                except Exception:  # noqa: BLE001 - keep the last numbers; try again next half hour
+                    stats.setdefault(name, {"s": None})["t"] = time.time() - STATS_EVERY + 300
+            if stats.get(name, {}).get("s"):
+                r["stats"] = stats[name]["s"]
             # deploys follow pushes: only ask about running jobs for repos pushed in the last 2 hours
             if r["pushed"] and now - iso(r["pushed"]) < timedelta(hours=2):
                 runs = get(f"/repos/{OWNER}/{name}/actions/runs?per_page=5").get("workflow_runs", [])
