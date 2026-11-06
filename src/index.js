@@ -8,6 +8,7 @@ import { seedDemo, demoNightly } from './demo.js';
 import { handleOpsBoard, boardWeekly } from './opsboard.js';
 import { ensureBiz } from './biz.js';
 import { handleHqPlans } from './hqplans.js';
+import { handleHqSense } from './hqsense.js';
 import { opsAlert, watched, healthCron, healthDetail, healthStatus, crashed, slowCron } from './ops.js';
 import { EmailMessage } from 'cloudflare:email';
 import { handleApp, aasa, photoGet, audioGet, appCron, handleQuote, handleLocations, opsPing, pushClient } from './app.js';
@@ -241,6 +242,12 @@ async function serve(req, env, ctx) {
         .bind(x.d, ...NUMS.map(c => num(x[c])), str(x.bed), str(x.wake), typeof x.workouts === 'string' ? x.workouts.slice(0, 4000) : null, now));
       if (stmts.length) await env.DB.batch(stmts);
       return json({ ok: true, saved: stmts.length });
+    }
+    if (path === '/ops/hq-sense') {
+      // Gates HQ home sensing (Wi-Fi sensing boards and phones on the home Wi-Fi), posted by the Mac. Mac key only.
+      const k = req.headers.get('x-key') || '';
+      if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      return handleHqSense(req, env, json);
     }
     if (path === '/ops/hq-plans') {
       // Gates HQ: plans from his texts (the Mac sends texts that mention a time; Claude Haiku pulls out the plan). Mac key only.
