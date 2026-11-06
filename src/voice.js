@@ -1426,11 +1426,15 @@ export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-hist
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
+// Reactions that carry meaning and stay all call: trouble, danger, upset, sad, goodbye, thanks.
+const KEEP_LEADS = new Set(['danger', 'urgent', 'trouble', 'upset', 'sad', 'bye', 'thanks']);
 export function trimLead(lead, L, msgs, used) {
   if (P6(L)) return lead6(lead, used || []);
   // live for every call since Nov 5: won its blind test 25 to 17, human 5.7 vs 5.5, tells 16 vs 21
   if (!lead) return lead;
-  return (msgs || []).filter(m => m.r === 'u').length >= 3 && LEAD_TICS.has(lead.kind) ? null : lead;
+  // Nov 6 calls (Christopher 10:45, Sree, Dariann): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
+  // "Got it. Alright.", "Mm-hm.") on every reply and asked why Max talks like that. Only the first answer gets one now.
+  return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) ? null : lead;
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
