@@ -78,3 +78,17 @@ test('Rate-Shock Radar: insurance agencies only, a resting card on a calm week, 
   s = await R.radarState(env, { client_id: 'b7-ins' });
   assert.equal(s.wave, true); assert.match(s.text, /^Do this: call your renewals this week/); assert.equal(s.post.status, 'pending');
 });
+
+test('the real-text test sends the Always Open line’s own timecard to Christopher once, only when asked', async () => {
+  const e2 = Object.assign({}, env, { OPS_TEXT_TO: '+14785550199' });
+  await DB.prepare('CREATE TABLE IF NOT EXISTS drill_meta (k TEXT PRIMARY KEY, v TEXT)').run();
+  const sent = [];
+  const send = async (cid, to, body) => { sent.push([cid, to, body]); return { ok: true }; };
+  assert.equal(await TC.timecardTest(e2, Date.parse('2026-11-06T14:00:00Z'), { send }), null, 'not asked for: nothing');
+  await DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('timecard-test', 'requested')").run();
+  const r = await TC.timecardTest(e2, Date.parse('2026-11-06T14:00:00Z'), { send });
+  assert.deepEqual(r, { sent: true });
+  assert.equal(sent[0][0], 'always-open'); assert.equal(sent[0][1], '+14785550199'); assert.match(sent[0][2], /^Max’s timecard, Oct 26–Nov 1\./);
+  assert.equal(await TC.timecardTest(e2, Date.parse('2026-11-06T14:10:00Z'), { send }), null, 'once');
+  assert.equal(sent.length, 1);
+});

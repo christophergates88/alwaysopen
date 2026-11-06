@@ -149,11 +149,30 @@ export async function timecardReply(env, cid, text, now, h) {
   return a;
 }
 
+// The real-text test (Brief 7, Part 4): with drill_meta 'timecard-test' = 'requested', the Always Open line's own
+// timecard for last week goes to Christopher's cell (OPS_TEXT_TO) at the next daytime run, and his question back is
+// answered like any owner's (sms.js). Kept apart from clients: it never runs unless asked for.
+export async function timecardTest(env, now, h) {
+  h = h || {};
+  const want = await env.DB.prepare("SELECT v FROM drill_meta WHERE k = 'timecard-test'").first().catch(() => null);
+  if (!want || want.v !== 'requested' || !env.OPS_TEXT_TO) return null;
+  const cid = 'always-open', tz = 'America/New_York';
+  const tc = await timecardFor(env, cid, now);
+  const send = h.send || (async (c, to, body, z) => (await import('./sms.js')).sendText(env, { clientId: c, to, body, kind: 'timecard', tz: z }));
+  const res = await send(cid, env.OPS_TEXT_TO, tc.text, tz).catch(() => ({ ok: false, why: 'send failed' }));
+  if (res && res.retry) return { held: true };
+  await env.DB.prepare('INSERT OR REPLACE INTO max_timecards (client_id, week, at, nums, status) VALUES (?1, ?2, ?3, ?4, ?5)').bind(cid, tc.week, new Date(now).toISOString(), JSON.stringify(tc.nums), res && res.ok ? 'sent' : 'app').run();
+  await env.DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('timecard-test', ?1)").bind((res && res.ok ? 'sent ' : 'failed ') + new Date(now).toISOString() + (res && res.why ? ' ' + res.why : '')).run();
+  await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'timecard', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ cid, week: tc.week, what: res && res.ok ? 'sent (test to Christopher)' : 'skipped', why: (res && res.why) || '' })).run().catch(() => {});
+  return { sent: !!(res && res.ok) };
+}
+
 // Monday morning, once a week per business. h: { send(cid, to, body, tz), push(cid, note) } for tests; defaults to the real ones.
 export async function timecardCron(env, now, h) {
   now = now || Date.now();
   h = h || {};
   await ensureTimecards(env);
+  try { await timecardTest(env, now, h); } catch (e) { /* the clients' run goes on */ }
   const rows = ((await env.DB.prepare("SELECT c.client_id, c.phone, c.business, MAX(l.on_air) AS on_air FROM app_clients c JOIN voice_lines l ON l.client_id = c.client_id WHERE c.active = 1 AND c.client_id NOT IN ('demo-plumbing', 'always-open') GROUP BY c.client_id LIMIT 500").all()).results) || [];
   // Every send and every skip is written down once a week, with the reason, so a quiet Monday can be read (Brief 7).
   const note = (cid, week, what, why) => env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'timecard', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ cid, week, what, why })).run().catch(() => {});

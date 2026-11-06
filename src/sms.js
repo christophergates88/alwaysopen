@@ -194,6 +194,10 @@ export async function handleSms(req, env, form, sigOk) {
   if (key !== 'stop') { try { await (await import('./autotext.js')).textedIn(env, cid, from10); } catch (e) { /* the timer picks it up */ } }
   if (filled) return xml(reply);
   // An owner answering Always Open's own review ask: straight to Christopher's phone (ourreviews.js).
+  // Christopher answering the Always Open line's own timecard test (timecard.js timecardTest).
+  if (cid === OWN && !key && env.OPS_TEXT_TO && ph10(env.OPS_TEXT_TO) === from10) {
+    try { const ans = await (await import('./timecard.js')).timecardReply(env, OWN, body); if (ans) return xml('<Message>' + ans.replace(/[<&>]/g, '') + '</Message>'); } catch (e) { /* falls through */ }
+  }
   if (cid === OWN && !key) { try { const app = await import('./app.js'); if (await (await import('./ourreviews.js')).onReply(env, from10, body, (t, b, pr, tag) => app.opsPing(env, t, b, pr, tag))) return xml(); } catch (e) { /* falls through to the inbox push */ } }
   const said = key === 'stop' ? '“' + body + '”: they won’t get texts from you any more. Call them if you need to reach them.' : (key === 'start' ? '“' + body + '”: they’re back on texts from you.' : body);
   const { pushClient } = await import('./app.js').catch(() => ({ pushClient: async () => {} }));
