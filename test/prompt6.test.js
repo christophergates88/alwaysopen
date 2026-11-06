@@ -25,3 +25,7 @@ test('prompt6: only the harm filters run, reactions are short and once a call, a
   assert.notEqual(b.text, a.text, 'never the same reaction twice');
   assert.equal(String(V.callerNotes({ line: L, msgs: [] }, "I really don't like talking to AI")), '', 'no per-turn patches');
 });
+
+test('prompt6 can be switched on for a line and for a practice run (it is a known feature)', () => {
+  assert.ok(V.FEATURES.includes('prompt6'));
+});

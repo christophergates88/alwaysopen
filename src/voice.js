@@ -1380,7 +1380,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', ...GUARDS];
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
 // g-safety: fired once in 42 calls (smoke call), correctly; narrowed after round 2 so the name is still taken once safe.
 // g-town: one cut in 42, correct ("¿Eso es en Eatonton?"). g-once, g-promise: no cut in 42 after their fixes; their one
