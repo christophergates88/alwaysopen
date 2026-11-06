@@ -62,7 +62,10 @@ const EARLY_MS = 320;            // a clearly finished question, no new words th
 const EARLY_REP_MS = 150;        // ...or this long, once Twilio has sent the same words twice
 const EARLY_Q = true;            // that quick path for questions (false turns it off)
 const SPEC_MS = 150;             // a finished sentence, no new words this long: the AI starts on the answer in the background
-const SPEC_IDLE_MS = 400;        // no punctuation, but no new words this long: it starts anyway
+const SPEC_IDLE_MS = 400;
+// Nov 6, 3:12 PM (Christopher): Twilio sent his words as they came but never the end of his turn, so Max sat silent, then
+// asked "Still there?". Words that stop changing for this long, with the caller quiet, are taken as the turn.
+const LOST_FINAL_MS = 2200;        // no punctuation, but no new words this long: it starts anyway
 const SPEC_MAX = 3;              // background starts per turn, at most
 // Build Brief 8b: 2 seconds, not 1. The 1-second alarm took about a full second itself (Cloudflare log, Nov 6: wall
 // 999 ms, one 'canceled'), so alarms ran into their own schedule.
@@ -679,7 +682,7 @@ export class CallRoom extends DurableObject {
   armPartial(p) {
     for (const x of this.ppTimers || []) clearTimeout(x);
     const now = Date.now();
-    this.ppTimers = [EARLY_REP_MS, SPEC_MS, EARLY_MS, SPEC_IDLE_MS].map(ms => setTimeout(() => this.partialCheck().catch(() => {}), Math.max(5, p.at + ms + 5 - now)));
+    this.ppTimers = [EARLY_REP_MS, SPEC_MS, EARLY_MS, SPEC_IDLE_MS, LOST_FINAL_MS, LOST_FINAL_MS + 1500].map(ms => setTimeout(() => this.partialCheck().catch(() => {}), Math.max(5, p.at + ms + 5 - now)));
   }
   endPartials() {
     for (const x of this.ppTimers || []) clearTimeout(x);
@@ -694,6 +697,13 @@ export class CallRoom extends DurableObject {
     const now = Date.now(), still = now - p.at;
     // only between turns: not while Max is answering or talking, or the call is ending
     if (this.live || s.endAt || (s.agentTalking && now - s.agentAt < 60000)) return;
+    if (still >= LOST_FINAL_MS && !(s.callerTalking && now - s.callerAt < LOST_FINAL_MS) && p.text.trim()) {
+      p.busy = true;
+      this.mark('W', p.n);
+      const r = this.onFinal(s, p.text);   // its first lines run now, before lostFinal is set below
+      this.lostFinal = { norm: qNorm(p.text), at: now };
+      return r;
+    }
     if (EARLY_Q && p.q && ((p.rep > 0 && still >= EARLY_REP_MS) || still >= EARLY_MS)) {
       p.busy = true;
       this.mark('Y', p.n);
@@ -727,6 +737,13 @@ export class CallRoom extends DurableObject {
   // more after them, this turn covers all of it.
   async onFinal(s, text) {
     const said = text.trim();
+    // Twilio's end of turn arriving after Max already took the same words (LOST_FINAL_MS): nothing new to answer
+    const lf = this.lostFinal;
+    if (lf && Date.now() - lf.at < 20000 && said) {
+      const fn = qNorm(said);
+      if (fn === lf.norm || (lf.norm && fn.indexOf(lf.norm) === 0 && fn.split(' ').length <= lf.norm.split(' ').length + 1)) { this.lostFinal = null; this.endPartials(); this.mark('W=', 1); return; }
+      this.lostFinal = null;
+    }
     this.endPartials();
     const E = this.early; this.early = null;
     if (!said) { this.dropSpec(); return; }
