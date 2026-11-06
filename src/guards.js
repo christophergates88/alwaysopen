@@ -204,16 +204,28 @@ function noPromise(s, ctx) {
 // Brief 5 follow-up (Nov 5, 5:57 PM call: answers of 50 and 60 words): two statements, then stop, unless the caller
 // asked for the detail. A question at the end is kept, and so is a safety step.
 const MORE = /\b(tell me more|more detail|in detail|explain|walk me through|everything|all of it|break it down|go on)\b/;
+// What an owner must hear before trusting us with their name and their customers: nothing goes out without their approval,
+// Compliance Guard checks it, they send follow-ups themselves, we never contact their customers or need their records.
+// Nov 6 practice runs for an insurance agency (State Farm): g-short cut exactly these. Kept the first time Max says one.
+const ASSURE = /\b(compliance guard|until you approve|you approve|approve it|nothing goes out|sign(s|ed)? off|sign-off|send it yourself|you send it|never (text|call|contact|email|message)s? (your|their|any)|never need|(customer|policy) records)\b/;
+// "How does it work / what do you ask them / who sees it": the answer is the steps, so it gets one more sentence.
+const HOWQ = /\b(how (does|do|would|will|is|can|did)|what do (you|they) (do|ask|say|send|see)|who (sees|gets|can see)|where does)\b/;
 function shortReply(s, ctx) {
   if (isQ(s) || SAFETY.test(s)) return false;
   if (MORE.test(lc(ctx.said))) return false;
+  if (ASSURE.test(lc(s))) {
+    const before = (ctx.msgs || []).filter(m => m.r === 'a').map(m => lc(m.t)).join(' ');
+    const k = (lc(s).match(ASSURE) || [])[0];
+    if (k && !before.includes(k)) return false;
+  }
   // a sentence about what they just said ("For a pressure washing crew, ...") is the answer, not padding: kept
   const mine = new Set((lc(ctx.said).match(/[a-z']{5,}/g) || []).filter(x => !/^(about|would|could|should|there|their|which|where|what's|exactly|really|thing|things|always|right)$/.test(x)));
   if ((lc(s).match(/[a-z']{5,}/g) || []).some(x => mine.has(x))) return false;
   // a short opener ("Fair pushback.", "Yep.") is not one of the two: on Nov 5 it cut the actual answer after it
   const before = sentencesOf(ctx.spoken || '').filter(x => !isQ(x) && words(x) > 3).length, w = words(ctx.spoken || '');
   if (!before) return false;
-  return before >= ((ctx.urgent || ctx.danger) ? 3 : 2) || w + words(s) > 40;
+  const how = HOWQ.test(lc(ctx.said));
+  return before >= ((ctx.urgent || ctx.danger || how) ? 3 : 2) || w + words(s) > (how ? 55 : 40);
 }
 
 // Brief 5 (Nov 5, 2026 call): canned comebacks that tell a caller they are talking to a script ("Give me a minute to

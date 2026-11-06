@@ -89,6 +89,19 @@ test('g-short: a long reply is trimmed, never the question or a safety step', ()
   assert.equal(run(MIKE, call('my faucet drips'), 'x', ['g-short'], 'Got it. What\'s your name?').cuts.length, 0);
 });
 
+test('g-short keeps what an agency owner must hear, once, and gives a "how does it work" answer its steps (Nov 6)', () => {
+  const AGENCY = { business: 'Always Open', town: 'Eatonton, GA', regulated: false };
+  const agency = 'Good fit, and we\'re careful with it. On your line I only take messages: no quotes, coverage, rates or claim talk. Every review reply gets checked by Compliance Guard, and nothing goes out until you approve it in the app.';
+  assert.equal(run(AGENCY, call('What do you do?'), 'I\'m an insurance agency.', ['g-short'], agency).cuts.length, 0);
+  const chase = 'For an agency, it\'s a reminder, not outreach. You add an open quote in the app and pick a day. That day you get a nudge with a short follow-up text already written, and you send it yourself. We never text your customers for you.';
+  const r = run(AGENCY, call('What do you do?'), 'And when you say chase quotes, what do you do? What do you ask them?', ['g-short'], chase);
+  assert.equal(r.cuts.length, 0, JSON.stringify(r.cuts));
+  // said already this call: the usual trim applies
+  const again = call('What do you do?', 'Every review reply gets checked by Compliance Guard, and nothing goes out until you approve it in the app.', 'ok');
+  const r2 = run(AGENCY, again, 'Okay. What else?', ['g-short'], 'Sure. We answer your missed calls. We reply to your reviews. Every reply gets checked by Compliance Guard first.');
+  assert.ok(r2.cuts.some(c => /Compliance Guard/.test(c.text)), JSON.stringify(r2));
+});
+
 test('no guard fires when its switch is off, and each guard is fast', () => {
   const m = call('water is pouring out of my water heater');
   assert.equal(run(MIKE, m, 'x', [], 'Shut the valve. What\'s your name?').text, 'Shut the valve. What\'s your name?');

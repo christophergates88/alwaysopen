@@ -27,6 +27,23 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with: { name: app-shots, path: app-shots, if-no-files-found: ignore, retention-days: 14 }
+      # A deploy restarts every call room, which cuts a caller off mid-sentence. Wait (up to 40 minutes) until no call
+      # is live and no practice run started in the last 3 minutes. If the check itself can't run, say so and go ahead.
+      - name: Wait until no call is live
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          q="SELECT (SELECT count(*) FROM app_calls WHERE outcome = 'live' AND at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 minutes')) AS calls, (SELECT count(*) FROM voice_log WHERE kind = 'rehearse-taken' AND at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 minutes')) AS drills"
+          fails=0
+          for i in $(seq 1 120); do
+            out=$(npx -y wrangler@4 d1 execute alwaysopen --remote --json --command "$q" 2>/dev/null || true)
+            busy=$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s)[0].results[0];console.log(r.calls+r.drills>0?"busy "+r.calls+" call(s), "+r.drills+" practice run(s)":"clear")}catch(e){console.log("unknown")}})')
+            echo "$(date -u +%H:%M:%S) $busy"
+            [ "$busy" = "clear" ] && exit 0
+            if [ "$busy" = "unknown" ]; then fails=$((fails+1)); [ $fails -ge 3 ] && { echo "::warning::Could not check for live calls; deploying anyway"; exit 0; }; fi
+            sleep 20
+          done
+          echo "::error::A call stayed live for 40 minutes; not deploying now"; exit 1
       - name: Deploy worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
