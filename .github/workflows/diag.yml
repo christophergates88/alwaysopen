@@ -1,0 +1,33 @@
+name: Diag
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Worker and Durable Object logs around the dropped calls
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error, datetime
+          T = os.environ['T'].strip()
+          def call(url, body=None):
+              r = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, headers={'Authorization': 'Bearer ' + T, 'content-type': 'application/json'})
+              try:
+                  return json.load(urllib.request.urlopen(r))
+              except urllib.error.HTTPError as e:
+                  return {'http': e.code, 'body': e.read().decode()[:3000]}
+          acct = call('https://api.cloudflare.com/client/v4/accounts')['result'][0]['id']
+          ms = lambda s: int(datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp() * 1000)
+          for a, b in [('2026-11-06T14:47:20Z', '2026-11-06T14:47:50Z'), ('2026-11-05T20:00:55Z', '2026-11-05T20:01:25Z'), ('2026-11-06T00:13:15Z', '2026-11-06T00:13:40Z')]:
+              print('=====', a, b)
+              body = {'queryId': 'diag-drops', 'timeframe': {'from': ms(a), 'to': ms(b)}, 'view': 'events', 'limit': 100,
+                      'parameters': {'datasets': ['cloudflare-workers'], 'filters': [{'key': '$metadata.service', 'operation': 'eq', 'type': 'string', 'value': 'alwaysopen'}], 'filterCombination': 'and'}}
+              res = call('https://api.cloudflare.com/client/v4/accounts/' + acct + '/workers/observability/telemetry/query', body)
+              if 'http' in res: print(json.dumps(res)[:3000]); continue
+              ev = (((res.get('result') or {}).get('events') or {}).get('events')) or []
+              print('events', len(ev))
+              for e in ev:
+                  m = e.get('$metadata', {}); w = e.get('$workers', {})
+                  print(json.dumps({'t': e.get('timestamp'), 'type': m.get('type'), 'level': m.get('level'), 'msg': (m.get('message') or '')[:300], 'error': m.get('error'), 'outcome': w.get('outcome'), 'event': w.get('eventType'), 'entry': w.get('entrypoint'), 'cpu': w.get('cpuTimeMs'), 'wall': w.get('wallTimeMs'), 'req': (w.get('event') or {}).get('request', {}).get('url') if isinstance(w.get('event'), dict) else None})[:900])
+          PY
