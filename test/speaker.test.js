@@ -119,3 +119,12 @@ test('6:35 PM call: "I really don\'t like talking to AI" gets a dry joke about b
   assert.equal(V.leadIn(said, 'en-US', [], () => 0).kind, 'hateai');
   assert.match(String(V.callerNotes({ line: {}, msgs: [] }, said)), /dry, confident joke about being good at your job/);
 });
+
+test('7:12 PM call: "fair" once a call; the joke keeps its setup', () => {
+  const msgs = [{ r: 'a', t: 'Totally fair.' }];
+  assert.equal(V.dropFair("Fair enough, and I'll keep it plain. Katie has it.", msgs), "I'll keep it plain. Katie has it.");
+  assert.equal(V.dropFair('Fair, and you did catch me on the bakery.', msgs), 'You did catch me on the bakery.');
+  assert.equal(V.dropFair('Fair enough, and I will.', []), 'Fair enough, and I will.', 'the first one stays');
+  assert.equal(V.dropFair('Fair.', msgs), 'Fair.', 'never cut to nothing');
+  assert.equal(G.guardOne('Most of them earn that reputation.', { on, msgs: [], said: '' }), '', 'the setup for "I\'m annoyingly good at this" stays');
+});
