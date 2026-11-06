@@ -710,7 +710,7 @@ function mapLine(m){
 }
 function mapCard(){
   var m=S.map;if(!m)return '';
-  return '<div class="feature mapc" id="map"><h3>You on the map</h3><div id="mapslot"></div>'+
+  return '<div data-card="map" class="feature mapc" id="map"><h3>You on the map</h3><div id="mapslot"></div>'+
     '<p class="mapline">'+esc(mapLine(m))+'</p><p class="fine" id="mapex" hidden>Other businesses will show up here as they join. These are examples.</p>'+
     '<div class="sw"><div><b>Show me on the map</b></div><button class="switch" type="button" role="switch" aria-checked="'+(m.show?'true':'false')+'" data-a="map-show" aria-label="Show me on the map"><i></i></button></div>'+
     '<div class="acts"><button class="btn line" type="button" data-a="bz-map">'+(m.phone||m.address?'Change your phone or address':'Add your phone or address')+'</button></div></div>';
@@ -773,7 +773,7 @@ function signTap(){
 function liveCard(){
   var L=S.live||[];if(!L.length)return '';
   return L.map(function(c){var secs=Math.max(0,Math.round((Date.now()-Date.parse(c.at))/1000)),mm=Math.floor(secs/60),ss=secs%60;
-    return '<div class="live" aria-live="polite"><div class="lh"><span class="dot"></span>'+esc(S.line?S.line.name:'Max')+' is on a call'+(c.name?' with '+esc(c.name):'')+'</div><div class="ln">'+esc(c.numberText||'Unknown number')+' \\u00b7 '+mm+':'+(ss<10?'0':'')+ss+(c.turns?' \\u00b7 '+c.turns+(c.turns===1?' turn':' turns'):'')+'</div>'+
+    return '<div data-card="live" class="live" aria-live="polite"><div class="lh"><span class="dot"></span>'+esc(S.line?S.line.name:'Max')+' is on a call'+(c.name?' with '+esc(c.name):'')+'</div><div class="ln">'+esc(c.numberText||'Unknown number')+' \\u00b7 '+mm+':'+(ss<10?'0':'')+ss+(c.turns?' \\u00b7 '+c.turns+(c.turns===1?' turn':' turns'):'')+'</div>'+
       (c.heard||c.said?'<div class="lq">'+(c.heard?'<span class="u">'+esc(c.heard)+'</span>':'')+(c.said?'<span class="a">'+esc(c.said)+'</span>':'')+'</div>':'<div class="ln">Connecting\\u2026</div>')+'</div>';}).join('');
 }
 // What Max caught this month: after-hours calls that became leads, at the owner's own numbers, with the arithmetic shown.
@@ -783,7 +783,7 @@ function moneyCard(){
   var d=function(n){return '$'+Math.round(+n||0).toLocaleString('en-US');};
   var big=m.avgJob&&m.mid?'<p class="mv">about '+d(m.mid)+'<small>caught after hours</small></p><p class="mr">Between '+d(m.low)+' and '+d(m.high)+' at your numbers.</p>':'<p class="mv">'+(+m.leads||0)+'<small>'+((+m.leads||0)===1?'lead':'leads')+' from after-hours calls</small></p>';
   var last=p.afterHoursCalls?'<p class="fine">'+esc(p.label||'Last month')+': '+(p.avgJob&&p.mid?'about '+d(p.mid)+' from '+p.leads+(p.leads===1?' lead':' leads'):p.leads+(p.leads===1?' lead':' leads')+' from '+p.afterHoursCalls+' after-hours '+(p.afterHoursCalls===1?'call':'calls'))+'.</p>':'';
-  return '<div class="money'+(m.avgJob&&m.mid?' on':'')+'"><p class="mh">What '+esc(S.line?S.line.name:'Max')+' caught in '+esc(String(m.label||'').split(' ')[0]||'this month')+'</p>'+big+
+  return '<div data-card="money" class="money'+(m.avgJob&&m.mid?' on':'')+'"><p class="mh">What '+esc(S.line?S.line.name:'Max')+' caught in '+esc(String(m.label||'').split(' ')[0]||'this month')+'</p>'+big+
     '<details><summary>How this is figured</summary><p>'+esc(m.explained||'')+'</p><p class="fine">After hours means evenings, nights and weekends in your own time. It is an estimate from your numbers, not a promise.</p></details>'+last+
     (own?'<div class="acts"><button class="btn '+(m.avgJob?'ghost':'line')+' sm" type="button" data-a="money-set">'+(m.avgJob?'Change my numbers':'Set my average job')+'</button></div>':'')+'</div>';
 }
@@ -820,7 +820,7 @@ function monthNowCard(){
   var t=[[m.calls,'calls answered',m.after?m.after+' after hours':''],[m.reviews,'new reviews',m.reviews?(m.replied===m.reviews?'all replied to':m.replied+' replied to'):''],
     [m.booked,'jobs booked',''],[m.followups,'follow-ups sent','']];
   if(m.checkYes||m.checkNo)t[3]=[m.checkYes,'check-ins: it held up',m.checkNo?m.checkNo+' told you first':''];
-  return '<div class="mnow"><div class="mnow-h"><b>'+esc(mo)+' so far</b><span>Live now. Sent on the 2nd.</span></div>'+
+  return '<div data-card="monthnow" class="mnow"><div class="mnow-h"><b>'+esc(mo)+' so far</b><span>Live now. Sent on the 2nd.</span></div>'+
     '<div class="mnow-g">'+t.map(function(x){return '<div><b>'+(+x[0]||0)+'</b><span>'+esc(x[1])+'</span>'+(x[2]?'<small>'+esc(x[2])+'</small>':'')+'</div>';}).join('')+'</div>'+
     (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
     (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+'</div>';
@@ -830,7 +830,7 @@ function clockCard(){
   var K=S.clock;if(!K)return '';
   var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
   var facts='<ul class="cl">'+(K.worth?'<li><b>$'+Math.round(K.worth).toLocaleString('en-US')+'</b> caught while you were closed</li>':'')+'<li><b>'+hb(K.onMin)+'</b> on the clock</li>'+(K.calls?'<li><b>'+K.calls+'</b> '+(K.calls===1?'call':'calls')+', '+K.alone+' handled alone'+(K.toYou?', <b>'+K.toYou+'</b> brought to you':'')+'</li>':'')+(K.backMin?'<li><b>'+hb(K.backMin)+'</b> back to you</li>':'')+'</ul>';
-  return '<div class="clock'+(K.liveMin>=0?' onair':'')+'" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+(K.liveMin>=0?'<i class="dot"></i>on a call now':esc(K.month||'this month')+' so far')+'</span></div>'+K.svg+facts+
+  return '<div data-card="clockcard" class="clock'+(K.liveMin>=0?' onair':'')+'" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+(K.liveMin>=0?'<i class="dot"></i>on a call now':esc(K.month||'this month')+' so far')+'</span></div>'+K.svg+facts+
     (K.one?'<p class="one"><b>The one call.</b> '+esc(K.one)+'</p>':(K.n?'':'<p class="one">Nothing yet this month. '+nm+' is on the clock anyway; the first call lands here.</p>'))+
     '<div class="acts"><button class="btn line sm" type="button" data-a="clock-list">'+(K.n?'Everything on the dial':'How this works')+'</button>'+(S.monthNow&&S.monthNow.page?'<a class="btn ghost sm" href="'+esc(BASE+S.monthNow.page)+'">This month\u2019s page</a>':'')+'</div></div>';
 }
@@ -1226,7 +1226,7 @@ function card(it){
   var cg=it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
   var acts=ed!=null?'<button class="btn ok" type="button" data-a="save" data-id="'+esc(it.id)+'">Save and approve</button><button class="btn ghost" type="button" data-a="cancel" data-id="'+esc(it.id)+'">Cancel</button>':
     '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
-  return '<article class="card'+(ed!=null?'':' swp')+'" id="c-'+esc(it.id)+'" data-sw="'+esc(it.id)+'">'+(ed!=null?'':'<span class="swhint ok">Approve</span><span class="swhint no">Skip</span>')+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
+  return '<article data-card="item" class="card'+(ed!=null?'':' swp')+'" id="c-'+esc(it.id)+'" data-sw="'+esc(it.id)+'">'+(ed!=null?'':'<span class="swhint ok">Approve</span><span class="swhint no">Skip</span>')+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
 }
 var FILT='all';
 var FK={all:function(){return true;},reply:function(x){return x.kind!=='post'&&x.kind!=='reviewreq';},post:function(x){return x.kind==='post';},reviewreq:function(x){return x.kind==='reviewreq';}};
@@ -1278,7 +1278,7 @@ function callCard(c){
   var acts=(c.callback?'<a class="btn ok" href="tel:'+esc(c.callback)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call back</a><a class="btn line" href="sms:'+esc(c.callback)+'">Text</a>':'')+
     (c.status==='handled'?'<button class="btn ghost" type="button" data-a="call-reopen" data-id="'+esc(c.id)+'">Not done</button>':'<button class="btn ghost" type="button" data-a="call-done" data-id="'+esc(c.id)+'">Done</button>');
   var said=c.transcript&&c.transcript.length?'<details><summary>What was said</summary><div class="said">'+c.transcript.map(function(x){if(x.w==='held')return '<p class="held">'+esc((S.line&&S.line.name)||'Max')+' held back: '+esc(x.t)+'</p>';return '<p class="'+(x.w==='caller'?'caller':'ai')+'"><small>'+(x.w==='caller'?'Caller':esc(S.line?S.line.name:'Phone line'))+'</small>'+esc(x.t)+'</p>';}).join('')+'</div></details>':'';
-  return '<article class="call'+(c.urgent&&c.status!=='handled'?' urgent':'')+(c.status==='handled'?' handled':'')+'" id="call-'+esc(c.id)+'"><div class="top2"><span class="nm">'+esc(who)+'</span><span class="num">'+esc(c.numberText||'')+' \u00b7 '+esc(when(c.at))+'</span></div>'+(chips?'<div class="ch">'+chips+'</div>':'')+
+  return '<article data-card="call" class="call'+(c.urgent&&c.status!=='handled'?' urgent':'')+(c.status==='handled'?' handled':'')+'" id="call-'+esc(c.id)+'"><div class="top2"><span class="nm">'+esc(who)+'</span><span class="num">'+esc(c.numberText||'')+' \u00b7 '+esc(when(c.at))+'</span></div>'+(chips?'<div class="ch">'+chips+'</div>':'')+
     '<p class="sum">'+esc(c.summary||'')+'</p>'+(meta?'<div class="meta">'+meta+'</div>':'')+'<div class="acts">'+acts+'</div>'+said+'</article>';
 }
 function markCall(id,action){

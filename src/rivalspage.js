@@ -10,7 +10,7 @@ function rivalCard(){
   if(!f.competitors)return '<div class="feature locked"><h3>Competitor watch</h3><p>See where you stand against the top businesses like yours nearby on Google, and what it takes to be #1. Comes with Growth.</p><div class="acts"><button class="btn line" type="button" data-a="ask-growth">Ask about Growth</button></div></div>';
   var L=(R&&R.status==='ok')?R:RVLIVE;
   var rk=(L&&L.status==='ok')?rvRank(L.rows||[]):null;
-  var h='<div class="feature'+(rk&&rk.pos>1?' behind':'')+'" id="rivals"><h3>Competitor watch</h3>';
+  var h='<div data-card="rivals" class="feature'+(rk&&rk.pos>1?' behind':'')+'" id="rivals"><h3>Competitor watch</h3>';
   if(!R||R.status==='first'){
     h+='<p>We look up the top businesses like yours nearby: their Google rating and how many reviews they have.</p><p class="fine">This switches on soon.</p>';
   }else if(R.status==='profile'||(L&&L.status==='profile')){
