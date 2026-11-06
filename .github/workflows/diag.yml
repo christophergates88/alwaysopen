@@ -1,5 +1,9 @@
 name: Diag
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      windows: { description: 'from,to;from,to (UTC ISO)', required: false }
+      grep: { description: 'only events whose url or message has this', required: false }
 jobs:
   diag:
     runs-on: ubuntu-24.04
@@ -7,6 +11,8 @@ jobs:
       - name: Worker and Durable Object logs around the dropped calls
         env:
           T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WINDOWS: ${{ inputs.windows }}
+          GREP: ${{ inputs.grep }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error, datetime
@@ -19,15 +25,18 @@ jobs:
                   return {'http': e.code, 'body': e.read().decode()[:3000]}
           acct = call('https://api.cloudflare.com/client/v4/accounts')['result'][0]['id']
           ms = lambda s: int(datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp() * 1000)
-          for a, b in [('2026-11-06T14:47:20Z', '2026-11-06T14:47:50Z'), ('2026-11-05T20:00:55Z', '2026-11-05T20:01:25Z'), ('2026-11-06T00:13:15Z', '2026-11-06T00:13:40Z')]:
+          W = [tuple(x.split(',')) for x in (os.environ.get('WINDOWS') or '').split(';') if x.strip()] or [('2026-11-06T14:47:20Z', '2026-11-06T14:47:50Z')]
+          G = os.environ.get('GREP') or ''
+          for a, b in W:
               print('=====', a, b)
-              body = {'queryId': 'diag-drops', 'timeframe': {'from': ms(a), 'to': ms(b)}, 'view': 'events', 'limit': 100,
+              body = {'queryId': 'diag-drops', 'timeframe': {'from': ms(a), 'to': ms(b)}, 'view': 'events', 'limit': 2000,
                       'parameters': {'datasets': ['cloudflare-workers'], 'filters': [{'key': '$metadata.service', 'operation': 'eq', 'type': 'string', 'value': 'alwaysopen'}], 'filterCombination': 'and'}}
               res = call('https://api.cloudflare.com/client/v4/accounts/' + acct + '/workers/observability/telemetry/query', body)
               if 'http' in res: print(json.dumps(res)[:3000]); continue
               ev = (((res.get('result') or {}).get('events') or {}).get('events')) or []
               print('events', len(ev))
               for e in ev:
+                  if G and G not in json.dumps(e): continue
                   m = e.get('$metadata', {}); w = e.get('$workers', {})
                   print(json.dumps({'t': e.get('timestamp'), 'type': m.get('type'), 'level': m.get('level'), 'msg': (m.get('message') or '')[:300], 'error': m.get('error'), 'outcome': w.get('outcome'), 'event': w.get('eventType'), 'entry': w.get('entrypoint'), 'cpu': w.get('cpuTimeMs'), 'wall': w.get('wallTimeMs'), 'req': (w.get('event') or {}).get('request', {}).get('url') if isinstance(w.get('event'), dict) else None})[:900])
           PY
