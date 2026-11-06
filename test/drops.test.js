@@ -30,3 +30,12 @@ test('the 3-minute test caller talks past the point where real calls drop', () =
   assert.ok(pauses.slice(1).every(p => p <= 20), 'speech at least every 20 seconds or so');
   assert.match(D.SCRIPT_LONG, /<Hangup\/><\/Response>$/);
 });
+test('Brief 8b: a throw in a timer is caught and noted, never left to reset the call room', async () => {
+  V.THROWS.splice(0);
+  assert.doesNotThrow(() => V.guardT('filler', () => { throw new Error('boom'); })());
+  V.guardT('release', async () => { throw new Error('later'); })();
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(V.THROWS.map(t => t.where), ['filler', 'release']);
+  assert.match(V.THROWS[0].err, /boom/);
+  V.THROWS.splice(0);
+});

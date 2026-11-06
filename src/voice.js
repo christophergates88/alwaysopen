@@ -64,7 +64,16 @@ const EARLY_Q = true;            // that quick path for questions (false turns i
 const SPEC_MS = 150;             // a finished sentence, no new words this long: the AI starts on the answer in the background
 const SPEC_IDLE_MS = 400;        // no punctuation, but no new words this long: it starts anyway
 const SPEC_MAX = 3;              // background starts per turn, at most
-const TICK_MS = 1000;
+// Build Brief 8b: 2 seconds, not 1. The 1-second alarm took about a full second itself (Cloudflare log, Nov 6: wall
+// 999 ms, one 'canceled'), so alarms ran into their own schedule.
+const TICK_MS = 2000;
+// Build Brief 8b: anything that throws outside an awaited call (a timer, a fire-and-forget promise) can make Cloudflare
+// reset the call room, which drops the caller's line (1006). Each one is noted here and written to voice_log as
+// 'room-throw' by the room's next alarm, so a throw right before a drop names the bug.
+export const THROWS = [];
+export function noteThrow(where, e) { if (THROWS.length < 20) THROWS.push({ at: new Date().toISOString(), where, err: String((e && (e.stack || e.message)) || e).slice(0, 400) }); }
+try { addEventListener('unhandledrejection', ev => { noteThrow('unhandled', ev && ev.reason); try { ev.preventDefault(); } catch (x) {} }); } catch (e) { /* not in tests */ }
+export const guardT = (where, fn) => () => { try { const r = fn(); if (r && r.catch) r.catch(e => noteThrow(where, e)); } catch (e) { noteThrow(where, e); } };
 const FIRST_TOKEN_MS = 6000;     // Claude has said nothing this long: give up on it for this turn (the backup model answers, or Max apologizes)
 const REPLY_MAX_MS = 15000;      // and a reply that has started never runs longer than this (a call note: the same)
 const TURN_STUCK_MS = 20000;     // an answer still not done after this (the backup model hung too): Max apologizes and moves on
@@ -379,6 +388,17 @@ async function relaySocket(req, env, sid, url) {
 
 // ---------- the call itself ----------
 export class CallRoom extends DurableObject {
+  // Build Brief 8b: a room that starts while its call is still on means Cloudflare reset it mid-call.
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.bornAt = Date.now();
+    try {
+      ctx.waitUntil((async () => {
+        const s = await ctx.storage.get('s');
+        if (s && s.sid && !s.done) await vlog(env, 'room-start', JSON.stringify({ sid: s.sid, secs: Math.round((Date.now() - s.started) / 1000), sockets: ctx.getWebSockets().length, turn: s.turn }));
+      })().catch(() => {}));
+    } catch (e) { /* storage not ready */ }
+  }
   async fetch(req) {
     if (this.ctx.getWebSockets().length) return new Response('Busy', { status: 409 });
     const pair = new WebSocketPair();
@@ -406,7 +426,11 @@ export class CallRoom extends DurableObject {
     const first = said.find(t => t.split(' ').length >= 4) || said[0] || '';
     return first.split(' ').slice(0, 16).join(' ').replace(/[<>&]/g, '');
   }
-  async keep(s) { await this.ctx.storage.put('s', s); this.snapshot(s); }
+  async keep(s) {
+    await this.ctx.storage.put('s', s); this.snapshot(s);
+    // Build Brief 8b: how big the call's state gets (logged at each 100 KB step), in case memory is what resets the room
+    try { const kb = Math.floor(JSON.stringify(s).length / 102400); if (kb > (this.sizeStep || 0)) { this.sizeStep = kb; this.ctx.waitUntil(vlog(this.env, 'room-size', JSON.stringify({ sid: s.sid, kb: kb * 100 })).catch(() => {})); } } catch (e) {}
+  }
   // A small live snapshot for the owner's app (the pulsing card on Today): the last thing heard and said, a few times a
   // call at most. Fire and forget; the call never waits on it.
   snapshot(s) {
@@ -473,7 +497,7 @@ export class CallRoom extends DurableObject {
       const L = this.cur;
       if (L && L.turn === s.turn && !L.started && L.cut == null) {
         if (on && now > L.t0) { L.resumed = now; L.resumedOff = 0; }
-        else if (!on && L.resumed) { L.resumedOff = now; setTimeout(() => this.release(L), RESUME_GRACE_MS + 50); }
+        else if (!on && L.resumed) { L.resumedOff = now; setTimeout(guardT('release', () => this.release(L)), RESUME_GRACE_MS + 50); }
       }
     }
     else {
@@ -495,6 +519,7 @@ export class CallRoom extends DurableObject {
 
   // The socket closing is the end of the call, unless Max just handed it to Twilio to put through (see finalize).
   async webSocketClose(ws, code, reason) {
+    if (THROWS.length) { const t = THROWS.splice(0); this.ctx.waitUntil(vlog(this.env, 'room-throw', JSON.stringify(t)).catch(() => {})); }
     try { ws.close(1000, 'bye'); } catch (e) { /* already closed */ }
     const s = await this.load();
     if (!s || !s.sid) return;
@@ -843,13 +868,13 @@ export class CallRoom extends DurableObject {
       if (head.length >= HEAD_CHARS || /[.!?]["')\]]?\s+\S\S/.test(head)) { const h = head; head = null; say(fix(h)); }
     };
     const flushHead = () => { if (head) { const h = head; head = null; say(fix(h)); } flushSay(); };
-    const filler = setTimeout(() => {
+    const filler = setTimeout(guardT('filler', () => {
       if (heard || this.cur !== mine || mine.cut != null || (mine.resumed && !mine.resumedOff)) return;
       const es = s.lang === 'es-US', b = es ? 'Un momento.' : BRIDGES[Math.floor(Math.random() * BRIDGES.length)];
       mine.lead = (mine.lead ? mine.lead + ' ' : '') + b;   // part of what the caller heard before the answer
       this.mark('B', b);
       this.out(textMsg(b, true, s.lang));
-    }, FILLER_MS);
+    }), FILLER_MS);
     let sys = promptFor(s, elapsed > WRAP_MS);
     // The first Spanish answer says, in Spanish, that this is the AI assistant and the call may be recorded.
     if (s.lang === 'es-US' && !s.esTold) { sys += '\n\n' + ES_DISCLOSE; s.esTold = true; }
@@ -989,6 +1014,7 @@ export class CallRoom extends DurableObject {
   }
 
   async alarm() {
+    if (THROWS.length) { const t = THROWS.splice(0); this.ctx.waitUntil(vlog(this.env, 'room-throw', JSON.stringify(t)).catch(() => {})); }
     if (await this.ctx.storage.get('rehearse-next')) { await this.ctx.storage.delete('rehearse-next'); try { await this.rehearse(); } catch (e) {} return; }
     try { return await this.onAlarm(); } catch (e) { await this.crash('alarm', e); }
   }
@@ -1903,7 +1929,7 @@ export class Speaker {
     }
     this.pending += t;
     if (!this.sent && !this.capT && this.pending.trim() && FIRST_CAP_MS > 0) {
-      this.capT = setTimeout(() => { this.capT = null; this.early(); }, FIRST_CAP_MS);
+      this.capT = setTimeout(guardT('first-cap', () => { this.capT = null; this.early(); }), FIRST_CAP_MS);
     }
     this.flush(false);
   }
