@@ -20,7 +20,9 @@ const isQ = t => /\?["')\]]*\s*$/.test(String(t || '').trim());
 const words = t => (String(t || '').match(/[A-Za-zÀ-ÿ0-9']+/g) || []).length;
 
 // "S.I.", "Mr.", "St.", "$1,450.00" stay whole when a reply is split into sentences.
-const KEEP = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.)|\d\.\d/g;
+// a.m., p.m. and the rest never end a sentence, the same as the live call's splitter (voice.js ABBR): "at seven p.m. gets a
+// live answer" was split in two on a Nov 6 practice run and the second half cut.
+const KEEP = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr\.|a\.m\.|p\.m\.|vs\.|etc\.|e\.g\.|i\.e\.)|\d\.\d/g;
 export function sentencesOf(text) {
   const t = String(text || '').replace(KEEP, m => m.replace(/\./g, '\u0001'));
   // a sentence ends where the live call ends one: end punctuation followed by a space or the end, so
@@ -207,9 +209,10 @@ const MORE = /\b(tell me more|more detail|in detail|explain|walk me through|ever
 // What an owner must hear before trusting us with their name and their customers: nothing goes out without their approval,
 // Compliance Guard checks it, they send follow-ups themselves, we never contact their customers or need their records.
 // Nov 6 practice runs for an insurance agency (State Farm): g-short cut exactly these. Kept the first time Max says one.
-const ASSURE = /\b(compliance guard|until you approve|you approve|approve it|nothing goes out|sign(s|ed)? off|sign-off|send it yourself|you send it|never (text|call|contact|email|message)s? (your|their|any)|never need|(customer|policy) records)\b/;
+const ASSURE = /\b(compliance guard|until you approve|you approve|approve it|nothing goes out|sign(s|ed)? off|sign-off|send it yourself|you send it|never (text|call|contact|email|message)s? (your|their|any)|never need|(customer|policy) records|waits? for your (ok|okay|approval)|wait on your ok)\b/;
 // "How does it work / what do you ask them / who sees it": the answer is the steps, so it gets one more sentence.
-const HOWQ = /\b(how (does|do|would|will|is|can|did)|what do (you|they) (do|ask|say|send|see)|who (sees|gets|can see)|where does)\b/;
+// A price objection ("how is that worth $149", "why hire you over a person") gets the same room for its answer.
+const HOWQ = /\b(how (does|do|would|will|is|can|did)|how (it|this|that|you|we) (would|will|does|do|could) work|how it works|what do (you|they) (do|ask|say|send|see)|who (sees|gets|can see)|where does|worth|expensive|smarter|cheaper|hire (you|a person|someone|somebody))\b/;
 function shortReply(s, ctx) {
   if (isQ(s) || SAFETY.test(s)) return false;
   if (MORE.test(lc(ctx.said))) return false;
