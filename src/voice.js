@@ -125,6 +125,7 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'out') return await outboundTwiml(env, url, form);
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
+    if (kind === 'hqc' || kind === 'hqcg' || kind === 'hqcstatus') { const hc = await import('./hqcalls.js'); return kind === 'hqc' ? await hc.hqcAnswer(env, url, form) : kind === 'hqcg' ? await hc.hqcTurn(env, url, form) : await hc.hqcStatus(env, url, form); }   // Gates HQ calls a business for Christopher
     if (kind === 'in') return await incoming(env, form);
     if (kind === 'iv') return await interviewTwiml(env, url, form);
     if (kind === 'ivstatus') return await interviewStatus(env, url, form);
