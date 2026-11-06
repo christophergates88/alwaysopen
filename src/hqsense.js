@@ -22,6 +22,8 @@ export async function handleHqSense(req, env, json) {
   if (body.length > 200000) return json({ ok: false, error: 'too big' }, 413);
   let b; try { b = JSON.parse(body); } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
   const now = new Date().toISOString(), stmts = [];
+  // small rows the Mac keeps for the page (bottles bought by day, from the bank)
+  for (const [k, v] of Object.entries(b.kv || {})) if (/^(bottles)$/.test(k)) stmts.push(env.DB.prepare('INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES (?1, ?2, ?3)').bind(k, now, JSON.stringify(v).slice(0, 20000)));
   if (b.snap) stmts.push(env.DB.prepare("INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES ('sense', ?1, ?2)").bind(now, JSON.stringify(b.snap).slice(0, 60000)));
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
   for (const r of (b.minutes || []).slice(0, 400)) {

@@ -267,7 +267,7 @@ async function serve(req, env, ctx) {
       let pts = [];
       if (req.method === 'GET') {
         const kind = (url.searchParams.get('kind') || '').slice(0, 20);
-        if (!/^(alarm|wake|snooze)$/.test(kind)) return json({ ok: false, error: 'kind' }, 400);
+        if (!/^(alarm|wake|snooze|smoke|pour)$/.test(kind)) return json({ ok: false, error: 'kind' }, 400);
         pts = [{ at: new Date().toISOString(), kind }];
       } else if (req.method === 'POST') {
         const body = await req.text();
