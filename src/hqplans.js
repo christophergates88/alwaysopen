@@ -47,6 +47,7 @@ export async function handleHqPlans(req, env, json) {
     const plans = ((await env.DB.prepare("SELECT * FROM hq_plans WHERE date >= ?1 ORDER BY date, t").bind(today).all()).results) || [];
     const w = await env.DB.prepare('SELECT json FROM hq_widget WHERE id = 1').first().catch(() => null);
     let wj = {}; try { wj = JSON.parse((w && w.json) || '{}'); } catch (e) {}
+    try { const kv = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'day'").first(); if (kv && kv.v) wj = Object.assign(wj, JSON.parse(kv.v)); } catch (e) {}
     let where = [];
     try { where = ((await env.DB.prepare("SELECT at, kind, lat, lon, place, until FROM hq_where WHERE at >= ?1 OR kind = 'place' ORDER BY at").bind(new Date(Date.now() - 36 * 3600e3).toISOString()).all()).results) || []; } catch (e) {}
     return json({ ok: true, plans, routine: wj.routine || null, day: wj.day || null, dayDate: wj.dayDate || null, where });
