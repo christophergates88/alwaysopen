@@ -4,10 +4,18 @@ on:
     inputs:
       windows: { description: 'from,to;from,to (UTC ISO)', required: false }
       grep: { description: 'only events whose url or message has this', required: false }
+      sids: { description: 'call SIDs (space separated): print Twilio record of each', required: false }
 jobs:
   diag:
     runs-on: ubuntu-24.04
     steps:
+      - name: Twilio's record of each call
+        if: ${{ inputs.sids != '' }}
+        env:
+          K: ${{ secrets.LEADS_KEY }}
+          SIDS: ${{ inputs.sids }}
+        run: |
+          for s in $SIDS; do echo "===== $s"; curl -sS -m 40 -H "x-key: $K" "https://alwaysopenoffice.com/ops/call-events?sid=$s"; echo; done
       - name: Worker and Durable Object logs around the dropped calls
         env:
           T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
