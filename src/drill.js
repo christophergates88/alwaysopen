@@ -18,6 +18,12 @@ const REJECT = 'https://twimlets.com/echo?Twiml=' + encodeURIComponent('<Respons
 export const SCRIPT = '<Response><Pause length="7"/><Say voice="Polly.Joanna">Hi. I run a plumbing company in Eatonton, and I would like the free audit. Can someone call me back tomorrow morning?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Joanna">No, that is everything. Thank you. Goodbye.</Say><Pause length="5"/><Hangup/></Response>';
 // A Spanish caller, for the recognizer and the Spanish reactions (Brief 2, Part 4b): drill_meta now = 'requested-es'
+// Build Brief 6: Christopher's two-call test, said by a test caller, recorded (drill_meta now = 'requested-a' / 'requested-b')
+const say = t => '<Say voice="Polly.Matthew">' + t + '</Say>';
+export const SCRIPT_A = '<Response><Pause length="7"/>' + say('I don\'t like talking to A I. What do you do for a day care?') + '<Pause length="13"/>' +
+  say('So I only get the report once a month?') + '<Pause length="12"/>' + say('That\'s not what I asked.') + '<Pause length="12"/>' + say('Okay. Thanks, bye.') + '<Pause length="5"/><Hangup/></Response>';
+export const SCRIPT_B = '<Response><Pause length="7"/>' + say('My kid won\'t let me hold him. What do I do?') + '<Pause length="12"/>' +
+  say('Fine. Is it better to hire a person, or hire you?') + '<Pause length="13"/>' + say('You sound automated.') + '<Pause length="12"/>' + say('Okay. Thanks, bye.') + '<Pause length="5"/><Hangup/></Response>';
 export const SCRIPT_ES = '<Response><Pause length="7"/><Say voice="Polly.Lupe" language="es-US">Hola. Tengo una plomería en Eatonton y quisiera la auditoría gratis. ¿Me pueden llamar mañana por la mañana?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Lupe" language="es-US">No, eso es todo. Gracias. Adiós.</Say><Pause length="5"/><Hangup/></Response>';
 const WANTED = /plumb|audit|plomer|auditor/i;
@@ -71,8 +77,8 @@ async function buyNumber(env, h) {
   return '';
 }
 
-async function placeCall(env, from, to, h, script) {
-  const r = await tw(env, h, '/Calls.json', { To: to, From: from, Twiml: script || SCRIPT, Timeout: '25', TimeLimit: '150' });
+async function placeCall(env, from, to, h, script, record) {
+  const r = await tw(env, h, '/Calls.json', Object.assign({ To: to, From: from, Twiml: script || SCRIPT, Timeout: '25', TimeLimit: '150' }, record ? { Record: 'true', RecordingChannels: 'dual' } : {}));
   const j = await r.json().catch(() => ({}));
   return r.ok && j.sid ? { sid: j.sid } : { error: 'Twilio would not place the test call (' + r.status + (j.message ? ': ' + String(j.message).slice(0, 80) : '') + ')' };
 }
@@ -119,9 +125,13 @@ export async function drillCron(env, now, h) {
   // One test call right now, on request (drill_meta 'now' = 'requested'): used after a change to Max to hear it on a
   // real call with the real ears and voice. The call is a tester's, so it is marked a test and keeps its timeline.
   const want = await getMeta(env, 'now');
-  if (want === 'requested' || want === 'requested-es') {
+  if (want === 'requested' || want === 'requested-es' || want === 'requested-a' || want === 'requested-b') {
     await setMeta(env, 'now', 'placing ' + new Date(now).toISOString());
-    const p = await placeCall(env, from, line.number, h, want === 'requested-es' ? SCRIPT_ES : SCRIPT);
+    const script = { 'requested-es': SCRIPT_ES, 'requested-a': SCRIPT_A, 'requested-b': SCRIPT_B }[want] || SCRIPT;
+    // every on-request drill is recorded (it is our own test number calling our own line, marked a test), so the voice
+    // is judged by ear: the link is /voice/drill/<sid>/<token>, logged as 'drill-audio'
+    const p = await placeCall(env, from, line.number, h, script, true);
+    if (p.sid) { try { const t = await (await import('./callcheck.js')).drillToken(env, p.sid); await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'drill-audio', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ sid: p.sid, script: want, url: 'https://alwaysopenoffice.com/voice/drill/' + p.sid + '/' + t })).run(); } catch (e) { /* the call still runs */ } }
     await setMeta(env, 'now', p.sid ? 'called ' + p.sid + ' ' + new Date(now).toISOString() : 'failed ' + String(p.error || '').slice(0, 120));
     return { placed: 'on request', sid: p.sid || '' };
   }

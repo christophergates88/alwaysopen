@@ -88,6 +88,7 @@ export async function handleVoice(req, env, ctx, url) {
   const p = url.pathname.split('/').filter(Boolean);
   const kind = p[1] || '';
   if (kind === 'ws') return relaySocket(req, env, p[2] || '', url);
+  if (kind === 'drill' && req.method === 'GET') return (await import('./callcheck.js')).drillAudio(env, p[2] || '', p[3] || '');
   if (!env.VOICE_KEY || !p[2] || !safeEq(p[2], env.VOICE_KEY)) return txt('Not found', 404);
   if (kind === 'diag' && req.method === 'GET') return diag(env);
   if (req.method !== 'POST') return txt('Method not allowed', 405);
@@ -1097,6 +1098,8 @@ export class CallRoom extends DurableObject {
       await this.ctx.storage.deleteAlarm();
       for (const w of this.ctx.getWebSockets()) { try { w.close(1000, 'done'); } catch (e) { /* gone */ } }
       if (s && s.test && this.tl && this.tl.length) await vlog(this.env, 'timeline', JSON.stringify({ sid, tl: this.tl }), 30000);
+      // Brief 6, Part 4: how it sounded (gaps) and the eight tells, counted, for every test call
+      if (s && s.test) { try { const C = await import('./callcheck.js'); await vlog(this.env, 'callcheck', JSON.stringify({ sid, gaps: C.gapsOf(this.tl || []), tells: C.tellsOf(s.msgs), features: (s.line && s.line.features) || [] }), 8000); } catch (e) { /* a check, never the call */ } }
       let ok;
       try { ok = await writeUp(this.env, sid, s, why === 'closed' || why === 'status' ? 'ended' : why); } catch (e) {
         await vlog(this.env, 'writeup-error', JSON.stringify({ sid, why, error: String((e && e.message) || e).slice(0, 300) }));
