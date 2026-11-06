@@ -695,6 +695,9 @@ async function radarWatch(env) {
       await pushClient(env, n.cid, n.note).catch(() => 0);
       await radarPost(env, n.cid, n.town, week, now).catch(() => 0);
     }
+    // Each client's own town, wave or calm, counts only, for the app's Rate-Shock Radar card.
+    const { noteSeen } = await import('./radar.js');
+    for (const c of mine) { const k = townKey(c.town), t = k && out.find(x => !x.error && townKey(x.town) === k); if (t) await noteSeen(env, c.cid, week, t, new Date(now).toISOString()).catch(() => 0); }
   } catch (e) { /* the email above still went out */ }
   const waves = out.filter(x => x.wave);
   if (waves.length) await phonePush(env, { title: 'Rates rising in ' + waves.length + (waves.length === 1 ? ' town' : ' towns'), priority: 'default', tags: 'chart_with_upwards_trend', body: waves.map(x => x.town + ': ' + (x.why === 'low' ? x.low + ' low-star reviews' : x.rate + ' unhappy reviews about rates')).join('\n') + '\nDo: tell the agents there to call their renewals this week.' });

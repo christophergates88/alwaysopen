@@ -157,6 +157,11 @@ export async function handleSms(req, env, form, sigOk) {
   if (!key && cid !== OWN) {
     const own = await env.DB.prepare('SELECT phone FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
     if (own && ph10(own.phone) === from10) {
+      // A question back to Monday's timecard is answered from last week's calls (timecard.js); anything else is a note for Max.
+      try {
+        const ans = await (await import('./timecard.js')).timecardReply(env, cid, body);
+        if (ans) return xml('<Message>' + ans.replace(/[<&>]/g, '') + '</Message>');
+      } catch (e) { /* falls through to a note for Max */ }
       const { tellMax } = await import('./duties.js');
       const r = await tellMax(env, cid, body, 'Owner (text)').catch(() => ({ ok: false, error: 'That didn’t save. Try it in the app, on the Max tab.' }));
       const say = String(r.text || r.error || '').replace(/[<&>]/g, '');

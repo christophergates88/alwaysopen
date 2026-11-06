@@ -9,6 +9,7 @@ import { iosGaps, readSwift } from '../tools/iosparity.mjs';
 
 const WEB = ['src/apppage.js', 'src/rivalspage.js'].map(f => readFileSync(new URL('../' + f, import.meta.url), 'utf8')).join('\n');
 const webIds = [...WEB.matchAll(/data-card=\\?"([a-z0-9-]+)\\?"/g)].map(m => m[1]);
+const WEB_TEXT = WEB.replace(/\\{1,2}u([0-9a-fA-F]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
 
 test('every card the web app renders is on the list', () => {
   const extra = [...new Set(webIds.filter(id => !CARD_IDS.includes(id)))];
@@ -17,6 +18,10 @@ test('every card the web app renders is on the list', () => {
 test('every card on the list is rendered by the web app', () => {
   const missing = CARD_IDS.filter(id => !webIds.includes(id));
   assert.deepEqual(missing, [], 'the web app does not render: ' + missing.join(', '));
+});
+test('the web app says each card\u2019s words (the same words the iPhone card must say)', () => {
+  const missing = CARDS.flatMap(c => (c.words || []).filter(w => !WEB_TEXT.includes(w)).map(w => c.id + ': "' + w + '"'));
+  assert.deepEqual(missing, []);
 });
 test('the card list is well formed', () => {
   assert.equal(new Set(CARD_IDS).size, CARD_IDS.length, 'ids are unique');

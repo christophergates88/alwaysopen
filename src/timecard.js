@@ -103,8 +103,50 @@ export async function timecardFor(env, cid, now) {
 export async function timecardState(env, cid, now) {
   try {
     const tc = await timecardFor(env, cid, now);
-    return { label: tc.label, name: tc.name, hours: tc.nums.hours, calls: tc.nums.calls, booked: tc.nums.booked, kept: tc.nums.kept, due: tc.nums.due, caught: tc.nums.caught, leads: tc.nums.leads, cost: tc.nums.cost, back: tc.nums.back, text: tc.text };
+    // What was actually sent (Monday's text, when it went, and any question back with Max's answer).
+    let row = null;
+    try { await ensureTimecards(env); row = await env.DB.prepare('SELECT at, nums, status, qa FROM max_timecards WHERE client_id = ?1 AND week = ?2').bind(cid, tc.week).first(); } catch (e) { row = null; }
+    let nums = tc.nums, text = tc.text;
+    if (row && row.nums) { try { nums = Object.assign({}, tc.nums, JSON.parse(row.nums)); text = timecardText(nums, tc.name, tc.label); } catch (e) { /* worked out now */ } }
+    let qa = [];
+    try { qa = (JSON.parse((row && row.qa) || '[]') || []).filter(x => x && x.q && x.a).slice(-3).map(x => ({ q: String(x.q).slice(0, 300), a: String(x.a).slice(0, 400), at: x.at || '' })); } catch (e) { qa = []; }
+    const tz = await tzFor(env, cid);
+    const when = row && row.at ? new Date(row.at).toLocaleString('en-US', { timeZone: tz, weekday: 'long', hour: 'numeric', minute: '2-digit' }).replace(',', '') : '';
+    return { label: tc.label, name: tc.name, hours: nums.hours, calls: nums.calls, booked: nums.booked, kept: nums.kept, due: nums.due, caught: nums.caught, leads: nums.leads, cost: nums.cost, back: nums.back, text,
+      sent: !!(row && row.status === 'sent'), when, qa };
   } catch (e) { return null; }
+}
+
+// ---------- the owner's question back (Brief 7) ----------
+// A text from the owner to their own line, within 24 hours of a timecard going out, that asks something ("what did the
+// after-hours calls come from?") is answered from that week's call write-ups, in a sentence or two. Anything else the
+// owner texts is still a note for Max (duties.js tellMax).
+export const isQuestion = t => /\?\s*$/.test(String(t || '').trim()) || /^(what|which|how|who|why|when|where|did|was|were|any|anything)\b/i.test(String(t || '').trim());
+export const QA_PROMPT = 'Answer the owner\'s question about last week\'s calls from these write-ups only; numbers and plain words; under 40 words. If the write-ups do not answer it, say that in one short sentence. No greeting, no sign-off.';
+export function clip40(t) {
+  const w = String(t || '').replace(/\s+/g, ' ').trim().split(' ');
+  if (w.length <= 40) return w.join(' ');
+  const cut = w.slice(0, 40).join(' '), end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '));
+  return end > 40 ? cut.slice(0, end + 1) : cut.replace(/[,;:]?$/, '.');
+}
+export async function timecardReply(env, cid, text, now, h) {
+  now = now || Date.now(); h = h || {};
+  if (!isQuestion(text)) return null;
+  await ensureTimecards(env);
+  const row = await env.DB.prepare("SELECT week, at, qa FROM max_timecards WHERE client_id = ?1 AND status = 'sent' AND at > ?2 ORDER BY at DESC LIMIT 1").bind(cid, new Date(now - 24 * 3600e3).toISOString()).first().catch(() => null);
+  if (!row) return null;
+  const tz = await tzFor(env, cid);
+  const from = new Date(fromLocal(tz, row.week, 0, 0)).toISOString(), to = new Date(fromLocal(tz, addDay(row.week, 7), 0, 0)).toISOString();
+  const calls = ((await env.DB.prepare("SELECT at, caller_name, reason, summary, urgency, outcome FROM app_calls WHERE client_id = ?1 AND at >= ?2 AND at < ?3 AND test = 0 AND outcome NOT IN ('live', 'spam', 'limited', 'interview', 'failed') ORDER BY at LIMIT 80").bind(cid, from, to).all().catch(() => ({ results: [] }))).results) || [];
+  const lines = calls.map(c => { const l = local(tz, Date.parse(c.at)); return l.wd + ' ' + String(l.hour).padStart(2, '0') + ':' + String(l.minute).padStart(2, '0') + (isAfterHours(l) ? ' (after hours)' : '') + (/urgent/i.test(c.urgency || '') ? ' (urgent)' : '') + ': ' + String(c.summary || c.reason || 'call').replace(/\s+/g, ' ').slice(0, 220); });
+  const ask = h.brain || (async (sys, msgs) => (await (await import('./voice.js')).brain(env, sys, msgs, null, 140)).text);
+  let a = '';
+  try { a = clip40(await ask(QA_PROMPT, [{ role: 'user', content: 'Write-ups of last week\'s calls (' + calls.length + '):\n' + (lines.join('\n') || '(no calls)') + '\n\nThe owner asks: ' + String(text).slice(0, 400) }])); } catch (e) { a = ''; }
+  if (!a) return null;
+  let qa = []; try { qa = JSON.parse(row.qa || '[]') || []; } catch (e) { qa = []; }
+  qa.push({ q: String(text).slice(0, 300), a, at: new Date(now).toISOString() });
+  await env.DB.prepare('UPDATE max_timecards SET qa = ?1 WHERE client_id = ?2 AND week = ?3').bind(JSON.stringify(qa.slice(-6)), cid, row.week).run().catch(() => {});
+  return a;
 }
 
 // Monday morning, once a week per business. h: { send(cid, to, body, tz), push(cid, note) } for tests; defaults to the real ones.
@@ -112,7 +154,9 @@ export async function timecardCron(env, now, h) {
   now = now || Date.now();
   h = h || {};
   await ensureTimecards(env);
-  const rows = ((await env.DB.prepare("SELECT c.client_id, c.phone, c.business FROM app_clients c JOIN voice_lines l ON l.client_id = c.client_id WHERE c.active = 1 AND c.client_id != 'demo-plumbing' AND l.on_air = 1 GROUP BY c.client_id LIMIT 500").all()).results) || [];
+  const rows = ((await env.DB.prepare("SELECT c.client_id, c.phone, c.business, MAX(l.on_air) AS on_air FROM app_clients c JOIN voice_lines l ON l.client_id = c.client_id WHERE c.active = 1 AND c.client_id NOT IN ('demo-plumbing', 'always-open') GROUP BY c.client_id LIMIT 500").all()).results) || [];
+  // Every send and every skip is written down once a week, with the reason, so a quiet Monday can be read (Brief 7).
+  const note = (cid, week, what, why) => env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'timecard', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ cid, week, what, why })).run().catch(() => {});
   const stats = { looked: 0, sent: 0, held: 0 };
   for (const r of rows) {
     const tz = await tzFor(env, r.client_id);
@@ -122,13 +166,20 @@ export async function timecardCron(env, now, h) {
     const w = lastWeek(tz, now);
     const done = await env.DB.prepare("SELECT status FROM max_timecards WHERE client_id = ?1 AND week = ?2").bind(r.client_id, w.week).first().catch(() => null);
     if (done && done.status !== 'held') continue;
+    if (!+r.on_air) {
+      await env.DB.prepare("INSERT OR REPLACE INTO max_timecards (client_id, week, at, nums, status) VALUES (?1, ?2, ?3, '', 'off')").bind(r.client_id, w.week, new Date(now).toISOString()).run();
+      await note(r.client_id, w.week, 'skipped', 'the phone line is off');
+      continue;
+    }
     const tc = await timecardFor(env, r.client_id, now);
-    let status = 'app';
+    let status = 'app', why = r.phone ? '' : 'no owner cell on file, so it is in the app only';
     if (r.phone) {
       const send = h.send || (async (cid, to, body, z) => (await import('./sms.js')).sendText(env, { clientId: cid, to, body, kind: 'timecard', tz: z }));
       const res = await send(r.client_id, r.phone, tc.text, tz).catch(() => ({ ok: false }));
       status = res && res.ok ? 'sent' : (res && res.retry ? 'held' : 'app');
+      if (!(res && res.ok)) why = String((res && (res.why || res.error)) || 'the text did not send').slice(0, 160);
     }
+    await note(r.client_id, w.week, status === 'sent' ? 'sent' : (status === 'held' ? 'held, trying again' : 'skipped'), why);
     const push = h.push || (async (cid, note) => (await import('./app.js')).pushClient(env, cid, note));
     if (status !== 'held') await push(r.client_id, { aps: { alert: { title: tc.name + '’s week: ' + pl(tc.nums.calls, 'call', 'calls') + (tc.nums.booked ? ', ' + tc.nums.booked + ' booked' : ''), body: tc.text.split('\n').slice(1).join(' ').slice(0, 300) }, 'thread-id': 'timecard' }, screen: 'max' }).catch(() => {});
     await env.DB.prepare('INSERT OR REPLACE INTO max_timecards (client_id, week, at, nums, status) VALUES (?1,?2,?3,?4,?5)').bind(r.client_id, w.week, new Date(now).toISOString(), JSON.stringify(tc.nums), status).run();

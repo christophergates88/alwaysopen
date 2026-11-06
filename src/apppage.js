@@ -104,6 +104,33 @@ textarea{width:100%;min-height:140px;border:1.5px solid var(--line);border-radiu
 input[type=text],input[type=tel],input[type=date]{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px}
 .gcard{margin:18px 0 0;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.gcard .gh{display:flex;gap:12px;align-items:flex-start}.gcard .gh svg{width:22px;height:22px;color:var(--ok);flex:none;margin-top:2px}.gcard .gh b{display:block}.gcard .gh span{display:block;color:var(--slate);font-size:15px}.gcard details{margin-top:10px}.gcard summary{cursor:pointer;font-weight:600;font-size:15px;min-height:44px;display:flex;align-items:center}.gcard ul{margin:8px 0 6px;padding-left:18px;font-size:15px}.cg{display:inline-flex;align-items:center;gap:6px;font:600 15px var(--body);color:var(--ok);background:var(--ok-soft);border-radius:99px;padding:4px 10px;justify-self:start}
 .cg svg{width:15px;height:15px}
+/* Brief 7: the six cards, drawn like the website's pictures */
+.cgd{display:grid;gap:8px;margin:2px 0 0;padding:12px;border-radius:14px;border:1.5px solid rgba(92,201,164,.55);box-shadow:0 0 8px rgba(92,201,164,.22),inset 0 0 10px rgba(92,201,164,.06)}
+.cgd .cgl{display:flex;align-items:center;gap:8px;font:700 13px var(--mono);letter-spacing:.08em;color:var(--ok)}.cgd .cgl svg{width:18px;height:18px}
+.cgd p{margin:0;color:var(--slate);font-size:15px}.cgd ul{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:4px}
+.cgd li{display:flex;gap:10px;align-items:baseline;font-size:15px}.cgd li i{font-style:normal;font-weight:800;color:var(--ok)}.cgd li.no{color:var(--sign)}.cgd li.no i{color:var(--sign)}
+.rqh{font:600 13px var(--mono);color:var(--slate);letter-spacing:.02em}.rqw{font-size:15px;color:var(--slate)}
+.sdesk{background:var(--card);border:1.5px solid var(--warn);border-radius:18px;padding:14px 16px;display:grid;gap:10px;margin:0 0 14px;box-shadow:0 0 10px rgba(242,196,107,.25),inset 0 0 12px rgba(242,196,107,.08)}
+.sdesk .sbn{justify-self:start;font:400 1.5rem/1 'Tilt Neon',var(--display);color:#fff;letter-spacing:.04em;padding:8px 12px;border:2px solid var(--warn);border-radius:10px;text-shadow:0 0 2px #fff,0 0 8px var(--warn),0 0 18px var(--warn);box-shadow:0 0 8px var(--warn),inset 0 0 8px rgba(242,196,107,.3)}
+.sdesk .sl{margin:0;font-size:17px}.sdesk .lbl,.rdr .lbl{font:700 12px var(--mono);letter-spacing:.08em;color:var(--slate)}
+.sdesk.rest,.rdr.rest{border-color:var(--line);box-shadow:none;border-width:1px}.sdesk.rest p,.rdr.rest p{margin:0}
+.sdesk .sw2,.rdr .sw2{display:flex;align-items:center;gap:10px}.sdesk .sw2 i,.rdr .sw2 i{width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);flex:none}
+.rvhd{font:500 13px var(--mono);color:var(--slate)}.rvsign2{display:grid;justify-items:center;text-align:center;gap:2px;padding:14px 10px 12px}
+.rvsign2 .y{font:400 1rem 'Tilt Neon',var(--display);color:var(--slate);letter-spacing:.12em}.rvsign2 b{font:400 3.2rem/1 'Tilt Neon',var(--display);color:#fff;text-shadow:0 0 2px #fff,0 0 8px var(--sign),0 0 18px var(--sign),0 0 34px var(--sign)}.rvsign2.top b{text-shadow:0 0 2px #fff,0 0 8px var(--ok),0 0 18px var(--ok),0 0 34px var(--ok)}
+.rvsign2 span{color:var(--slate);font-size:15px}.rvtwo{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rvtwo div{display:grid;justify-items:center;gap:2px;padding:10px 6px;border-radius:12px;border:1.5px solid rgba(255,106,94,.6);box-shadow:0 0 8px rgba(255,106,94,.25)}
+.rvtwo div.lead{border-color:rgba(92,201,164,.6);box-shadow:0 0 8px rgba(92,201,164,.25)}.rvtwo b{font:400 1.8rem/1 'Tilt Neon',var(--display);color:#fff}.rvtwo span{font-size:15px;color:var(--slate);text-align:center}
+.rvone{padding:10px 12px;border-radius:12px;background:rgba(255,90,77,.08);border:1px solid rgba(255,106,94,.4);font-size:15px}.rvone b{display:block;color:var(--sign);margin-bottom:2px}
+.rvlist{list-style:none;margin:0;padding:0;display:grid;gap:0}.rvlist li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 0;border-top:1px solid var(--line);font-size:16px}.rvlist li.me{color:var(--sign);font-weight:700}
+.rvlist li span{font-variant-numeric:tabular-nums;white-space:nowrap}.rvlist li button{grid-column:1/-1;justify-self:start}
+.clk4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:2px 0 0}.clk4 div{display:grid;gap:0;align-content:start}.clk4 b{font:800 1.25rem/1.1 var(--display);font-stretch:92%;color:var(--ink)}.clk4 b.r{color:var(--sign)}.clk4 span{font-size:15px;line-height:1.2;color:var(--slate)}
+.tcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;display:grid;gap:8px;margin-top:10px}.tcard .tch{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.tcard .tch b{font:800 1.1rem var(--display);font-stretch:92%}
+.tcard .tw{justify-self:center;font:500 13px var(--mono);color:var(--slate)}
+.bub{max-width:86%;padding:10px 13px;border-radius:18px;font-size:16px;line-height:1.38;white-space:pre-line}.bub.in{justify-self:start;background:var(--panel);border-bottom-left-radius:6px}.bub.out{justify-self:end;background:var(--sign);color:var(--on-sign);border-bottom-right-radius:6px}
+.tcard .ex{display:grid;gap:8px;opacity:.55}.tcard .ex .chip{justify-self:center}
+.rdr{background:var(--card);border:1.5px solid var(--sign);border-radius:18px;padding:14px 16px;display:grid;gap:10px;margin-top:14px;box-shadow:var(--glow)}
+.rdr .rbn{justify-self:start;font:400 1.5rem/1 'Tilt Neon',var(--display);color:#fff;letter-spacing:.04em;padding:8px 12px;border:2px solid var(--sign);border-radius:10px;text-shadow:0 0 2px #fff,0 0 8px var(--sign),0 0 18px var(--sign);box-shadow:var(--glow)}
+.rdr .bub b{display:block;font-size:16px}.rdr .bub .bh{display:flex;justify-content:space-between;gap:10px;margin-bottom:2px}.rdr .bub .bh b{font-size:15px}.rdr .bub .bh small{font:500 13px var(--mono);color:var(--slate)}
+
 .hits{background:var(--sign-soft);border-radius:12px;padding:10px 12px;font-size:15px}
 .hits b{display:block;margin-bottom:4px}
 .hits ul{margin:0;padding-left:18px}
@@ -309,6 +336,7 @@ function store(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===n
 function toast(t){var el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){el.classList.remove('on');},2600);}
 function api(path,opt){return fetch(BASE+'/api/'+path,opt||{}).then(function(r){return r.json().catch(function(){return {ok:false,error:'Something went wrong.'};}).then(function(j){return {status:r.status,j:j};});});}
 function post(path,obj){return api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(obj)});}
+function ago(iso){var t=Date.parse(iso);if(!t)return '';var m=Math.round((Date.now()-t)/60000);if(m<1)return 'just now';if(m<60)return m+(m===1?' minute ago':' minutes ago');var h=Math.round(m/60);if(h<24)return h+(h===1?' hour ago':' hours ago');var d=Math.round(h/24);return d+(d===1?' day ago':' days ago');}
 function when(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d))return '';var now=new Date(),same=d.toDateString()===now.toDateString();return same?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
 function stars(n){n=Math.max(0,Math.min(5,Math.round(+n||0)));return n?'\\u2605\\u2605\\u2605\\u2605\\u2605'.slice(0,n)+'\\u2606\\u2606\\u2606\\u2606\\u2606'.slice(0,5-n):'';}
 var ICON={check:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -527,7 +555,8 @@ function needCards(){
   var out=[],f=S.features||{};
   var calls=(S.calls||[]).filter(function(c){return c.status!=='handled';}).sort(function(a,b){return (b.urgent?1:0)-(a.urgent?1:0);});
   calls.forEach(function(c){out.push(callCard(c));});
-  (S.items||[]).forEach(function(it){out.push(card(it));});
+  var shown={};((S.storm&&S.storm.active)||[]).forEach(function(a){shown[a.id]=1;});if(S.radar&&S.radar.wave&&S.radar.post)shown[S.radar.post.id]=1;
+  (S.items||[]).forEach(function(it){if(!shown[it.id])out.push(card(it));});
   var due=(S.followups||[]).filter(isDue).sort(function(a,b){return String(a.due||'').localeCompare(String(b.due||''));}).slice(0,3);
   due.forEach(function(x){out.push(fuCard(x));});
   var leads=(S.leads||[]).filter(function(l){return l.status==='new';}).length;
@@ -542,7 +571,7 @@ function todayNums(){
 }
 function vToday(){
   var first=(S.me&&S.me.name)||S.client.first||'';
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard();
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
   var need=needCards();
   h+='<h2>Needs you</h2>';
   if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
@@ -568,7 +597,7 @@ function vCustomers(){
 }
 function vMoney(){
   var f=S.features||{};
-  var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+upCard()+vReviews();
+  var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+stormRest()+radarRest()+upCard()+vReviews();
   if(isOwner())h+='<h2>Your account</h2>'+setBlock()+teamBlock();
   h+=metaBlock()+guardCard();
   return h;
@@ -825,11 +854,52 @@ function monthNowCard(){
     (m.worth?'<p class="mnow-w">After-hours calls worth about <b>$'+Number(m.worth).toLocaleString('en-US')+'</b> so far</p>':'')+
     (m.insight?'<p class="note" style="margin:8px 0 0">'+esc(m.insight)+'</p>':'')+'</div>';
 }
+// Storm Desk (the website's picture): the warning banner, the warning and when it ends, the post written for it, and
+// Approve / Edit first on that post. Between storms: what it is watching and when it last looked.
+function itemById(id){return (S.items||[]).filter(function(x){return x.id===id;})[0]||null;}
+function liveActs(id,status){
+  if(status!=='pending'||!itemById(id))return '';
+  return '<div class="acts"><button class="btn ok" type="button" data-a="approve" data-id="'+esc(id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(id)+'">Edit first</button></div>';
+}
+function stormLive(){
+  var St=S.storm;if(!St||!(St.active||[]).length)return '';
+  return St.active.map(function(a){
+    var it=itemById(a.id);if(it&&EDIT[it.id]!=null)return card(it);
+    var t=a.status==='approved'?'Your post went out at '+new Date(a.decidedAt||a.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+'.':'Your post is written and waiting.';
+    return '<div data-card="storm" class="sdesk" id="c-'+esc(a.id)+'"><div class="sbn">'+esc(a.sign)+'</div><p class="sl">'+esc(a.line)+' '+t+'</p>'+
+      '<div class="lbl">YOUR GOOGLE POST · '+(a.status==='approved'?'APPROVED':'READY FOR YOUR OK')+'</div><div class="draft">'+esc(a.text)+'</div><div class="hits" hidden></div>'+liveActs(a.id,a.status)+'</div>';
+  }).join('');
+}
+function stormRest(){
+  var St=S.storm;if(!St||(St.active||[]).length)return '';
+  var last=St.lastCheck?ago(St.lastCheck):'';
+  return '<div data-card="storm" class="sdesk rest"><h3 style="margin:0">Storm Desk</h3><div class="sw2"><i></i><p><b>'+(St.county?'Storm Desk is watching '+esc(St.county)+'.':'Storm Desk is watching for your county.')+'</b></p></div>'+
+    '<p class="fine">'+(St.county?(last?'Last checked '+esc(last)+'. ':'Checked every 10 minutes. ')+'Nothing active.':'It finds your county from the address on your map card, then checks the weather service every 10 minutes.')+'</p>'+
+    '<p class="fine">When a warning hits, your Google post is written before the rain and waits here for your OK.</p></div>';
+}
+// Rate-Shock Radar (insurance agencies, the website's picture): the Monday text, the RATES RISING banner, the post.
+function radarLive(){
+  var R=S.radar;if(!R||!R.wave)return '';
+  var it=R.post&&itemById(R.post.id);if(it&&EDIT[it.id]!=null)return card(it);
+  var when=R.checkedAt?new Date(R.checkedAt).toLocaleString('en-US',{weekday:'short',hour:'numeric',minute:'2-digit'}).replace(',',''):'Monday';
+  return '<div data-card="radar" class="rdr"'+(R.post?' id="c-'+esc(R.post.id)+'"':'')+'><div class="bub in"><div class="bh"><b>Always Open</b><small>'+esc(when)+'</small></div><b>Rates rising in '+esc(R.town)+'</b>'+esc(R.text)+'</div>'+
+    '<div class="rbn">RATES RISING</div><p style="margin:0">Unhappy reviews about rate increases are piling up at agencies in your town this month.</p>'+
+    (R.post?'<div class="lbl">YOUR GOOGLE POST · '+(R.post.status==='approved'?'APPROVED':'READY FOR YOUR OK')+'</div><div class="draft">'+esc(R.post.text)+'</div><div class="hits" hidden></div>'+liveActs(R.post.id,R.post.status):'')+'</div>';
+}
+function radarRest(){
+  var R=S.radar;if(!R||R.wave)return '';
+  var day=R.checkedAt?new Date(R.checkedAt).toLocaleDateString('en-US',{weekday:'long'}):'';
+  return '<div data-card="radar" class="rdr rest"><h3 style="margin:0">Rate-Shock Radar</h3><div class="sw2"><i></i><p><b>Rate-Shock Radar is watching '+esc(R.town||'your town')+'.</b></p></div>'+
+    '<p class="fine">'+(day?'Checked '+esc(day)+'. Calm this week.':'First check is Monday morning.')+'</p><p class="fine">When unhappy reviews about rate increases pile up at agencies in your town, you get a heads-up and a post that Monday.</p></div>';
+}
 // Max's clock: this month on one dial (server-drawn, clock.js), the two numbers, the one call, and the list behind it.
 function clockCard(){
   var K=S.clock;if(!K)return '';
   var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
-  var facts='<ul class="cl">'+(K.worth?'<li><b>$'+Math.round(K.worth).toLocaleString('en-US')+'</b> caught while you were closed</li>':'')+'<li><b>'+hb(K.onMin)+'</b> on the clock</li>'+(K.calls?'<li><b>'+K.calls+'</b> '+(K.calls===1?'call':'calls')+', '+K.alone+' handled alone'+(K.toYou?', <b>'+K.toYou+'</b> brought to you':'')+'</li>':'')+(K.backMin?'<li><b>'+hb(K.backMin)+'</b> back to you</li>':'')+'</ul>';
+  // The website's four numbers under the dial: caught closed, on the clock, calls, to you.
+  var cell=function(b,l,red){return '<div><b'+(red?' class="r"':'')+'>'+b+'</b><span>'+l+'</span></div>';};
+  var facts='<div class="clk4">'+cell(K.worth?'$'+Math.round(K.worth).toLocaleString('en-US'):'\u2014','caught closed',true)+cell(Math.round((+K.onMin||0)/60)+'h','on the clock')+cell(K.calls||0,K.calls===1?'call':'calls')+cell(K.toYou||0,'to you',true)+'</div>'+
+    (!K.worth&&K.after?'<p class="fine" style="margin:0">Add your average job on Money to see what the closed-hours calls were worth.</p>':'');
   return '<div data-card="clockcard" class="clock'+(K.liveMin>=0?' onair':'')+'" id="clockcard"><div class="ch"><b>'+nm+'\u2019s clock</b><span>'+(K.liveMin>=0?'<i class="dot"></i>on a call now':esc(K.month||'this month')+' so far')+'</span></div>'+K.svg+facts+
     (K.one?'<p class="one"><b>The one call.</b> '+esc(K.one)+'</p>':(K.n?'':'<p class="one">Nothing yet this month. '+nm+' is on the clock anyway; the first call lands here.</p>'))+
     '<div class="acts"><button class="btn line sm" type="button" data-a="clock-list">'+(K.n?'Everything on the dial':'How this works')+'</button>'+(S.monthNow&&S.monthNow.page?'<a class="btn ghost sm" href="'+esc(BASE+S.monthNow.page)+'">This month\u2019s page</a>':'')+'</div></div>';
@@ -1053,15 +1123,16 @@ function vMax(){
   }
   return h;
 }
-// Max's timecard: last week, Monday to Sunday (timecard.js). Also texted to the owner every Monday morning.
+// Max's timecard (the website's picture): the Monday text as it arrived, then a question back and Max's answer. Until the
+// owner has asked one, a faded example pair shows what asking looks like.
 function timecardCard(){
   var T=S.timecard;if(!T)return '';
-  var d=function(n){return '$'+Math.round(+n||0).toLocaleString('en-US');};
-  var row=function(k,v){return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span class="fine" style="margin:0">'+k+'</span><b>'+v+'</b></div>';};
-  return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px"><b>'+esc(T.name)+'\\u2019s timecard</b><span class="fine">'+esc(T.label)+'</span></div>'+
-    row('On the clock',T.hours+' hours')+row('Answered',T.calls+(T.calls===1?' call':' calls'))+(T.booked?row('Booked',T.booked):'')+(T.due?row('Call-backs kept',T.kept+' of '+T.due):'')+
-    (T.caught?row('Caught after hours','about '+d(T.caught)):(T.leads?row('After-hours leads',T.leads):''))+(T.back?row('Back to you',(function(min){var h=Math.floor(min/60),m=min%60;return h?h+(h===1?' hour':' hours')+(m?' '+m+' min':''):m+' min';})(T.back)):'')+(T.cost?row('Cost you',d(T.cost)):'')+
-    '<p class="fine" style="margin:8px 0 0">'+(T.calls?'':'Quiet week. He was there anyway. ')+'Texted to you every Monday morning.</p></div>';
+  var pair=function(q,a){return '<div class="bub out">'+esc(q)+'</div><div class="bub in">'+esc(a)+'</div>';};
+  var qa=(T.qa||[]).slice(-1)[0];
+  return '<div data-card="timecard" class="tcard"><div class="tch"><b>'+esc(T.name)+'’s timecard</b><span class="fine">'+esc(T.label)+'</span></div>'+
+    '<div class="tw">'+esc(T.when||'Every Monday morning')+'</div><div class="bub in">'+esc(T.text)+'</div>'+
+    (qa?pair(qa.q,qa.a):'<div class="ex"><span class="chip">Example</span>'+pair('What did the after-hours calls come from?','6 water heaters, 2 clogs, 1 leak under a sink, 1 asked for a quote. 4 booked on the call.')+'</div>')+
+    '<p class="fine" style="margin:0">'+(T.sent?'Texted to you every Monday morning. ':'In your app every Monday morning. ')+'Text back a question about last week’s calls and '+esc(T.name)+' answers from them.</p></div>';
 }
 // Max's job description (duties.js) and "Tell Max": owner only (the server sends duties only to the owner).
 function jobCard(L){
@@ -1212,6 +1283,12 @@ function install(){
   if(DEFER)return '<div class="banner"><div><b>Install Always Open</b>Keep it on your phone like an app.</div><button class="btn red" type="button" data-a="inst">Install</button></div>';
   return '';
 }
+// Compliance Guard on the card (the website's picture): the label, what it checked against, the draft, the three lines.
+function guardBlock(it,body){
+  var reg=S.client.regulated,post=it.kind==='post';
+  return '<div class="cgd" data-card="guard"><div class="cgl">'+ICON.shield+'COMPLIANCE GUARD</div><p class="fine">'+(post?'Draft post':'Draft reply')+', '+(reg?'checked against your approved wording:':'checked before it reaches you:')+'</p>'+body+
+    '<ul>'+(it.checks||[]).map(function(c){return '<li class="'+(c.ok?'':'no')+'"><i>'+(c.ok?'\u2713':'\u2715')+'</i>'+esc(c.label)+'</li>';}).join('')+'</ul></div>';
+}
 function card(it){
   var reg=S.client.regulated,ed=EDIT[it.id];
   var kind=it.kind==='post'?'Google post':(it.kind==='reviewreq'?'Review request':'Review reply');
@@ -1223,9 +1300,20 @@ function card(it){
   var vs=VERS[it.id];
   if(vs&&vs.length)body+='<div class="vers">'+vs.map(function(v,i){return '<div class="ver"><div class="lbl">'+esc(v.label)+'</div><div class="draft">'+esc(v.text)+'</div><button class="btn line" type="button" data-a="usever" data-id="'+esc(it.id)+'" data-i="'+i+'">Use this one</button></div>';}).join('')+'</div>';
   else if(vs==='loading')body+='<p class="fine">Writing two more versions\u2026</p>';
-  var cg=it.checked?'<span class="cg">'+ICON.shield+'Checked by Compliance Guard</span>':'';
+  var guarded=(it.checks&&it.checks.length)&&ed==null&&it.kind!=='reviewreq';
+  if(guarded){
+    var draftOnly='<div class="draft">'+esc(it.text)+'</div>';
+    body=pic+guardBlock(it,draftOnly);
+    if(vs&&vs.length)body+='<div class="vers">'+vs.map(function(v,i){return '<div class="ver"><div class="lbl">'+esc(v.label)+'</div><div class="draft">'+esc(v.text)+'</div><button class="btn line" type="button" data-a="usever" data-id="'+esc(it.id)+'" data-i="'+i+'">Use this one</button></div>';}).join('')+'</div>';
+    else if(vs==='loading')body+='<p class="fine">Writing two more versions\u2026</p>';
+    if(it.kind!=='post'){
+      head='<div class="rqh">Reply to approve \u00b7 Google review</div>'+(it.stars?'<span class="stars" aria-label="'+it.stars+' stars">'+stars(it.stars)+'</span>':'');
+      ctx=(it.context?'<blockquote>\u201c'+esc(it.context)+'\u201d</blockquote>':'<blockquote>Rating only, no written review.</blockquote>')+'<div class="rqw">'+esc(it.title||'A customer')+(it.created?' \u00b7 '+esc(ago(it.created)):'')+'</div>';
+    }else head='<div class="rqh">Post to approve \u00b7 Google</div>';
+  }
+  var cg='';
   var acts=ed!=null?'<button class="btn ok" type="button" data-a="save" data-id="'+esc(it.id)+'">Save and approve</button><button class="btn ghost" type="button" data-a="cancel" data-id="'+esc(it.id)+'">Cancel</button>':
-    '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">Edit</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
+    '<button class="btn ok" type="button" data-a="approve" data-id="'+esc(it.id)+'">'+ICON.check.replace('<svg','<svg width="20" height="20"')+'Approve</button><button class="btn line" type="button" data-a="edit" data-id="'+esc(it.id)+'">'+(guarded?'Change the words':'Edit')+'</button>'+(S.features&&S.features.versions&&it.kind!=='post'&&it.kind!=='reviewreq'&&!vs?'<button class="btn ghost" type="button" data-a="versions" data-id="'+esc(it.id)+'">Other versions</button>':'')+'<button class="btn ghost" type="button" data-a="skip" data-id="'+esc(it.id)+'">Skip</button>';
   return '<article data-card="item" class="card'+(ed!=null?'':' swp')+'" id="c-'+esc(it.id)+'" data-sw="'+esc(it.id)+'">'+(ed!=null?'':'<span class="swhint ok">Approve</span><span class="swhint no">Skip</span>')+head+ctx+body+cg+'<div class="hits" hidden></div><div class="acts">'+acts+'</div></article>';
 }
 var FILT='all';

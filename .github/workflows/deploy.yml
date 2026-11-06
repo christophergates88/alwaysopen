@@ -19,6 +19,7 @@ jobs:
           npx playwright install --with-deps chromium
           node tools/phonecheck.mjs
           APP_SHOTS=app-shots node tools/appcheck.mjs
+          APP_SHOTS=app-shots node tools/wallcheck.mjs
       - name: Print the map screenshots (read from the log)
         if: always()
         run: bash tools/printshots.sh

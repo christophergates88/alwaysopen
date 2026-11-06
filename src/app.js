@@ -507,6 +507,9 @@ async function apiState(env, c, ctx) {
   try { out.minutes = (f.calls && line && !c.staff) ? await (await import('./minutes.js')).meterFor(env, cid) : null; } catch (e) { out.minutes = null; }
   try { out.money = (f.calls && line && !tech) ? await (await import('./money.js')).moneyState(env, cid) : null; } catch (e) { out.money = null; }
   try { out.timecard = (f.calls && line && !c.staff) ? await (await import('./timecard.js')).timecardState(env, cid) : null; } catch (e) { out.timecard = null; }
+  // Storm Desk and Rate-Shock Radar cards (Brief 7): live when they have fired, resting (what they watch) when quiet.
+  try { out.storm = tech ? null : await (await import('./stormdesk.js')).stormState(env, c, Date.now(), await (await import('./callbacks.js')).tzFor(env, cid)); } catch (e) { out.storm = null; }
+  try { out.radar = tech ? null : await (await import('./radar.js')).radarState(env, c); } catch (e) { out.radar = null; }
   // Max's clock: this month on one dial (clock.js), for Today and the month page. Techs see counts, never reasons.
   try { out.clock = await clockState(env, c, tech, { worth: out.money && out.money.thisMonth && out.money.thisMonth.avgJob ? out.money.thisMonth.mid : 0, live: out.live && out.live[0] ? out.live[0].at : null }); } catch (e) { out.clock = null; }
   try { out.reconnect = c.staff ? [] : await (await import('./connections.js')).brokenFor(env, cid); } catch (e) { out.reconnect = []; }

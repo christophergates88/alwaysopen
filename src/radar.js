@@ -84,3 +84,38 @@ export function planTowns(clientTowns, listTowns, budget, weekNo) {
   const towns = mine.map(t => ({ town: t, client: true })).concat(theirs.map(t => ({ town: t, client: false })));
   return { towns, extra: budget - towns.length, skipped: clients.length + list.length - towns.length };
 }
+
+// ---------- the app's Rate-Shock Radar card (Brief 7) ----------
+// What each insurance client's own town showed on the last Monday check: counts only (how many recent reviews were
+// unhappy about rates, how many were 1 or 2 stars). Nothing from Google is kept: no agency, reviewer or review text.
+export async function ensureRadarSeen(env) {
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS radar_seen (client_id TEXT NOT NULL, week TEXT NOT NULL, town TEXT, wave INTEGER DEFAULT 0, rate INTEGER DEFAULT 0, low INTEGER DEFAULT 0, why TEXT DEFAULT \'\', at TEXT, PRIMARY KEY (client_id, week))').run();
+}
+export async function noteSeen(env, cid, week, t, at) {
+  await ensureRadarSeen(env);
+  await env.DB.prepare('INSERT OR REPLACE INTO radar_seen (client_id, week, town, wave, rate, low, why, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+    .bind(cid, week, t.town, t.wave ? 1 : 0, +t.rate || 0, +t.low || 0, t.why || '', at).run();
+}
+// The text the owner got that Monday (the same words index.js radarNotes pushes). Pure.
+export function radarText(w) {
+  const byRate = w.why ? w.why === 'rate' : (+w.rate || 0) >= 2;
+  return byRate ? 'Do this: call your renewals this week, before they shop. ' + w.rate + ' recent reviews of agencies in ' + w.town + ' complain about rate increases. A short post about what moves rates is ready for your OK.'
+    : 'Do this: check in with your renewals this week. ' + w.low + ' low-star reviews of agencies in ' + w.town + ' in the last 30 days. A short post about what moves rates is ready for your OK.';
+}
+export async function radarState(env, c) {
+  if (!c || c.client_id === 'demo-plumbing' || c.client_id === 'always-open') return null;
+  const cid = c.client_id;
+  const who = await env.DB.prepare("SELECT (SELECT v.industry FROM voice_lines v WHERE v.client_id = ?1 ORDER BY v.number LIMIT 1) AS ind, (SELECT b.type FROM billing b WHERE b.client_id = ?1) AS btype, " +
+    "COALESCE(NULLIF((SELECT b.town FROM billing b WHERE b.client_id = ?1), ''), (SELECT v.town FROM voice_lines v WHERE v.client_id = ?1 ORDER BY v.number LIMIT 1)) AS town").bind(cid).first().catch(() => null);
+  if (!who || !(/insurance/i.test(who.ind || '') || who.btype === 'Insurance agency')) return null;
+  await ensureRadarSeen(env);
+  const last = await env.DB.prepare('SELECT * FROM radar_seen WHERE client_id = ?1 ORDER BY week DESC LIMIT 1').bind(cid).first().catch(() => null);
+  const town = normTown(who.town) || (last && last.town) || '';
+  const out = { town, lastWeek: (last && last.week) || '', checkedAt: (last && last.at) || '', wave: !!(last && +last.wave), rate: last ? +last.rate || 0 : 0, low: last ? +last.low || 0 : 0, why: (last && last.why) || '', text: '', post: null };
+  if (out.wave) {
+    out.text = radarText({ town: last.town || town, rate: out.rate, low: out.low, why: out.why });
+    const p = await env.DB.prepare("SELECT id, text, decided_text, status, created FROM app_items WHERE id = ?1 AND client_id = ?2").bind('radar:' + cid + ':' + last.week, cid).first().catch(() => null);
+    if (p && p.status !== 'skipped') out.post = { id: p.id, text: p.status === 'approved' ? (p.decided_text || p.text) : p.text, status: p.status === 'approved' ? 'approved' : 'pending' };
+  }
+  return out;
+}

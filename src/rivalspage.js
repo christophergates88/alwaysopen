@@ -10,7 +10,8 @@ function rivalCard(){
   if(!f.competitors)return '<div class="feature locked"><h3>Competitor watch</h3><p>See where you stand against the top businesses like yours nearby on Google, and what it takes to be #1. Comes with Growth.</p><div class="acts"><button class="btn line" type="button" data-a="ask-growth">Ask about Growth</button></div></div>';
   var L=(R&&R.status==='ok')?R:RVLIVE;
   var rk=(L&&L.status==='ok')?rvRank(L.rows||[]):null;
-  var h='<div data-card="rivals" class="feature'+(rk&&rk.pos>1?' behind':'')+'" id="rivals"><h3>Competitor watch</h3>';
+  var open='<div data-card="rivals" class="feature'+(rk&&rk.pos>1?' behind':'')+'" id="rivals">';
+  var h=open+'<h3>Competitor watch</h3>';
   if(!R||R.status==='first'){
     h+='<p>We look up the top businesses like yours nearby: their Google rating and how many reviews they have.</p><p class="fine">This switches on soon.</p>';
   }else if(R.status==='profile'||(L&&L.status==='profile')){
@@ -21,18 +22,12 @@ function rivalCard(){
     if(L&&L.message)h+='<p class="fine">'+esc(L.message)+'</p>';
     h+='<div class="acts"><button class="btn line" type="button" data-a="rv-live"'+(RVBUSY?' disabled':'')+'>'+(RVBUSY?'Checking…':'Check now')+'</button></div>';
   }else{
-    h+=rvSign(L.rows||[],L.toFirst);
-    if(L.note)h+='<p>'+esc(L.note)+'</p>';
-    h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="text-align:left"><th style="padding:6px 4px 6px 0;font-weight:600">Business</th><th style="padding:6px 4px;font-weight:600">Rating</th><th style="padding:6px 0 6px 4px;font-weight:600">Reviews</th></tr>';
-    (L.rows||[]).forEach(function(r){
-      h+='<tr style="border-top:1px solid var(--line,rgba(128,128,128,.25))"><td style="padding:7px 4px 7px 0">'+(r.own?'<b>You</b>':esc(r.name))+(R.owner&&!r.own&&r.id&&!L.sample?' <button class="btn ghost sm" type="button" data-a="rv-remove" data-id="'+esc(r.id)+'" aria-label="Stop watching '+esc(r.name)+'">Remove</button>':'')+'</td>'
-        +'<td style="padding:7px 4px;font-variant-numeric:tabular-nums">'+(r.rating?r.rating.toFixed(1):'—')+'</td>'
-        +'<td style="padding:7px 0 7px 4px;font-variant-numeric:tabular-nums">'+(+r.reviews).toLocaleString('en-US')+'</td></tr>';
-    });
-    h+='</table></div><p class="gm">Google Maps</p>';
-    if(L.share){var sh=L.share;h+='<div class="share" style="margin-top:12px;padding:12px;border:1px solid var(--line,rgba(128,128,128,.25));border-radius:12px"><b>Estimated potential share: about '+esc(sh.range)+'</b><p class="fine" style="margin:4px 0 0">Of the '+(sh.compared+1)+' businesses on this list, by the model below.</p>'+(sh.factors&&sh.factors.length?'<p style="margin:8px 0 0;font-size:14px">What holds it back:</p><ul style="margin:4px 0 0 18px;padding:0;font-size:14px">'+sh.factors.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+'<details style="margin-top:8px"><summary class="fine">How this is estimated</summary><p class="fine">'+esc(sh.assumptions)+'</p></details></div>';}
-    h+='<p class="fine" style="margin-top:8px">Looked up just now. We don’t keep these numbers, so there is no week-to-week history.</p>';
-    if(!L.sample)h+='<div class="acts" style="margin-top:6px"><button class="btn ghost sm" type="button" data-a="rv-live"'+(RVBUSY?' disabled':'')+'>'+(RVBUSY?'Checking…':'Check again')+'</button></div>';
+    // The website's picture, top to bottom: when it was checked, the sign, the two ratings, what it takes to be #1, the
+    // numbered list (you in the sign color), where the numbers come from, and Check now.
+    h=open+'<div class="rvhd">Competitor watch \u00b7 '+esc(rvWhen(L.checkedAt))+'</div>'+rvBoard(L,R);
+    h+='<p class="fine">Numbers from Google Maps, looked up when you tap Check now, and not kept.</p>';
+    h+='<div class="acts"><button class="btn line" type="button" data-a="rv-live"'+(RVBUSY?' disabled':'')+'>'+(RVBUSY?'Checking\u2026':'Check now')+'</button></div>';
+    if(L.share){var sh=L.share;h+='<details><summary class="fine">Estimated share: about '+esc(sh.range)+'</summary><p class="fine">Of the '+(sh.compared+1)+' businesses on this list.'+(sh.factors&&sh.factors.length?' What holds it back: '+sh.factors.map(esc).join('; ')+'.':'')+'</p><p class="fine">'+esc(sh.assumptions)+'</p></details>';}
     if(R.canAdd)h+='<div class="acts" style="gap:8px;flex-wrap:wrap;margin-top:8px"><input id="rvq" type="text" maxlength="100" placeholder="Add a business to watch (name and town)" style="flex:1;min-width:180px"><button class="btn line sm" type="button" data-a="rv-add">Add</button></div>';
   }
   return h+'</div>';
@@ -44,15 +39,21 @@ function rvRank(rows){
   var top=list[0],most=0;rows.forEach(function(r){if(+r.reviews>most)most=+r.reviews;});
   return {me:me,pos:pos,of:list.length,top:top,most:most};
 }
-function rvSign(rows,F){
-  var k=rvRank(rows);if(!k)return '';
-  var red=k.pos>1,gapR=k.top.rating&&k.me.rating?(k.top.rating-k.me.rating):0;
-  var h='<div class="rvsign'+(red?' red':'')+'"><b>'+(k.pos===1?'YOU’RE #1':'YOU’RE #'+k.pos)+'</b><span>'+(k.pos===1?'Top rating of the '+k.of+' businesses you watch.':'Of '+k.of+' by Google rating. '+esc(k.top.name)+' is #1.')+'</span></div>';
-  h+='<div class="rvnums"><div'+(red?' class="red"':'')+'><b>'+(k.me.rating?k.me.rating.toFixed(1):'—')+'</b><span>your rating</span></div>'
-    +'<div><b>'+(k.top.rating?k.top.rating.toFixed(1):'—')+'</b><span>top rating</span></div>'
-    +'<div'+((+k.me.reviews)<k.most?' class="red"':'')+'><b>'+(+k.me.reviews).toLocaleString('en-US')+'</b><span>your reviews'+((+k.me.reviews)<k.most?' (top: '+k.most.toLocaleString('en-US')+')':'')+'</span></div></div>';
-  if(red&&F&&F.k)h+='<div class="rvfirst" style="margin-top:12px"><b>To be #1</b><p style="margin:4px 0 0">'+F.k+' more 5-star '+(F.k===1?'review':'reviews')+'.'+(F.weeks?' At your pace, about '+F.weeks+(F.weeks===1?' week':' weeks')+'.':'')+'</p></div>';
-  if(red)h+='<div class="hits" style="font-size:14.5px"><b>Do this:</b> '+(gapR>0.05?'ask every customer this week for a review. ':'')+'Send the review request after each finished job, from the app.</div>';
+function rvNoun(){var t=String((S.map&&S.map.trade)||'').trim();if(!t)return 'businesses like yours';return /[^aeiou]y$/.test(t)?t.slice(0,-1)+'ies':t+'s';}
+function rvNear(){var t=String((S.map&&S.map.town)||'').split(',')[0].trim();return t?' near '+t:'';}
+function rvWhen(at){var t=Date.parse(at||'');if(!t)return 'checked just now';var m=Math.round((Date.now()-t)/60000);return m<2?'checked just now':(m<60?'checked '+m+' min ago':'checked at '+new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));}
+function rvBoard(L,R){
+  var rows=L.rows||[],k=rvRank(rows);if(!k)return '';
+  var f1=function(x){return x?(+x).toFixed(1):'\u2014';},nn=function(x){return (+x||0).toLocaleString('en-US');};
+  var list=rows.slice().sort(function(a,b){return (b.rating||0)-(a.rating||0)||(+b.reviews||0)-(+a.reviews||0);});
+  var first=k.pos===1,other=first?list[1]:k.top;
+  var h='<div class="rvsign2'+(first?' top':'')+'"><span class="y">YOU\u2019RE</span><b>#'+k.pos+'</b><span>of '+k.of+' '+esc(rvNoun())+esc(rvNear())+', on rating</span></div>';
+  h+='<div class="rvtwo"><div'+(first?' class="lead"':'')+'><b>'+f1(k.me.rating)+'\u2605</b><span>you \u00b7 '+nn(k.me.reviews)+' reviews</span></div>'+(other?'<div class="lead"><b>'+f1(other.rating)+'\u2605</b><span>'+(first?'next \u00b7 ':'the leader \u00b7 ')+nn(other.reviews)+' reviews</span></div>':'')+'</div>';
+  var F=L.toFirst,ask=(S.features||{}).jobs?' Every finished job already gets the ask.':' Ask every customer once the job is done.';
+  var pace=F&&F.weeks?'At your pace, about '+F.weeks+(F.weeks===1?' week.':' weeks.'):(L.paceKnown?'At your pace, more than two years.':'We\u2019ll know your pace after a few weeks.');
+  if(first)h+='<div class="rvone"><b>To stay #1</b>Keep the reviews coming.'+ask+'</div>';
+  else h+='<div class="rvone"><b>To be #1</b>'+(F&&F.k?F.k+' more 5-star '+(F.k===1?'review':'reviews')+'. '+pace:'Out of reach on rating for now. Keep the reviews coming.')+ask+'</div>';
+  h+='<ol class="rvlist">'+list.map(function(r,i){return '<li'+(r.own?' class="me"':'')+'><b>'+(i+1)+'. '+(r.own?'You':esc(r.name))+'</b><span>'+f1(r.rating)+'\u2605 \u00b7 '+nn(r.reviews)+'</span>'+(R.owner&&!r.own&&r.id&&!L.sample?'<button class="btn ghost sm" type="button" data-a="rv-remove" data-id="'+esc(r.id)+'" aria-label="Stop watching '+esc(r.name)+'">Stop watching</button>':'')+'</li>';}).join('')+'</ol>';
   return h;
 }
 function rvAct(a,id,t){
