@@ -56,7 +56,7 @@ async function ensure(env) {
 
 async function handleMail(env, b, json, today) {
   const mails = (b.mails || []).slice(0, 12);
-  if (!mails.length) return json({ ok: true, changes: [] });
+  if (!mails.length) return json({ ok: true, changes: [], mail: true });
   const user = `Today: ${b.now || ''} (${b.weekday || ''})\n\n` + mails.map((m, i) => `=== Email ${i + 1}\nFrom: ${String(m.from).slice(0, 120)}\nDate: ${m.date}\nSubject: ${String(m.subject).slice(0, 200)}\n\n${String(m.text).slice(0, 2500)}`).join('\n\n');
   const out = await haiku(env, user, MAILSYS);
   if (!out) return json({ ok: false, error: 'ai' }, 502);
@@ -74,7 +74,7 @@ async function handleMail(env, b, json, today) {
         old ? 'changed' : 'new', 'email', now, now, kind, typeof p.amount === 'number' ? p.amount : null, p.important ? 1 : 0, mails.length === 1 ? String(mails[0].link || '').slice(0, 300) : null).run();
     changes.push({ key, status: old ? 'changed' : 'new', date: p.date, t, what: String(p.what || '').slice(0, 80), who: String(p.who || '').slice(0, 40), where: String(p.where || '').slice(0, 80), kind, important: !!p.important, src: 'email', was: old ? { date: old.date, t: old.t } : null });
   }
-  return json({ ok: true, changes });
+  return json({ ok: true, changes, mail: true });
 }
 
 export async function handleHqPlans(req, env, json) {
