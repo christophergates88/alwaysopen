@@ -545,6 +545,9 @@ export class CallRoom extends DurableObject {
       lang: 'en-US', endAt: 0, transfer: false, nudged: 0, fails: 0, line: lineView(line), test: call.test ? 1 : 0,
       more: greetingMore(line), moreDone: 0, quiet: quietText(line)
     };
+    // Test calls (the owner's own number, the drill) can try features before real callers get them (Brief 6: prompt6
+    // is heard on recorded test calls first): facts.testFeatures, added to the line's own for test calls only.
+    if (call.test) { const tf = (parse(line.facts) || {}).testFeatures; if (Array.isArray(tf)) s.line.features = [...new Set((s.line.features || []).concat(tf.filter(k => FEATURES.includes(k))))]; }
     if (iv) {
       // Max's interview with the owner: his own greeting, his own questions, none of the caller extras.
       s.mode = 'interview'; s.more = ''; s.quiet = '';

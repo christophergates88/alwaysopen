@@ -128,3 +128,8 @@ test('7:12 PM call: "fair" once a call; the joke keeps its setup', () => {
   assert.equal(V.dropFair('Fair.', msgs), 'Fair.', 'never cut to nothing');
   assert.equal(G.guardOne('Most of them earn that reputation.', { on, msgs: [], said: '' }), '', 'the setup for "I\'m annoyingly good at this" stays');
 });
+test('the monthly page is live all month and sent on the 2nd, never "once a month" (Christopher, Nov 5)', () => {
+  const f = F.ownLineFacts();
+  assert.match(f.services, /live in the app all month/);
+  assert.match(f.services, /never call it that/);
+});

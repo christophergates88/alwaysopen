@@ -29,3 +29,8 @@ test('prompt6: only the harm filters run, reactions are short and once a call, a
 test('prompt6 can be switched on for a line and for a practice run (it is a known feature)', () => {
   assert.ok(V.FEATURES.includes('prompt6'));
 });
+
+test('testFeatures reach test calls only', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../src/voice.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(call\.test\) \{ const tf = \(parse\(line\.facts\) \|\| \{\}\)\.testFeatures/);
+});
