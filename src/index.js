@@ -157,6 +157,20 @@ async function serve(req, env, ctx) {
       const brands = ((await get('https://messaging.twilio.com/v1/a2p/BrandRegistrations?PageSize=50')).data || []).map(b => ({ sid: b.sid, status: b.status, profile: b.customer_profile_bundle_sid, type: b.brand_type }));
       return json({ ok: true, profiles: out, brands }, 200);
     }
+    if (path === '/ops/call-events') {
+      // Build Brief 8: Twilio's own record of a call (the call, its webhook events, its errors, and Voice Insights' summary
+      // and media events), to see what Twilio saw the second a call's line to Max dropped. Read-only.
+      const k = req.headers.get('x-key') || '';
+      if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const sid = url.searchParams.get('sid') || '';
+      if (!/^CA[0-9a-f]{32}$/.test(sid) || !env.TWILIO_ACCOUNT_SID) return json({ ok: false, error: 'bad sid' }, 400);
+      const auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
+      const get = async u => { try { const r = await fetch(u, { headers: { Authorization: auth } }); const t = await r.text(); try { return { status: r.status, data: JSON.parse(t) }; } catch (e) { return { status: r.status, text: t.slice(0, 2000) }; } } catch (e) { return { error: String(e).slice(0, 200) }; } };
+      const base = 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Calls/' + sid;
+      const [call, events, notes, summary, media] = await Promise.all([get(base + '.json'), get(base + '/Events.json?PageSize=50'), get(base + '/Notifications.json'),
+        get('https://insights.twilio.com/v1/Voice/' + sid + '/Summary'), get('https://insights.twilio.com/v1/Voice/' + sid + '/Events?PageSize=100')]);
+      return json({ ok: true, call, events, notes, summary, media }, 200);
+    }
     if (path === '/ops/rehearse-set') {
       // After a change to Max's instructions: replay the last 20 calls that went wrong. Results land in voice_log (kind 'rehearse').
       const k = req.headers.get('x-key') || '';

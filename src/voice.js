@@ -81,7 +81,7 @@ const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // website lead does (a phone push, and an email the daily check turns into a Pipeline prospect), not a client's app.
 export const OWN_ID = 'always-open';
 import { callerMemory } from './past.js';
-import { guardOne, guardText, guardsOn, callState, GUARDS } from './guards.js';
+import { guardOne, guardText, guardsOn, callState, GUARDS, sentencesOf } from './guards.js';
 
 // ---------- HTTP: Twilio webhooks and the relay socket ----------
 export async function handleVoice(req, env, ctx, url) {
@@ -263,7 +263,7 @@ async function afterRelay(env, ctx, f) {
     await vlog(env, 'relay-drop', JSON.stringify({ sid, code, dur, back }));
     if (back) {
       const t = await callToken(env, sid);
-      return twiml(relayConnect(env, line, sid, t, 'Sorry, we got cut off for a second. I\u2019m still here. Go ahead.', 'speech', hintsFor(line)));
+      return twiml(relayConnect(env, line, sid, t, typeof back === 'string' ? back : RESUME_PLAIN, 'speech', hintsFor(line)));
     }
   }
   ctx.waitUntil(room.finalize(sid, failed ? 'failed' : 'ended').catch(() => {}));
@@ -509,9 +509,13 @@ export class CallRoom extends DurableObject {
     const s = await this.load();
     if (!s || s.done || s.finalized || (s.resumes || 0) >= 2 || s.endAt) return false;
     s.resumes = (s.resumes || 0) + 1; s.resuming = 1; s.closedAt = Date.now(); s.lastDrop = code;
+    // Build Brief 8: the line usually dies while Max is mid-answer (Nov 6: Sree at 1:31, Dariann at 1:02), so the caller
+    // missed how it ended. Max says sorry and says the end of it again, instead of "Go ahead" to someone mid-thought.
+    const talking = !!(this.live || s.agentTalking);
+    s.resumeLine = resumeLine(s.msgs, talking, s.lang);
     this.stopLive();
     await this.keep(s);
-    return true;
+    return s.resumeLine;
   }
 
   async webSocketError() {
@@ -525,7 +529,7 @@ export class CallRoom extends DurableObject {
       // Back on after a dropped line: the same call, same words so far; Max picks up where it was.
       const now = Date.now();
       was.resuming = 0; was.closedAt = 0; was.callerTalking = false; was.agentTalking = false;
-      was.msgs.push({ r: 'a', t: 'Sorry, we got cut off for a second. I’m still here. Go ahead.' });
+      was.msgs.push({ r: 'a', t: was.resumeLine || RESUME_PLAIN });
       was.last = now + 4000;
       await this.keep(was);
       await this.ctx.storage.setAlarm(now + TICK_MS);
@@ -1820,6 +1824,18 @@ async function sse(body, onData) {
 const FIRST_CAP_MS = 1500;   // the reaction ("Okay.") is already playing, so the first sentence can wait to be whole
 const ABBR = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr\.|a\.m\.|p\.m\.|vs\.|etc\.|e\.g\.|i\.e\.)$/i;
 // The end of the first whole sentence in t (the index just past its closing punctuation and spaces), or -1.
+// What Max says when a dropped line comes back (Build Brief 8). Mid-answer: sorry, then the last sentence of that answer
+// again (usually the question the caller never heard). Otherwise the plain line.
+export const RESUME_PLAIN = 'Sorry, we got cut off for a second. I\u2019m still here. Go ahead.';
+export function resumeLine(msgs, talking, lang) {
+  if (lang === 'es-US') return 'Perdón, se cortó un segundo. Sigo aquí. Adelante.';
+  const last = (msgs || []).slice().reverse().find(m => m.r === 'a');
+  if (!talking || !last) return RESUME_PLAIN;
+  const parts = sentencesOf(String(last.t || '').replace(/\s*\[[^\]]*\]\s*/g, ' ').trim()).map(x => x.trim()).filter(x => /[a-z]/i.test(x));
+  const end = parts[parts.length - 1] || '';
+  if (!end || end.length > 220 || /cut off/i.test(last.t || '')) return RESUME_PLAIN;
+  return 'Sorry, we got cut off for a second. ' + end;
+}
 export function sentenceEnd(t) {
   const re = /[.!?]+["')\]]*(\s+)/g;
   let m;

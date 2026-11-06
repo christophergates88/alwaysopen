@@ -26,7 +26,13 @@ export const SCRIPT_B = '<Response><Pause length="7"/>' + say('My kid won\'t let
   say('Fine. Is it better to hire a person, or hire you?') + '<Pause length="13"/>' + say('You sound automated.') + '<Pause length="12"/>' + say('Okay. Thanks, bye.') + '<Pause length="5"/><Hangup/></Response>';
 export const SCRIPT_ES = '<Response><Pause length="7"/><Say voice="Polly.Lupe" language="es-US">Hola. Tengo una plomería en Eatonton y quisiera la auditoría gratis. ¿Me pueden llamar mañana por la mañana?</Say>' +
   '<Pause length="14"/><Say voice="Polly.Lupe" language="es-US">No, eso es todo. Gracias. Adiós.</Say><Pause length="5"/><Hangup/></Response>';
-const WANTED = /plumb|audit|plomer|auditor/i;
+// Build Brief 8: a 3-minute caller (drill_meta now = 'requested-long'). Real calls drop about a minute in and the 40-second
+// drills never reach that point; this one talks every 20 seconds or so for three minutes, like an owner asking questions.
+const LONG_LINES = ['Hi. I run an insurance agency in Eatonton. What do you do for an agency like mine?', 'How would that work with my clients?',
+  'And who sees my customers\' information?', 'What happens when someone calls at night?', 'How do the quote follow-ups work?',
+  'What does it cost, and is there a contract?', 'How do I set it up with the number I already have?', 'Okay. That is everything for now. Thank you. Goodbye.'];
+export const SCRIPT_LONG = '<Response><Pause length="7"/>' + LONG_LINES.map(t => say(t) + '<Pause length="17"/>').join('') + '<Hangup/></Response>';
+const WANTED = /plumb|audit|plomer|auditor|insurance|agency/i;
 
 const ready = new WeakSet();
 export async function ensureDrill(env) {
@@ -77,8 +83,8 @@ async function buyNumber(env, h) {
   return '';
 }
 
-async function placeCall(env, from, to, h, script, record) {
-  const r = await tw(env, h, '/Calls.json', Object.assign({ To: to, From: from, Twiml: script || SCRIPT, Timeout: '25', TimeLimit: '150' }, record ? { Record: 'true', RecordingChannels: 'dual' } : {}));
+async function placeCall(env, from, to, h, script, record, limit) {
+  const r = await tw(env, h, '/Calls.json', Object.assign({ To: to, From: from, Twiml: script || SCRIPT, Timeout: '25', TimeLimit: String(limit || 150) }, record ? { Record: 'true', RecordingChannels: 'dual' } : {}));
   const j = await r.json().catch(() => ({}));
   return r.ok && j.sid ? { sid: j.sid } : { error: 'Twilio would not place the test call (' + r.status + (j.message ? ': ' + String(j.message).slice(0, 80) : '') + ')' };
 }
@@ -125,12 +131,12 @@ export async function drillCron(env, now, h) {
   // One test call right now, on request (drill_meta 'now' = 'requested'): used after a change to Max to hear it on a
   // real call with the real ears and voice. The call is a tester's, so it is marked a test and keeps its timeline.
   const want = await getMeta(env, 'now');
-  if (want === 'requested' || want === 'requested-es' || want === 'requested-a' || want === 'requested-b') {
+  if (want === 'requested' || want === 'requested-es' || want === 'requested-a' || want === 'requested-b' || want === 'requested-long') {
     await setMeta(env, 'now', 'placing ' + new Date(now).toISOString());
-    const script = { 'requested-es': SCRIPT_ES, 'requested-a': SCRIPT_A, 'requested-b': SCRIPT_B }[want] || SCRIPT;
+    const script = { 'requested-es': SCRIPT_ES, 'requested-a': SCRIPT_A, 'requested-b': SCRIPT_B, 'requested-long': SCRIPT_LONG }[want] || SCRIPT;
     // every on-request drill is recorded (it is our own test number calling our own line, marked a test), so the voice
     // is judged by ear: the link is /voice/drill/<sid>/<token>, logged as 'drill-audio'
-    const p = await placeCall(env, from, line.number, h, script, true);
+    const p = await placeCall(env, from, line.number, h, script, true, want === 'requested-long' ? 240 : 150);
     if (p.sid) { try { const t = await (await import('./callcheck.js')).drillToken(env, p.sid); await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'drill-audio', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ sid: p.sid, script: want, url: 'https://alwaysopenoffice.com/voice/drill/' + p.sid + '/' + t })).run(); } catch (e) { /* the call still runs */ } }
     await setMeta(env, 'now', p.sid ? 'called ' + p.sid + ' ' + new Date(now).toISOString() : 'failed ' + String(p.error || '').slice(0, 120));
     return { placed: 'on request', sid: p.sid || '' };
