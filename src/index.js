@@ -241,6 +241,35 @@ async function serve(req, env, ctx) {
       if (stmts.length) await env.DB.batch(stmts);
       return json({ ok: true, saved: stmts.length });
     }
+    if (path === '/ops/hq-where') {
+      // Gates HQ "am I on time": the Gates HQ iPhone app sends where Christopher is (arrived/left Home or Daycare, places
+      // he stopped, and a point now and then while driving), and an iPhone Shortcut sends "alarm" when he stops his alarm.
+      // Same private token as the widget. Kept 90 days; only his own Gates HQ page reads it (D1 hq_where).
+      const t = url.searchParams.get('t') || '';
+      if (t.length < 24) return json({ ok: false }, 404);
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_widget (id INTEGER PRIMARY KEY, token TEXT, at TEXT, json TEXT)').run();
+      const row = await env.DB.prepare('SELECT token FROM hq_widget WHERE id = 1').first();
+      if (!row || !row.token || !(await sameKey(t, row.token))) return json({ ok: false }, 404);
+      let pts = [];
+      if (req.method === 'GET') {
+        const kind = (url.searchParams.get('kind') || '').slice(0, 20);
+        if (!/^(alarm|wake|snooze)$/.test(kind)) return json({ ok: false, error: 'kind' }, 400);
+        pts = [{ at: new Date().toISOString(), kind }];
+      } else if (req.method === 'POST') {
+        const body = await req.text();
+        if (body.length > 100000) return json({ ok: false, error: 'too big' }, 413);
+        try { pts = JSON.parse(body).pts || []; } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
+      } else return json({ ok: false }, 404);
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_where (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, kind TEXT, lat REAL, lon REAL, acc REAL, place TEXT, until TEXT)').run();
+      const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+      const iso = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(v) ? v.slice(0, 24) : null);
+      const stmts = pts.filter(p => p && iso(p.at) && /^[a-z]{2,12}$/.test(p.kind || '')).slice(0, 200).map(p => env.DB
+        .prepare('INSERT INTO hq_where (at, kind, lat, lon, acc, place, until) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
+        .bind(iso(p.at), p.kind, num(p.lat), num(p.lon), num(p.acc), typeof p.place === 'string' ? p.place.slice(0, 30) : null, iso(p.until)));
+      if (stmts.length) await env.DB.batch(stmts);
+      await env.DB.prepare("DELETE FROM hq_where WHERE at < ?1").bind(new Date(Date.now() - 90 * 864e5).toISOString()).run();
+      return json({ ok: true, saved: stmts.length });
+    }
     if (path === '/ops/push-queue') {
       // The Gates HQ agent on the Mac relays phone pushes ntfy refused from here (push.js). GET takes, POST reports.
       const k = req.headers.get('x-key') || '';
