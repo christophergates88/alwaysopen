@@ -163,8 +163,11 @@ export function toFirst(rows) {
 }
 // The owner's own pace: new Google reviews a week over the last 8 weeks, from the review emails and Google's own
 // notices that become drafts in their app (their own data, not looked up from Google Maps). null when too few to say.
-export async function reviewPace(env, cid, now) {
+export async function reviewPace(env, cid, now, c) {
   try {
+    // Under eight weeks with us, the count would understate the pace, so the card says it doesn't know yet (Brief 7).
+    const joined = Date.parse((c && (c.created || c.joined)) || '');
+    if (joined && (now || Date.now()) - joined < 56 * 864e5) return null;
     const since = new Date((now || Date.now()) - 56 * 864e5).toISOString();
     const n = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind IN ('reply', 'review') AND created > ?2 AND lower(COALESCE(context, '')) NOT LIKE '%yelp%'").bind(cid, since).first()) || {}).n || 0;
     return n >= 2 ? n / 8 : null;
@@ -194,7 +197,10 @@ export async function liveCheck(env, c) {
   if (cid === DEMO) {
     const wk = ((await env.DB.prepare('SELECT week FROM rival_snap WHERE client_id = ?1 ORDER BY week DESC LIMIT 1').bind(cid).first()) || {}).week;
     const rows = wk ? (((await env.DB.prepare('SELECT * FROM rival_snap WHERE client_id = ?1 AND week = ?2').bind(cid, wk).all()).results) || []).map(r => ({ id: r.place_id, name: r.name, own: !!+r.own, rating: +r.rating || 0, reviews: +r.reviews || 0 })) : [];
-    return Object.assign(base, result(rows, c, { canAdd: false, sample: true }));
+    // The sample's pace: its own review count across the eight stored sample weeks (real clients' pace is reviewPace).
+    const own = (((await env.DB.prepare('SELECT week, reviews FROM rival_snap WHERE client_id = ?1 AND own = 1 ORDER BY week').bind(cid).all()).results) || []);
+    const pace = own.length >= 8 ? Math.max(0, (+own[own.length - 1].reviews - +own[0].reviews) / (own.length - 1)) || null : null;
+    return Object.assign(base, result(rows, c, { canAdd: false, sample: true, pace, paceKnown: !!pace }));
   }
   if (!env.PLACES_KEY) return Object.assign(base, { status: 'first' });
   const active = ((await env.DB.prepare('SELECT place_id FROM rival_list WHERE client_id = ?1 AND active = 1').bind(cid).all()).results) || [];
@@ -214,7 +220,8 @@ export async function liveCheck(env, c) {
     if (list.length < MIN_RIVALS) { await pickRivals(env, cid, me); list = ((await env.DB.prepare('SELECT place_id FROM rival_list WHERE client_id = ?1 AND active = 1').bind(cid).all()).results) || []; }
     const rows = [Object.assign(shape(me), { own: true })];
     for (const r of list) { try { const d = await gDetails(env, cid, r.place_id, RIVAL_FIELDS); const s = shape(d); if (s.name) rows.push(s); } catch (e) { if (e === BUDGET) break; } }
-    return Object.assign(base, result(rows, c, { canAdd: owner && list.length < MAX_RIVALS, left: Math.max(0, Math.floor((await room(env, cid)) / (1 + list.length))), pace: await reviewPace(env, cid) }));
+    const pace = await reviewPace(env, cid, Date.now(), c);
+    return Object.assign(base, result(rows, c, { canAdd: owner && list.length < MAX_RIVALS, left: Math.max(0, Math.floor((await room(env, cid)) / (1 + list.length))), pace, paceKnown: !!pace }));
   } catch (e) {
     if (e === BUDGET) return Object.assign(base, { status: 'limit', message: 'That is all the checks for today. Check again tomorrow.' });
     return Object.assign(base, { status: 'error', message: 'Google did not answer. Try again in a minute.' });

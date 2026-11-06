@@ -1,6 +1,8 @@
 // The demo client's sample month. Everything here is fictional: names, 555-01xx numbers, reviews, rivals.
 // The app labels every screen "Sample data" for this client, and the cron jobs that reach out (invoice reminders,
 // competitor lookups, weekly emails) skip it, so nothing sample ever counts as real or leaves the system.
+import { local, fromLocal } from './callbacks.js';
+import { isAfterHours } from './answerrate.js';
 export const DEMO_ID = 'demo-plumbing';
 // The phone line a website visitor hears in the Hear Max sample: a made-up plumber that sounds real, with the facts Max
 // quotes from. (The app's demo account keeps its own name.)
@@ -52,6 +54,20 @@ const TALK = [
   ['ai', 'Thanks. I’ve passed that to the team and someone will call you back. Anything else?'],
   ['caller', 'No, that’s it.']
 ];
+// One more short call a day for five weeks, so Max's clock has a full dial on any day of the month (the website's
+// picture has about sixty a month). Hours are the business's own (Eastern); about four in ten land after hours.
+const FIRST = ['Avery', 'Brooke', 'Carter', 'Delia', 'Emmett', 'Frances', 'Grady', 'Hazel', 'Irwin', 'Joelle', 'Kendall', 'Luis', 'Maura', 'Nolan', 'Opal', 'Parker', 'Rosalind'];
+const LAST = ['Whitley', 'Burke', 'Sims', 'Ogle', 'Tanner', 'Mayfield', 'Crisp', 'Vaughn', 'Holcomb', 'Pryor', 'Easley', 'Duvall', 'Rountree'];
+const JOBS_ASKED = [['Water heater', 'Water heater is making a popping noise.'], ['Running toilet', 'Toilet keeps running after a flush.'], ['Slow drain', 'Bathroom sink drains slowly.'],
+  ['Leak under sink', 'Drip under the kitchen sink.'], ['Estimate', 'Wants a price to replace a water heater.'], ['Low pressure', 'Low water pressure upstairs.'],
+  ['Garbage disposal', 'Disposal is jammed.'], ['Dripping faucet', 'Bathroom faucet drips all night.'], ['Clogged toilet', 'Toilet is clogged and close to overflowing.'],
+  ['Outdoor spigot', 'Outdoor spigot is leaking at the wall.'], ['No hot water', 'No hot water this morning.'], ['Sewer smell', 'Smell coming from a floor drain.']];
+const ET_HOURS = [9, 14, 20, 11, 7, 16, 21, 10, 13, 22, 8, 15, 6, 12, 19, 17, 23];
+export const EXTRA_DAYS = 35;
+const EXTRA = Array.from({ length: EXTRA_DAYS }, (_, d) => {
+  const [reason, details] = JOBS_ASKED[d % JOBS_ASKED.length], name = FIRST[d % FIRST.length] + ' ' + LAST[(d * 5) % LAST.length];
+  return [d, ET_HOURS[d % ET_HOURS.length] + 5, name, 44 + d, reason, details, 'This week', 0, name.split(' ')[0] + ': ' + details.charAt(0).toLowerCase() + details.slice(1, -1) + '. Asked for a call back.', 'handled'];
+});
 const REQUESTS = [
   [0, 'Allison Pierce', 31, 'Water softener installation quote'], [1, 'Jerome Wiley', 32, 'Bathroom remodel rough-in'], [2, 'Sofia Mendes', 33, 'Garbage disposal replacement'],
   [4, 'Harold Breck', 34, 'Annual water heater flush'], [6, 'Naomi Frost', 35, 'Kitchen faucet replacement'], [9, 'Quinn Abbott', 36, 'Shower valve leaking'],
@@ -76,11 +92,14 @@ const REVIEWS = [
   [24, 'Beth N.', 5, 'Called after hours, got a real answer, and a visit booked for first thing. Impressed.', 'Thank you, Beth. We are glad your call was answered and the visit was set up.'],
   [27, 'Carl D.', 5, 'Honest about what needed fixing and what did not. Will recommend.', 'Thank you, Carl. We only fix what needs fixing, and we appreciate the recommendation.']
 ];
+// Competitor watch, shaped like the website's picture: you #2 of 6 on rating, 7 five-star reviews from #1. The last two
+// numbers are eight weeks ago, so "at your pace" has something to go on.
 const RIVALS = [
-  ['DEMO_RIVAL_ME_0001', 'Demo Plumbing (you)', 1, 4.7, 52, 4.7, 40], ['DEMO_RIVAL_A_0001', 'Riverbend Plumbing (sample)', 0, 4.8, 211, 4.8, 203],
-  ['DEMO_RIVAL_B_0001', 'Hollis & Sons Plumbing (sample)', 0, 4.5, 148, 4.5, 146], ['DEMO_RIVAL_C_0001', 'Clearwater Drain Co. (sample)', 0, 4.2, 91, 4.2, 91],
-  ['DEMO_RIVAL_D_0001', 'Oakline Plumbing (sample)', 0, 4.9, 64, 4.9, 57]
+  ['DEMO_RIVAL_ME_0001', 'Demo Plumbing (you)', 1, 4.7, 30, 4.7, 21], ['DEMO_RIVAL_A_0001', 'Riverbend Plumbing (sample)', 0, 4.8, 36, 4.8, 33],
+  ['DEMO_RIVAL_B_0001', 'Hollis & Sons Plumbing (sample)', 0, 4.5, 44, 4.5, 41], ['DEMO_RIVAL_C_0001', 'Clearwater Drain Co. (sample)', 0, 4.3, 102, 4.3, 99],
+  ['DEMO_RIVAL_D_0001', 'Oakline Plumbing (sample)', 0, 4.2, 19, 4.2, 17], ['DEMO_RIVAL_E_0001', 'Lakeside Rooter (sample)', 0, 4.0, 27, 4.1, 25]
 ];
+export const RIVAL_WEEKS = 8;
 
 // Callers who didn't book, and what they said: [daysAgo, reason, note]
 const LOST = [[2, 'price', 'Wanted the disposal swapped for under $150.'], [6, 'price', 'Comparing three quotes on a water heater.'], [11, 'timing', 'Needed someone Sunday morning.'],
@@ -124,6 +143,18 @@ async function lastMonthA(cid, m1, now) {
   } catch (e) { return null; }
 }
 
+// The sample answer to "what did the after-hours calls come from?": counts by what callers asked for, the way Max
+// answers it from the week's write-ups. Pure.
+export function sampleAnswer(rows) {
+  const n = rows.length;
+  if (!n) return 'No calls came in after hours last week.';
+  const by = new Map();
+  for (const r of rows) { const k = String(r.reason || 'other').toLowerCase(); by.set(k, (by.get(k) || 0) + 1); }
+  const top = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => k + (v > 1 ? ' (' + v + ')' : ''));
+  const urgent = rows.filter(r => /urgent/i.test(r.urgency || '')).length;
+  return n + (n === 1 ? ' call' : ' calls') + ' after hours: ' + top.join(', ') + (by.size > 4 ? ', and a few others' : '') + '.' + (urgent ? ' ' + urgent + (urgent === 1 ? ' was urgent and went straight to your phone.' : ' were urgent and went straight to your phone.') : '');
+}
+
 export async function seedDemo(env, mods, now) {
   now = now || Date.now();
   const { ensureBiz, ensureInvoices, ensureRivals, ensureReviews, isoWeek } = mods;
@@ -133,17 +164,21 @@ export async function seedDemo(env, mods, now) {
   const cid = DEMO_ID;
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (client_id TEXT PRIMARY KEY, avg_job INTEGER DEFAULT 0, win_rate INTEGER DEFAULT 30, updated TEXT)').run();
   const iso = ms => new Date(ms).toISOString();
+  const passed = (text, kind) => JSON.stringify(APP.guardChecks(text, c, kind).filter(x => x.ok).map(x => x.label));
   const ago = (d, h) => { const t = new Date(now - d * D); t.setUTCHours(h == null ? 15 : h, (d * 7) % 60, 0, 0); return t.getTime() > now ? now - H : t.getTime(); };
   // The tables the monthly page reads, made if this database has never used them.
   const setups = await Promise.all([import('./callbacks.js'), import('./checkin.js'), import('./availability.js'), import('./lost.js'), import('./sms.js'), import('./fillweek.js'), import('./handoff.js'), import('./gbp.js')]);
-  for (const f of [setups[0].ensureCallbacks, setups[1].ensureCheckins, setups[2].ensureBookings, setups[3].ensureLost, setups[4].ensureSms, setups[5].ensureFill, setups[6].ensureHandoff, setups[7].ensureGbp]) {
+  const more = await Promise.all([import('./stormdesk.js'), import('./timecard.js'), import('./app.js')]);
+  const SD = more[0], TC = more[1], APP = more[2];
+  for (const f of [setups[0].ensureCallbacks, setups[1].ensureCheckins, setups[2].ensureBookings, setups[3].ensureLost, setups[4].ensureSms, setups[5].ensureFill, setups[6].ensureHandoff, setups[7].ensureGbp, SD.ensureStormDesk, TC.ensureTimecards, APP.ensureItemChecks]) {
     try { await f(env); } catch (e) { /* the insert below says so if a table is really missing */ }
   }
   // Wipe the old sample, then lay it down again. The phone line itself (the Hear Max sample, Mike's Plumbing) and the
   // staged Hear Max calls (marked test) are left alone, and so are follow-ups someone added by hand.
   const WIPE = ['DELETE FROM app_calls WHERE client_id = ?1 AND test = 0'].concat(['app_items', 'app_leads', 'biz_jobs', 'biz_quotes', 'app_invoices', 'biz_msgs', 'biz_insights', 'app_months',
     'rival_snap', 'rival_list', 'rival_profile', 'app_settings', 'call_lost', 'callbacks', 'checkins', 'line_bookings', 'fillweek_offers', 'fillweek_runs', 'sms_log', 'gbp_metrics', 'app_jobs']
-    .map(t => 'DELETE FROM ' + t + ' WHERE client_id = ?1'), ['DELETE FROM handoffs WHERE from_id = ?1 OR to_id = ?1', "DELETE FROM app_followups WHERE client_id = ?1 AND by = 'Sample owner'"]);
+    .map(t => 'DELETE FROM ' + t + ' WHERE client_id = ?1'), ['DELETE FROM handoffs WHERE from_id = ?1 OR to_id = ?1', "DELETE FROM app_followups WHERE client_id = ?1 AND by = 'Sample owner'",
+    'DELETE FROM max_timecards WHERE client_id = ?1', 'DELETE FROM storm_watch WHERE client_id = ?1', "DELETE FROM storms WHERE id LIKE 'sample:%' AND clients = ?1"]);
   for (const sql of WIPE) {
     try { await env.DB.prepare(sql).bind(cid).run(); } catch (e) { /* table not made yet */ }
   }
@@ -155,7 +190,7 @@ export async function seedDemo(env, mods, now) {
   if (!have) st.push(env.DB.prepare("INSERT OR IGNORE INTO voice_lines (number, client_id, business, on_air, regulated, industry, town, facts, transfer_to, transfer_when, spanish, updated, owner_set) VALUES (?1, ?2, ?3, 1, 0, 'plumbing', 'Eatonton', ?5, '', 'never', 0, ?4, '{}')").bind(line, cid, SAMPLE_LINE_NAME, iso(now), JSON.stringify(SAMPLE_LINE_FACTS)));
   st.push(env.DB.prepare('INSERT OR REPLACE INTO app_settings (client_id, avg_job, win_rate, updated) VALUES (?1, 380, 40, ?2)').bind(cid, iso(now)));
   // 20 calls
-  CALLS.forEach((r, i) => {
+  CALLS.concat(EXTRA).forEach((r, i) => {
     const [d, h, name, n, reason, details, wants, urgent, summary, status] = r;
     const at = iso(ago(d, h)), who = ph(n);
     const tr = JSON.stringify(TALK.map((x, k) => ({ w: x[0], t: x[1].replace('{NAME_REASON}', 'Hi, this is ' + name + '. ' + details) })));
@@ -168,12 +203,24 @@ export async function seedDemo(env, mods, now) {
   // 12 reviews with replies (the newest two still waiting for the owner's OK)
   REVIEWS.forEach((r, i) => {
     const waiting = i < 2, at = iso(ago(r[0], 16));
-    st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, created, updated, notified, photo) VALUES (?1,?2,'reply',?3,?4,?5,?6,?7,?8,?9,?10,1,1,?11,?11,1,'')")
-      .bind('ITDEMO' + String(i + 1).padStart(26, '0'), cid, r[1], r[3], r[2], r[4], waiting ? 'pending' : 'approved', waiting ? null : r[4], waiting ? null : iso(ago(r[0], 18)), waiting ? null : 'Sample owner', at));
+    st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, checks, created, updated, notified, photo) VALUES (?1,?2,'reply',?3,?4,?5,?6,?7,?8,?9,?10,1,1,?12,?11,?11,1,'')")
+      .bind('ITDEMO' + String(i + 1).padStart(26, '0'), cid, r[1], r[3], r[2], r[4], waiting ? 'pending' : 'approved', waiting ? null : r[4], waiting ? null : iso(ago(r[0], 18)), waiting ? null : 'Sample owner', at, passed(r[4], 'reply')));
   });
   // 3 posts for Google, approved (no Google account is connected for the demo, so none is ever published)
-  POSTS.forEach((t, i) => st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, created, updated, notified, photo) VALUES (?1,?2,'post',?3,'Sample post',0,?4,'approved',?4,?5,'Sample owner',1,1,?6,?5,1,'')")
-    .bind('ITDEMOPOST' + String(i + 1).padStart(22, '0'), cid, t[0], t[1], iso(ago(t[2], 15)), iso(ago(t[2] + 1, 11)))));
+  POSTS.forEach((t, i) => st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, hq_synced, checked, checks, created, updated, notified, photo) VALUES (?1,?2,'post',?3,'Sample post',0,?4,'approved',?4,?5,'Sample owner',1,1,?7,?6,?5,1,'')")
+    .bind('ITDEMOPOST' + String(i + 1).padStart(22, '0'), cid, t[0], t[1], iso(ago(t[2], 15)), iso(ago(t[2] + 1, 11)), passed(t[1], 'post'))));
+  // Storm Desk: a flood warning over the sample's county since early this morning, and the post Storm Desk wrote for it
+  // waiting for the owner's OK (the same wording stormdesk.js drafts). The warning row is marked sample so the ops list
+  // and the storm check never treat it as real weather.
+  const tz = 'America/New_York';
+  const stAt = Math.min(now - 20 * 60e3, fromLocal(tz, local(tz, now).day, 1, 12));
+  const stEnds = fromLocal(tz, local(tz, now + D).day, 9, 30);
+  const stormText = SD.fill(SD.TEMPLATES.trades.flood, '4785550142');
+  st.push(env.DB.prepare("INSERT OR REPLACE INTO storm_watch (client_id, q, lat, lng, state, county, zone, label, at, why) VALUES (?1, 'Eatonton, GA', 33.3268, -83.3885, 'GA', 'GAC237', '', 'Putnam County, GA', ?2, '')").bind(cid, iso(now)));
+  st.push(env.DB.prepare("INSERT OR REPLACE INTO storms (id, at, event, grp, counties, headline, ends, link, sent, clients) VALUES ('sample:demo-flood', ?1, 'Flood Warning', 'flood', 'Putnam County, GA', ?2, ?3, 'https://alerts.weather.gov', 'sample', ?4)")
+    .bind(iso(stAt), 'Flood Warning issued for Putnam County, GA (sample)', iso(stEnds), cid));
+  st.push(env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, hq_synced, checked, checks, created, updated, notified, photo) VALUES (?1, ?2, 'post', ?3, ?4, 0, ?5, 'pending', 1, 1, ?6, ?7, ?7, 1, '')")
+    .bind('ITDEMOSTORM' + '1'.padStart(21, '0'), cid, 'Storm Desk: ' + SD.LABELS.flood, 'Storm Desk: Flood Warning for Putnam County, GA', stormText, passed(stormText, 'post'), iso(stAt + 2 * 60e3)));
   // 11 jobs across stages (the 5 bookings above are customers too; these are the jobs on the board)
   const JOBS = [['Walt Greer', 21, 'Replace 40-gallon water heater', 'new', 0, 1], ['Lena Hoffman', 13, 'Re-pipe two bathrooms', 'quoted', 640000, 3], ['Vera Collins', 19, 'Tankless heater', 'quoted', 520000, 6],
     ['Priya Raman', 3, 'Clogged tub drain', 'booked', 18500, 1], ['Dennis Hall', 18, 'Kitchen sink', 'done', 21000, 8], ['Tamika Dorsey', 5, 'Burst pipe repair', 'paid', 38500, 3],
@@ -207,13 +254,16 @@ export async function seedDemo(env, mods, now) {
     if (x[4]) d.a = x[4];
     st.push(env.DB.prepare('INSERT INTO app_months (client_id, month, data, hash, updated) VALUES (?1,?2,?3,?4,?5)').bind(cid, ym(x[0].getTime()), JSON.stringify(d), 'demo' + i, iso(now)));
   });
-  // competitor watch: this week and last, no Google lookups
-  const wk = isoWeek(now), wk0 = isoWeek(now - 7 * D);
+  // competitor watch: eight weeks, no Google lookups (the newest week is what the card shows; the pace comes from the
+  // owner's own review count over those weeks)
+  const wk = isoWeek(now);
   st.push(env.DB.prepare("INSERT OR REPLACE INTO rival_profile (client_id, place_id, name, ptype, lat, lng, found, tried, spent_week, spent, lock, updated) VALUES (?1,'DEMO_RIVAL_ME_0001','Demo Plumbing','plumber',33.0,-84.0,1,?2,'',0,'',?3)").bind(cid, wk, iso(now)));
   RIVALS.forEach(r => {
     if (!r[2]) st.push(env.DB.prepare("INSERT OR REPLACE INTO rival_list (client_id, place_id, name, active, custom, added) VALUES (?1,?2,?3,1,0,?4)").bind(cid, r[0], r[1], iso(now)));
-    st.push(env.DB.prepare('INSERT OR REPLACE INTO rival_snap (client_id, week, place_id, name, own, rating, reviews, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, wk, r[0], r[1], r[2], r[3], r[4], iso(now)));
-    st.push(env.DB.prepare('INSERT OR REPLACE INTO rival_snap (client_id, week, place_id, name, own, rating, reviews, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, wk0, r[0], r[1], r[2], r[5], r[6], iso(now - 7 * D)));
+    for (let k = 0; k < RIVAL_WEEKS; k++) {
+      const f = k / (RIVAL_WEEKS - 1), reviews = Math.round(r[4] - (r[4] - r[6]) * f), rating = Math.round((r[3] - (r[3] - r[5]) * f) * 10) / 10;
+      st.push(env.DB.prepare('INSERT OR REPLACE INTO rival_snap (client_id, week, place_id, name, own, rating, reviews, at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, isoWeek(now - k * 7 * D), r[0], r[1], r[2], rating, reviews, iso(now - k * 7 * D)));
+    }
   });
   // What the monthly page reads beyond calls and reviews: why callers didn't book, call-backs kept, visits booked on
   // the call, three-day check-ins, jobs logged, Fill my week, hand-offs, text-backs, follow-ups and Google's numbers.
@@ -251,6 +301,37 @@ export async function seedDemo(env, mods, now) {
   st.push(env.DB.prepare("INSERT OR REPLACE INTO gbp_metrics (client_id, month, calls, clicks, directions, updated) VALUES (?1,?2,38,57,16,?3)").bind(cid, ym(now), iso(now)));
   st.push(env.DB.prepare("INSERT OR REPLACE INTO gbp_metrics (client_id, month, calls, clicks, directions, updated) VALUES (?1,?2,31,49,12,?3)").bind(cid, ym(m1.getTime()), iso(now)));
   await env.DB.batch(st);
-  return { ok: true, calls: CALLS.length, requests: REQUESTS.length, bookings: BOOKINGS.length, jobs: JOBS.length, invoices: 3, estimates: 2, reviews: REVIEWS.length, posts: POSTS.length,
+  // Max's timecard for last week, as texted on Monday at 8:04 AM, with one question back and its answer (the owner's
+  // question and Max's reply, the way the timecard reply works for real: from that week's call write-ups).
+  let timecard = '';
+  try {
+    let ref = now, w = TC.lastWeek(tz, ref);
+    if (Date.parse(w.to) + (8 * 60 + 4) * 60e3 > now) { ref = now - D; w = TC.lastWeek(tz, ref); }
+    const tc = await TC.timecardFor(env, cid, ref);
+    const after = (((await env.DB.prepare("SELECT at, reason, urgency FROM app_calls WHERE client_id = ?1 AND test = 0 AND at >= ?2 AND at < ?3 ORDER BY at").bind(cid, w.from, w.to).all()).results) || [])
+      .filter(r => isAfterHours(local(tz, Date.parse(r.at))));
+    const qa = [{ q: 'What did the after-hours calls come from?', a: sampleAnswer(after), at: iso(Date.parse(w.to) + (9 * 60 + 41) * 60e3) }];
+    await env.DB.prepare("INSERT OR REPLACE INTO max_timecards (client_id, week, at, nums, status, qa) VALUES (?1, ?2, ?3, ?4, 'sent', ?5)")
+      .bind(cid, tc.week, iso(Date.parse(w.to) + (8 * 60 + 4) * 60e3), JSON.stringify(tc.nums), JSON.stringify(qa)).run();
+    timecard = tc.week;
+  } catch (e) { timecard = 'failed: ' + String((e && e.message) || e).slice(0, 80); }
+  return { ok: true, timecard, calls: CALLS.length + EXTRA.length, requests: REQUESTS.length, bookings: BOOKINGS.length, jobs: JOBS.length, invoices: 3, estimates: 2, reviews: REVIEWS.length, posts: POSTS.length,
     checkins: CHECKINS.length, callbacks: CALLBACKS.length, visits: VISITS.length, lost: LOST.length, offers: FILL.length, handoffs: HANDOFFS.length, followups: FOLLOWUPS.length, line };
+}
+
+// Every night (Brief 7, Part 1): the sample is laid down again relative to today, so the demo never shows an empty office.
+// It runs in the 3 AM hour Eastern once a night, and at any hour when the newest sample call is more than 36 hours old (a
+// missed night). Never twice within six hours. drill_meta 'demo-seeded' holds the last run.
+export async function demoNightly(env, mods, now) {
+  now = now || Date.now();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS drill_meta (k TEXT PRIMARY KEY, v TEXT)').run();
+  const last = ((await env.DB.prepare("SELECT v FROM drill_meta WHERE k = 'demo-seeded'").first().catch(() => null)) || {}).v || '';
+  const lastAt = Date.parse(last) || 0;
+  if (lastAt && now - lastAt < 6 * H) return { ok: true, skipped: 'ran ' + Math.round((now - lastAt) / 60e3) + ' minutes ago' };
+  const l = local('America/New_York', now);
+  const newest = ((await env.DB.prepare('SELECT MAX(at) AS at FROM app_calls WHERE client_id = ?1 AND test = 0').bind(DEMO_ID).first().catch(() => null)) || {}).at || '';
+  const stale = !newest || now - Date.parse(newest) > 36 * H;
+  if (l.hour !== 3 && !stale) return { ok: true, skipped: 'not the 3 AM hour' };
+  await env.DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('demo-seeded', ?1)").bind(new Date(now).toISOString()).run();
+  return Object.assign({ why: l.hour === 3 ? 'nightly' : 'stale' }, await seedDemo(env, mods, now));
 }

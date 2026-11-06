@@ -52,6 +52,8 @@ export function timecardText(t, name, label) {
 
 export async function ensureTimecards(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS max_timecards (client_id TEXT NOT NULL, week TEXT NOT NULL, at TEXT, nums TEXT DEFAULT '', status TEXT DEFAULT '', PRIMARY KEY (client_id, week))").run();
+  // The owner's question back and Max's answer (Brief 7): [{ q, a, at }]
+  try { await env.DB.prepare("ALTER TABLE max_timecards ADD COLUMN qa TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
 }
 
 async function lineName(env, cid) {

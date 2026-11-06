@@ -21,7 +21,7 @@ const JOBS = { radar: 'Rate-Shock Radar', rivals: 'Competitor Watch', board: 'th
   'google-connections': 'the Google connection check', 'lead-follow-ups': 'lead follow-up emails', 'phone-push': 'phone alerts', voicemail: 'voicemail', 'missed-texts': 'missed-call texts',
   'test-call': 'the 4 AM test call', checks: 'the promise checks', 'mailed-letters': 'mailed letters', 'audit-retry': 'free audit retries', 'slow-checks': 'the hourly checks',
   backup: 'the weekly backup', morning: 'the 7 AM all-clear', minutes: 'Max\'s minutes', social: 'Always Open\'s Facebook posts', 'photo-posts': 'photo posts',
-  'our-review-asks': 'review asks', 'hear-max': 'Hear Max', voice: 'Max\'s phone line', 'season-posts': 'the insurance season posts', 'google-queue': 'the Google posting reminder' };
+  'our-review-asks': 'review asks', 'hear-max': 'Hear Max', voice: 'Max\'s phone line', 'season-posts': 'the insurance season posts', 'google-queue': 'the Google posting reminder', demo: 'the demo account\'s nightly refresh' };
 const claude = s => 'Tell Claude: "' + s + '"';
 const HEALTH = {
   d1: ['Always Open\'s database stopped answering', 'Nothing can be saved or loaded until it\'s back.', 'Nothing yet. Cloudflare usually fixes it within minutes. If you get this again in an hour, ' + claude('Always Open\'s database is down.'), true],

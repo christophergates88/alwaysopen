@@ -102,6 +102,28 @@ export function guard(text, c, kind) {
   return hits;
 }
 
+// The three lines a reply or post card shows under the draft (Brief 7, the website's Compliance Guard picture): which
+// groups of the rules above this text passed. A regulated business sees the three on the picture. Everyone else sees the
+// three that are actually checked for them (no line ever claims a check that did not run).
+const W_RANK = CG_ALL[0].why, W_HOSTILE = CG_ALL[1].why, W_BANNED = 'On your do-not-use list', W_PERK = 'Offers something for a review (Google does not allow it)';
+export const CHECK_GROUPS = {
+  regulated: [['No claim details mentioned', ['Mentions claim details', 'Confirms they are a client']],
+    ['No rates, discounts or promises', ['Talks about rates or prices', 'Promises an outcome', W_RANK]],
+    ['Approved wording only', ['Sounds like advice', 'Testimonial about an outcome', W_HOSTILE, W_BANNED, W_PERK]]],
+  everyone: [['No promise of a ranking', [W_RANK]], ['Nothing offered for a review', [W_PERK]], ['Nothing hostile, nothing on your do-not-use list', [W_HOSTILE, W_BANNED]]]
+};
+export function guardChecks(text, c, kind) {
+  const why = new Set(guard(text, c, kind).map(h => h.why));
+  return CHECK_GROUPS[c && +c.regulated ? 'regulated' : 'everyone'].map(([label, ws]) => ({ label, ok: !ws.some(w => why.has(w)) }));
+}
+let checksCol = null;
+export async function ensureItemChecks(env) {
+  if (checksCol === env.DB) return;
+  try { await env.DB.prepare("ALTER TABLE app_items ADD COLUMN checks TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
+  checksCol = env.DB;
+}
+const GUARDED = k => k === 'reply' || k === 'post' || k === 'review' || !k;
+
 // What Compliance Guard checks for this client, in plain words (shown in the app).
 export function guardSummary(c) {
   const reg = !!(c && +c.regulated);
@@ -436,7 +458,7 @@ async function apiState(env, c, ctx) {
     line: lineOut(line, c),
     reviews: rows(7).map(r => ({ id: r.id, name: r.title || '', stars: +r.stars || 0, review: r.context || '', reply: r.decided_text || r.text || '', status: r.status, at: r.created || '', decidedAt: r.decided_at || '' })),
     followups: f.followups ? rows(8).map(fuOut) : [],
-    items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
+    items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, checks: GUARDED(r.kind) ? guardChecks(r.text || '', c, r.kind) : [], photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
     done: rows(1).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', status: r.status, text: r.decided_text || r.text || '', at: r.decided_at || r.updated || '', by: r.decided_by || '' })),
     months,
     monthNow,
@@ -812,8 +834,9 @@ export async function approveItem(env, ctx, c, it, edited, by) {
   if (!finalText) return { status: 400, body: { ok: false, error: 'The text is empty.' } };
   const hits = guard(finalText, c, it.kind);
   if (hits.length) return { status: 422, body: { ok: false, error: 'Please change the flagged words first.', hits } };
-  const r = await env.DB.prepare("UPDATE app_items SET status = 'approved', decided_text = ?1, decided_at = ?2, decided_by = ?3, hq_synced = 0, checked = ?4, updated = ?2 WHERE id = ?5 AND client_id = ?6 AND status = 'pending'")
-    .bind(finalText, now, by, 1, it.id, c.client_id).run();
+  await ensureItemChecks(env);
+  const r = await env.DB.prepare("UPDATE app_items SET status = 'approved', decided_text = ?1, decided_at = ?2, decided_by = ?3, hq_synced = 0, checked = ?4, checks = ?7, updated = ?2 WHERE id = ?5 AND client_id = ?6 AND status = 'pending'")
+    .bind(finalText, now, by, 1, it.id, c.client_id, JSON.stringify(guardChecks(finalText, c, it.kind).map(x => x.label))).run();
   if (!changed(r)) return { status: 409, body: { ok: false, error: 'Already handled.' } };
   const later = p => (ctx && ctx.waitUntil ? ctx.waitUntil(p) : p.catch(() => {}));
   later(decisionPing(env, c, it, finalText === String(it.text || '').trim() ? 'approved' : 'approved with changes', by));

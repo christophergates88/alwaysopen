@@ -19,7 +19,8 @@ export async function ensureStormDesk(env) {
   if (ready.has(env.DB)) return;
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS storm_watch (client_id TEXT PRIMARY KEY, q TEXT DEFAULT '', lat REAL, lng REAL, state TEXT DEFAULT '', county TEXT DEFAULT '', zone TEXT DEFAULT '', label TEXT DEFAULT '', at TEXT DEFAULT '', why TEXT DEFAULT '')"),
-    env.DB.prepare('CREATE TABLE IF NOT EXISTS storms (id TEXT PRIMARY KEY, at TEXT, event TEXT, grp TEXT, counties TEXT, headline TEXT, ends TEXT, link TEXT, sent TEXT)')
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS storms (id TEXT PRIMARY KEY, at TEXT, event TEXT, grp TEXT, counties TEXT, headline TEXT, ends TEXT, link TEXT, sent TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS storm_meta (k TEXT PRIMARY KEY, v TEXT)')
   ]);
   try { await env.DB.prepare("ALTER TABLE storms ADD COLUMN clients TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
   ready.add(env.DB);
@@ -39,7 +40,7 @@ export const TEMPLATES = {
 };
 export const LABELS = { flood: 'Flooding', freeze: 'Freeze', severe: 'Severe weather' };
 // The neon email for a new warning (to Christopher). Pure, so it can be tested. s: the storms row from stormRun.
-const SIGN = { flood: 'FLOOD WARNING', freeze: 'FREEZE TONIGHT', severe: 'STORM WARNING' };
+export const SIGN = { flood: 'FLOOD WARNING', freeze: 'FREEZE TONIGHT', severe: 'STORM WARNING' };
 export function stormEmail(s) {
   const when = (() => { const t = Date.parse(s.ends || ''); return t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' ET' : ''; })();
   const biz = String(s.businesses || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -59,7 +60,7 @@ export function stormEmail(s) {
 }
 
 const TRADES = /plumb|hvac|heat|air|roof|electric|contractor|tree|restor|water|pest|garage|fenc|paint|concrete|pool|tow|auto/i;
-function fill(t, phone) {
+export function fill(t, phone) {
   const d = String(phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const ph = d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : '';
   return ph ? t.replace(/\{phone\}/g, ph) : t.replace(/ at \{phone\}/g, '').replace(/,? and you can reach us\.?/g, '.').replace(/\{phone\}/g, '').replace(/\s+\./g, '.');
@@ -131,7 +132,7 @@ export async function stormRun(env, now, h) {
   const f = h.fetch || fetch;
   await ensureStormDesk(env);
   try { await refreshWatch(env, now, h); } catch (e) { /* matching still runs on what is known */ }
-  const watch = ((await env.DB.prepare("SELECT w.client_id, w.state, w.county, w.zone, w.label, c.business, c.phone FROM storm_watch w JOIN app_clients c ON c.client_id = w.client_id WHERE w.county != '' AND c.active = 1 AND c.tier IN ('Growth', 'Pro')").all()).results) || [];
+  const watch = (((await env.DB.prepare("SELECT w.client_id, w.state, w.county, w.zone, w.label, c.business, c.phone FROM storm_watch w JOIN app_clients c ON c.client_id = w.client_id WHERE w.county != '' AND c.active = 1 AND c.tier IN ('Growth', 'Pro')").all()).results) || []).filter(w => !SKIP.has(w.client_id));
   const extra = h.extra || {};
   const states = new Set(watch.map(w => w.state).filter(s => /^[A-Z]{2}$/.test(s)));
   if (Object.keys(extra).length) states.add('GA');
@@ -174,5 +175,50 @@ export async function stormRun(env, now, h) {
       out.push(row);
     }
   }
+  // When the warnings were last read, for the app's resting card ("Last checked 4 minutes ago").
+  await env.DB.prepare("INSERT OR REPLACE INTO storm_meta (k, v) VALUES ('checked', ?1)").bind(new Date(now).toISOString()).run().catch(() => {});
   return { states: [...states], storms: out.length };
+}
+
+// ---------- the app's Storm Desk card (Brief 7) ----------
+// Live: a storm post drafted in the last 48 hours (waiting for the owner's OK, or already approved), with the warning it
+// was written for. Resting: the county being watched and when the warnings were last read. Growth and Pro only.
+const WINDOW_MS = 48 * 3600e3;
+function untilText(ends, now, tz) {
+  const t = Date.parse(ends || '');
+  if (!t) return '';
+  const o = { timeZone: tz || 'America/New_York' };
+  const time = new Date(t).toLocaleTimeString('en-US', Object.assign({ hour: 'numeric', minute: '2-digit' }, o));
+  const day = d => new Date(d).toLocaleDateString('en-US', Object.assign({ year: 'numeric', month: 'numeric', day: 'numeric' }, o));
+  const wd = new Date(t).toLocaleDateString('en-US', Object.assign({ weekday: 'long' }, o));
+  const same = day(t) === day(now);
+  return t > now ? 'until ' + time + (same ? '' : ' ' + wd) : 'ended ' + time + (same ? '' : ' ' + wd);
+}
+export function stormLine(event, county, ends, now, tz) {
+  const u = untilText(ends, now, tz);
+  return (event || 'Weather warning') + (county ? ' for ' + county : '') + (u ? ', ' + u : '') + '.';
+}
+export async function stormState(env, c, now, tz) {
+  if (!c || !(c.tier === 'Growth' || c.tier === 'Pro') || c.client_id === 'always-open') return null;
+  now = now || Date.now();
+  await ensureStormDesk(env);
+  const cid = c.client_id;
+  const w = await env.DB.prepare('SELECT label, county, zone, at, why FROM storm_watch WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  const m = await env.DB.prepare("SELECT v FROM storm_meta WHERE k = 'checked'").first().catch(() => null);
+  const since = new Date(now - WINDOW_MS).toISOString();
+  const items = ((await env.DB.prepare("SELECT id, title, context, text, status, created, decided_at, decided_text FROM app_items WHERE client_id = ?1 AND kind = 'post' AND context LIKE 'Storm Desk%' AND status IN ('pending', 'approved') AND created > ?2 ORDER BY created DESC LIMIT 3").bind(cid, since).all().catch(() => ({ results: [] }))).results) || [];
+  const active = [];
+  for (const it of items) {
+    const at = Date.parse(it.created) || now;
+    const lo = new Date(at - 12 * 3600e3).toISOString(), hi = new Date(at + 3600e3).toISOString();
+    const st = await env.DB.prepare("SELECT event, grp, counties, headline, ends FROM storms WHERE at >= ?1 AND at <= ?2 AND (clients LIKE ?3 OR counties LIKE ?4) ORDER BY at DESC LIMIT 1")
+      .bind(lo, hi, '%' + cid + '%', '%' + ((w && w.label) || '\u0000') + '%').first().catch(() => null);
+    const fromCtx = /^Storm Desk:\s*(.+?)(?: for (.+))?$/.exec(it.context || '') || [];
+    const event = (st && st.event) || fromCtx[1] || 'Weather warning';
+    const county = (w && w.label) || fromCtx[2] || (st && String(st.counties || '').split(';')[0].trim()) || '';
+    const grp = (st && st.grp) || stormGroup(event);
+    active.push({ id: it.id, sign: SIGN[grp] || 'STORM WARNING', event, county, ends: (st && st.ends) || '', line: stormLine(event, county, st && st.ends, now, tz),
+      status: it.status === 'approved' ? 'approved' : 'pending', text: it.status === 'approved' ? (it.decided_text || it.text || '') : (it.text || ''), at: it.created || '', decidedAt: it.decided_at || '' });
+  }
+  return { county: (w && w.label) || '', zone: (w && w.zone) || '', lastCheck: (m && m.v) || '', finding: !(w && w.county), why: (w && w.why) || '', active };
 }
