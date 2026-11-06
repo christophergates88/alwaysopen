@@ -97,7 +97,13 @@ for (const [code, list] of [[DEMO_CODE, ['storm', 'rivals', 'clock', 'timecard']
     if (!el) { problems.push(w + ': the ' + (code === DEMO_CODE ? 'demo' : 'sample agency') + ' does not render [data-card="' + c.id + '"] on ' + c.screen); continue; }
     const t = await el.innerText();
     if (c.head && !t.toUpperCase().includes(c.head.toUpperCase())) problems.push(w + ': the app card does not say "' + c.head + '": ' + t.slice(0, 80).replace(/\s+/g, ' '));
-    if (shots) { await el.scrollIntoViewIfNeeded(); await appPage.waitForTimeout(150); await el.screenshot({ path: path.join(shots, 'wall-' + w + '-app.png') }); }
+    if (shots) {
+      // the whole card as the owner sees it (Compliance Guard sits inside a reply card), without the tab bar over it
+      const shot = (await el.evaluateHandle(x => x.closest('[data-card="item"]') || x)).asElement();
+      await appPage.evaluate(() => document.querySelectorAll('[data-tab]').forEach(t => { if (t.parentElement) t.parentElement.style.visibility = 'hidden'; }));
+      await shot.scrollIntoViewIfNeeded(); await appPage.waitForTimeout(150); await shot.screenshot({ path: path.join(shots, 'wall-' + w + '-app.png') });
+      await appPage.evaluate(() => document.querySelectorAll('[data-tab]').forEach(t => { if (t.parentElement) t.parentElement.style.visibility = ''; }));
+    }
   }
 }
 await browser.close(); srv.close();
