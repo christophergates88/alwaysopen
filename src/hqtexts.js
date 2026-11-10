@@ -99,7 +99,8 @@ HOW TO WRITE A REPLY
 
 Return ONLY JSON, no other text:
 {"action":"reply"|"escalate"|"none","reply":"the text to send (reply only)","category":"money"|"legal"|"health"|"urgent"|"work"|"personal"|"commitment"|"identity"|"unsure"|"logistics"|"social"|"none","urgent":false,"tell":"one short plain sentence for Christopher: who and what they need (escalate), or what you told them (reply)","suggest":"a reply he could send himself (escalate; empty if he should call them or think it over)","done":false}
-"done": true only when the ACTIVE GOAL is settled; then "tell" says how it was settled.`;
+"done": true only when the ACTIVE GOAL is settled; then "tell" says how it was settled.
+"tell" can show on his lock screen: keep it one short, neutral sentence about who and what they want. No commentary on feelings, arguments, relationships, health or money beyond what he needs to know what they want.`;
 
 function schedText(day, cal, plans, now) {
   const e = eastern(now);
@@ -136,7 +137,7 @@ export async function decide(env, chat, h) {
   const fresh = (chat.new || []).map(x => String(x || '').slice(0, 1000)).filter(Boolean).slice(-8);
   const st = h.settings;
   const job = h.job || null;
-  const out = { handle, name, action: 'none', reply: '', tell: '', suggest: '', urgent: false, category: 'none', done: false, why: '' };
+  const out = { handle, name, action: 'none', reply: '', tell: '', suggest: '', urgent: false, category: 'none', done: false, why: '', quiet: false };
   if (!fresh.length) return out;
   if (st.skip.includes(ph10(handle))) { out.why = 'on his leave-alone list'; return out; }
   // what code decides before the model
@@ -170,6 +171,9 @@ export async function decide(env, chat, h) {
   if (out.action === 'escalate') { out.reply = ''; if (!out.tell) out.tell = `${name} texted you: “${fresh[fresh.length - 1].slice(0, 120)}”`; if (!replyOk(out.suggest)) out.suggest = ''; }
   if (out.action !== 'reply') out.reply = '';
   if (!out.why) out.why = out.category;
+  // People he answers himself (Katie, his brothers and sister): their texts already reach him, so no push of our own
+  // unless it's urgent. It's still logged for his page, with the suggested reply.
+  out.quiet = out.action === 'escalate' && !out.urgent && ((fam && fam.texts === 'tell') || st.tell.includes(ph10(handle)));
   return out;
 }
 
