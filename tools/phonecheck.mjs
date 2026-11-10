@@ -1,7 +1,7 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 16,800 px (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
+// taller than 17,400 px (raised from 16,800 on Nov 10 for the Shoulder Tap band, about 1,200 px, open on the home page and folded on the trade pages) (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 16800], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
+const PAGES = [['/', 17400], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();
@@ -141,6 +141,23 @@ for (const w of WIDTHS) {
         await page.waitForTimeout(200); await page.fill('#c-q', 'Sample Plumbing'); await page.fill('#c-town', 'Eatonton, GA');
       const sb = page.locator('#check button[type=submit]'); await sb.scrollIntoViewIfNeeded(); const bb = await sb.boundingBox(); await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);   // a real tap: a locator click in touch mode taps the pre-scroll spot
       await page.waitForFunction(() => { const o = document.getElementById('check-out'); return !!(o && o.querySelector('.check-score, #check-go')); }, null, { timeout: 4000 }).catch(() => problems.push(name + ': the instant check did not answer')); }
+      // Shoulder Tap: the made-up call plays through to the answer, and its words switch to Spanish with the page.
+      if (await page.$('#tap')) {
+        const tap = await page.evaluate(async () => {
+          const bad = [], s = document.getElementById('tap'), bar = s.querySelector(':scope > .ao-foldbar');
+          if (bar && !s.classList.contains('ao-open')) bar.click();
+          const ph = s.querySelector('.tapphone'); ph.scrollIntoView({ block: 'center' });
+          const t0 = Date.now();
+          while (Date.now() - t0 < 16000 && ph.querySelectorAll('[data-i].on').length < 8) await new Promise(r => setTimeout(r, 200));
+          if (ph.querySelectorAll('[data-i].on').length < 8) bad.push('the call did not play to the end (' + ph.querySelectorAll('[data-i].on').length + ' of 8)');
+          const en = ph.querySelector('[data-i="5"]').textContent;
+          const btn = document.querySelector('[data-lang-t]');
+          if (btn) { btn.click(); if (ph.querySelector('[data-i="5"]').textContent === en) bad.push('the call stayed English'); if (!/hombro/.test(document.getElementById('tap-h').textContent)) bad.push('the headline stayed English'); btn.click(); if (ph.querySelector('[data-i="5"]').textContent !== en) bad.push('English did not come back'); try { localStorage.removeItem('ao_lang'); } catch (e) {} }
+          if (bar && s.classList.contains('ao-open')) bar.click();
+          return bad;
+        });
+        tap.forEach(x => problems.push(name + ': Shoulder Tap ' + x));
+      } else if (!/dental|insurance/.test(name)) problems.push(name + ': the Shoulder Tap band is missing');
       // Spanish: every swap finds its place, the switch is a full tap, nothing scrolls sideways, English comes back.
       const es = await page.evaluate(() => {
         const btn = document.querySelector('[data-lang-t]'); if (!btn) return ['no ES/EN switch'];

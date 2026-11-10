@@ -23,15 +23,19 @@ const words = t => (String(t || '').match(/[A-Za-zÀ-ÿ0-9']+/g) || []).length;
 // a.m., p.m. and the rest never end a sentence, the same as the live call's splitter (voice.js ABBR): "at seven p.m. gets a
 // live answer" was split in two on a Nov 6 practice run and the second half cut.
 const KEEP = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr\.|a\.m\.|p\.m\.|vs\.|etc\.|e\.g\.|i\.e\.)|\d\.\d/g;
+// A control tag ([ASK: can he come tonight?], [BOOK 2 | Dana | no hot water.]) is one piece, whatever punctuation it
+// carries: its marks are hidden while a reply is split into sentences and put back after.
+export const tagHide = t => String(t || '').replace(/\[[^\]]*\]/g, m => m.replace(/[.!?]/g, c => c === '.' ? '\u0001' : c === '?' ? '\u0002' : '\u0003'));
+export const tagShow = t => String(t || '').replace(/\u0001/g, '.').replace(/\u0002/g, '?').replace(/\u0003/g, '!');
 export function sentencesOf(text) {
-  const t = String(text || '').replace(KEEP, m => m.replace(/\./g, '\u0001'));
+  const t = tagHide(text).replace(KEEP, m => m.replace(/\./g, '\u0001'));
   // a sentence ends where the live call ends one: end punctuation followed by a space or the end, so
   // "alwaysopenoffice.com" stays whole (the old split cut it into "alwaysopenoffice." and "com ...", Nov 5)
   const out = [], re = /[.!?]+["')\]]*(?:\s+|$)/g;
   let last = 0, m;
   while ((m = re.exec(t))) { if (!m[0].length) { re.lastIndex++; continue; } out.push(t.slice(last, m.index + m[0].length)); last = m.index + m[0].length; }
   if (last < t.length) out.push(t.slice(last));
-  return out.map(x => x.replace(/\u0001/g, '.')).filter(x => x.length);
+  return out.map(tagShow).filter(x => x.length);
 }
 
 // What a question asks for, by detail.

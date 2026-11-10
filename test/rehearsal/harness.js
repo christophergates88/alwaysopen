@@ -157,7 +157,7 @@ export function installFetch(world, env) {
       vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.json$/);
       if (vm && method === 'DELETE') { (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
       if (/\/Messages\.json$/.test(path) && method === 'GET') return json({ messages: world.twMsgs || [], next_page_uri: null });
-      if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(), t = Object.fromEntries(f); (/^[A-Z][\w .'-]{0,30}: (New call|URGENT call|Booked|Missed call|Upset caller) from /.test(t.Body || '') ? world.ownerTexts : world.texts).push(t); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
+      if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(), t = Object.fromEntries(f); (/^[A-Z][\w .'-]{0,30}: (New call|URGENT call|Booked|Missed call|Upset caller|Live call) from /.test(t.Body || '') ? world.ownerTexts : world.texts).push(t); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);
     }
     if (host === 'messaging.twilio.com' || host === 'trusthub.twilio.com') { world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404); }
@@ -166,6 +166,11 @@ export function installFetch(world, env) {
     if (host === 'api.anthropic.com') {
       const b = JSON.parse(body || '{}');
       if (world.fail.anthropic) return new Response('{"error":{"message":"overloaded"}}', { status: 529 });
+      if (!b.stream && /relaying the owner's answer/.test(String(b.system || ''))) {
+        world.relaySeen = (world.relaySeen || []).concat([b]);
+        if (world.aiRelay == null) return new Response('{"error":{"message":"overloaded"}}', { status: 529 });
+        return json({ model: b.model, content: [{ type: 'text', text: typeof world.aiRelay === 'function' ? world.aiRelay(b) : world.aiRelay }], usage: { input_tokens: 200, output_tokens: 30 }, stop_reason: 'end_turn' });
+      }
       if (!b.stream) {
         const txt = JSON.stringify(typeof world.aiNote === 'function' ? world.aiNote(b) : (world.aiNote || { name: '', callback: '', reason: 'Left a message', details: '', when: '', urgent: false, callback_wanted: false, booked: '', spam: false, summary: 'They left a message.' }));
         return json({ model: b.model, content: [{ type: 'text', text: txt }], usage: { input_tokens: 300, output_tokens: 80 }, stop_reason: 'end_turn' });

@@ -2,6 +2,7 @@ import { BIZ_JS } from './bizpage.js';
 import { PAST_JS } from './pastpage.js';
 import { RIVALS_JS } from './rivalspage.js';
 import { CLOCK_CSS, CLOCK_JS, CLOCK_ANIM_CSS, CLOCK_ANIM_JS } from './clock.js';
+import { TAP_WAIT_MS } from './tap.js';
 // The client app page (web version). Everything it shows comes from <base>/api/state; nothing private is in the HTML.
 export function appHtml({ base, business }) {
   const B = JSON.stringify(String(base)).replace(/</g, '\\u003c');
@@ -93,6 +94,12 @@ button.tile{text-align:left;font:inherit;color:inherit;cursor:pointer;-webkit-ta
 @media (prefers-reduced-motion:reduce){.live{animation:none}}
 .live .lh{display:flex;align-items:center;gap:8px;font-weight:700}.live .dot{width:9px;height:9px;border-radius:99px;background:var(--sign);animation:dotp 1.1s ease-in-out infinite}@keyframes dotp{50%{opacity:.25}}
 .live .ln{font:500 12px var(--mono);color:var(--slate)}.live .lq{display:grid;gap:5px}.live .lq span{font-size:15px;padding:8px 11px;border-radius:14px;max-width:92%}.live .lq .u{background:var(--panel);justify-self:start;border-bottom-left-radius:4px}.live .lq .a{background:var(--ink);color:var(--paper);justify-self:end;border-bottom-right-radius:4px}
+.live .tapq{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
+.live .tapq .th{font:700 12.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--sign)}
+.live .tapq .tq{font-size:18px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.live .tapq .tl{font:500 12.5px var(--mono);color:var(--slate)}
+.live .tapb{display:flex;gap:8px;flex-wrap:wrap}.live .tapb .btn{flex:1 1 30%;min-height:48px;padding:10px 12px}
+.live .tapi{display:flex;gap:8px}.live .tapi input{flex:1;min-width:0}.live .tapi .btn{flex:none}
 .chip.storm{background:var(--warn-soft);color:var(--warn)}
 .stars{color:#E8A317;letter-spacing:1px;font-size:15px}
 .who{color:var(--slate);font-size:15px}
@@ -383,7 +390,7 @@ function load(quiet,auto){
     LOADING=false;r.classList.remove('spin');$('#offline').hidden=true;
     if(!res.j.ok){if(res.status===404||res.status===429){$('#view').innerHTML='<div class="empty"><b>This link is not working</b><span>'+esc(res.j.error||'')+'</span></div>';}else if(!quiet)toast(res.j.error||'Could not load. Try again.');return;}
     if(auto&&editing()){livePoll();return;}   /* they started typing while it loaded: keep what they typed */
-    S=res.j;if(S.client&&S.client.business)$('#biz').textContent=S.client.business;
+    S=res.j;S._at=Date.now();if(S.client&&S.client.business)$('#biz').textContent=S.client.business;
     if(!MONTH&&S.months&&S.months.length)MONTH=S.months[0].month;
     render();
   }).catch(function(){LOADING=false;r.classList.remove('spin');$('#offline').hidden=false;if(!S)$('#view').innerHTML='<div class="empty"><b>No connection</b><span>Check your signal, then tap refresh.</span></div>';});
@@ -803,7 +810,46 @@ function liveCard(){
   var L=S.live||[];if(!L.length)return '';
   return L.map(function(c){var secs=Math.max(0,Math.round((Date.now()-Date.parse(c.at))/1000)),mm=Math.floor(secs/60),ss=secs%60;
     return '<div data-card="live" class="live" aria-live="polite"><div class="lh"><span class="dot"></span>'+esc(S.line?S.line.name:'Max')+' is on a call'+(c.name?' with '+esc(c.name):'')+'</div><div class="ln">'+esc(c.numberText||'Unknown number')+' \\u00b7 '+mm+':'+(ss<10?'0':'')+ss+(c.turns?' \\u00b7 '+c.turns+(c.turns===1?' turn':' turns'):'')+'</div>'+
-      (c.heard||c.said?'<div class="lq">'+(c.heard?'<span class="u">'+esc(c.heard)+'</span>':'')+(c.said?'<span class="a">'+esc(c.said)+'</span>':'')+'</div>':'<div class="ln">Connecting\\u2026</div>')+'</div>';}).join('');
+      (c.heard||c.said?'<div class="lq">'+(c.heard?'<span class="u">'+esc(c.heard)+'</span>':'')+(c.said?'<span class="a">'+esc(c.said)+'</span>':'')+'</div>':'<div class="ln">Connecting\\u2026</div>')+tapBlock(c)+'</div>';}).join('');
+}
+// Shoulder Tap on the live card. When Max has a question out for the owner: the question, one-tap answers and a box to
+// type one. Otherwise: a box to tell Max something for this caller, and Take the call when there is a number to ring.
+var TAP_WAIT=${TAP_WAIT_MS};
+// counted from the seconds the server said were left when this page last loaded, so a phone with the wrong time is still right
+function tapEnd(t){return (S._at||Date.now())+Math.min(TAP_WAIT/1000,Math.max(0,+t.left||0))*1000;}
+function tapWaits(nm,end){var n=Math.max(0,Math.round((+end-Date.now())/1000));return n?nm+' waits about '+n+' more '+(n===1?'second':'seconds')+', then says you\\u2019ll call back.':nm+' has told them you\\u2019ll call back. An answer now still reaches them while they are on the line.';}
+function tapBlock(c){
+  if(!c.tap&&!c.tell)return '';
+  var nm=esc(S.line?S.line.name:'Max'),id=esc(c.id);
+  var take=c.take?'<button class="btn line" type="button" data-a="tap-take">Take the call</button>':'';
+  if(c.tap)return '<div class="tapq" data-call="'+id+'" data-tap="'+esc(c.tap.id)+'"><div class="th">'+nm+' is asking you</div><div class="tq">'+esc(c.tap.q)+'</div>'+
+    '<div class="tapb"><button class="btn ok" type="button" data-a="tap-quick" data-v="Yes.">Yes</button><button class="btn line" type="button" data-a="tap-quick" data-v="No, not this time.">No</button><button class="btn line" type="button" data-a="tap-quick" data-v="I will call them back myself in a few minutes.">I\\u2019ll call them</button></div>'+
+    '<div class="tapi"><input type="text" id="tap-'+id+'" maxlength="240" placeholder="Or type your answer" aria-label="Your answer" enterkeyhint="send" autocomplete="off"><button class="btn red" type="button" data-a="tap-send">Send</button></div>'+
+    (take?'<div class="tapb">'+take+'</div>':'')+'<div class="tl" data-tapleft="'+tapEnd(c.tap)+'">'+tapWaits(nm,tapEnd(c.tap))+'</div></div>';
+  return '<div class="tapq" data-call="'+id+'"><div class="tapi"><input type="text" id="tap-'+id+'" maxlength="240" placeholder="Tell '+nm+' something for this caller" aria-label="Tell '+nm+' something for this caller" enterkeyhint="send" autocomplete="off"><button class="btn red" type="button" data-a="tap-send">Tell '+nm+'</button></div>'+
+    (take?'<div class="tapb">'+take+'</div>':'')+'</div>';
+}
+function tapSend(t,text,action){
+  var box=t.closest('.tapq');if(!box)return;
+  var inp=box.querySelector('input'),v=text||(inp?String(inp.value||'').trim():''),nm=S.line?S.line.name:'Max';
+  if(!action&&!v){toast('Type what '+nm+' should tell them.');if(inp)inp.focus();return;}
+  var bs=box.querySelectorAll('button'),lock=function(on){for(var i=0;i<bs.length;i++)bs[i].disabled=on;};
+  lock(true);
+  post('tap',action?{call:box.getAttribute('data-call'),action:action,by:name()}:{call:box.getAttribute('data-call'),id:box.getAttribute('data-tap')||'',text:v,by:name()}).then(function(res){
+    if(res.j.ok){toast(res.j.said||'Sent.');if(inp){inp.value='';inp.blur();}load(true);}
+    else{toast(res.j.error||'That did not go through. Try again.');lock(false);}
+  }).catch(function(){toast('No connection. Try again.');lock(false);});
+}
+setInterval(function(){var els=document.querySelectorAll('[data-tapleft]');for(var i=0;i<els.length;i++)els[i].textContent=tapWaits(S&&S.line?S.line.name:'Max',els[i].getAttribute('data-tapleft'));},1000);
+// The Max tab: what Shoulder Tap is, an example of the text, how the last 30 days went, and the owner's switch.
+function tapCard(L){
+  var T=S.tap;if(!T||!T.on||isTech())return '';
+  var m=T.month||{},nm=esc(L.name),w=T.when==='off'||T.when==='always'?T.when:'day';
+  return '<h2>Shoulder Tap</h2><div class="tcard"><div class="tch"><b>Shoulder Tap</b><span class="fine">'+({off:'Off',day:'8 AM to 9 PM',always:'Any hour'})[w]+'</span></div>'+
+    '<p class="fine">A caller asks something only you know. '+nm+' texts you the question while they are still on the line. You text back, and '+nm+' tells them. No answer in about a minute, and '+nm+' says you\\u2019ll call back, like always.</p>'+
+    '<div class="ex"><span class="chip">Example</span><div class="bub in">'+nm+': Live call from (478) 555-0142.\\nThey ask: \\u201cCan you come out tonight?\\u201d\\nReply to this text now and '+nm+' tells them.</div><div class="bub out">Yes, 7</div><div class="bub in">Got it. '+nm+' is telling them now.</div></div>'+
+    (m.asked?'<p class="fine" style="margin:0">Last 30 days: '+nm+' asked you '+m.asked+(m.asked===1?' question':' questions')+' mid-call. You answered '+m.answered+' in time'+(m.secs?', usually in about '+m.secs+' seconds':'')+'.</p>':'')+
+    (isOwner()?'<label>When '+nm+' may text you a caller\\u2019s question<select id="tap-when"><option value="day"'+sel(w,'day')+'>Daytime, 8 AM to 9 PM</option><option value="always"'+sel(w,'always')+'>Any hour</option><option value="off"'+sel(w,'off')+'>Never</option></select></label><div class="acts"><button class="btn red" type="button" data-a="tap-when">Save</button></div>':'')+'</div>';
 }
 // What Max caught this month: after-hours calls that became leads, at the owner's own numbers, with the arithmetic shown.
 function moneyCard(){
@@ -1101,6 +1147,7 @@ function vMax(){
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
     if(S.maxStats&&S.maxStats.calls)h+='<p class="fine" style="margin:8px 2px 0">Last 30 days: '+S.maxStats.calls+(S.maxStats.calls===1?' call':' calls')+', '+S.maxStats.booked+' booked, '+S.maxStats.hungUp+' hung up early.</p>';
     h+=timecardCard();
+    h+=tapCard(L);
     if(S.minutes){var mm=S.minutes,pc=Math.min(100,mm.pct||0);h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>Minutes this month</b><span class="fine">'+mm.used+' of '+mm.included+'</span></div><div style="height:8px;border-radius:99px;background:var(--panel);margin:8px 0 6px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(mm.over?'var(--sign)':pc>=80?'var(--warn,#F2C46B)':'var(--ok)')+'"></div></div><p class="fine">'+(mm.over?mm.over+' minutes past your plan so far, $'+(mm.overCents/100).toFixed(2)+' at 25¢ a minute on your next invoice. Max keeps answering.':pc>=80?'Getting close. Past '+mm.included+', minutes are 25¢ each. Max keeps answering.':'Every plan comes with 300 minutes of Max a month.')+'</p></div>';}
     h+='<h2>What '+esc(L.name)+' knows</h2><div class="card form">'+
       '<label>Your hours<input type="text" id="lh" maxlength="300" value="'+esc(L.hours)+'" placeholder="For example: Mon to Fri 8 to 5, Sat 9 to 1"></label>'+
@@ -1516,6 +1563,10 @@ document.addEventListener('click',function(e){
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});
   else if(a==='duty-save')dutySave();
   else if(a==='tell-go')tellMax();
+  else if(a==='tap-quick')tapSend(t,t.dataset.v);
+  else if(a==='tap-send')tapSend(t);
+  else if(a==='tap-take'){if(t.classList.contains('sure'))tapSend(t,'','take');else{t.classList.add('sure');t.textContent='Tap again to take it';setTimeout(function(){if(t.isConnected){t.classList.remove('sure');t.textContent='Take the call';}},4000);}}
+  else if(a==='tap-when')lineSave({tap:$('#tap-when').value},function(){load(true);});
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
@@ -1532,7 +1583,7 @@ function touch(t){if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&TOUCHED.ind
 document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;touch(t);if(t&&t.id==='lw')DIRTY=true;});
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#scrim').hidden)close();else if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('mapbox')){e.preventDefault();mapOpen();}});
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id&&e.target.id.indexOf('tap-CA')===0){e.preventDefault();tapSend(e.target);return;}if(e.key==='Escape'&&!$('#scrim').hidden)close();else if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('mapbox')){e.preventDefault();mapOpen();}});
 $('#refresh').addEventListener('click',function(){load();});
 /* swipe a card right to approve, left to skip */
 (function(){

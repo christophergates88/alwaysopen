@@ -255,6 +255,13 @@ export async function handleApp(req, env, ctx, url) {
       return await apiDevice(req, env, c);
     } else if (sub === '/api/call' && meth === 'POST') {
       return await apiCall(req, env, c);
+    } else if (sub === '/api/tap' && meth === 'POST') {
+      // Shoulder Tap (tap.js): answer Max's question on a live call, tell him something, or take the call.
+      if (!features(c).calls) return aj({ ok: false, error: 'The phone line is not on for your account.' }, 403);
+      const b = await readJson(req, 2000);
+      if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
+      const r = await (await import('./tap.js')).tapFromApp(env, c, b);
+      return aj(r, r.ok ? 200 : (/gone/.test(r.error || '') ? 404 : 400));
     } else if (sub === '/api/line' && meth === 'POST') {
       return await apiLine(req, env, ctx, c);
     } else if (sub === '/api/max-setup' && meth === 'POST') {
@@ -501,6 +508,13 @@ async function apiState(env, c, ctx) {
     const rows = f.calls ? ((await env.DB.prepare("SELECT c.id, c.at, c.caller, c.caller_name, l.heard, l.said, l.turns, l.updated FROM app_calls c LEFT JOIN call_live l ON l.id = c.id WHERE c.client_id = ?1 AND c.outcome = 'live' AND c.test = 0 AND c.at > ?2 ORDER BY c.at DESC LIMIT 3").bind(cid, new Date(Date.now() - 20 * 60000).toISOString()).all()).results || []) : [];
     out.live = rows.map(r => ({ id: r.id, at: r.at, numberText: fmtNum(r.caller || ''), name: r.caller_name || '', heard: r.heard || '', said: r.said || '', turns: +r.turns || 0, updated: r.updated || r.at }));
   } catch (e) { out.live = []; }
+  // Shoulder Tap (tap.js): Max's open question on each live call, whether the owner can tell Max something or take the
+  // call, and the last 30 days for the Max tab. Techs see the call, never the controls.
+  try {
+    const t = line && f.calls ? await (await import('./tap.js')).tapState(env, line, out.live.map(x => x.id)) : null;
+    out.tap = t ? { on: t.on, when: t.when, month: c.staff ? null : t.month } : null;
+    if (t && t.on && t.when !== 'off' && !tech) for (const x of out.live) { x.tap = t.open[x.id] || null; x.tell = true; x.take = /^\+1\d{10}$/.test(withOwner(line).transfer_to || ''); }
+  } catch (e) { out.tap = null; }
   try { out.fullMax = c.staff ? null : await fullMaxState(env, c); } catch (e) { out.fullMax = null; }
   try { out.after = (line && !c.staff && !+c.regulated) ? await afterState(env, cid, line) : null; } catch (e) { out.after = null; }
   try { out.maxStats = (f.calls && line) ? await (await import('./grades.js')).ownerStats(env, cid) : null; } catch (e) { out.maxStats = null; }
@@ -692,6 +706,13 @@ async function apiLine(req, env, ctx, c) {
   if (b.booking && typeof b.booking === 'object' && !+raw.regulated) {
     const nb = cleanBooking(b.booking, o.book);
     if (JSON.stringify(nb) !== JSON.stringify(o.book || {})) { o.book = nb; changes.push('booking: ' + ({ book: 'Max books open times', hold: 'Max pencils in a time for you to confirm', off: 'Max takes a message' })[nb.mode || 'hold'] + ', ' + (nb.slotMin || 60) + '-minute visits'); }
+  }
+  // Shoulder Tap (tap.js): when Max may text the owner a caller's question mid-call. Owner only.
+  if (b.tap != null) {
+    if (c.staff) return aj({ ok: false, error: 'Only the owner can change this.' }, 403);
+    const w = b.tap === 'off' || b.tap === 'day' || b.tap === 'always' ? b.tap : '';
+    if (!w) return aj({ ok: false, error: 'Bad request' }, 400);
+    if (w !== (o.tap === 'off' || o.tap === 'always' ? o.tap : 'day')) { if (w === 'day') delete o.tap; else o.tap = w; changes.push('Shoulder Tap: ' + ({ off: 'off', day: 'daytime (8 AM to 9 PM)', always: 'any hour' })[w]); }
   }
   // Max's job description (duties.js): owner only.
   if (b.duties && typeof b.duties === 'object') {

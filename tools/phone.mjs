@@ -1,6 +1,6 @@
 // The phone version of the public site. Run from the repo root: node tools/phone.mjs
 // The site's generators, in order (each one safe to rerun; tools/industry.py is retired): node tools/phone.mjs,
-// python3 tools/marinas.py, node tools/sitefeatures.mjs, node tools/siteclock.mjs, then node tools/phonecheck.mjs.
+// python3 tools/marinas.py, node tools/sitefeatures.mjs, node tools/siteclock.mjs, node tools/sitetap.mjs, then node tools/phonecheck.mjs.
 // Writes into public/index.html and the industry pages:
 //   - the "Tap to try it" band under the hero: playable "Only here" cards (the feature wall and clock band inside it are kept)
 //   - the phone kit before </body>: folded sections, swipeable plans, the grade form, and the small fixes for phones
@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGES, FOLDS } from './phone-data.mjs';
 import { ES_HOME, ES_DOES, esDoesFor, esTrade, esFront, ES_LINE, NAV_ES } from './phone-es.mjs';
+import { TAP_FOLD } from './sitetap.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
@@ -724,6 +725,8 @@ function foldAttrs(s, folds) {
   s = s.replace(/ data-fold="[^"]*"/g, '');
   // Max's clock band (siteclock.mjs) is on the pages that have it; it keeps its own one-line summary.
   if (s.includes('id="clock"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { clock: 'Every call on one dial, and the hours that came back to you.' });
+  // The Shoulder Tap band (sitetap.mjs) sits right after this block's front; open on the home page, folded on the rest.
+  if (s.includes('id="tap"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { tap: TAP_FOLD });
   for (const [id, sum] of Object.entries(folds)) {
     const re = new RegExp('(<(?:section|div)\\b[^>]*\\bid="' + id + '"[^>]*)>');
     if (!re.test(s)) throw new Error('no section ' + id);

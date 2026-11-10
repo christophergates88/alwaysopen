@@ -131,7 +131,7 @@ export function hardErrors(msgs, L) {
   for (const m of allowedTime.matchAll(/within (\d+) minutes/g)) allowedTime += ' en menos de ' + m[1] + ' minutos en ' + m[1] + ' minutos' + (m[1] === '15' ? ' en menos de quince minutos quince minutos' : '');
   if (/same (night|day)/.test(allowedTime)) allowedTime += ' hoy mismo esta misma noche';
   const priceDigits = new Set((String(L.prices || '') + ' ' + String(L.notes || '') + ' ' + String(L.owner || '') + ' ' + String(L.services || '')).replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []);
-  const known = String([L.owner, L.next, L.notes, L.name, L.business, L.booking, L.services, L.memory, L.earlier].join(' '));
+  const known = String([L.owner, L.next, L.notes, L.name, L.business, L.booking, L.services, L.memory, L.earlier, (L.tap && L.tap.who) || ''].join(' '));
   const out = [], seen = new Set();
   const hit = (flag, quote) => { const k = flag + '|' + quote; if (!seen.has(k)) { seen.add(k); out.push({ flag, quote: String(quote).slice(0, 140) }); } };
   list.forEach((m, i) => {

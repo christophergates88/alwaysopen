@@ -19,7 +19,7 @@ export function keywordOf(body) {
   return START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : '');
 }
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
-const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops']);   // 'ops': only ever to Christopher; push.js decides the hour
+const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops', 'tap']);   // 'ops': only ever to Christopher; push.js decides the hour. 'tap': only ever to an owner, about a call live right now (tap.js decides the hour)
 const TEXTS_PER_CLIENT_HOUR = 60, TEXTS_PER_HOUR = 400;   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
 const TEXTS_PER_CLIENT_DAY = 200;   // automatic texts for one business in a day, whatever starts them
 
@@ -157,6 +157,8 @@ export async function handleSms(req, env, form, sigOk) {
   if (!key && cid !== OWN) {
     const own = await env.DB.prepare('SELECT phone FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
     if (own && ph10(own.phone) === from10) {
+      // Shoulder Tap: Max has a question out for them on a live call, so this text is the answer (tap.js), never a note.
+      try { const tap = await (await import('./tap.js')).tapFromText(env, cid, body); if (tap) return xml('<Message>' + tap.reply.replace(/[<&>]/g, '') + '</Message>'); } catch (e) { /* falls through to the usual handling */ }
       // A question back to Monday's timecard is answered from last week's calls (timecard.js); anything else is a note for Max.
       try {
         const ans = await (await import('./timecard.js')).timecardReply(env, cid, body);
@@ -193,6 +195,11 @@ export async function handleSms(req, env, form, sigOk) {
   // (A YES to a Fill my week offer books through the same path just above, so its confirmation goes here too.)
   if (key !== 'stop') { try { await (await import('./autotext.js')).textedIn(env, cid, from10); } catch (e) { /* the timer picks it up */ } }
   if (filled) return xml(reply);
+  // Shoulder Tap on Always Open's own number: Christopher answering for this line, or an owner whose question went out
+  // from here because their own texting is not registered yet (tap.js). The text is in the inbox either way.
+  if (cid === OWN && !key) {
+    try { const tap = await (await import('./tap.js')).tapFromOwnerText(env, from10, body); if (tap) return xml('<Message>' + tap.reply.replace(/[<&>]/g, '') + '</Message>'); } catch (e) { /* falls through */ }
+  }
   // An owner answering Always Open's own review ask: straight to Christopher's phone (ourreviews.js).
   // Christopher answering the Always Open line's own timecard test (timecard.js timecardTest).
   if (cid === OWN && !key && env.OPS_TEXT_TO && ph10(env.OPS_TEXT_TO) === from10) {
