@@ -129,6 +129,9 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'oc') return await outcallTwiml(env, url, form);
     if (kind === 'ocg') return await outcallGather(env, url, form);
     if (kind === 'ocstatus') return await outcallStatus(env, url, form);
+    if (kind === 'or') return await (await import('./outreach.js')).outreachTwiml(env, url, form);
+    if (kind === 'org') return await (await import('./outreach.js')).outreachGather(env, url, form);
+    if (kind === 'orstatus') return await (await import('./outreach.js')).outreachStatus(env, url, form);
     if (kind === 'out') return await outboundTwiml(env, url, form);
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);

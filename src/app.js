@@ -21,7 +21,7 @@ import { callbackState, apiCallbacks } from './callbacks.js';
 import { apiHandoff, handoffState } from './handoff.js';
 import { apiCheckins, checkinState, scheduleCheckin } from './checkin.js';
 import { apiOutcalls, outcallsState } from './outcalls.js';
-import { outreachState, attest as outreachAttest, savePitch as outreachPitch, importList as outreachImport } from './outreach.js';
+import { outreachState, attest as outreachAttest, agree as outreachAgree, savePitch as outreachPitch, importList as outreachImport } from './outreach.js';
 import { apiAnswer, answerState } from './answerrate.js';
 import { apiFullMax, fullMaxState } from './fullmax.js';
 import { upgradesState } from './upgrades.js';
@@ -345,10 +345,11 @@ export async function handleApp(req, env, ctx, url) {
       const r = await apiOutcalls(req, env, c);
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/outreach' && meth === 'POST') {
-      // Outreach calls to businesses (Brief 3, Part 8d): set up here; nothing dials until Christopher turns it on.
+      // Outreach calls to businesses (Brief 3, Part 8d): the owner signs the terms, writes the sentence, adds a list, turns it on.
       if (c.staff) return aj({ ok: false, error: 'Only the owner can change this.' }, 403);
       let b = {}; try { b = await req.json(); } catch (e) {}
-      const r = b.action === 'attest' ? await outreachAttest(env, c, c.owner_name || 'owner')
+      const r = b.action === 'agree' ? await outreachAgree(env, c, b, { by: c.whoName || c.owner_first || 'Owner', ip: await ipKey(req, env), ua: req.headers.get('user-agent') || '' })
+        : b.action === 'attest' ? await outreachAttest(env, c, c.owner_name || 'owner')
         : b.action === 'pitch' ? await outreachPitch(env, c, b.text, !!b.on)
         : b.action === 'list' ? await outreachImport(env, c, String(b.csv || '').slice(0, 60000))
         : { ok: false, error: 'Bad request' };

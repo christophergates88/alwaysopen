@@ -39,5 +39,5 @@ test('a tech points "put callers through" at a number of their choosing and rewr
   const line = (await a.state()).line, after = (await a.state()).after;
   assert.deepEqual(Object.fromEntries(Object.entries(asked).map(([k, r]) => [k, r.status])), { transfer: 403, greeting: 403, prices: 403, booking: 403, afterCall: 403 }, 'every one of these should be refused for a tech');
   assert.deepEqual({ transferTo: line.transferTo, when: line.transferWhen, greeting: line.greeting, prices: line.know.find(x => x.key === 'prices').value, booking: line.booking.mode, after },
-    { transferTo: '', when: 'never', greeting: '', prices: '', booking: 'hold', after: { promise: true, textback: true, checkins: true, canText: false } }, 'and the owner’s line should be as the owner left it');
+    { transferTo: '', when: 'never', greeting: '', prices: '', booking: 'hold', after: { promise: true, textback: true, checkins: false, canText: false } }, 'and the owner’s line should be as the owner left it');
 });

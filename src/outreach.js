@@ -15,16 +15,37 @@
 //   - the first sentence says it is an automated assistant and the call is recorded; the owner's offer is one sentence,
 //     checked at save time; one yes/no question; a yes becomes a lead, anything else ends the call; never called back.
 //
-// OUTREACH_LIVE is false: nothing here dials until a lawyer has read the B2B plan and Christopher says go. Then it is one
-// line, changed and deployed on purpose, plus his kill switch in the database. test/outreach.test.js holds both.
+// Live since Nov 10, 2026: the lawyer (Carter) read the B2B plan and said it was fine, and Christopher said go. Still behind
+// Christopher's kill switch in the database (billing_config outreach_enabled) and, for each client, the owner's own switch,
+// which only turns on once the owner has signed the Outreach terms below (the current version, by typed name).
 import { callHoursOk, ph10, xml, xa, readAnswer, tzFor, dialOut, zonesOfNumber } from './callbacks.js';
 import { contradicts } from './disclosure.js';
 import { hardErrors } from './grades.js';
 
 const SITE = 'https://alwaysopenoffice.com';
-export const OUTREACH_LIVE = false;
+export const OUTREACH_LIVE = true;
 export const KIND = { key: 'outreach', label: 'Outreach calls to businesses', sub: 'Max calls a list of businesses you give him, with one sentence you write, and asks if they want a call from you. Business landlines only.' };
 export const ATTEST = 'I confirm this list is mine to use, every number on it is a business, and I have the right to contact them about my services. I understand Max only calls business landlines, during business hours, at most once a month per number, and that anyone who says stop is never called again.';
+// The Outreach terms the owner signs before the switch turns on: they are the caller, they answer for their list and their
+// words, they release and indemnify Always Open. A new version (change TERMS_VERSION) asks every owner to sign again.
+// Drafted Nov 10, 2026 for Carter to read; not legal advice to the client, and it says so.
+export const TERMS_VERSION = '2026-11-10';
+export const TERMS_TITLE = 'Outreach Calls: Terms, Release and Indemnity';
+export const TERMS = [
+  ['Who is calling', 'Outreach calls are placed at your direction, to the list you provide, saying the words you write, to promote your business. For every purpose, including the Telephone Consumer Protection Act (47 U.S.C. § 227), the FCC’s rules, the Telemarketing Sales Rule (16 C.F.R. Part 310) and any state telemarketing or calling law, you are the seller and the party on whose behalf each call is made, and you decide whether, whom and when to call. Always Open, a service of Lake Country Foam Party, LLC ("Always Open", "we"), only provides the technology that places the calls you direct.'],
+  ['Your promises', 'You represent and warrant that: (a) you lawfully obtained every number on your list and have the right to use it to contact those businesses about your services; (b) every number belongs to a business and is not a residential line or a personal or wireless number of any individual; (c) you will not upload any number that is on the National Do Not Call Registry, a state do-not-call list, or your own do-not-call list, unless the law allows that call; (d) your message is true, not misleading, and does not claim to be from a person; (e) you hold any registration, license or bond a state requires of you to make these calls; and (f) you will follow every law that applies to these calls, wherever the called business is.'],
+  ['What we do and may do', 'We check numbers and call only lines reported as business landlines, only during weekday business hours where the number is, at most once a month per number, and never again to anyone who says stop. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
+  ['Release', 'To the fullest extent the law allows, you release and forever discharge Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from any and all claims, demands, losses and liabilities of any kind, known or unknown, arising out of or related to Outreach calls made for you, your list, your message, or your use or misuse of Outreach.'],
+  ['Indemnity', 'You will defend, indemnify and hold harmless Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from and against any claim, lawsuit, investigation, fine, penalty, statutory damages, judgment, settlement, cost and attorneys’ fees arising out of or related to: (a) any call made at your direction; (b) your list or your message; (c) any breach of these terms or of your promises above; or (d) any violation of law by you or on your behalf. This applies even if a claim is made against us directly.'],
+  ['Limits', 'Outreach is provided "as is". We make no promise about results or that any call complies with any law. To the fullest extent the law allows, our total liability to you for anything related to Outreach is limited to the fees you paid us in the month the claim arose, and we are not liable for any indirect, incidental, special, consequential or punitive damages.'],
+  ['Not legal advice', 'Nothing we say or provide is legal advice. Calling laws are strict and change often. You should have your own attorney review your list, your message and your plans before you turn Outreach on.'],
+  ['General', 'These terms add to our Terms of Service and survive the end of Outreach or of your plan. Georgia law governs them. If any part is found unenforceable, the rest still applies. By typing your name and tapping "I agree", you sign these terms electronically, with the same effect as a handwritten signature, on your own behalf and for your business, and you confirm you have the authority to do so.']
+];
+export const TERMS_TEXT = TERMS_TITLE + ' (version ' + TERMS_VERSION + ')\n\n' + TERMS.map(([h, t]) => h + '. ' + t).join('\n\n');
+export async function termsHash() {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(TERMS_TEXT));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
 export const CALLABLE = new Set(['landline', 'fixedVoip']);
 export const DAYS_BETWEEN = 30;
 const MAX_ROWS = 500;
@@ -36,7 +57,9 @@ export async function ensureOutreach(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, business TEXT DEFAULT '', phone TEXT NOT NULL, contact TEXT DEFAULT '', line_type TEXT DEFAULT '', status TEXT DEFAULT 'ready', last_called TEXT DEFAULT '', attempts INTEGER DEFAULT 0, result TEXT DEFAULT '', created TEXT, UNIQUE(client_id, phone))"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS outreach_optout (phone10 TEXT PRIMARY KEY, at TEXT, client_id TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS outreach_attest (client_id TEXT PRIMARY KEY, text TEXT, at TEXT, by TEXT)'),
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_pitch (client_id TEXT PRIMARY KEY, text TEXT, on_ INTEGER DEFAULT 0, at TEXT)")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_pitch (client_id TEXT PRIMARY KEY, text TEXT, on_ INTEGER DEFAULT 0, at TEXT)"),
+    // every signature kept: who typed what name, when, from where, and exactly which text (its hash)
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_terms (client_id TEXT NOT NULL, version TEXT NOT NULL, hash TEXT, name TEXT, by TEXT, at TEXT, ip_hash TEXT, ua TEXT, PRIMARY KEY (client_id, version))")
   ]);
   readyDBs.add(env.DB);
 }
@@ -88,15 +111,33 @@ export async function importList(env, c, csv, lookup) {
   return { ok: true, ready, skipped, message: ready + ' business landline' + (ready === 1 ? '' : 's') + ' ready' + (skipped ? ', ' + skipped + ' skipped (mobile or unknown numbers are never called)' : '') + '.' };
 }
 
+// Signed the current version of the terms (an older confirmation, or an older version, does not count).
 export async function attested(env, cid) {
   await ensureOutreach(env);
-  return !!(await env.DB.prepare('SELECT 1 AS y FROM outreach_attest WHERE client_id = ?1').bind(cid).first());
+  return !!(await env.DB.prepare('SELECT 1 AS y FROM outreach_terms WHERE client_id = ?1 AND version = ?2').bind(cid, TERMS_VERSION).first());
 }
-export async function attest(env, c, by) {
+export async function signedAt(env, cid) {
+  await ensureOutreach(env);
+  return await env.DB.prepare('SELECT name, at FROM outreach_terms WHERE client_id = ?1 AND version = ?2').bind(cid, TERMS_VERSION).first().catch(() => null);
+}
+// The owner signs: b = { version, name, agree: true }; meta = { by, ip, ua } from the request.
+export async function agree(env, c, b, meta) {
   await ensureOutreach(env);
   if (+c.regulated) return { ok: false, error: 'Outreach calls are not available for regulated businesses.' };
-  await env.DB.prepare('INSERT OR REPLACE INTO outreach_attest (client_id, text, at, by) VALUES (?1,?2,?3,?4)').bind(c.client_id, ATTEST, new Date().toISOString(), String(by || '').slice(0, 60)).run();
-  return { ok: true };
+  if (c.staff) return { ok: false, error: 'Only the owner can sign these terms.' };
+  if (!b || b.agree !== true) return { ok: false, error: 'Tick the box to agree to the terms.' };
+  if (String(b.version || '') !== TERMS_VERSION) return { ok: false, error: 'These terms were updated. Pull down to refresh and read the new version.' };
+  const name = String(b.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (name.length < 3 || !/[A-Za-z]{2,}/.test(name) || !/\s/.test(name)) return { ok: false, error: 'Type your full name to sign.' };
+  meta = meta || {};
+  await env.DB.prepare('INSERT OR REPLACE INTO outreach_terms (client_id, version, hash, name, by, at, ip_hash, ua) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)')
+    .bind(c.client_id, TERMS_VERSION, await termsHash(), name, String(meta.by || '').slice(0, 60), new Date().toISOString(), String(meta.ip || '').slice(0, 80), String(meta.ua || '').slice(0, 200)).run();
+  try { await (await import('./app.js')).opsPing(env, 'Outreach terms signed: ' + (c.business || c.client_id), name + ' signed the Outreach terms (version ' + TERMS_VERSION + ').', 'default', 'telephone_receiver'); } catch (e) { /* the signature stands */ }
+  return { ok: true, message: 'Signed. Now turn Outreach on.' };
+}
+// Kept for an app that still sends the old one-tap confirmation: it no longer counts as signing.
+export async function attest(env, c) {
+  return { ok: false, error: 'Read and sign the Outreach terms first.' };
 }
 
 // The one sentence Max says for the owner. Checked when saved: short, no claim to be a person, nothing the scanner flags.
@@ -116,6 +157,7 @@ export async function savePitch(env, c, text, on) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   const p = pitchProblems(t);
   if (p.length) return { ok: false, error: p.join(' ') };
+  if (on && !(await attested(env, c.client_id))) return { ok: false, error: 'Read and sign the Outreach terms before turning it on.', needTerms: true };
   await env.DB.prepare('INSERT OR REPLACE INTO outreach_pitch (client_id, text, on_, at) VALUES (?1,?2,?3,?4)').bind(c.client_id, t, on ? 1 : 0, new Date().toISOString()).run();
   return { ok: true };
 }
@@ -123,7 +165,7 @@ export async function savePitch(env, c, text, on) {
 // Every reason a row can't be called right now; empty means it could be.
 export function blockedBy(row, ctx) {
   const why = [];
-  if (!OUTREACH_LIVE) why.push('not live (lawyer review)');
+  if (!OUTREACH_LIVE) why.push('not live');
   if (!ctx.killSwitchOn) why.push('kill switch off');
   if (ctx.regulated) why.push('regulated client');
   if (!ctx.attested) why.push('no attestation');
@@ -155,12 +197,21 @@ export async function outreachCron(env, now) {
   await ensureOutreach(env);
   now = now || Date.now();
   const kill = await killSwitchOn(env);
-  const rows = ((await env.DB.prepare("SELECT o.*, l.number, l.business AS biz, l.regulated, l.owner_set, p.text AS pitch, p.on_ AS pitch_on, (SELECT 1 FROM outreach_attest a WHERE a.client_id = o.client_id) AS att, (SELECT 1 FROM outreach_optout x WHERE x.phone10 = substr(o.phone, 3)) AS opted FROM outreach_lists o LEFT JOIN voice_lines l ON l.client_id = o.client_id LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.status = 'ready' LIMIT 200").all()).results) || [];
+  const rows = ((await env.DB.prepare("SELECT o.*, l.number, l.business AS biz, l.regulated, l.owner_set, p.text AS pitch, p.on_ AS pitch_on, (SELECT 1 FROM outreach_terms a WHERE a.client_id = o.client_id AND a.version = ?1) AS att, (SELECT 1 FROM outreach_optout x WHERE x.phone10 = substr(o.phone, 3)) AS opted FROM outreach_lists o LEFT JOIN voice_lines l ON l.client_id = o.client_id LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.status = 'ready' LIMIT 200").bind(TERMS_VERSION).all()).results) || [];
   let could = 0, dialed = 0;
+  const gone = new Map();
   for (const r of rows) {
+    // a client whose plan ended, or whose line is paused, calls nobody (the same rule as Max's other outgoing calls)
+    if (!gone.has(r.client_id)) {
+      const a = await env.DB.prepare('SELECT active FROM app_clients WHERE client_id = ?1').bind(r.client_id).first().catch(() => null);
+      const l = await env.DB.prepare('SELECT on_air, owner_set FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(r.client_id).first().catch(() => null);
+      let off = false; try { off = !!(JSON.parse((l && l.owner_set) || '{}') || {}).off; } catch (e) { off = false; }
+      gone.set(r.client_id, (a && !+a.active) || (l && l.on_air != null && !+l.on_air) || off);
+    }
+    if (gone.get(r.client_id)) continue;
     const hoursOk = businessHoursOk(r.phone, now, await tzFor(env, r.client_id).catch(() => 'America/New_York'));
     const why = blockedBy(r, { now, killSwitchOn: kill, regulated: !!+r.regulated, attested: !!r.att, pitch: r.pitch, pitchOn: !!+r.pitch_on, optedOut: !!r.opted, hoursOk });
-    if (why.length === 1 && why[0] === 'not live (lawyer review)') could++;
+    if (why.length === 1 && why[0] === 'not live') could++;
     if (why.length) continue;
     const d = await dialOut(env, { number: r.number }, r.phone, '/voice/or/' + env.VOICE_KEY + '?id=' + r.id, '/voice/orstatus/' + env.VOICE_KEY + '?id=' + r.id);
     await env.DB.prepare("UPDATE outreach_lists SET attempts = attempts + 1, last_called = ?1, status = ?2, result = ?3 WHERE id = ?4").bind(new Date(now).toISOString(), d.ok ? 'called' : 'ready', d.ok ? 'dialed' : d.why, r.id).run();
@@ -177,7 +228,13 @@ export function script(biz, pitch, owner) {
 async function rowOf(env, id) {
   return await env.DB.prepare("SELECT o.*, l.business AS biz, l.regulated, p.text AS pitch, json_extract(l.owner_set, '$.ownerName') AS owner FROM outreach_lists o LEFT JOIN voice_lines l ON l.client_id = o.client_id LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.id = ?1").bind(id).first().catch(() => null);
 }
-// /voice/or/<key>?id=   (not routed while OUTREACH_LIVE is false; the cron never dials)
+// Twilio's status for an outreach call: no answer, busy or failed is written down; the number is not tried again this month.
+export async function outreachStatus(env, url, form) {
+  const id = +url.searchParams.get('id') || 0, st = String(form.get('CallStatus') || '');
+  if (id && /^(no-answer|busy|failed|canceled)$/.test(st)) await env.DB.prepare("UPDATE outreach_lists SET result = ?1 WHERE id = ?2 AND status = 'called'").bind(st, id).run().catch(() => {});
+  return new Response('ok');
+}
+// /voice/or/<key>?id=
 export async function outreachTwiml(env, url, form) {
   if (!OUTREACH_LIVE) return xml('<Hangup/>');
   const id = +url.searchParams.get('id') || 0, r = await rowOf(env, id);
@@ -216,6 +273,8 @@ export async function outreachState(env, c) {
   const p = await env.DB.prepare('SELECT text, on_ FROM outreach_pitch WHERE client_id = ?1').bind(c.client_id).first();
   const counts = ((await env.DB.prepare("SELECT status, COUNT(*) AS n FROM outreach_lists WHERE client_id = ?1 GROUP BY status").bind(c.client_id).all()).results) || [];
   const n = k => counts.filter(x => String(x.status).startsWith(k)).reduce((a, x) => a + x.n, 0);
-  return { live: OUTREACH_LIVE, label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: await attested(env, c.client_id), pitch: p ? p.text : '', on: !!(p && +p.on_),
+  const signed = await signedAt(env, c.client_id);
+  return { live: OUTREACH_LIVE, label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: !!signed, signed: signed ? { name: signed.name, at: signed.at } : null,
+    terms: { version: TERMS_VERSION, title: TERMS_TITLE, parts: TERMS.map(([h, t]) => ({ h, t })) }, pitch: p ? p.text : '', on: !!(p && +p.on_),
     counts: { ready: n('ready'), skipped: n('skipped'), called: n('called') + n('done'), interested: n('interested'), optout: n('optout') } };
 }

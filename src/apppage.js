@@ -990,7 +990,7 @@ function monthBlock(){
   if(!ms.length)return '<h2>Your month</h2><div class="empty slim"><b>Your first month is on its way</b><span>Your numbers show up here in the first days of next month.</span></div>';
   var m=ms.filter(function(x){return x.month===MONTH;})[0]||ms[0];
   var h='<h2>Your month</h2>';
-  if(S.answer&&S.answer.line)h+='<p class="note" style="margin:-4px 2px 6px">'+esc(S.answer.line)+(S.answer.lastLine?' Last month: '+esc(S.answer.lastLine.replace(/^After hours \w+: /,''))+'':'')+'</p>';
+  if(S.answer&&S.answer.line)h+='<p class="note" style="margin:-4px 2px 6px">'+esc(S.answer.line)+(S.answer.lastLine?' Last month: '+esc(S.answer.lastLine.replace(/^After hours \\w+: /,''))+'':'')+'</p>';
   if(S.checkins&&S.checkins.line)h+='<p class="note" style="margin:-4px 2px 10px">'+esc(S.checkins.line)+'</p>';
   if(ms.length>1)h+='<div class="months" role="group" aria-label="Month">'+ms.map(function(x){return '<button type="button" class="mchip" data-a="m" data-m="'+esc(x.month)+'" aria-pressed="'+(x.month===m.month)+'">'+esc(x.label)+'</button>';}).join('')+'</div>';
   else h+='<p class="note" style="margin:-4px 2px 10px">'+esc(m.label)+'</p>';
@@ -1253,14 +1253,29 @@ function outreachCard(){
   var h='<h2>'+esc(R.label)+'</h2><div class="card form">';
   if(!R.live)h+='<p class="note" style="margin-top:0"><b>Not calling yet.</b> This is being reviewed before it goes live. You can set it up now, and nothing is dialed until then.</p>';
   h+='<p class="fine">'+esc(R.sub)+'</p>';
-  if(!R.attested)return h+'<p>'+esc(R.attest)+'</p><div class="acts"><button class="btn red" type="button" data-a="or-attest">I confirm</button></div></div>';
-  h+='<label>What Max says for you (one sentence)<textarea id="or-pitch" maxlength="240" rows="3" placeholder="We clean commercial kitchen hoods and can work around your hours.">'+esc(R.pitch||'')+'</textarea></label>'+
-    '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span>Call my list when this goes live</span></label>'+
+  // The terms come first: Outreach only turns on once the owner has read and signed them (the current version).
+  if(!R.attested)return h+'<p>Before '+esc((S.line&&S.line.name)||'Max')+' calls anyone for you, read and sign the Outreach terms. You are the caller: your list, your words, your responsibility.</p><div class="acts"><button class="btn red" type="button" data-a="or-terms">Read and sign the terms</button></div></div>';
+  h+='<p class="fine"><span class="chip">Terms signed</span> '+esc(R.signed&&R.signed.name||'')+(R.signed&&R.signed.at?', '+esc(new Date(R.signed.at).toLocaleDateString()):'')+'. <a href="#" data-a="or-terms">Read them</a></p>'+
+    '<label>What Max says for you (one sentence)<textarea id="or-pitch" maxlength="240" rows="3" placeholder="We clean commercial kitchen hoods and can work around your hours.">'+esc(R.pitch||'')+'</textarea></label>'+
+    '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span><b>Outreach calls on</b><br><span class="fine">Max calls the businesses on your list, weekdays 9 to 5 their time.</span></span></label>'+
     '<div class="acts"><button class="btn red" type="button" data-a="or-save">Save</button></div>'+
     '<label>Businesses to call (one per line: name, phone, contact)<textarea id="or-list" rows="4" placeholder="Ace Diner, 478-555-0101, Sam"></textarea></label>'+
     '<div class="acts"><button class="btn line" type="button" data-a="or-list">Check and add</button></div>'+
     '<p class="fine">'+c.ready+' ready, '+c.skipped+' skipped (mobile numbers are never called), '+c.called+' called, '+c.interested+' interested, '+c.optout+' asked not to be called.</p>';
   return h+'</div>';
+}
+// The terms, in a sheet: read, tick, type your full name, sign. thenOn: turn Outreach on right after signing.
+function outreachTerms(thenOn){
+  var R=S.outreach;if(!R||!R.terms)return;
+  var T=R.terms,signed=R.attested;
+  sheet('<div class="maptop"><h2>'+esc(T.title)+'</h2><button class="btn line close48" type="button" data-close="1">Close</button></div>'+
+    '<p class="fine" style="margin-top:0">Version '+esc(T.version)+'. Please read all of it.</p>'+
+    '<div class="terms" tabindex="0" style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px 14px;margin:8px 0 14px">'+
+    T.parts.map(function(x){return '<h3 style="font-size:15px;margin:14px 0 4px">'+esc(x.h)+'</h3><p style="margin:0 0 6px;font-size:15px;line-height:1.5">'+esc(x.t)+'</p>';}).join('')+'</div>'+
+    (signed?'<p class="fine">Signed by '+esc(R.signed&&R.signed.name||'')+'.</p>':
+    '<label class="opt" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="or-ok" style="margin-top:3px"> <span>I have read these terms and agree to them, for myself and for my business.</span></label>'+
+    '<label>Type your full name to sign<input type="text" id="or-name" autocomplete="name" maxlength="80" placeholder="First and last name"></label>'+
+    '<div class="acts"><button class="btn red" type="button" data-a="or-agree" data-on="'+(thenOn?'1':'')+'">I agree</button><button class="btn line" type="button" data-close="1">Not now</button></div>'));
 }
 function outCard(L){
   var O=S.outcalls;if(!O||!O.list)return '';
@@ -1556,8 +1571,19 @@ document.addEventListener('click',function(e){
   else if(a==='vc-save')lineSave({voice:$('#vc-voice').value,name:$('#vc-name').value});
   else if(a==='vc-up')voiceUpload();
   else if(a==='vc-rm')lineSave({action:'remove-greeting-audio'});
-  else if(a==='or-attest'||a==='or-save'||a==='or-list'){var ob=a==='or-attest'?{action:'attest'}:a==='or-save'?{action:'pitch',text:($('#or-pitch')||{}).value||'',on:!!(($('#or-on')||{}).checked)}:{action:'list',csv:($('#or-list')||{}).value||''};
-    api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ob)}).then(function(res){toast(res.j.ok?(res.j.message||'Saved.'):(res.j.error||'Could not save.'));if(res.j.ok)load(true);});}
+  else if(a==='or-terms'){e.preventDefault();outreachTerms(false);}
+  else if(a==='or-agree'){var on1=t.dataset.on==='1',ok1=!!(($('#or-ok')||{}).checked),nm1=(($('#or-name')||{}).value||'').trim();
+    if(!ok1){toast('Tick the box to agree to the terms.');return;}
+    if(nm1.split(/\\s+/).length<2){toast('Type your full name to sign.');return;}
+    api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'agree',version:S.outreach.terms.version,name:nm1,agree:true})}).then(function(res){
+      if(!res.j.ok){toast(res.j.error||'Could not sign.');return;}
+      var sc=$('#scrim');if(sc){sc.hidden=true;sc.innerHTML='';}
+      if(on1)api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'pitch',text:($('#or-pitch')||{}).value||S.outreach.pitch||'',on:true})}).then(function(r2){toast(r2.j.ok?'Signed. Outreach is on.':(r2.j.error||'Signed. Now write your sentence and turn it on.'));load(true);});
+      else{toast('Signed. Now write your sentence and turn it on.');load(true);}});}
+  else if(a==='or-attest'||a==='or-save'||a==='or-list'){if(a==='or-attest'){outreachTerms(false);return;}
+    var ob=a==='or-save'?{action:'pitch',text:($('#or-pitch')||{}).value||'',on:!!(($('#or-on')||{}).checked)}:{action:'list',csv:($('#or-list')||{}).value||''};
+    if(a==='or-save'&&ob.on&&!S.outreach.attested){outreachTerms(true);return;}
+    api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ob)}).then(function(res){if(res.j&&res.j.needTerms){outreachTerms(true);return;}toast(res.j.ok?(res.j.message||'Saved.'):(res.j.error||'Could not save.'));if(res.j.ok)load(true);});}
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
   else if(a==='facts-call')factsCall();
   else if(a==='facts-keep'||a==='facts-drop')lineSave({action:a==='facts-keep'?'keep-facts':'drop-facts'});

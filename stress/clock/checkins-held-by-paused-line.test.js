@@ -19,8 +19,8 @@ const ET = 'America/New_York';
 const ck = clock(at('2026-11-07 10:00', ET));   // Saturday
 after(() => ck.restore());
 const T = await boot();
-const B = await T.signup({ plan: 'Growth', business: 'Eatonton Plumbing', owner: 'Bea Brown', email: 'bea@eatontonplumbing.example', phone: '(478) 555-0201' });
-const P = await T.signup({ plan: 'Growth', business: 'Lake Oconee Heating', owner: 'Al Avery', email: 'al@lakeoconee.example', phone: '(706) 555-0101', town: 'Greensboro, GA' });
+const B = await T.signup({ plan: 'Pro', business: 'Eatonton Plumbing', owner: 'Bea Brown', email: 'bea@eatontonplumbing.example', phone: '(478) 555-0201' });
+const P = await T.signup({ plan: 'Pro', business: 'Lake Oconee Heating', owner: 'Al Avery', email: 'al@lakeoconee.example', phone: '(706) 555-0101', town: 'Greensboro, GA' });
 const b = T.as(B.base), p = T.as(P.base);
 const logJob = (app, first, phone) => app.post('/api/job', { first, phone, job: 'furnace repair', consent: true, callOk: true, by: 'Owner' });
 const calledAt = phone => { const d = T.world.dialed.find(x => x.To === phone); return d ? d.at : 0; };
