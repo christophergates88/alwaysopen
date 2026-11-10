@@ -72,6 +72,15 @@ class_name = "CallRoom"
 tag = "v1"
 new_sqlite_classes = ["CallRoom"]
 
+# Gates HQ's calls for Christopher (hqcalls.js): one HqCallRoom per call, like Max's CallRoom.
+[[durable_objects.bindings]]
+name = "HQCALLROOM"
+class_name = "HqCallRoom"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["HqCallRoom"]
+
 # Worker logs kept (Nov 5, 2026): two Max calls dropped mid-call and there was nothing to read about why.
 [observability]
 enabled = true
