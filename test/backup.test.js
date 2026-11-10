@@ -22,6 +22,8 @@ test('the dump holds the data tables and never the token tables', async () => {
   assert.match(d.text, /"table":"leads","row":\{[^\n]*"name":"Dana"/);
   assert.doesNotMatch(d.text, /SECRET|gbp_tokens|gcal_tokens|app_devices/);
   assert.ok(!TABLES.includes('gbp_tokens') && !TABLES.includes('billing_config'));
+  for (const t of ['outreach_terms', 'outreach_optout', 'outreach_calls']) assert.ok(TABLES.includes(t), t + ': the Outreach records are kept off-site too');
+  assert.ok(!TABLES.some(t => /^dnc_/.test(t)), 'the copy of the national Do Not Call list never leaves the database');
 });
 
 test('to R2 when a bucket is bound, otherwise an email with a gzip attachment that opens', async () => {
