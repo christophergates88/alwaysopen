@@ -201,6 +201,21 @@ to the caller in the same call. No answer in 75 seconds: Max promises a call bac
 - Turn it off for one line: add `"off": ["tap"]` to that line's facts. The owner has their own switch on the Max tab.
   For everyone: `TAP_LIVE = "0"` and a deploy.
 
+## Outreach calls to businesses (src/outreach.js)
+
+Live since Nov 10, 2026 (Carter read the B2B plan; Christopher said go). Max calls a client's own list of business
+landlines with one sentence the owner wrote, and asks if they want a call; yes becomes a lead, stop is for good.
+
+- Three switches, all needed: `OUTREACH_LIVE` in src/outreach.js (true), Christopher's kill switch
+  (`billing_config` row `outreach_enabled` = '1'; '0' stops every outreach call at the next tick), and the owner's own
+  switch, which only turns on after the owner signs the Outreach terms.
+- The terms (`TERMS`, version `TERMS_VERSION`): the client is the caller/seller, warranties about the list, release,
+  indemnity, limits, not legal advice. Signatures are in `outreach_terms` (name typed, time, text hash, IP hash,
+  browser). Changing the wording means a new `TERMS_VERSION`, and every owner signs again before calls resume.
+- Never: regulated clients, mobile or unknown numbers (Twilio Lookup), weekends, outside 9 to 5 where the number is,
+  a number called in the last 30 days, anyone who said stop (for every client), an ended client or a paused line.
+- Stop everything now: `UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'`.
+
 ## How to roll back a deploy
 
 1. Actions tab, the failed run, read the "Check the live site" step: it says what it saw and whether it already
