@@ -142,7 +142,10 @@ export async function handleApp(req, env, ctx, url) {
   const ip = await ipKey(req, env);
   const since = new Date(Date.now() - 3600000).toISOString();
   const fails = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_fail WHERE ip_hash = ?1 AND at > ?2').bind(ip, since).first();
-  if (fails && fails.n >= FAIL_LIMIT) return api ? aj({ ok: false, error: 'Too many tries. Please wait an hour.' }, 429) : gone(429);
+  // The pause is for wrong codes only: a right code always opens. A shop's Wi-Fi or a carrier's shared address, with one
+  // stale tab polling a removed link, used to lock the owner out too (Nov 10). Codes are long and random, so guessing
+  // still gets nowhere: past the limit a wrong code is answered with the pause, never a lookup hint.
+  const paused = !!(fails && fails.n >= FAIL_LIMIT);
   let c = null, linkHash = '';
   if (CODE_RE.test(code)) {
     const h = linkHash = await sha256hex(code);
@@ -155,6 +158,7 @@ export async function handleApp(req, env, ctx, url) {
       } catch (e) { c = null; }
     }
   }
+  if (!c && paused) return api ? aj({ ok: false, error: 'Too many tries. Please wait an hour.' }, 429) : gone(429);
   if (!c) {
     ctx.waitUntil(env.DB.prepare('INSERT INTO app_fail (ip_hash, at) VALUES (?1, ?2)').bind(ip, new Date().toISOString()).run()
       .then(() => env.DB.prepare('DELETE FROM app_fail WHERE at < ?1').bind(new Date(Date.now() - 86400000).toISOString()).run())
@@ -182,12 +186,18 @@ export async function handleApp(req, env, ctx, url) {
   if (!c.staff) c.role = 'owner';
   // Team roles: techs never see money or billing. Every change records who made it (staff links can't pick another name).
   if (api && c.role === 'tech' && MONEY_ROUTES.indexOf(sub) > -1) return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
+  // The sample account looks and reads like a real one, but nothing done from it reaches anyone: no calls placed, no
+  // texts, no change to the sample line (the website's "Hear Max" line), no messages to us (Nov 10: anyone with the
+  // sample link could have Max phone any number). Marking a call or request handled is the sample's own data.
+  if (api && meth === 'POST' && c.client_id === 'demo-plumbing' && !['/api/call', '/api/lead', '/api/device'].includes(sub)) return aj({ ok: false, error: 'This is the sample account, so nothing here is sent or changed.' }, 403);
   // Every handler reads its body as JSON whatever the content type says, so the staff name is set here for any body
   // (not only application/json), and again inside each handler of this file (whoBy).
   let body = null;
   if (api && meth === 'POST' && !RAW_ROUTES.has(sub) && +(req.headers.get('content-length') || 0) <= BODY_MAX) {
     const raw = await req.text();
     try { body = JSON.parse(raw); } catch (e) { body = null; }
+    // JSON that parses but is not an object (null, a number, a list): a bad request, not a crash in the handler (Nov 10)
+    if (raw.trim() && body !== undefined && (body === null || typeof body !== 'object' || Array.isArray(body)) && /^\s*(null|true|false|-?\d|\[|")/.test(raw)) return aj({ ok: false, error: 'Bad request' }, 400);
     if (body && typeof body === 'object' && !Array.isArray(body)) {
       if (c.staff) body.by = c.staff;
       c.whoName = c.staff || oneLine(String(body.by || '')).slice(0, 40) || c.owner_first || 'Owner';
@@ -199,7 +209,11 @@ export async function handleApp(req, env, ctx, url) {
   }
   if (api && meth === 'POST' && sub === '/api/photo' && c.staff) url.searchParams.set('by', c.staff);
   const res = await route();
-  if (body && res.status === 200 && actText(sub, body)) ctx.waitUntil(logAct(env, c, actText(sub, body)));
+  // written down only when it happened: a 200 that answers {ok:false} did nothing (Nov 10)
+  if (body && res.status === 200 && actText(sub, body)) {
+    let did = true; try { const j = await res.clone().json(); did = !(j && j.ok === false); } catch (e) { did = true; }
+    if (did) ctx.waitUntil(logAct(env, c, actText(sub, body)));
+  }
   return res;
   async function route() {
   try {
@@ -406,7 +420,7 @@ async function apiState(env, c, ctx) {
   qs.push(env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid));
   qs.push(env.DB.prepare("SELECT id, title, context, stars, text, decided_text, status, created, decided_at FROM app_items WHERE client_id = ?1 AND kind NOT IN ('post', 'invoice', 'reviewreq') ORDER BY created DESC LIMIT 60").bind(cid));
   qs.push(env.DB.prepare("SELECT id, kind, name, phone, amount, due, note, status, created, by, done_at, consent, appt_at, auto_conf, auto_rem, auto_fu FROM app_followups WHERE client_id = ?1 AND (status = 'open' OR (status = 'done' AND done_at > ?2)) ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, CASE WHEN due = '' THEN 1 ELSE 0 END, due, created DESC LIMIT 60").bind(cid, new Date(Date.now() - 30 * 86400000).toISOString()));
-  if (f.calls) qs.push(env.DB.prepare("SELECT id, at, caller, caller_name, reason, details, wants, callback, urgency, summary, transcript, outcome, status, handled_by, handled_at FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 ORDER BY at DESC LIMIT 40").bind(cid, new Date(Date.now() - 60 * 86400000).toISOString()));
+  if (f.calls) qs.push(env.DB.prepare("SELECT id, at, caller, caller_name, reason, details, wants, callback, urgency, summary, transcript, outcome, status, handled_by, handled_at FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 AND (COALESCE(status, '') != 'handled' OR id IN (SELECT id FROM app_calls WHERE client_id = ?1 AND outcome NOT IN ('live', 'spam') AND test = 0 AND at > ?2 ORDER BY at DESC LIMIT 40)) ORDER BY at DESC LIMIT 120").bind(cid, new Date(Date.now() - 60 * 86400000).toISOString()));   // the 40 newest, and every caller still waiting (Nov 10: a busy week pushed them off the list)
   const res = await env.DB.batch(qs);
   const rows = i => (res[i] && res[i].results) || [];
   let leads = [];
@@ -809,7 +823,9 @@ async function apiFollowup(req, env, ctx, c) {
   const nm = oneLine(clean(b.name, 60));
   const phone = String(b.phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const amount = oneLine(clean(b.amount, 20));
-  const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? String(b.due) : '';
+  // a real day only: "2026-13-45" passes the pattern but is no date (Nov 10: it crashed the request)
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) && !isNaN(Date.parse(String(b.due) + 'T12:00:00Z')) && new Date(String(b.due) + 'T12:00:00Z').toISOString().slice(0, 10) === String(b.due) ? String(b.due) : '';
+  if (b.due && !due) return aj({ ok: false, error: 'That date is not on the calendar. Pick it again.' }, 400);
   const note = oneLine(clean(b.note, 200));
   const consent = b.consent === true && !!phone ? 1 : 0;
   let apptAt = '';
@@ -822,6 +838,12 @@ async function apiFollowup(req, env, ctx, c) {
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_followups WHERE client_id = ?1 AND created > ?2').bind(c.client_id, new Date(Date.now() - 86400000).toISOString()).first();
   if (n && n.n >= FU_PER_DAY) return aj({ ok: false, error: 'That is the most for one day. Add the rest tomorrow.' }, 429);
   await ensureAuto(env);
+  // The same appointment twice (a second tap, a retry after "No connection"): the first one stands, and the customer
+  // gets one confirmation text and one call, not two (Nov 10)
+  if (kind === 'appointment' && apptAt) {
+    const twin = await env.DB.prepare("SELECT * FROM app_followups WHERE client_id = ?1 AND kind = 'appointment' AND status = 'open' AND appt_at = ?2 AND phone = ?3 AND lower(name) = lower(?4) AND created > ?5 LIMIT 1").bind(c.client_id, apptAt, phone, nm, new Date(Date.now() - 86400000).toISOString()).first().catch(() => null);
+    if (twin) return aj({ ok: true, followup: fuOut(twin), already: true });
+  }
   const ins = await env.DB.prepare("INSERT INTO app_followups (client_id, kind, name, phone, amount, due, note, consent, status, created, by, hq_synced, appt_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', ?9, ?10, 0, ?11)")
     .bind(c.client_id, kind, nm, phone, amount, due, note, consent, now, by, apptAt).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
@@ -1016,8 +1038,10 @@ async function apiDevice(req, env, c) {
   // the client off, that phone stops getting this business's notifications (devicesFor).
   await env.DB.prepare("INSERT INTO app_devices (token, client_id, platform, env, created, last_seen, code_hash) VALUES (?1, ?2, 'ios', ?3, ?4, ?4, ?5) ON CONFLICT(token) DO UPDATE SET client_id = ?2, env = ?3, last_seen = ?4, code_hash = ?5")
     .bind(tok, c.client_id, b.env === 'sandbox' ? 'sandbox' : 'production', now, c.linkHash || '').run();
-  await env.DB.prepare('DELETE FROM app_devices WHERE client_id = ?1 AND token NOT IN (SELECT token FROM app_devices WHERE client_id = ?1 ORDER BY last_seen DESC LIMIT 20)')
-    .bind(c.client_id).run();
+  // Room is made per link, not per business: each link (the owner's, each staff member's) keeps its 5 newest phones, so
+  // a tech's link registering 20 tokens can only push out the tech's own (Nov 10: the owner's iPhone was dropped).
+  await env.DB.prepare("DELETE FROM app_devices WHERE client_id = ?1 AND COALESCE(code_hash, '') = ?2 AND token NOT IN (SELECT token FROM app_devices WHERE client_id = ?1 AND COALESCE(code_hash, '') = ?2 ORDER BY last_seen DESC LIMIT 5)")
+    .bind(c.client_id, c.linkHash || '').run();
   return aj({ ok: true });
 }
 

@@ -98,8 +98,10 @@ const ACT = {
   '/api/lead': b => (b.action === 'open' ? 'Reopened request #' : 'Marked request done #') + (+b.id || 0),
   '/api/invoice': b => b.action === 'add' ? 'Added an invoice for ' + cl(b.name, 60) : (b.action === 'paid' ? 'Marked invoice #' + (+b.id || 0) + ' paid' : (b.action === 'delete' ? 'Deleted invoice #' + (+b.id || 0) : 'Marked invoice #' + (+b.id || 0) + ' unpaid')),
   '/api/quote': b => b.action === 'add' ? 'Wrote an estimate for ' + cl(b.name, 60) : (b.action === 'invoice' ? 'Turned estimate #' + (+b.id || 0) + ' into an invoice' : 'Deleted estimate #' + (+b.id || 0)),
-  '/api/work': b => b.action === 'stage' ? 'Moved job #' + (+b.id || 0) + ' to ' + cl(b.stage, 10) : (b.action === 'add' ? 'Added a job for ' + cl(b.name, 60) : (b.action === 'amount' ? 'Set job #' + (+b.id || 0) + ' amount' : 'Deleted job #' + (+b.id || 0))),
-  '/api/inbox': b => 'Sent a Facebook reply',
+  // each action in its own words; anything else is not written down (Nov 10: "on the way" read "Deleted job")
+  '/api/work': b => ({ stage: 'Moved job #' + (+b.id || 0) + ' to ' + cl(b.stage, 10), add: 'Added a job for ' + cl(b.name, 60), amount: 'Set job #' + (+b.id || 0) + ' amount',
+    onway: 'Told the customer on job #' + (+b.id || 0) + ' someone is on the way', 'cancel-booking': 'Cancelled the visit for job #' + (+b.id || 0), delete: 'Deleted job #' + (+b.id || 0) })[b.action] || '',
+  '/api/inbox': b => b.action !== 'reply' ? '' : (/^msg-text-/.test(String(b.id || '')) ? 'Replied to a text' : 'Sent a Facebook reply'),
   '/api/followup': b => b.action === 'add' || !b.id ? 'Added a follow-up' : 'Updated a follow-up',
   '/api/job': b => 'Sent a review request for ' + cl(b.first, 40),
   '/api/message': b => 'Messaged Always Open',
@@ -176,6 +178,14 @@ export async function apiWork(req, env, c) {
     const j = await env.DB.prepare('SELECT * FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first();
     const d = String((j && j.phone) || '').replace(/\D/g, '').slice(-10);
     if (!j || d.length !== 10) return aj({ ok: false, error: 'That job has no phone number to text.' }, 400);
+    // one "on the way" per job in 30 minutes: a second tap or a retry does not text and call the customer again (Nov 10)
+    const ts0 = new Date(Date.now() - 30 * 60e3).toISOString();
+    const lastOw = await env.DB.prepare("SELECT 1 AS x FROM sms_log WHERE client_id = ?1 AND kind = 'onway' AND to10 = ?2 AND at > ?3 AND status IN ('sent', 'accepted', 'queued') LIMIT 1").bind(c.client_id, d, ts0).first().catch(() => null);
+    if (lastOw) return aj({ ok: true, message: 'Already texted ' + (j.name || 'them') + '.' });
+    // two taps in the same second: one claim wins
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS onway_marks (k TEXT PRIMARY KEY, at TEXT)').run().catch(() => {});
+    const won = await env.DB.prepare('INSERT OR IGNORE INTO onway_marks (k, at) VALUES (?1, ?2)').bind(c.client_id + ':' + id + ':' + Math.floor(Date.now() / 1800e3), new Date().toISOString()).run().catch(() => null);
+    if (won && won.meta && won.meta.changes === 0) return aj({ ok: true, message: 'Already texted ' + (j.name || 'them') + '.' });
     const who = cl(b.by, 40) || c.owner_first || 'We';
     const mins = Math.round(+b.minutes || 0);
     const { sendText } = await import('./sms.js');
@@ -464,7 +474,7 @@ export async function inbox(env, c) {
   const q = async (sql, ...p) => { try { return (await env.DB.prepare(sql).bind(...p).all()).results || []; } catch (e) { return []; } };
   for (const r of await q("SELECT id, at, name, phone, need, status FROM app_leads WHERE client_id = ?1 AND at > ?2 ORDER BY at DESC LIMIT 40", cid, since))
     out.push({ id: 'lead-' + r.id, channel: /^Booked /.test(r.need || '') ? 'booking' : 'request', at: r.at, name: r.name || '', text: r.need || '', phone: r.phone || '', open: r.status === 'new', canReply: false });
-  for (const r of await q("SELECT id, at, caller_name, caller, callback, summary, reason, status FROM app_calls WHERE client_id = ?1 AND at > ?2 AND test = 0 AND outcome NOT IN ('live', 'spam') ORDER BY at DESC LIMIT 40", cid, since))
+  for (const r of await q("SELECT id, at, caller_name, caller, callback, summary, reason, status FROM app_calls WHERE client_id = ?1 AND at > ?2 AND test = 0 AND outcome NOT IN ('live', 'spam') AND (COALESCE(status, '') != 'handled' OR id IN (SELECT id FROM app_calls WHERE client_id = ?1 AND at > ?2 AND test = 0 AND outcome NOT IN ('live', 'spam') ORDER BY at DESC LIMIT 40)) ORDER BY at DESC LIMIT 120", cid, since))
     out.push({ id: 'call-' + r.id, channel: 'call', at: r.at, name: r.caller_name || '', text: r.summary || r.reason || 'Phone call', phone: r.callback || r.caller || '', open: r.status !== 'handled', canReply: false });
   const msgs = await q("SELECT * FROM biz_msgs WHERE client_id = ?1 AND at > ?2 ORDER BY at DESC LIMIT 80", cid, since);
   const threads = {};
