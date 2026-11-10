@@ -1,7 +1,8 @@
 // Outreach calls to businesses (Brief 3, Part 8d): live since Nov 10, 2026 behind Christopher's kill switch and, for each
 // client, the owner's own switch, which only turns on once the owner has signed the current Outreach terms. Tightened the
 // same day: Pro only; business caller ID and landline checked when added and again right before each call; California,
-// Florida, Indiana, Minnesota and Oklahoma never called; hospitals, schools and emergency lines never called; the legal
+// Florida, Indiana, Minnesota and Oklahoma never called (and, from that evening, the eight states with their own
+// do-not-call lists); hospitals, schools and emergency lines never called; the legal
 // name and how to stop first on every call, then the owner's own number; caps per run, per day and across clients; every
 // list and sentence read automatically, held for Christopher only when it needs a look.
 import test from 'node:test';
@@ -76,7 +77,7 @@ test('live: with every gate open nothing blocks the call, and an unknown call id
 
 test('the terms: the owner is the caller, releases and indemnifies us, and signs by typing a full name (Pro only)', async () => {
   const txt = O.TERMS_TEXT;
-  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Florida, Indiana, Minnesota and Oklahoma/, /legal name and call-back number you give us are your own/, /asks you directly not to be called, you will enter their number at alwaysopenoffice.com\/stop-calls/, /no more than 31 days old/]) assert.match(txt, w);
+  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Colorado, Florida, Indiana, Louisiana, Massachusetts, Minnesota, Missouri, Oklahoma, Pennsylvania, Tennessee, Texas and Wyoming/, /legal name and call-back number you give us are your own/, /asks you directly not to be called, you will enter their number at alwaysopenoffice.com\/stop-calls/, /no more than 31 days old/]) assert.match(txt, w);
   assert.doesNotMatch(txt, /\bAI\b/);
   assert.doesNotMatch(txt, /people known to sue|state do-not-call lists and/, 'only the checks that run are promised');
   const DB = makeDB(), env = { DB };
@@ -124,11 +125,14 @@ test('every gate blocks on its own', () => {
   assert.deepEqual(only({}, {}), []);
 });
 
-test('five states are never called, by area code; every other state is', () => {
+test('thirteen states are never called, by area code (the 2025 overlays too); every other state is', () => {
   for (const [p, s] of [['+14155550100', 'CA'], ['+12135550100', 'CA'], ['+13055550100', 'FL'], ['+18135550100', 'FL'], ['+13175550100', 'IN'], ['+16125550100', 'MN'], ['+14055550100', 'OK'], ['+19185550100', 'OK'],
-    ['+14785550100', ''], ['+17065550100', ''], ['+12125550100', ''], ['+15125550100', ''], ['+13125550100', ''], ['+12065550100', '']]) assert.equal(O.blockedState(p), s, p);
-  assert.deepEqual(Object.keys(O.BLOCKED_STATES), ['CA', 'FL', 'IN', 'MN', 'OK']);
-  assert.deepEqual(Object.values(O.BLOCKED_STATES).map(x => x.split(' ').length), [41, 23, 8, 8, 5]);
+    ['+13035550100', 'CO'], ['+17485550100', 'CO'], ['+15045550100', 'LA'], ['+14575550100', 'LA'], ['+16175550100', 'MA'], ['+14135550100', 'MA'], ['+13145550100', 'MO'], ['+12355550100', 'MO'],
+    ['+12155550100', 'PA'], ['+18355550100', 'PA'], ['+16155550100', 'TN'], ['+17295550100', 'TN'], ['+15125550100', 'TX'], ['+16215550100', 'TX'], ['+19455550100', 'TX'], ['+13075550100', 'WY'],
+    ['+14785550100', ''], ['+17065550100', ''], ['+12125550100', ''], ['+13125550100', ''], ['+12065550100', ''], ['+16025550100', ''], ['+17045550100', '']]) assert.equal(O.blockedState(p), s, p);
+  assert.deepEqual(Object.keys(O.BLOCKED_STATES), ['CA', 'FL', 'IN', 'MN', 'OK', 'CO', 'LA', 'MA', 'MO', 'PA', 'TN', 'TX', 'WY']);
+  assert.deepEqual(Object.values(O.BLOCKED_STATES).map(x => x.split(' ').length), [41, 23, 8, 8, 5, 6, 6, 9, 9, 15, 8, 29, 1]);
+  assert.equal(O.rowVerdict({ phone: '+17135550101', business: 'Bayou Signs' }, { type: 'landline', callerType: 'BUSINESS', callerName: '' }).why, 'Texas (not called)');
   const all = Object.values(O.BLOCKED_STATES).join(' ').split(' ');
   assert.equal(new Set(all).size, all.length, 'no area code listed twice');
 });
@@ -253,7 +257,7 @@ test('turning it on needs the legal name and a call-back number that is not the 
   assert.match((await O.savePitch(env, G, t, false)).error, /Pro plan/);
   const s = await O.outreachState(env, C);
   assert.deepEqual([s.pro, s.legal, s.callback, s.on, s.dailyCap], [true, 'Ace Hoods LLC', '+14785550199', true, 50]);
-  assert.deepEqual(s.states, ['California', 'Florida', 'Indiana', 'Minnesota', 'Oklahoma']);
+  assert.deepEqual(s.states, ['California', 'Colorado', 'Florida', 'Indiana', 'Louisiana', 'Massachusetts', 'Minnesota', 'Missouri', 'Oklahoma', 'Pennsylvania', 'Tennessee', 'Texas', 'Wyoming']);
   assert.equal((await O.outreachState(env, G)).pro, false, 'the app shows Growth what Pro adds');
   assert.equal(await O.outreachState(env, REG), null, 'never shown to a regulated business');
 });

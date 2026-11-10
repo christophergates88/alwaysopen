@@ -12,7 +12,9 @@
 //     a landline or fixed VoIP AND its caller ID must say BUSINESS (a home landline or a home internet phone says
 //     CONSUMER and is never called); mobile, unknown, toll-free and anything else are skipped
 //   - never a number in California, Florida, Indiana, Minnesota or Oklahoma (area code): their own laws on recorded or
-//     synthesized-voice calls are stricter, and Christopher allowed every other state (Nov 10)
+//     synthesized-voice calls are stricter; nor in Colorado, Louisiana, Massachusetts, Missouri, Pennsylvania, Tennessee,
+//     Texas or Wyoming, which keep their own do-not-call lists that our copy of the national list doesn't cover
+//     (Christopher allowed every other state, Nov 10; then, once the paid state lists were dropped: "Yes skip those")
 //   - never a hospital, clinic, doctor, care home, school, police, fire, 911 or other emergency line (47 CFR 64.1200(a)(1))
 //   - every list (the first one too) is read automatically: rules, then Claude reads the names and the sentence. Plainly
 //     personal entries are skipped on their own; only a list or a sentence that needs a person's look is held, and then
@@ -54,13 +56,14 @@ export const ATTEST = 'I confirm this list is mine to use, every number on it is
 // litigator checks, holidays, the website stop page (still nobody had signed). 2026-11-10d: the owner passes on any
 // do-not-call request made to them directly (still nobody had signed). 2026-11-10e: the check is our own copy of the
 // National Do Not Call Registry (no more than 31 days old); the paid state and litigator lists are no longer promised
-// (still nobody had signed).
-export const TERMS_VERSION = '2026-11-10e';
+// (still nobody had signed). 2026-11-10f: eight more states are never called, the ones with their own do-not-call
+// lists (still nobody had signed).
+export const TERMS_VERSION = '2026-11-10f';
 export const TERMS_TITLE = 'Outreach Calls: Terms, Release and Indemnity';
 export const TERMS = [
   ['Who is calling', 'Outreach calls are placed at your direction, to the list you provide, saying the words you write, to promote your business. For every purpose, including the Telephone Consumer Protection Act (47 U.S.C. § 227), the FCC’s rules, the Telemarketing Sales Rule (16 C.F.R. Part 310) and any state telemarketing or calling law, you are the seller and the party on whose behalf each call is made, and you decide whether, whom and when to call. Always Open, a service of Lake Country Foam Party, LLC ("Always Open", "we"), only provides the technology that places the calls you direct.'],
   ['Your promises', 'You represent and warrant that: (a) you lawfully obtained every number on your list and have the right to use it to contact those businesses about your services; (b) every number belongs to a business and is not a residential line or a personal or wireless number of any individual; (c) you will not upload any number that is on the National Do Not Call Registry, a state do-not-call list, or your own do-not-call list, unless the law allows that call; (d) your message is true, not misleading, and does not claim to be from a person; (e) the legal name and call-back number you give us are your own and correct; (f) you hold any registration, license or bond a state requires of you to make these calls; (g) you will follow every law that applies to these calls, wherever the called business is; and (h) when anyone asks you directly not to be called, you will enter their number at alwaysopenoffice.com/stop-calls or tell us the same day, so that no Outreach call reaches them again.'],
-  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business; we check it against the National Do Not Call Registry, using the FTC’s list no more than 31 days old, and skip any match; and we skip numbers in California, Florida, Indiana, Minnesota and Oklahoma and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, never on federal holidays, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop or asks on our website. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked; a list you bought is always held. Outreach may not be used to sell office or cleaning supplies. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
+  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business; we check it against the National Do Not Call Registry, using the FTC’s list no more than 31 days old, and skip any match; and we skip numbers in California, Colorado, Florida, Indiana, Louisiana, Massachusetts, Minnesota, Missouri, Oklahoma, Pennsylvania, Tennessee, Texas and Wyoming and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, never on federal holidays, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop or asks on our website. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked; a list you bought is always held. Outreach may not be used to sell office or cleaning supplies. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
   ['Release', 'To the fullest extent the law allows, you release and forever discharge Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from any and all claims, demands, losses and liabilities of any kind, known or unknown, arising out of or related to Outreach calls made for you, your list, your message, or your use or misuse of Outreach.'],
   ['Indemnity', 'You will defend, indemnify and hold harmless Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from and against any claim, lawsuit, investigation, fine, penalty, statutory damages, judgment, settlement, cost and attorneys’ fees arising out of or related to: (a) any call made at your direction; (b) your list or your message; (c) any breach of these terms or of your promises above; or (d) any violation of law by you or on your behalf. This applies even if a claim is made against us directly.'],
   ['Limits', 'Outreach is provided "as is". We make no promise about results or that any call complies with any law. To the fullest extent the law allows, our total liability to you for anything related to Outreach is limited to the fees you paid us in the month the claim arose, and we are not liable for any indirect, incidental, special, consequential or punitive damages.'],
@@ -82,16 +85,27 @@ const MAX_ROWS = 500;
 const MAX_LIST = 2000;                 // numbers a client can keep on Outreach at once
 
 // States whose own laws on recorded or synthesized-voice calls reach further than the federal rules: no Outreach calls
-// there (Christopher, Nov 10, 2026: "allow all states but those 5"). Landline area codes are geographic. Includes the
-// overlays in service through 2025 (CA 350, 369, 738, 837, 357; FL 656, 728, 645, 324; MN 924).
+// there (Christopher, Nov 10, 2026: "allow all states but those 5"). Then the eight states that keep their own
+// do-not-call lists, which our free copy of the national list doesn't cover (Nov 10: "Yes skip those"). Landline area
+// codes are geographic. Includes the overlays in service through 2025 (CA 350, 369, 738, 837, 357; FL 656, 728, 645,
+// 324; MN 924; CO 983, 748; LA 457; MO 557, 975, 235; PA 835, 582; TN 729; TX 945, 621).
 export const BLOCKED_STATES = {
   CA: '209 213 279 310 323 341 350 357 369 408 415 424 442 510 530 559 562 619 626 628 650 657 661 669 707 714 738 747 760 805 818 820 831 837 840 858 909 916 925 949 951',
   FL: '239 305 321 324 352 386 407 448 561 645 656 689 727 728 754 772 786 813 850 863 904 941 954',
   IN: '219 260 317 463 574 765 812 930',
   MN: '218 320 507 612 651 763 924 952',
-  OK: '405 539 572 580 918'
+  OK: '405 539 572 580 918',
+  CO: '303 719 720 748 970 983',
+  LA: '225 318 337 457 504 985',
+  MA: '339 351 413 508 617 774 781 857 978',
+  MO: '235 314 417 557 573 636 660 816 975',
+  PA: '215 223 267 272 412 445 484 570 582 610 717 724 814 835 878',
+  TN: '423 615 629 729 731 865 901 931',
+  TX: '210 214 254 281 325 346 361 409 430 432 469 512 621 682 713 726 737 806 817 830 832 903 915 936 940 945 956 972 979',
+  WY: '307'
 };
-export const STATE_NAMES = { CA: 'California', FL: 'Florida', IN: 'Indiana', MN: 'Minnesota', OK: 'Oklahoma' };
+// Named in alphabetical order wherever they are listed (the app, the terms).
+export const STATE_NAMES = { CA: 'California', CO: 'Colorado', FL: 'Florida', IN: 'Indiana', LA: 'Louisiana', MA: 'Massachusetts', MN: 'Minnesota', MO: 'Missouri', OK: 'Oklahoma', PA: 'Pennsylvania', TN: 'Tennessee', TX: 'Texas', WY: 'Wyoming' };
 const AREA_STATE = new Map(Object.entries(BLOCKED_STATES).flatMap(([s, list]) => list.split(' ').map(a => [a, s])));
 export function blockedState(phone) { const d = ph10(phone); return d ? (AREA_STATE.get(d.slice(0, 3)) || '') : ''; }
 

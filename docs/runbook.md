@@ -243,7 +243,8 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   policy at `/do-not-call` (public/do-not-call.html). Its promise of training means: read it before working on Outreach.
 - Never: cell phones, home lines, unknown or unlisted caller IDs, toll-free, hospitals, clinics, doctors, care homes,
   schools, police, fire, 911 and other emergency lines (`SENSITIVE`), area codes in California, Florida, Indiana,
-  Minnesota and Oklahoma (`BLOCKED_STATES`), weekends, outside 9 to 5 where the number is, a number this client called
+  Minnesota and Oklahoma, and in the eight states with their own do-not-call lists (Colorado, Louisiana, Massachusetts,
+  Missouri, Pennsylvania, Tennessee, Texas, Wyoming) (`BLOCKED_STATES`), weekends, outside 9 to 5 where the number is, a number this client called
   in the last 30 days, a number any client called in the last 7, anyone who said stop (for every client, including a
   business that calls the line back and says "take us off your list"), an ended client or a paused line.
 - Limits: 3 calls per client every 10 minutes, 30 per run in all, 50 per client a day.
