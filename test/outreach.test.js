@@ -16,13 +16,21 @@ const C = { client_id: 'c1', regulated: 0, tier: 'Pro', business: 'Ace Hoods' };
 const G = { client_id: 'g1', regulated: 0, tier: 'Growth', business: 'Gail Cuts' };
 const REG = { client_id: 'd1', regulated: 1, tier: 'Pro' };
 const THU_10AM_ET = Date.parse('2026-11-05T15:00:00Z');
-const ok = { now: THU_10AM_ET, killSwitchOn: true, regulated: false, pro: true, attested: true, pitch: 'We clean commercial kitchens.', pitchOn: true, pitchHeld: false,
+const ok = { now: THU_10AM_ET, killSwitchOn: true, regulated: false, pro: true, attested: true, pitch: 'We clean commercial kitchens.', pitchOn: true, pitchHeld: false, dncReady: true,
   legal: 'Ace Hoods LLC', callback: '+14785550199', optedOut: false, anyClientAt: '', dayCount: 0, tickCount: 0, hoursOk: true };
 const row = { phone: '+14785550101', line_type: 'landline', caller_type: 'BUSINESS', status: 'ready', last_called: '' };
 const SIGN = { version: O.TERMS_VERSION, name: 'Dana Whitfield', agree: true };
 const ON = { legal: 'Ace Hoods LLC', callback: '478-555-0199' };
 const BIZ = () => ({ type: 'landline', callerType: 'BUSINESS', callerName: 'DINER' });
 const form = o => { const d = new FormData(); for (const k in o) d.set(k, o[k]); return d; };
+// DNCScrub stand-in: every number clean, except the ones named (phone10 -> [ResultCode, Reason]); counts its calls
+function fakeDnc(flags) {
+  const f = async (url, init) => { f.calls++; const list = new URLSearchParams(String(init.body)).get('phoneList').split(','); f.seen.push(...list);
+    return new Response(JSON.stringify({ results: list.map(p => ({ Phone: p, ResultCode: (flags && flags[p] ? flags[p][0] : 'C'), Reason: (flags && flags[p] ? flags[p][1] : '') })) }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+  f.calls = 0; f.seen = []; return f;
+}
+const DNCOK = fakeDnc();
+const SRC = { source: 'found', dncFetch: DNCOK };
 
 // Twilio stand-in: every dial is answered with a call id, and written down
 function fakeTwilio() {
@@ -139,11 +147,11 @@ test('import: Pro and signed terms first; every number checked; the free checks 
   const lk = { '+14785550101': { type: 'landline', callerType: 'BUSINESS', callerName: 'ACE DINER' }, '+14785550102': { type: 'mobile', callerType: 'CONSUMER' }, '+14785550103': '',
     '+14785550104': { type: 'landline', callerType: 'CONSUMER', callerName: 'SMITH JOHN' }, '+14785550105': { type: 'landline', callerType: 'BUSINESS' }, '+14785550108': { type: 'fixedVoip', callerType: '' } };
   const asked = [], look = p => { asked.push(p); return lk[p]; };
-  assert.equal((await O.importList(env, C, csv, look)).ok, false, 'terms not signed yet');
-  assert.match((await O.importList(env, G, csv, look)).error, /Pro plan/, 'not on Pro');
-  assert.equal((await O.importList(env, REG, csv, look)).ok, false);
+  assert.equal((await O.importList(env, C, csv, look, undefined, SRC)).ok, false, 'terms not signed yet');
+  assert.match((await O.importList(env, G, csv, look, undefined, SRC)).error, /Pro plan/, 'not on Pro');
+  assert.equal((await O.importList(env, REG, csv, look, undefined, SRC)).ok, false);
   await O.agree(env, C, SIGN);
-  const r = await O.importList(env, C, csv, look);
+  const r = await O.importList(env, C, csv, look, undefined, SRC);
   assert.equal(r.ok, true);
   assert.deepEqual([r.ready, r.held, r.skipped], [1, 0, 7]);
   const st = Object.fromEntries((await DB.prepare("SELECT phone, status FROM outreach_lists WHERE client_id = 'c1'").all()).results.map(x => [x.phone, x.status]));
@@ -165,7 +173,7 @@ test('import: Pro and signed terms first; every number checked; the free checks 
   const pushed = [], real = globalThis.fetch;
   globalThis.fetch = async (url, init) => { pushed.push(String((init && init.body) || '') + ' ' + JSON.stringify((init && init.headers) || {})); return new Response('ok'); };
   try {
-    const e2 = await O.importList(Object.assign({}, env, { NTFY_URL: 'https://ntfy.example/ops' }), C, 'A,478-555-0191\nB,478-555-0192\nC,478-555-0193\nD,478-555-0194\nE,478-555-0195', () => ({ type: 'landline', callerType: '', callerName: '' }));
+    const e2 = await O.importList(Object.assign({}, env, { NTFY_URL: 'https://ntfy.example/ops' }), C, 'A,478-555-0191\nB,478-555-0192\nC,478-555-0193\nD,478-555-0194\nE,478-555-0195', () => ({ type: 'landline', callerType: '', callerName: '' }), undefined, SRC);
     assert.deepEqual([e2.ready, e2.skipped], [0, 5]);
   } finally { globalThis.fetch = real; }
   assert.ok(pushed.some(x => /caller ID lookups came back empty/.test(x)), 'one push says the lookup is failing');
@@ -176,7 +184,7 @@ test('a list that needs a look is held, Christopher gets a page with Approve and
   await O.agree(env, C, SIGN);
   const look = () => BIZ();
   const review = async (e, c, entries) => ({ hold: true, concerns: ['Several names look like people, not businesses.'], skip: [{ i: 2, why: 'looks like a person' }] });
-  const r = await O.importList(env, C, 'Ace Diner,478-555-0121\nJane Doe,478-555-0122\nBolt Hardware,478-555-0123', look, review);
+  const r = await O.importList(env, C, 'Ace Diner,478-555-0121\nJane Doe,478-555-0122\nBolt Hardware,478-555-0123', look, review, SRC);
   assert.deepEqual([r.ready, r.held, r.skipped], [0, 2, 1]);
   assert.match(r.message, /being checked by Always Open/);
   const rv = await DB.prepare("SELECT id, kind, state FROM outreach_review WHERE client_id = 'c1'").first();
@@ -202,7 +210,7 @@ test('a list made mostly of home phones is held even when the automatic read is 
   await O.agree(env, C, SIGN);
   const home = { type: 'landline', callerType: 'CONSUMER' };
   const lk = { '+14785550141': BIZ(), '+14785550142': home, '+14785550143': BIZ(), '+14785550144': { type: 'mobile', callerType: 'CONSUMER' }, '+14785550145': home, '+14785550146': home };
-  const r = await O.importList(env, C, 'A,478-555-0141\nB,478-555-0142\nC,478-555-0143\nD,478-555-0144\nE,478-555-0145\nF,478-555-0146', p => lk[p]);
+  const r = await O.importList(env, C, 'A,478-555-0141\nB,478-555-0142\nC,478-555-0143\nD,478-555-0144\nE,478-555-0145\nF,478-555-0146', p => lk[p], undefined, SRC);
   assert.deepEqual([r.ready, r.held, r.skipped], [0, 2, 4]);
   const rv = await DB.prepare("SELECT id, reasons FROM outreach_review WHERE client_id = 'c1'").first();
   assert.match(rv.reasons, /3 of 6 numbers are home phones/);
@@ -210,7 +218,7 @@ test('a list made mostly of home phones is held even when the automatic read is 
   await O.reviewPage(env, new Request(u, { method: 'POST', body: form({ act: 'reject' }) }), u);
   assert.deepEqual((await DB.prepare("SELECT DISTINCT status FROM outreach_lists WHERE client_id = 'c1' AND status NOT LIKE 'skipped: home%' AND status NOT LIKE 'skipped: cell%'").all()).results.map(x => x.status), ['skipped: not approved']);
   // cell phones alone never hold a list: plenty of small businesses answer on a cell
-  const cells = await O.importList(env, C, 'G,478-555-0147\nH,478-555-0148\nI,478-555-0149\nJ,478-555-0150\nK,478-555-0151\nL,478-555-0152', p => p.endsWith('7') ? BIZ() : { type: 'mobile', callerType: 'CONSUMER' });
+  const cells = await O.importList(env, C, 'G,478-555-0147\nH,478-555-0148\nI,478-555-0149\nJ,478-555-0150\nK,478-555-0151\nL,478-555-0152', p => p.endsWith('7') ? BIZ() : { type: 'mobile', callerType: 'CONSUMER' }, undefined, SRC);
   assert.deepEqual([cells.ready, cells.held, cells.skipped], [1, 0, 5]);
 });
 
@@ -235,7 +243,7 @@ test('turning it on needs the legal name and a call-back number that is not the 
 });
 
 test('the sentence is read too: one that needs a look waits for Christopher, and nothing is called until he approves', async () => {
-  const DB = makeDB(), env = { DB, VOICE_KEY: 'k' };
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', DNC_LOGIN_ID: 'k' };
   await ready(env);
   await add(DB, 'c1', '+14785550151');
   const holdIt = async () => ({ hold: true, concerns: ['It offers business loans, which needs a look.'], skip: [] });
@@ -244,7 +252,7 @@ test('the sentence is read too: one that needs a look waits for Christopher, and
   assert.match(r.message, /checking your sentence/);
   assert.equal((await O.outreachState(env, C)).sentenceHeld, true);
   const tw = fakeTwilio();
-  try { await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ }); } finally { tw.done(); }
+  try { await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK }); } finally { tw.done(); }
   assert.equal(tw.calls.length, 0, 'held: nobody is called');
   const rv = await DB.prepare("SELECT id, kind, text FROM outreach_review WHERE client_id = 'c1' AND state = 'held'").first();
   assert.deepEqual([rv.kind, rv.text], ['sentence', 'We help businesses get loans fast.']);
@@ -258,71 +266,71 @@ test('the sentence is read too: one that needs a look waits for Christopher, and
 });
 
 test('the cron calls only with the kill switch on, on Pro, in business hours, and checks the line again right before dialing', async () => {
-  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', DNC_LOGIN_ID: 'k' };
   await ready(env);
   await DB.prepare("UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'").run();
   await add(DB, 'c1', '+14785550101');
   const tw = fakeTwilio();
   try {
-    let r = await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    let r = await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.deepEqual([r.dialed, tw.calls.length], [0, 0], 'kill switch off: nothing');
     await DB.prepare("UPDATE billing_config SET v = '1' WHERE k = 'outreach_enabled'").run();
-    await O.outreachCron(env, Date.parse('2026-11-08T15:00:00Z'), { lookup: BIZ });
+    await O.outreachCron(env, Date.parse('2026-11-08T15:00:00Z'), { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 0, 'Sunday: not called');
-    r = await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    r = await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(r.dialed, 1);
     assert.deepEqual(tw.calls.map(x => x.to), ['+14785550101']);
     assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550101'").first()).status, 'called');
     // the line changed hands since the list was added: a home line now, so it is skipped, not called
     await add(DB, 'c1', '+14785550102'); await add(DB, 'c1', '+14785550103');
-    await O.outreachCron(env, THU_10AM_ET, { lookup: p => p === '+14785550102' ? { type: 'landline', callerType: 'CONSUMER' } : { type: 'mobile', callerType: 'BUSINESS' } });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: p => p === '+14785550102' ? { type: 'landline', callerType: 'CONSUMER' } : { type: 'mobile', callerType: 'BUSINESS' }, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 1);
     assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550102'").first()).status, 'skipped: home or personal line (checked before calling)');
     assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550103'").first()).status, 'skipped: cell phone (checked before calling)');
     // a row in a state we don't call never dials, even if it got onto the list some other way
     await add(DB, 'c1', '+14155550104');
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 1);
     // off Pro: nothing
     await add(DB, 'c1', '+14785550105');
     await DB.prepare("UPDATE app_clients SET tier = 'Growth' WHERE client_id = 'c1'").run();
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 1, 'not on Pro: not called');
     await DB.prepare("UPDATE app_clients SET tier = 'Pro' WHERE client_id = 'c1'").run();
     // a paused line calls nobody
     await DB.prepare("UPDATE voice_lines SET on_air = 0").run();
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 1, 'line paused: not called');
     await DB.prepare("UPDATE voice_lines SET on_air = 1").run();
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.deepEqual(tw.calls.map(x => x.to), ['+14785550101', '+14785550105']);
   } finally { tw.done(); }
 });
 
 test('limits: 3 a run per client, 50 a day, one Outreach call per business a week across every client, and clients take turns', async () => {
-  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', DNC_LOGIN_ID: 'k' };
   const C2 = { client_id: 'c2', regulated: 0, tier: 'Pro', business: 'Bolt Hoods' };
   await ready(env); await ready(env, C2);
   for (let i = 0; i < 5; i++) { await add(DB, 'c1', '+1478555016' + i); await add(DB, 'c2', '+1478555017' + i); }
   const tw = fakeTwilio();
   try {
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 6, 'three each, both clients');
     assert.deepEqual(tw.calls.slice(0, 2).map(x => x.to).sort(), ['+14785550160', '+14785550170'], 'each client’s first, then each client’s second');
-    await O.outreachCron(env, THU_10AM_ET + 600000, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET + 600000, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(tw.calls.length, 10, 'the rest on the next run');
     // the daily limit
     for (let i = 0; i < 46; i++) await add(DB, 'c1', '+1706555' + String(1000 + i), { status: 'called', last: new Date(THU_10AM_ET - 3600000).toISOString(), attempts: 1 });
     await add(DB, 'c1', '+14785550199');
-    await O.outreachCron(env, THU_10AM_ET + 1200000, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET + 1200000, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(await attempts(DB, '+14785550199'), 0, '50 in the last day: no more today');
     // another client called this business three days ago: it waits out the week; a business nobody called this week goes
     await add(DB, 'c1', '+14785550188', { status: 'called', last: new Date(THU_10AM_ET - 3 * 86400000).toISOString(), attempts: 1 });
     await add(DB, 'c2', '+14785550188'); await add(DB, 'c2', '+14785550187');
-    await O.outreachCron(env, THU_10AM_ET + 1800000, { lookup: BIZ });
+    await O.outreachCron(env, THU_10AM_ET + 1800000, { lookup: BIZ, dncFetch: DNCOK });
     assert.equal(await attempts(DB, '+14785550188', 'c2'), 0, 'called by another client this week: waits');
     assert.equal(await attempts(DB, '+14785550187', 'c2'), 1);
-    await O.outreachCron(env, THU_10AM_ET + 5 * 86400000, { lookup: BIZ });   // the next Tuesday, 10 AM
+    await O.outreachCron(env, THU_10AM_ET + 5 * 86400000, { lookup: BIZ, dncFetch: DNCOK });   // the next Tuesday, 10 AM
     assert.equal(await attempts(DB, '+14785550188', 'c2'), 1, 'a week on: called');
   } finally { tw.done(); }
 });
@@ -367,7 +375,14 @@ test('a call: who is calling and how to stop come first, then the sentence and t
   const say = await (await O.outreachTwiml(env, at('or', 0), new FormData())).text();
   assert.match(say, /Hi, this is Max, an automated assistant calling for Ace Hoods LLC\. To stop these calls, say stop or press 9 at any time\. We clean commercial kitchen hoods\. You can reach Ace Hoods at 4 7 8, 5 5 5, 0 1 9 9\. Would you like Mike to give you a call about it\? Say yes or no\./);
   assert.doesNotMatch(say, /recorded/);
-  assert.match(await (await O.outreachTwiml(env, at('or', 0), form({ AnsweredBy: 'machine_start' }))).text(), /^(?![\s\S]*<Say>)[\s\S]*<Hangup\/>/, 'an answering machine: no message left');
+  // an answering machine (or anyone the check can't place) hears whose call it was and how to stop, never the sales sentence
+  const mach = await (await O.outreachTwiml(env, at('or', 0), form({ AnsweredBy: 'machine_start' }))).text();
+  assert.match(mach, /This was a telemarketing call from an automated assistant, on behalf of Ace Hoods LLC\. To ask not to be called again, press 9 now, or call 4 7 8, 5 5 5, 0 1 9 9 during business hours\./);
+  assert.doesNotMatch(mach, /kitchen hoods|Would you like/, 'no sales sentence on a machine');
+  assert.match(mach, /&amp;m=1/);
+  assert.match(await (await O.outreachTwiml(env, at('or', 0), form({ AnsweredBy: 'unknown' }))).text(), /This was a telemarketing call/);
+  assert.doesNotMatch(await (await O.outreachTwiml(env, at('or', 0), form({ AnsweredBy: 'fax' }))).text(), /<Say>/);
+  assert.match(await (await O.outreachGather(env, new URL('https://x/voice/org/k?id=' + ids[0] + '&m=1'), form({ Digits: '5' }))).text(), /^(?![\s\S]*<Say>)[\s\S]*<Hangup\/>/, 'on the machine message only 9 means anything');
   assert.match(await (await O.outreachGather(env, at('org', 0), form({ SpeechResult: 'stop calling' }))).text(), /will not get these calls again/);
   assert.ok(await DB.prepare("SELECT 1 FROM outreach_optout WHERE phone10 = '4785550111'").first());
   assert.match(await (await O.outreachGather(env, at('org', 3), form({ Digits: '9' }))).text(), /will not get these calls again/, 'press 9');
@@ -395,4 +410,121 @@ test('a business that calls back and says "take us off your list" is never calle
   assert.deepEqual((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550131' ORDER BY client_id").all()).results.map(x => x.status), ['optout', 'optout']);
   for (const w of ['Don’t call us again', 'stop calling this number', 'please remove us', 'do not call this number']) assert.ok(O.DNC_RE.test(w), w);
   for (const w of ['can you call me back', 'I need to remove a stump', 'we stopped by yesterday']) assert.ok(!O.DNC_RE.test(w), w);
+});
+
+test('the Do Not Call check: national, state and litigator matches are skipped; no key or no answer means nobody is called', async () => {
+  // what DNCScrub's answers mean
+  const env = { DNC_LOGIN_ID: 'k' };
+  const m = await O.dncScrub(env, ['4785550101', '4785550102', '4785550103', '4785550104', '4785550105'], fakeDnc({ '4785550102': ['D', 'National (USA)'], '4785550103': ['D', 'State (Georgia)'], '4785550104': ['D', 'Litigator'], '4785550105': ['W', ''] }));
+  assert.deepEqual([...m.entries()].map(([p, x]) => p + ' ' + x.ok + ' ' + x.why), ['4785550101 true ', '4785550102 false on the national Do Not Call list', '4785550103 false on a state Do Not Call list', '4785550104 false known to sue over calls', '4785550105 false did not pass the Do Not Call check (W)']);
+  assert.equal(await O.dncScrub({}, ['4785550101'], DNCOK), null, 'no key: not checked');
+  assert.equal(await O.dncScrub(env, ['4785550101'], async () => new Response('no', { status: 401 })), null, 'a refused key: not checked');
+  assert.equal(await O.dncScrub(env, ['4785550101'], async () => { throw new Error('down'); }), null, 'no answer: not checked');
+  const gap = await O.dncScrub(env, ['4785550101', '4785550109'], async () => new Response(JSON.stringify({ results: [{ Phone: '4785550101', ResultCode: 'C' }] }), { status: 200 }));
+  assert.equal(gap.get('4785550109').ok, false, 'a number the answer left out is not called');
+  // at import: a match is skipped with the reason the owner sees
+  const DB = makeDB(), e2 = { DB, DNC_LOGIN_ID: 'k' };
+  await O.agree(e2, C, SIGN);
+  const dnc = fakeDnc({ '4785550162': ['D', 'National (USA)'], '4785550163': ['D', 'Litigator'] });
+  const r = await O.importList(e2, C, 'A,478-555-0161\nB,478-555-0162\nC,478-555-0163', () => BIZ(), undefined, { source: 'found', dncFetch: dnc });
+  assert.deepEqual([r.ready, r.skipped], [1, 2]);
+  const st = Object.fromEntries((await DB.prepare("SELECT phone, status, dnc FROM outreach_lists WHERE client_id = 'c1'").all()).results.map(x => [x.phone, x.status + ' | ' + x.dnc]));
+  assert.deepEqual(st, { '+14785550161': 'ready | clean', '+14785550162': 'skipped: on the national Do Not Call list | dnc: National (USA)', '+14785550163': 'skipped: known to sue over calls | dnc: Litigator' });
+  // without a key the list still goes in, unchecked, and the owner is told it is checked before any call
+  const DB3 = makeDB(), e3 = { DB: DB3 };
+  await O.agree(e3, C, SIGN);
+  const r3 = await O.importList(e3, C, 'A,478-555-0171', () => BIZ(), undefined, { source: 'found' });
+  assert.equal(r3.ready, 1);
+  assert.match(r3.message, /checked against the Do Not Call lists before Max calls it/);
+  assert.equal((await O.outreachState(e3, C)).dncReady, false, 'the app says calls start once the check is connected');
+});
+
+test('the cron: no Do Not Call key, nobody is called; a match found right before the call is skipped; no answer holds the call', async () => {
+  const DB = makeDB(), base = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
+  await ready(base);
+  await add(DB, 'c1', '+14785550181'); await add(DB, 'c1', '+14785550182');
+  const tw = fakeTwilio();
+  try {
+    await O.outreachCron(base, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
+    assert.equal(tw.calls.length, 0, 'no key: not one call');
+    const env = Object.assign({}, base, { DNC_LOGIN_ID: 'k' });
+    const down = async () => { throw new Error('down'); };
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: down });
+    assert.equal(tw.calls.length, 0, 'the check did not answer: no calls');
+    assert.match((await DB.prepare("SELECT result FROM outreach_lists WHERE phone = '+14785550181'").first()).result, /Do Not Call check did not answer/);
+    const dnc = fakeDnc({ '4785550182': ['D', 'State (Georgia)'] });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: dnc });
+    assert.deepEqual(tw.calls.map(x => x.to), ['+14785550181']);
+    assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550182'").first()).status, 'skipped: on a state Do Not Call list (checked before calling)');
+    // a clean check from the last day isn't paid for twice
+    await add(DB, 'c1', '+14785550183');
+    await DB.prepare("UPDATE outreach_lists SET dnc = 'clean', dnc_at = ?1 WHERE phone = '+14785550183'").bind(new Date(THU_10AM_ET - 3600000).toISOString()).run();
+    const again = fakeDnc();
+    await O.outreachCron(env, THU_10AM_ET + 600000, { lookup: BIZ, dncFetch: again });
+    assert.equal(again.calls, 0, 'checked an hour ago: not checked again');
+    assert.deepEqual(tw.calls.map(x => x.to), ['+14785550181', '+14785550183']);
+  } finally { tw.done(); }
+});
+
+test('every call is written down for good: the exact words, every check and when, and what happened', async () => {
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', DNC_LOGIN_ID: 'k' };
+  await ready(env);
+  await DB.prepare("UPDATE voice_lines SET owner_set = ?1").bind(JSON.stringify({ ownerName: 'Mike Lane' })).run();
+  await add(DB, 'c1', '+14785550191');
+  const tw = fakeTwilio();
+  try { await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK }); } finally { tw.done(); }
+  const c = await DB.prepare('SELECT * FROM outreach_calls').first();
+  assert.equal(c.sid, 'CA1');
+  assert.equal(c.script, O.script('Ace Hoods LLC', 'We clean commercial kitchen hoods.', 'Mike Lane', '+14785550199', 'Ace Hoods'), 'the exact words');
+  assert.deepEqual([c.phone, c.from_number, c.terms_version, c.line_type, c.caller_type, c.dnc, c.placed], ['+14785550191', '+14785550100', O.TERMS_VERSION, 'landline', 'BUSINESS', 'clean', 'placed']);
+  assert.match(c.local_time, /Thu, Nov 5, 2026, 10:00 AM America\/New_York/);
+  const id = (await DB.prepare("SELECT id FROM outreach_lists WHERE phone = '+14785550191'").first()).id;
+  await O.outreachTwiml(env, new URL('https://x/voice/or/k?id=' + id), form({ CallSid: 'CA1', AnsweredBy: 'human' }));
+  await O.outreachGather(env, new URL('https://x/voice/org/k?id=' + id), form({ CallSid: 'CA1', Digits: '1' }));
+  await O.outreachStatus(env, new URL('https://x/voice/orstatus/k?id=' + id), form({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '41' }));
+  const c2 = await DB.prepare("SELECT answered_by, outcome, status, seconds FROM outreach_calls WHERE sid = 'CA1'").first();
+  assert.deepEqual([c2.answered_by, c2.outcome, c2.status, c2.seconds], ['human', 'yes', 'completed', 41]);
+});
+
+test('hours: weekdays 9 to 5 in every time zone of the area code, never on a federal holiday', () => {
+  for (const d of ['2026-11-11', '2026-11-26', '2026-11-27', '2026-12-25', '2027-01-01', '2027-01-18', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-10-11', '2027-12-31']) assert.equal(O.holiday(d), true, d);
+  for (const d of ['2026-11-10', '2026-11-12', '2026-12-24', '2027-07-06', '2027-11-12']) assert.equal(O.holiday(d), false, d);
+  assert.equal(O.businessHoursOk('+14785550100', Date.parse('2026-11-11T15:00:00Z')), false, 'Veterans Day');
+  assert.equal(O.businessHoursOk('+12705550100', Date.parse('2026-11-05T14:30:00Z')), false, '9:30 Eastern is 8:30 Central, and 270 is both');
+  assert.equal(O.businessHoursOk('+12705550100', Date.parse('2026-11-05T15:05:00Z')), true);
+  assert.equal(O.businessHoursOk('+12705550100', Date.parse('2026-11-05T22:10:00Z')), false, '5:10 Eastern');
+});
+
+test('a list needs its source; a bought list always waits for a look; office and cleaning supplies are never sold', async () => {
+  const DB = makeDB(), env = { DB };
+  await O.agree(env, C, SIGN);
+  assert.match((await O.importList(env, C, 'A,478-555-0201', () => BIZ(), undefined, {})).error, /where this list came from/);
+  const r = await O.importList(env, C, 'A,478-555-0201\nB,478-555-0202', () => BIZ(), async () => null, { source: 'bought' });
+  assert.deepEqual([r.ready, r.held], [0, 2]);
+  assert.match((await DB.prepare("SELECT reasons FROM outreach_review WHERE client_id = 'c1'").first()).reasons, /This list was bought/);
+  assert.equal((await DB.prepare("SELECT source FROM outreach_lists WHERE phone = '+14785550201'").first()).source, 'bought');
+  for (const t of ['We deliver office supplies and toner to local businesses.', 'Janitorial supplies at wholesale prices for your shop.']) assert.ok(O.pitchProblems(t).some(x => /office or cleaning supplies/.test(x)), t);
+  assert.deepEqual(O.pitchProblems('We clean commercial kitchen hoods after closing.'), []);
+});
+
+test('anyone can stop the calls from the website: every client, at once, twenty a day from one connection', async () => {
+  const DB = makeDB(), env = { DB };
+  await O.ensureOutreach(env);
+  await add(DB, 'c1', '+14785550211'); await add(DB, 'c2', '+14785550211');
+  const get = await (await O.stopPage(env, new Request('https://x/stop-calls'), new URL('https://x/stop-calls'))).text();
+  for (const w of [/Stop Outreach calls/, /name="phone"/, /href="\/do-not-call"/]) assert.match(get, w);
+  const post = (o, ip) => O.stopPage(env, new Request('https://x/stop-calls', { method: 'POST', body: form(o), headers: { 'cf-connecting-ip': ip || '1.2.3.4' } }), new URL('https://x/stop-calls'));
+  assert.equal((await post({ phone: '478-555-0211', website: 'http://spam' })).status, 400, 'the hidden field catches robots');
+  assert.equal((await post({ phone: '555' })).status, 400);
+  const done = await post({ phone: '(478) 555-0211' });
+  assert.match(await done.text(), /\(478\) 555-0211 won’t get Outreach calls again/);
+  assert.ok(await DB.prepare("SELECT 1 FROM outreach_optout WHERE phone10 = '4785550211'").first());
+  assert.deepEqual((await DB.prepare("SELECT DISTINCT status FROM outreach_lists WHERE phone = '+14785550211'").all()).results.map(x => x.status), ['optout']);
+  for (let i = 0; i < 19; i++) await post({ phone: '478-555-03' + String(10 + i) }, '9.9.9.9');
+  assert.equal((await post({ phone: '478-555-0399' }, '9.9.9.9')).status, 200, 'the 20th from one connection');
+  assert.equal((await post({ phone: '478-555-0398' }, '9.9.9.9')).status, 429, 'the 21st waits a day');
+  const policy = fs.readFileSync(new URL('../public/do-not-call.html', import.meta.url), 'utf8');
+  for (const w of [/Do Not Call policy/, /National Do Not Call Registry, state do-not-call lists/, /at least five years/, /trained on this policy/, /\/stop-calls/]) assert.match(policy, w);
+  for (const f of ['terms', 'privacy']) assert.match(fs.readFileSync(new URL('../public/' + f + '.html', import.meta.url), 'utf8'), /do-not-call\.html/);
+  assert.match(fs.readFileSync(new URL('../src/index.js', import.meta.url), 'utf8'), /'\/stop-calls'[\s\S]{0,200}stopPage/);
 });

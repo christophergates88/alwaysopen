@@ -20,6 +20,17 @@
 //   - never a regulated client; the owner's switch on; Christopher's kill switch on (billing_config outreach_enabled)
 //   - weekday business hours in the called number's time zone; one attempt per number per client per 30 days; one
 //     Outreach call per business per 7 days across every client; at most 50 a day per client, 3 every 10 minutes
+//   - the national Do Not Call Registry, every state's do-not-call list and known TCPA litigators (DNCScrub, Contact
+//     Center Compliance), when the list is added and again right before the call when the last check is a day old. No
+//     key, or no answer from the check, and nobody is called (Christopher, Nov 10, 2026: "scrub the numbers against the
+//     national do not call list as well")
+//   - weekdays 9 to 5 in every time zone the area code covers, never on a federal holiday; never office or cleaning
+//     supplies (the one kind of business-to-business call the Telemarketing Sales Rule does not exempt)
+//   - a bought list is always held for a person's look first
+//   - every call written down for good (outreach_calls): the exact words, the checks it passed and when, what happened
+//   - an answering machine, or anyone the machine check can't place, hears only who the call was for and how to stop
+//     (the FCC's abandoned-call message), never the sales sentence
+//   - anyone can stop the calls from the website too (/stop-calls), under the written policy at /do-not-call
 //   - the call: "an automated assistant calling for <legal name>", then how to stop (say stop or press 9) within two
 //     seconds, then the owner's one sentence, the owner's call-back number (not the line that placed the call), one
 //     yes/no question; no voicemail is ever left. Stop ends Outreach calls to that number for good, for every client
@@ -37,13 +48,14 @@ export const ATTEST = 'I confirm this list is mine to use, every number on it is
 // The Outreach terms the owner signs before the switch turns on: they are the caller, they answer for their list and their
 // words, they release and indemnify Always Open. A new version (change TERMS_VERSION) asks every owner to sign again.
 // Drafted Nov 10, 2026 for Carter to read; not legal advice to the client, and it says so. 2026-11-10b: "What we do"
-// now lists the checks added that afternoon (nobody had signed the first version).
-export const TERMS_VERSION = '2026-11-10b';
+// now lists the checks added that afternoon (nobody had signed the first version). 2026-11-10c: the Do Not Call and
+// litigator checks, holidays, the website stop page (still nobody had signed).
+export const TERMS_VERSION = '2026-11-10c';
 export const TERMS_TITLE = 'Outreach Calls: Terms, Release and Indemnity';
 export const TERMS = [
   ['Who is calling', 'Outreach calls are placed at your direction, to the list you provide, saying the words you write, to promote your business. For every purpose, including the Telephone Consumer Protection Act (47 U.S.C. § 227), the FCC’s rules, the Telemarketing Sales Rule (16 C.F.R. Part 310) and any state telemarketing or calling law, you are the seller and the party on whose behalf each call is made, and you decide whether, whom and when to call. Always Open, a service of Lake Country Foam Party, LLC ("Always Open", "we"), only provides the technology that places the calls you direct.'],
   ['Your promises', 'You represent and warrant that: (a) you lawfully obtained every number on your list and have the right to use it to contact those businesses about your services; (b) every number belongs to a business and is not a residential line or a personal or wireless number of any individual; (c) you will not upload any number that is on the National Do Not Call Registry, a state do-not-call list, or your own do-not-call list, unless the law allows that call; (d) your message is true, not misleading, and does not claim to be from a person; (e) the legal name and call-back number you give us are your own and correct; (f) you hold any registration, license or bond a state requires of you to make these calls; and (g) you will follow every law that applies to these calls, wherever the called business is.'],
-  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business, and we skip numbers in California, Florida, Indiana, Minnesota and Oklahoma and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
+  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business; we check it against the National Do Not Call Registry, state do-not-call lists and a list of people known to sue over calls, and skip any match; and we skip numbers in California, Florida, Indiana, Minnesota and Oklahoma and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, never on federal holidays, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop or asks on our website. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked; a list you bought is always held. Outreach may not be used to sell office or cleaning supplies. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
   ['Release', 'To the fullest extent the law allows, you release and forever discharge Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from any and all claims, demands, losses and liabilities of any kind, known or unknown, arising out of or related to Outreach calls made for you, your list, your message, or your use or misuse of Outreach.'],
   ['Indemnity', 'You will defend, indemnify and hold harmless Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from and against any claim, lawsuit, investigation, fine, penalty, statutory damages, judgment, settlement, cost and attorneys’ fees arising out of or related to: (a) any call made at your direction; (b) your list or your message; (c) any breach of these terms or of your promises above; or (d) any violation of law by you or on your behalf. This applies even if a claim is made against us directly.'],
   ['Limits', 'Outreach is provided "as is". We make no promise about results or that any call complies with any law. To the fullest extent the law allows, our total liability to you for anything related to Outreach is limited to the fees you paid us in the month the claim arose, and we are not liable for any indirect, incidental, special, consequential or punitive damages.'],
@@ -82,6 +94,68 @@ export function blockedState(phone) { const d = ph10(phone); return d ? (AREA_ST
 // schools and the rest of the public-safety lines Indiana and others name. Read from the list's name and the caller ID.
 export const SENSITIVE = /\b(hospitals?|medical cent(er|re)|health ?care|clinic|urgent care|emergency (room|department|services|medical|line|dispatch|management)|e?911|9-1-1|physicians?|doctors?|dr\.?\s|pediatric|surgery|surgical|nursing|assisted living|senior living|care home|hospice|rehab(ilitation)? cent(er|re)|psychiatric|mental health|poison|fire (dept|department|district|station|rescue)|police|sheriff|marshal|ambulance|ems|paramedics?|dispatch|crisis|schools?|elementary|daycare|day care|preschool|city hall|town hall|courthouse)\b/i;
 
+// The national Do Not Call check (Nov 10, 2026: Christopher asked for it on top of the business-to-business rules).
+// DNCScrub by Contact Center Compliance (dnc.com): the National Do Not Call Registry, every state's list and known TCPA
+// litigators, in one answer per number. Its key is the DNC_LOGIN_ID secret ("Set Do Not Call key" on the Mac); the
+// account needs a National Do Not Call Registry subscription. No key, or no answer, and nobody is called.
+export const DNC_FRESH_MS = 24 * 3600000;   // checked again right before a call when the last check is older (the rule: 31 days)
+export function dncReady(env) { return !!(env && env.DNC_LOGIN_ID); }
+// phones: 10-digit numbers. Map(phone10 -> { ok, code, reason, why }), or null when the check could not run.
+export async function dncScrub(env, phones, f) {
+  if (!dncReady(env)) return null;
+  const out = new Map();
+  for (let at = 0; at < phones.length; at += 100) {
+    const part = phones.slice(at, at + 100);
+    let j = null;
+    try {
+      const r = await (f || fetch)('https://www.dncscrub.com/app/main/rpc/scrub', { method: 'POST',
+        headers: { loginId: env.DNC_LOGIN_ID, 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ phoneList: part.join(','), version: '8', output: 'json' }).toString() });
+      if (!r.ok) return null;
+      j = await r.json().catch(() => null);
+    } catch (e) { return null; }
+    const results = j && (j.results || j.Results);
+    if (!Array.isArray(results)) return null;
+    for (const x of results) {
+      const p = ph10(String(x.Phone || x.phone || '')); if (!p) continue;
+      const code = String(x.ResultCode || x.resultCode || '').toUpperCase(), reason = String(x.Reason || x.reason || '').slice(0, 80);
+      out.set(p, { ok: code === 'C', code, reason, why: code === 'C' ? '' : dncWhy(code, reason) });
+    }
+    // a number the answer left out was not checked, so it is not called
+    for (const p of part) if (!out.has(p)) out.set(p, { ok: false, code: '', reason: '', why: 'the Do Not Call check gave no answer' });
+  }
+  return out;
+}
+function dncWhy(code, reason) {
+  const r = reason.toLowerCase();
+  if (/litig/.test(r)) return 'known to sue over calls';
+  if (/national|federal|usa/.test(r)) return 'on the national Do Not Call list';
+  if (/state|province/.test(r)) return 'on a state Do Not Call list';
+  if (/internal|project|company/.test(r)) return 'asked not to be called';
+  if (/wireless|cell|mobile/.test(r)) return 'cell phone';
+  return 'did not pass the Do Not Call check' + (code ? ' (' + code + ')' : '');
+}
+
+// Federal holidays, as observed (a Saturday holiday on the Friday before, a Sunday one on the Monday after), plus the
+// day after Thanksgiving. No Outreach calls on any of them. ymd: 'YYYY-MM-DD' in the called number's time zone.
+export function holiday(ymd) {
+  const y = +ymd.slice(0, 4), iso = (m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const dow = (m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const nth = (m, wd, n) => { let d = 1; while (dow(m, d) !== wd) d++; return d + 7 * (n - 1); };
+  const last = (m, wd) => { let d = new Date(Date.UTC(y, m, 0)).getUTCDate(); while (dow(m, d) !== wd) d--; return d; };
+  const obs = (m, d) => { const w = dow(m, d); const t = new Date(Date.UTC(y, m - 1, d + (w === 6 ? -1 : w === 0 ? 1 : 0))); return t.toISOString().slice(0, 10); };
+  const tg = nth(11, 4, 4);
+  const days = [obs(1, 1), iso(1, nth(1, 1, 3)), iso(2, nth(2, 1, 3)), iso(5, last(5, 1)), obs(6, 19), obs(7, 4), iso(9, nth(9, 1, 1)),
+    iso(10, nth(10, 1, 2)), obs(11, 11), iso(11, tg), iso(11, tg + 1), obs(12, 25), new Date(Date.UTC(y + 1, 0, 1 + (new Date(Date.UTC(y + 1, 0, 1)).getUTCDay() === 6 ? -1 : 0))).toISOString().slice(0, 10)];
+  return days.indexOf(ymd) > -1;
+}
+
+// Where a list came from, said by the owner when it goes in. A bought list is always held for a person's look first:
+// that is where home and cell numbers hide.
+export const SOURCES = { found: 'Businesses I looked up myself', contacts: 'My own business contacts', bought: 'A list I bought', other: 'Somewhere else' };
+// Office and cleaning supplies: the one kind of business-to-business call the Telemarketing Sales Rule doesn't exempt.
+const SUPPLIES = /\b(office supplies|office products|cleaning supplies|cleaning products|janitorial (supplies|products)|toner|ink cartridges?|copier paper|copy paper|printer paper|paper towels|toilet paper|trash bags|hand soap)\b/i;
+
 const readyDBs = new WeakSet();
 export async function ensureOutreach(env) {
   if (readyDBs.has(env.DB)) return;
@@ -93,14 +167,18 @@ export async function ensureOutreach(env) {
     // every signature kept: who typed what name, when, from where, and exactly which text (its hash)
     env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_terms (client_id TEXT NOT NULL, version TEXT NOT NULL, hash TEXT, name TEXT, by TEXT, at TEXT, ip_hash TEXT, ua TEXT, PRIMARY KEY (client_id, version))"),
     // the automatic review: one row per list (kind 'list', id = the list's batch) or sentence (kind 'sentence') that was held
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_review (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, kind TEXT, at TEXT, state TEXT, reasons TEXT, text TEXT DEFAULT '', n INTEGER DEFAULT 0, decided_at TEXT DEFAULT '')")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_review (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, kind TEXT, at TEXT, state TEXT, reasons TEXT, text TEXT DEFAULT '', n INTEGER DEFAULT 0, decided_at TEXT DEFAULT '')"),
+    // every call, for good: what was said and every check it passed, so any question about a call has its answer
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS outreach_calls (sid TEXT PRIMARY KEY, client_id TEXT, row_id INTEGER, phone TEXT, from_number TEXT, at TEXT, local_time TEXT, legal TEXT, callback TEXT, pitch TEXT, script TEXT, terms_version TEXT, line_type TEXT, caller_type TEXT, caller_name TEXT, lookup_at TEXT, dnc TEXT, dnc_at TEXT, placed TEXT, answered_by TEXT DEFAULT '', outcome TEXT DEFAULT '', status TEXT DEFAULT '', seconds INTEGER DEFAULT 0)"),
+    // stops asked for on the website (and how many from one connection a day)
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS outreach_webstop (at TEXT, ip_hash TEXT, phone10 TEXT)')
   ]);
   // columns added Nov 10, 2026 (the tables already existed in production)
   const add = async (table, cols) => {
     const have = new Set((((await env.DB.prepare('PRAGMA table_info(' + table + ')').all()).results) || []).map(c => c.name));
     for (const [c, t] of cols) if (!have.has(c)) await env.DB.prepare('ALTER TABLE ' + table + ' ADD COLUMN ' + c + ' ' + t).run();
   };
-  await add('outreach_lists', [['caller_type', "TEXT DEFAULT ''"], ['caller_name', "TEXT DEFAULT ''"], ['checked_at', "TEXT DEFAULT ''"], ['batch', "TEXT DEFAULT ''"], ['state', "TEXT DEFAULT ''"]]);
+  await add('outreach_lists', [['caller_type', "TEXT DEFAULT ''"], ['caller_name', "TEXT DEFAULT ''"], ['checked_at', "TEXT DEFAULT ''"], ['batch', "TEXT DEFAULT ''"], ['state', "TEXT DEFAULT ''"], ['dnc', "TEXT DEFAULT ''"], ['dnc_at', "TEXT DEFAULT ''"], ['source', "TEXT DEFAULT ''"]]);
   await add('outreach_pitch', [['legal', "TEXT DEFAULT ''"], ['callback', "TEXT DEFAULT ''"], ['review', "TEXT DEFAULT ''"]]);
   readyDBs.add(env.DB);
 }
@@ -209,11 +287,15 @@ async function askChristopher(env, c, id, kind, reasons) {
 
 // The owner pastes or uploads a list. Every number is checked and the list is read; what can't be called is kept but
 // marked skipped with the reason, and a list that needs a look is held until Christopher approves it.
-export async function importList(env, c, csv, lookup, review) {
+// opts: { source } (a SOURCES key, required), { dncFetch } (tests).
+export async function importList(env, c, csv, lookup, review, opts) {
   await ensureOutreach(env);
+  opts = opts || {};
   if (+c.regulated) return { ok: false, error: 'Outreach calls are not available for regulated businesses.' };
   if (!outreachAllowed(c)) return { ok: false, error: 'Outreach calls come with the Pro plan.' };
   if (!(await attested(env, c.client_id))) return { ok: false, error: 'Please read and sign the Outreach terms first.' };
+  const source = String(opts.source || '');
+  if (!SOURCES[source]) return { ok: false, error: 'Pick where this list came from.' };
   const rows = parseList(csv);
   if (!rows.length) return { ok: false, error: 'No phone numbers found. One business per line: name, phone, contact.' };
   const have = ((await env.DB.prepare('SELECT COUNT(*) AS n FROM outreach_lists WHERE client_id = ?1').bind(c.client_id).first()) || {}).n || 0;
@@ -230,16 +312,29 @@ export async function importList(env, c, csv, lookup, review) {
       checked[at + k] = { r, lk, v: pre.ok ? rowVerdict(r, lk, opted) : pre };
     }));
   }
+  // the national and state Do Not Call lists and known litigators, for every number that passed the rest. Not checked
+  // (no key yet, or no answer) leaves it unchecked: it is checked right before any call, and never called without it.
+  const now = new Date().toISOString();
+  const live = checked.filter(x => x.v.ok).map(x => ph10(x.r.phone));
+  const dnc = live.length ? await dncScrub(env, live, opts.dncFetch) : null;
+  for (const x of checked) {
+    x.dnc = ''; x.dncAt = '';
+    if (!x.v.ok || !dnc) continue;
+    const d = dnc.get(ph10(x.r.phone));
+    x.dnc = d && d.ok ? 'clean' : 'dnc: ' + ((d && (d.reason || d.code)) || 'no answer'); x.dncAt = now;
+    if (!d || !d.ok) x.v = { ok: false, why: d ? d.why : 'the Do Not Call check gave no answer' };
+  }
   const rv = await reviewList(env, c, checked, '', review);   // the sentence is read on its own when it is saved
-  const batch = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), now = new Date().toISOString();
+  if (source === 'bought') rv.reasons.unshift('This list was bought. Bought lists often mix in home and cell numbers, so a person looks before any call.'), rv.hold = true;
+  const batch = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   let ready = 0, held = 0, skipped = 0;
   const writes = [];
   for (let i = 0; i < checked.length; i++) {
     const { r, lk, v } = checked[i];
     const status = !v.ok ? 'skipped: ' + v.why : rv.skip.has(i) ? 'skipped: ' + rv.skip.get(i) : rv.hold ? 'held' : 'ready';
     if (status === 'ready') ready++; else if (status === 'held') held++; else skipped++;
-    writes.push(env.DB.prepare("INSERT INTO outreach_lists (client_id, business, phone, contact, line_type, status, created, caller_type, caller_name, checked_at, batch, state) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12) ON CONFLICT(client_id, phone) DO UPDATE SET business = excluded.business, contact = excluded.contact, line_type = excluded.line_type, caller_type = excluded.caller_type, caller_name = excluded.caller_name, checked_at = excluded.checked_at, batch = excluded.batch, state = excluded.state, status = CASE WHEN outreach_lists.status IN ('optout','interested') THEN outreach_lists.status ELSE excluded.status END")
-      .bind(c.client_id, r.business, r.phone, r.contact, lk.type || 'unknown', status, now, lk.callerType, lk.callerName, now, batch, blockedState(r.phone)));
+    writes.push(env.DB.prepare("INSERT INTO outreach_lists (client_id, business, phone, contact, line_type, status, created, caller_type, caller_name, checked_at, batch, state, dnc, dnc_at, source) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15) ON CONFLICT(client_id, phone) DO UPDATE SET business = excluded.business, contact = excluded.contact, line_type = excluded.line_type, caller_type = excluded.caller_type, caller_name = excluded.caller_name, checked_at = excluded.checked_at, batch = excluded.batch, state = excluded.state, dnc = excluded.dnc, dnc_at = excluded.dnc_at, source = excluded.source, status = CASE WHEN outreach_lists.status IN ('optout','interested') THEN outreach_lists.status ELSE excluded.status END")
+      .bind(c.client_id, r.business, r.phone, r.contact, lk.type || 'unknown', status, now, lk.callerType, lk.callerName, now, batch, blockedState(r.phone), checked[i].dnc, checked[i].dncAt, source));
   }
   for (let at = 0; at < writes.length; at += 50) await env.DB.batch(writes.slice(at, at + 50));
   if (rv.hold) {
@@ -254,8 +349,8 @@ export async function importList(env, c, csv, lookup, review) {
   }
   const parts = [ready + ' ready'];
   if (held) parts.push(held + ' being checked by Always Open before any call (usually within a day)');
-  if (skipped) parts.push(skipped + ' skipped (cell phones, home lines, hospitals, schools and the states we don\'t call are never called)');
-  return { ok: true, ready, held, skipped, message: parts.join(', ') + '.' };
+  if (skipped) parts.push(skipped + ' skipped (cell phones, home lines, Do Not Call lists, hospitals, schools and the states we don\'t call are never called)');
+  return { ok: true, ready, held, skipped, dncChecked: !!dnc, message: parts.join(', ') + '.' + (dnc ? '' : ' Every number is checked against the Do Not Call lists before Max calls it.') };
 }
 
 // Signed the current version of the terms (an older confirmation, or an older version, does not count).
@@ -297,6 +392,7 @@ export function pitchProblems(text) {
   const hits = hardErrors([{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'hello' }, { r: 'a', t }], {});
   for (const h of hits) if (h.flag !== 'price') out.push('It cannot promise "' + h.quote + '".');
   if (/[<>[\]{}]/.test(t)) out.push('Plain words only.');
+  if (SUPPLIES.test(t)) out.push('Outreach can\'t be used to sell office or cleaning supplies.');
   return out;
 }
 // The legal name said first on every call, and the number the called business can reach the owner on.
@@ -361,6 +457,7 @@ export function blockedBy(row, ctx) {
   if (!ctx.pitchOn || !ctx.pitch) why.push('owner switch off');
   if (ctx.pitchHeld) why.push('sentence being checked');   // or not approved: the owner writes a new one
   if (!ctx.legal || !ctx.callback) why.push('no legal name or call-back number');
+  if (!ctx.dncReady) why.push('Do Not Call check not set up');
   if (!CALLABLE.has(row.line_type)) why.push('not a business landline');
   if (row.caller_type !== 'BUSINESS') why.push('caller ID not a business');
   if (blockedState(row.phone)) why.push('state not called');
@@ -375,13 +472,17 @@ export function blockedBy(row, ctx) {
 }
 
 // Business hours where the called number is: Monday to Friday, 9 AM to 5 PM (stricter than the 8-to-9 window for customers
-// who asked to hear from a business), and inside callHoursOk too.
+// who asked to hear from a business) in every time zone its area code covers, never on a federal holiday, and inside
+// callHoursOk too.
 export function businessHoursOk(phone, at, tzFallback) {
-  const tz = (zonesOfNumber(phone) || [])[0] || tzFallback || 'America/New_York';
+  // an area code that spans two time zones has to be inside the hours in both
+  const zones = (zonesOfNumber(phone) || []).length ? zonesOfNumber(phone) : [tzFallback || 'America/New_York'];
   try {
-    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date(at)).map(x => [x.type, x.value]));
-    const h = +parts.hour % 24;
-    return !/Sat|Sun/.test(parts.weekday) && h >= 9 && h < 17 && callHoursOk(tz, at, phone);
+    return zones.every(tz => {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(at)).map(x => [x.type, x.value]));
+      const h = +parts.hour % 24, ymd = parts.year + '-' + parts.month + '-' + parts.day;
+      return !/Sat|Sun/.test(parts.weekday) && h >= 9 && h < 17 && !holiday(ymd) && callHoursOk(tz, at, phone);
+    });
   } catch (e) { return false; }
 }
 export async function killSwitchOn(env) {
@@ -394,10 +495,11 @@ export async function outreachCron(env, now, opts) {
   await ensureOutreach(env);
   now = now || Date.now();
   const look = (opts && opts.lookup) || (p => lookupNumber(env, p));
-  const kill = await killSwitchOn(env);
+  const kill = await killSwitchOn(env), dncOn = dncReady(env);
+  let dncDown = false, dncChecked = false;
   // up to 60 waiting numbers per client, taken in turns (each client's first, then each client's second...), so one long
   // list never crowds out another client's
-  const rows = ((await env.DB.prepare("WITH q AS (SELECT x.*, ROW_NUMBER() OVER (PARTITION BY x.client_id ORDER BY x.id) AS rn FROM outreach_lists x WHERE x.status = 'ready') SELECT o.*, l.number, l.business AS biz, l.regulated, l.owner_set, p.text AS pitch, p.on_ AS pitch_on, p.legal, p.callback, p.review AS pitch_review, (SELECT 1 FROM outreach_terms a WHERE a.client_id = o.client_id AND a.version = ?1) AS att, (SELECT 1 FROM outreach_optout z WHERE z.phone10 = substr(o.phone, 3)) AS opted, (SELECT MAX(y.last_called) FROM outreach_lists y WHERE y.phone = o.phone AND y.last_called != '') AS any_at FROM q o LEFT JOIN voice_lines l ON l.number = (SELECT v.number FROM voice_lines v WHERE v.client_id = o.client_id ORDER BY v.number LIMIT 1) LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.rn <= 60 ORDER BY o.rn, o.client_id LIMIT 900").bind(TERMS_VERSION).all()).results) || [];
+  const rows = ((await env.DB.prepare("WITH q AS (SELECT x.*, ROW_NUMBER() OVER (PARTITION BY x.client_id ORDER BY x.id) AS rn FROM outreach_lists x WHERE x.status = 'ready') SELECT o.*, l.number, l.business AS biz, l.regulated, l.owner_set, p.text AS pitch, p.on_ AS pitch_on, p.legal, p.callback, p.review AS pitch_review, json_extract(l.owner_set, '$.ownerName') AS owner, (SELECT 1 FROM outreach_terms a WHERE a.client_id = o.client_id AND a.version = ?1) AS att, (SELECT 1 FROM outreach_optout z WHERE z.phone10 = substr(o.phone, 3)) AS opted, (SELECT MAX(y.last_called) FROM outreach_lists y WHERE y.phone = o.phone AND y.last_called != '') AS any_at FROM q o LEFT JOIN voice_lines l ON l.number = (SELECT v.number FROM voice_lines v WHERE v.client_id = o.client_id ORDER BY v.number LIMIT 1) LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.rn <= 60 ORDER BY o.rn, o.client_id LIMIT 900").bind(TERMS_VERSION).all()).results) || [];
   let could = 0, dialed = 0;
   const clients = new Map(), calledNow = new Set();
   for (const r of rows) {
@@ -414,7 +516,7 @@ export async function outreachCron(env, now, opts) {
     if (cl.gone) continue;
     const hoursOk = businessHoursOk(r.phone, now, await tzFor(env, r.client_id).catch(() => 'America/New_York'));
     const why = blockedBy(r, { now, killSwitchOn: kill, regulated: !!+r.regulated, pro: cl.pro, attested: !!r.att, pitch: r.pitch, pitchOn: !!+r.pitch_on, pitchHeld: r.pitch_review === 'held' || r.pitch_review === 'rejected',
-      legal: r.legal, callback: r.callback, optedOut: !!r.opted, anyClientAt: calledNow.has(r.phone) ? new Date(now).toISOString() : r.any_at, dayCount: cl.day, tickCount: cl.tick, hoursOk });
+      legal: r.legal, callback: r.callback, dncReady: dncOn, optedOut: !!r.opted, anyClientAt: calledNow.has(r.phone) ? new Date(now).toISOString() : r.any_at, dayCount: cl.day, tickCount: cl.tick, hoursOk });
     if (why.length === 1 && why[0] === 'not live') could++;
     if (why.length) continue;
     // right before the call: the line and its caller ID are read again (numbers move to cell phones and homes)
@@ -423,12 +525,43 @@ export async function outreachCron(env, now, opts) {
       await env.DB.prepare("UPDATE outreach_lists SET status = ?1, line_type = ?2, caller_type = ?3, caller_name = ?4, checked_at = ?5 WHERE id = ?6").bind('skipped: ' + v.why + ' (checked before calling)', lk.type || 'unknown', lk.callerType, lk.callerName, at, r.id).run();
       continue;
     }
-    const d = await dialOut(env, { number: r.number }, r.phone, '/voice/or/' + env.VOICE_KEY + '?id=' + r.id, '/voice/orstatus/' + env.VOICE_KEY + '?id=' + r.id);
+    // and the Do Not Call lists, unless they were checked in the last day; no answer means no call this run
+    let dnc = r.dnc, dncAt = r.dnc_at;
+    if (!(dnc === 'clean' && dncAt && now - Date.parse(dncAt) < DNC_FRESH_MS)) {
+      const m = await dncScrub(env, [ph10(r.phone)], opts && opts.dncFetch);
+      if (!m) { dncDown = true; await env.DB.prepare("UPDATE outreach_lists SET result = 'Do Not Call check did not answer; tried again next run' WHERE id = ?1").bind(r.id).run(); continue; }
+      const x = m.get(ph10(r.phone)); dncChecked = true;
+      dnc = x && x.ok ? 'clean' : 'dnc: ' + ((x && (x.reason || x.code)) || 'no answer'); dncAt = at;
+      if (!x || !x.ok) {
+        await env.DB.prepare('UPDATE outreach_lists SET status = ?1, dnc = ?2, dnc_at = ?3 WHERE id = ?4').bind('skipped: ' + (x ? x.why : 'the Do Not Call check gave no answer') + ' (checked before calling)', dnc, dncAt, r.id).run();
+        continue;
+      }
+      await env.DB.prepare('UPDATE outreach_lists SET dnc = ?1, dnc_at = ?2 WHERE id = ?3').bind(dnc, dncAt, r.id).run();
+    }
+    // Twilio decides person or machine quickly (Max's first words must start within two seconds of their hello); a
+    // receptionist's longer greeting still counts as a person
+    const d = await dialOut(env, { number: r.number }, r.phone, '/voice/or/' + env.VOICE_KEY + '?id=' + r.id, '/voice/orstatus/' + env.VOICE_KEY + '?id=' + r.id,
+      { MachineDetectionSpeechThreshold: '3000', MachineDetectionSpeechEndThreshold: '900' });
     await env.DB.prepare("UPDATE outreach_lists SET attempts = attempts + 1, last_called = ?1, status = ?2, result = ?3, checked_at = ?1 WHERE id = ?4").bind(at, d.ok ? 'called' : 'ready', d.ok ? 'dialed' : d.why, r.id).run();
+    // the record of the call, kept for good: the exact words, every check and when it ran
+    await env.DB.prepare('INSERT OR REPLACE INTO outreach_calls (sid, client_id, row_id, phone, from_number, at, local_time, legal, callback, pitch, script, terms_version, line_type, caller_type, caller_name, lookup_at, dnc, dnc_at, placed) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)')
+      .bind(d.ok ? d.sid : 'x' + r.id + '-' + now, r.client_id, r.id, r.phone, r.number || '', at, localStamp(r.phone, now), r.legal || '', r.callback || '', r.pitch || '', script(r.legal, r.pitch, r.owner, r.callback, r.biz), TERMS_VERSION,
+        lk.type, lk.callerType, lk.callerName, at, dnc, dncAt, d.ok ? 'placed' : 'not placed: ' + d.why).run().catch(() => {});
     cl.day++; cl.tick++; calledNow.add(r.phone);
     if (d.ok) dialed++;
   }
+  // the check stays broken: one alert a day until it answers again, and the alert clears once it does
+  try {
+    const O = await import('./ops.js');
+    if (dncDown) await O.opsAlert(env, 'health:outreach-dnc', '', 'The Do Not Call check (DNCScrub) did not answer, so no Outreach calls went out.');
+    else if (dncChecked) await O.clearAlert(env, 'health:outreach-dnc');
+  } catch (e) { /* the calls are held either way */ }
   return { could, dialed };
+}
+// "Tue 10:05 AM America/New_York" where the number is: the local time each call went out, for the record.
+function localStamp(phone, at) {
+  const tz = (zonesOfNumber(phone) || [])[0] || 'America/New_York';
+  try { return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(at)) + ' ' + tz; } catch (e) { return tz; }
 }
 
 // "478-555-0100" read out a digit at a time, in three groups.
@@ -443,20 +576,37 @@ export function script(legal, pitch, owner, callback, biz) {
 async function rowOf(env, id) {
   return await env.DB.prepare("SELECT o.*, l.business AS biz, l.regulated, p.text AS pitch, p.legal, p.callback, p.review AS pitch_review, json_extract(l.owner_set, '$.ownerName') AS owner FROM outreach_lists o LEFT JOIN voice_lines l ON l.number = (SELECT v.number FROM voice_lines v WHERE v.client_id = o.client_id ORDER BY v.number LIMIT 1) LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.id = ?1").bind(id).first().catch(() => null);
 }
+// The call's record, a line at a time as Twilio and the caller answer (sid = Twilio's CallSid).
+const logCall = (env, form, sets) => {
+  const sid = String((form && form.get('CallSid')) || ''); if (!sid) return Promise.resolve();
+  const keys = Object.keys(sets);
+  return env.DB.prepare('UPDATE outreach_calls SET ' + keys.map((k, i) => k + ' = ?' + (i + 2)).join(', ') + ' WHERE sid = ?1').bind(sid, ...keys.map(k => sets[k])).run().catch(() => {});
+};
 // Twilio's status for an outreach call: no answer, busy or failed is written down; the number is not tried again this month.
 export async function outreachStatus(env, url, form) {
   const id = +url.searchParams.get('id') || 0, st = String(form.get('CallStatus') || '');
   if (id && /^(no-answer|busy|failed|canceled)$/.test(st)) await env.DB.prepare("UPDATE outreach_lists SET result = ?1 WHERE id = ?2 AND status = 'called'").bind(st, id).run().catch(() => {});
+  await logCall(env, form, { status: st.slice(0, 20), seconds: +form.get('CallDuration') || 0 });
   return new Response('ok');
+}
+// An answering machine, or anyone the machine check can't place, hears only whose call it was and how to stop: the FCC's
+// message for a call no one could take (47 CFR 64.1200(a)(7)), never the sales sentence. Press 9 stops it for good.
+export function machineMessage(legal, callback) {
+  return 'This was a telemarketing call from an automated assistant, on behalf of ' + legal + '. To ask not to be called again, press 9 now, or call ' + speakPhone(callback) + ' during business hours. Goodbye.';
 }
 // /voice/or/<key>?id=
 export async function outreachTwiml(env, url, form) {
   if (!OUTREACH_LIVE) return xml('<Hangup/>');
   const id = +url.searchParams.get('id') || 0, r = await rowOf(env, id);
   if (!r || +r.regulated || !r.pitch || !r.legal || !ph10(r.callback) || r.pitch_review === 'held' || r.pitch_review === 'rejected') return xml('<Hangup/>');
-  if (String(form.get('AnsweredBy') || '').startsWith('machine')) {
+  const by = String(form.get('AnsweredBy') || '');
+  await logCall(env, form, { answered_by: by.slice(0, 30) || 'human' });
+  if (by === 'fax') return xml('<Hangup/>');
+  if (/^machine|^unknown/.test(by)) {
     await env.DB.prepare("UPDATE outreach_lists SET result = 'voicemail' WHERE id = ?1").bind(id).run().catch(() => {});
-    return xml('<Hangup/>');   // no voicemail pitches
+    // no sales sentence on a machine; the stop message only (press 9 is the same stop as on a live call)
+    const stop = SITE + '/voice/org/' + env.VOICE_KEY + '?id=' + id + '&m=1';
+    return xml('<Gather input="dtmf" numDigits="1" timeout="4" action="' + xa(stop) + '" method="POST"><Say>' + xa(machineMessage(r.legal, r.callback)) + '</Say></Gather><Hangup/>');
   }
   const act = SITE + '/voice/org/' + env.VOICE_KEY + '?id=' + id;
   return xml('<Gather input="dtmf speech" numDigits="1" timeout="6" actionOnEmptyResult="true" action="' + xa(act) + '" method="POST"><Say>' + xa(script(r.legal, r.pitch, r.owner, r.callback, r.biz)) + '</Say></Gather><Hangup/>');
@@ -471,15 +621,19 @@ export async function outreachGather(env, url, form) {
   if (ans === 'stop' || /\b(remove|take me off|do not call|don['’]?t call)\b/.test(said) || DNC_RE.test(said)) {
     await env.DB.prepare('INSERT OR REPLACE INTO outreach_optout (phone10, at, client_id) VALUES (?1,?2,?3)').bind(ph10(r.phone), now, r.client_id).run();
     await env.DB.prepare("UPDATE outreach_lists SET status = 'optout', result = 'asked not to be called' WHERE id = ?1").bind(id).run();
+    await logCall(env, form, { outcome: 'stop' });
     return xml('<Say>Understood. You will not get these calls again. Goodbye.</Say><Hangup/>');
   }
+  if (url.searchParams.get('m')) { await logCall(env, form, { outcome: 'machine message' }); return xml('<Hangup/>'); }   // the machine message: only 9 means anything
   const name = r.biz || r.legal || 'They';
   if (ans === 'yes') {
     await env.DB.prepare("INSERT INTO app_leads (client_id, at, name, phone, need, sms_ok, status) VALUES (?1,?2,?3,?4,?5,0,'new')").bind(r.client_id, now, r.contact || r.business || '', r.phone, 'Outreach: wants a call. ' + (r.business || '')).run();
     await env.DB.prepare("UPDATE outreach_lists SET status = 'interested', result = 'wants a call' WHERE id = ?1").bind(id).run();
+    await logCall(env, form, { outcome: 'yes' });
     return xml('<Say>Great, thank you. ' + xa(name) + ' will call you. If you need them sooner, the number is ' + xa(speakPhone(r.callback)) + '. Goodbye.</Say><Hangup/>');
   }
   await env.DB.prepare("UPDATE outreach_lists SET status = 'done', result = ?1 WHERE id = ?2").bind(ans === 'no' ? 'not interested' : 'no clear answer', id).run();
+  await logCall(env, form, { outcome: ans === 'no' ? 'no' : 'no clear answer' });
   return xml('<Say>No problem. If you change your mind, you can reach ' + xa(name) + ' at ' + xa(speakPhone(r.callback)) + '. Thanks for your time. Goodbye.</Say><Hangup/>');
 }
 
@@ -528,6 +682,39 @@ export async function reviewPage(env, req, url) {
       : '<form method="post"><button class="ok" name="act" value="approve">Approve</button><button class="no" name="act" value="reject">Reject</button></form><p class="fine">Approve lets Max call the business landlines on it (every other check still applies). Reject means nothing on it is called.</p>'));
 }
 
+// /stop-calls: anyone can stop Outreach calls to a number from the website. It goes on the same do-not-call list as
+// saying stop on a call, for every client, at once. Twenty a day from one connection; a hidden field catches robots.
+export async function stopPage(env, req, url) {
+  await ensureOutreach(env);
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const page = (body, status) => new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stop Outreach calls</title><meta name="description" content="Stop automated Outreach calls from Always Open to your business number.">' +
+    '<style>:root{--paper:#F5F4F0;--card:#FFFFFF;--ink:#171B26;--slate:#586075;--line:#DCDAD3;--sign:#D92D20}@media (prefers-color-scheme:dark){:root{--paper:#12151D;--card:#1A1F2B;--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--sign:#FF5A4D;color-scheme:dark}}' +
+    '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:560px;margin:0 auto;padding:40px 16px 70px}h1{font-size:1.9rem;line-height:1.15;margin:0 0 10px}' +
+    'label{display:block;font-weight:600;margin:18px 0 6px}input{font:inherit;width:100%;min-height:50px;padding:10px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}' +
+    'button{font:inherit;font-weight:700;min-height:50px;width:100%;margin-top:14px;border:0;border-radius:12px;background:var(--sign);color:#fff;cursor:pointer}.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:18px 0}' +
+    '.fine{color:var(--slate);font-size:15px}a{color:var(--sign)}.hp{position:absolute;left:-9999px}</style></head><body><main>' + body +
+    '<p class="fine">Always Open places Outreach calls for its business clients. Read our <a href="/do-not-call">Do Not Call policy</a>, or email <a href="mailto:hello@alwaysopenoffice.com">hello@alwaysopenoffice.com</a>.</p></main></body></html>',
+    { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+  const form = '<h1>Stop Outreach calls</h1><p>Enter the number that got the call. It won’t be called again by any business Always Open places calls for.</p>' +
+    '<form method="post" action="/stop-calls"><label for="ph">Phone number</label><input id="ph" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="(478) 555-0100">' +
+    '<label class="hp" for="web">Leave this empty</label><input class="hp" id="web" name="website" tabindex="-1" autocomplete="off"><button type="submit">Stop the calls</button></form>';
+  if (req.method !== 'POST') return page(form);
+  const f = await req.formData().catch(() => null);
+  if (!f || String(f.get('website') || '')) return page(form, 400);
+  const d = ph10(String(f.get('phone') || ''));
+  if (!d) return page('<div class="box"><b>That number didn’t look right.</b> Use the 10-digit number, with the area code.</div>' + form, 400);
+  const ip = (await import('./app.js')).sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'));
+  const iph = (await ip).slice(0, 24), since = new Date(Date.now() - 86400000).toISOString(), now = new Date().toISOString();
+  const n = ((await env.DB.prepare('SELECT COUNT(*) AS n FROM outreach_webstop WHERE ip_hash = ?1 AND at > ?2').bind(iph, since).first()) || {}).n || 0;
+  if (n >= 20) return page('<div class="box"><b>Too many tries from this connection today.</b> Email hello@alwaysopenoffice.com and we’ll do it for you.</div>', 429);
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR REPLACE INTO outreach_optout (phone10, at, client_id) VALUES (?1,?2,?3)').bind(d, now, 'web'),
+    env.DB.prepare("UPDATE outreach_lists SET status = 'optout', result = 'asked not to be called (website)' WHERE phone = ?1 AND status NOT IN ('interested')").bind('+1' + d),
+    env.DB.prepare('INSERT INTO outreach_webstop (at, ip_hash, phone10) VALUES (?1,?2,?3)').bind(now, iph, d)
+  ]);
+  return page('<h1>Done.</h1><div class="box"><b>(' + esc(d.slice(0, 3)) + ') ' + esc(d.slice(3, 6)) + '-' + esc(d.slice(6)) + ' won’t get Outreach calls again.</b> That holds for every business Always Open places calls for. Nothing else is needed.</div>');
+}
+
 // The ops board: every list or sentence still held for a look, with the page that approves or rejects it.
 export async function outreachBoard(env) {
   await ensureOutreach(env);
@@ -552,6 +739,6 @@ export async function outreachState(env, c) {
   return { live: OUTREACH_LIVE, pro: outreachAllowed(c), label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: !!signed, signed: signed ? { name: signed.name, at: signed.at } : null,
     terms: { version: TERMS_VERSION, title: TERMS_TITLE, parts: TERMS.map(([h, t]) => ({ h, t })) }, pitch: p ? p.text : '', on: !!(p && +p.on_),
     legal: (p && p.legal) || '', callback: cbDefault, sentenceHeld: !!(p && p.review === 'held'), sentenceRejected: !!(p && p.review === 'rejected'),
-    states: Object.values(STATE_NAMES), dailyCap: DAILY_CAP, skippedList,
+    states: Object.values(STATE_NAMES), dailyCap: DAILY_CAP, skippedList, dncReady: dncReady(env), sources: Object.entries(SOURCES).map(([k, t]) => ({ k, t })),
     counts: { ready: n('ready'), held: n('held'), skipped: n('skipped'), called: n('called') + n('done'), interested: n('interested'), optout: n('optout') } };
 }

@@ -427,6 +427,8 @@ async function serve(req, env, ctx) {
     if (path === '/hear-max.mp3' || path === '/hear-max-es.mp3') return (await import('./hearmax.js')).serveAudio(env, req, path === '/hear-max-es.mp3' ? 'es' : 'en');
     if (path === '/ops/post') return (await import('./postqueue.js')).handlePostQueue(req, env, url);
     if (path === '/ops/hear-max') { const { boardOk } = await import('./opsboard.js'); return (await import('./hearmax.js')).armPage(env, req, url, await boardOk(env, url.searchParams.get('t') || '')); }
+    // anyone can stop Outreach calls to their number from the website (outreach.js stopPage)
+    if (path === '/stop-calls') return withSiteHeaders(await (await import('./outreach.js')).stopPage(env, req, url), url);
     if (path === '/ops/outreach-review') {
       // A held Outreach list or sentence: why it was held, and Approve or Reject (outreach.js reviewPage). The push that
       // links here carries a dated board token; the ops board's cookie works too.

@@ -221,6 +221,20 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   time", then the owner's sentence, the owner's call-back number and one yes/no question. No voicemail. Not recorded.
 - Every number is checked with Twilio Lookup (line type and caller ID, about 2 cents) when the list is added and again
   right before the call. Called only if it is a landline or fixed internet line AND its caller ID type is BUSINESS.
+- The Do Not Call check (DNCScrub, Contact Center Compliance, dnc.com): the National Do Not Call Registry, every state
+  list and known TCPA litigators, at import and again right before a call when the last check is over a day old. Key:
+  Worker secret `DNC_LOGIN_ID` ("Set Do Not Call key.command" on the Mac). The DNCScrub account needs a National Do Not
+  Call Registry subscription (telemarketing.donotcall.gov). No key, or no answer: nobody is called, and a "health:
+  outreach-dnc" alert goes out once a day while it stays broken.
+- Every call is in `outreach_calls` (sid, exact words, every check and when, who answered, the outcome, seconds). Keep
+  it: the Telemarketing Sales Rule wants five years of records.
+- A machine (or an answer Twilio can't place) hears only "a telemarketing call ... on behalf of <legal name>, press 9 or
+  call <number>" (the abandoned-call message), never the sentence. Person-or-machine is decided fast
+  (MachineDetectionSpeechEndThreshold 900 ms) so a person hears Max within two seconds of their hello.
+- No calls on federal holidays (and the day after Thanksgiving), and only when 9 to 5 holds in every time zone of the
+  area code. A list's source is asked for; a bought list is always held. Office and cleaning supplies are refused.
+- The public side: `/stop-calls` (anyone can stop a number, for every client, 20 a day per connection) and the written
+  policy at `/do-not-call` (public/do-not-call.html). Its promise of training means: read it before working on Outreach.
 - Never: cell phones, home lines, unknown or unlisted caller IDs, toll-free, hospitals, clinics, doctors, care homes,
   schools, police, fire, 911 and other emergency lines (`SENSITIVE`), area codes in California, Florida, Indiana,
   Minnesota and Oklahoma (`BLOCKED_STATES`), weekends, outside 9 to 5 where the number is, a number this client called

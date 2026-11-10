@@ -1268,8 +1268,10 @@ function outreachCard(){
     '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span><b>Outreach calls on</b><br><span class="fine">'+mx+' calls the businesses on your list, weekdays 9 to 5 their time, up to '+(R.dailyCap||50)+' a day.</span></span></label>'+
     '<div class="acts"><button class="btn red" type="button" data-a="or-save">Save</button></div>'+
     '<label>Businesses to call (one per line: name, phone, contact)<textarea id="or-list" rows="4" placeholder="Ace Diner, 478-555-0101, Sam"></textarea></label>'+
+    '<label>Where is this list from?<select id="or-src"><option value="">Pick one</option>'+(R.sources||[]).map(function(x){return '<option value="'+esc(x.k)+'">'+esc(x.t)+'</option>';}).join('')+'</select></label>'+
     '<div class="acts"><button class="btn line" type="button" data-a="or-list">Check and add</button></div>'+
-    '<p class="fine">Every number is checked when you add it and again right before '+mx+' calls. Cell phones, home lines, hospitals, schools, emergency lines and numbers in '+esc((R.states||[]).join(', ').replace(/, ([^,]*)$/,' and $1'))+' are never called. Anyone who says stop is never called again.</p>'+
+    (R.dncReady===false?'<p class="note"><b>Calls start once the Do Not Call check is connected.</b> You can set everything up now. Nothing is dialed until every number passes it.</p>':'')+
+    '<p class="fine">Every number is checked when you add it and again right before '+mx+' calls, including against the national and state Do Not Call lists. Cell phones, home lines, hospitals, schools, emergency lines and numbers in '+esc((R.states||[]).join(', ').replace(/, ([^,]*)$/,' and $1'))+' are never called, and no calls go out on holidays. A list you bought is looked at by Always Open first. Anyone who says stop is never called again.</p>'+
     '<p class="fine">'+(c.ready||0)+' ready, '+(c.held?c.held+' being checked, ':'')+(c.skipped||0)+' skipped, '+(c.called||0)+' called, '+(c.interested||0)+' want a call, '+(c.optout||0)+' asked not to be called.</p>'+
     (R.skippedList&&R.skippedList.length?'<p class="fine">Skipped: '+R.skippedList.slice(0,8).map(function(x){return esc(x.b||x.p)+' ('+esc(x.why)+')';}).join(', ')+(c.skipped>8?', and '+(c.skipped-8)+' more':'')+'.</p>':'');
   return h+'</div>';
@@ -1602,7 +1604,8 @@ document.addEventListener('click',function(e){
       if(on1)api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(orPitchBody(true))}).then(function(r2){toast(r2.j.ok?(r2.j.message||'Signed. Outreach is on.'):(r2.j.error||'Signed. Now write your sentence and turn it on.'));load(true);});
       else{toast('Signed. Now write your sentence and turn it on.');load(true);}});}
   else if(a==='or-attest'||a==='or-save'||a==='or-list'){if(a==='or-attest'){outreachTerms(false);return;}
-    var ob=a==='or-save'?orPitchBody(!!(($('#or-on')||{}).checked)):{action:'list',csv:($('#or-list')||{}).value||''};
+    var ob=a==='or-save'?orPitchBody(!!(($('#or-on')||{}).checked)):{action:'list',csv:($('#or-list')||{}).value||'',source:($('#or-src')||{}).value||''};
+    if(a==='or-list'&&!ob.source){toast('Pick where this list came from.');return;}
     if(a==='or-save'&&ob.on&&!S.outreach.attested){outreachTerms(true);return;}
     api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ob)}).then(function(res){if(res.j&&res.j.needTerms){outreachTerms(true);return;}toast(res.j.ok?(res.j.message||'Saved.'):(res.j.error||'Could not save.'));if(res.j.ok)load(true);});}
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}

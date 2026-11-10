@@ -351,7 +351,7 @@ export async function handleApp(req, env, ctx, url) {
       const r = b.action === 'agree' ? await outreachAgree(env, c, b, { by: c.whoName || c.owner_first || 'Owner', ip: await ipKey(req, env), ua: req.headers.get('user-agent') || '' })
         : b.action === 'attest' ? await outreachAttest(env, c, c.owner_name || 'owner')
         : b.action === 'pitch' ? await outreachPitch(env, c, b.text, !!b.on, { legal: b.legal, callback: b.callback })
-        : b.action === 'list' ? await outreachImport(env, c, String(b.csv || '').slice(0, 60000))
+        : b.action === 'list' ? await outreachImport(env, c, String(b.csv || '').slice(0, 60000), null, null, { source: String(b.source || '') })
         : { ok: false, error: 'Bad request' };
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/handoff' && meth === 'POST') {

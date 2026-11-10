@@ -303,8 +303,9 @@ export async function placeCall(env, line, row, kind, extra) {
 }
 
 // The one door for an outbound call. Callers check the rules first (asked for it, hours, attempts, opt-out, regulated).
-export async function dialOut(env, line, to, path, statusPath) {
-  const form = new URLSearchParams({ To: to, From: line.number, Url: SITE + path, Method: 'POST', StatusCallback: SITE + statusPath, StatusCallbackMethod: 'POST', Timeout: '25', MachineDetection: 'Enable' });
+// extra: more Twilio call settings for one kind of call (Outreach tunes the person-or-machine check).
+export async function dialOut(env, line, to, path, statusPath, extra) {
+  const form = new URLSearchParams(Object.assign({ To: to, From: line.number, Url: SITE + path, Method: 'POST', StatusCallback: SITE + statusPath, StatusCallbackMethod: 'POST', Timeout: '25', MachineDetection: 'Enable' }, extra || {}));
   let r, j = {};
   try {
     r = await fetch(TWILIO + env.TWILIO_ACCOUNT_SID + '/Calls.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
