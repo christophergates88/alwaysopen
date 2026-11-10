@@ -62,7 +62,7 @@ export function netOf(ip) {
 // What someone typed for their business, shown as plain quoted text: one line, short, with no links and no phone numbers.
 function plain(s) {
   return one(s).replace(/\b(?:https?:\/\/|www\.)\S*/gi, ' ').replace(/\b[\w-]+(?:\.[\w-]+)+\/\S*/g, ' ')
-    .replace(/\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|info|biz|xyz|io|co|us|app|site|online|link|click|top|shop|store|me|ly|example)\b/gi, ' ')
+    .replace(/\S*@\S*/g, ' ').replace(/\S*[\p{L}\d-]\.[\p{L}\d-]\S*/gu, ' ')   // any word with a dot inside it (a web address, any ending) or an @
     .replace(/\+?\d[\d\s().-]{5,}\d/g, ' ').replace(/[<>"“”]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
 }
 
@@ -119,7 +119,12 @@ async function keepOldStopLinks(env) {
   for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
   await env.DB.prepare("INSERT OR REPLACE INTO lead_keys (k, v, at) VALUES ('old-stop-links', ?1, ?2)").bind(String(rows.length), iso(Date.now())).run();
 }
-export async function stopLink(env, id) { return SITE + '/lead/stop?i=' + encodeURIComponent(id) + '&k=' + (await sig(env, 'stop:' + id)); }
+// to: the mailbox this email goes to, when it is not the lead's own (an audit copy someone else asked for), so the
+// stop link stops that mailbox and not the owner's (Nov 10).
+export async function stopLink(env, id, to) {
+  const e = to ? emailKey(to) : '';
+  return SITE + '/lead/stop?i=' + encodeURIComponent(id) + (e ? '&e=' + encodeURIComponent(e) + '&k=' + (await sig(env, 'stop:' + id + ':' + e)) : '&k=' + (await sig(env, 'stop:' + id)));
+}
 // A link in our email that counts the click (the address is real), then goes on: to=start, sample or audit.
 export async function goLink(env, id, to) { return SITE + '/lead/go?i=' + encodeURIComponent(id) + '&to=' + to + '&k=' + (await sig(env, 'go:' + id)); }
 
@@ -146,7 +151,7 @@ export async function suppressed(env, email) {
   const k = emailKey(email);
   return !!(k && await env.DB.prepare('SELECT 1 AS x FROM mail_suppress WHERE key = ?1').bind(k).first().catch(() => null));
 }
-async function suppress(env, email, why) {
+export async function suppress(env, email, why) {
   const k = emailKey(email);
   if (!/@/.test(k)) return;
   await env.DB.prepare('INSERT OR IGNORE INTO mail_suppress (key, at, why) VALUES (?1, ?2, ?3)').bind(k, iso(Date.now()), why || '').run();
@@ -350,6 +355,11 @@ async function send(env, to, m, h) {
   }
 }
 
+// Is Google's top hit the business this lead named? (mail.js's check for mailed letters.)
+async function sameBiz(lead, a) {
+  try { return (await import('./mail.js')).nameMatch(one(lead.business), one(a.business && a.business.name), one(lead.town)); } catch (e) { return false; }
+}
+
 // Our own words for up to three fixes (titles and fixes are ours; Google's numbers stay out), for the copy and follow-ups.
 const ourFixes = a => JSON.stringify(topThree(a).map(f => ({ title: f.title, fix: f.fix })));
 
@@ -373,16 +383,39 @@ export async function sendAudit(env, lead, id, h) {
     return 'limited';
   }
   if (hold) { await mark(hold); if (h.ping) await h.ping('Audit emails paused for today', 'More than ' + PER_DAY + ' audit emails in 24 hours. ' + (plain(lead.business) || 'This request') + ' will need a hand-sent audit.'); return 'limited'; }
+  // Reserve this send in one statement, under every limit at once: ten requests in the same second used to pass the
+  // checks above together and all send (Nov 10). Only the request that wrote the row goes on; a failed send gives it back.
+  const day = iso(now - DAY), since = iso(now - SAME_ADDRESS_DAYS * DAY), key = emailKey(email), net = lead.net_hash || '';
+  const res = await env.DB.prepare("INSERT INTO audit_sends (key, net, at, lead_id, kind) SELECT ?1, ?2, ?3, ?4, 'audit' WHERE NOT EXISTS (SELECT 1 FROM audit_sends WHERE key = ?1 AND at > ?5) AND (?2 = '' OR (SELECT COUNT(*) FROM audit_sends WHERE net = ?2 AND at > ?6) < ?7) AND (SELECT COUNT(*) FROM audit_sends WHERE kind = 'audit' AND at > ?6) < ?8")
+    .bind(key, net, at, id, since, day, NET_PER_DAY, PER_DAY).run().catch(() => null);
+  if (!(res && res.meta && res.meta.changes)) {
+    const why = (await auditHold(env, email, net, id, now)) || 'held: daily limit';
+    if (why === 'stopped' || why === 'repeat') { await mark(why); return why; }
+    await mark(why);
+    if (h.ping) await h.ping('Audit held: ' + (plain(lead.business) || 'a request'), (why === 'held: network limit' ? 'More than ' + NET_PER_DAY + ' audit requests from one network today' : 'More than ' + PER_DAY + ' audit emails in 24 hours') + ', so this one was not emailed. If it is real, send the audit by hand.', 'low');
+    return 'limited';
+  }
+  const giveBack = () => env.DB.prepare('DELETE FROM audit_sends WHERE rowid = ?1').bind(res.meta.last_row_id).run().catch(() => {});
+  // every marketing email carries the postal address; without it the audit waits, as the follow-ups do (Nov 10)
+  if (!one(env.BUSINESS_ADDRESS || '')) {
+    await giveBack(); await mark('held: no postal address set');
+    if (h.ping) await h.ping('Audit emails held: no postal address', 'BUSINESS_ADDRESS is not set on the Worker, so ' + (plain(lead.business) || 'this request') + ' got no audit email. Set it in wrangler.toml and send this one by hand.');
+    return 'limited';
+  }
   const stop = await stopLink(env, id);
   const go = { start: await goLink(env, id, 'start'), sample: await goLink(env, id, 'sample') };
   let a = null, err = '';
   if (one(lead.business).length >= 2) {
     try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { err = one((e && e.message) || e).slice(0, 120); }
+    // Google's top hit has to be this business, or the email grades someone else as theirs (Nov 10). No match: the
+    // "Katie will send it" email, and Christopher hears.
+    if (a && a.found && !(await sameBiz(lead, a))) { err = 'Google’s top match was ' + one(a.business && a.business.name).slice(0, 60); a = { found: false }; }
   }
   const found = a && a.found;
   const m = found ? auditMail(lead, a, stop, env, '', go) : missMail(lead, stop, env, go);
   const r = await send(env, email, m, h);
   if (r !== 'sent') {
+    await giveBack();
     // A send that fails is tried again by auditRetryCron, three times in all, before it becomes a job for Christopher.
     const t = await env.DB.prepare('SELECT audit_tries FROM leads WHERE id = ?1').bind(id).first().catch(() => null);
     const tries = (parseInt((t && t.audit_tries) || '0', 10) || 0) + 1;
@@ -392,7 +425,7 @@ export async function sendAudit(env, lead, id, h) {
   }
   const f0 = found && a.findings && a.findings[0];
   await mark(found ? 'sent' : 'missed', found ? a.grade : '', f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '', found ? ourFixes(a) : '', found ? String(a.business.id || '') : '');
-  await noteSend(env, email, lead.net_hash || '', id, 'audit', now);
+  await env.DB.prepare('DELETE FROM audit_sends WHERE at < ?1').bind(iso(now - 40 * DAY)).run().catch(() => {});
   if (!found && h.ping) await h.ping('Audit needs a hand: ' + (plain(lead.business) || 'a request'), (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + plain(lead.business) + (lead.town ? ', ' + plain(lead.town) : '') + '". ') + 'They got an email saying Katie will send it within one business day.');
   return found ? 'sent' : 'missed';
 }
@@ -422,9 +455,22 @@ export async function handleStop(req, env, url) {
   if (!/^\d{1,12}$/.test(id) || !/^[0-9a-f]{24}$/.test(k)) return bad();
   const row = await env.DB.prepare('SELECT id, email, stop_k FROM leads WHERE id = ?1').bind(+id).first().catch(() => null);
   // Today's links carry the stored secret's signature; older ones the ops key's (checked now, and written down once).
-  const ok = k === await sig(env, 'stop:' + id) || k === await legacySig(env, id) || !!(row && row.stop_k && k === row.stop_k);
+  const e = String(url.searchParams.get('e') || '').slice(0, 200);
+  const ok = e ? (/@/.test(e) && k === await sig(env, 'stop:' + id + ':' + e)) : (k === await sig(env, 'stop:' + id) || k === await legacySig(env, id) || !!(row && row.stop_k && k === row.stop_k));
   if (!ok) return bad();
+  // Opening the link only shows a button: mail scanners open every link in an email the moment it lands, and that
+  // used to unsubscribe the person for good (Nov 10). The tap on the button is the person.
+  if (req.method !== 'POST') {
+    if (req.method === 'HEAD') return new Response(null, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    const form = '<form method="post" action="/lead/stop?i=' + esc(id) + (e ? '&amp;e=' + esc(encodeURIComponent(e)) : '') + '&amp;k=' + esc(k) + '" style="margin:22px 0 0"><button type="submit" style="font:700 17px system-ui,sans-serif;padding:14px 22px;min-height:48px;border:0;border-radius:11px;background:#E8432F;color:#fff;cursor:pointer">Stop the emails</button></form>';
+    const r = await page('Stop the emails?', 'One tap and we won’t email you again about the audit.').text();
+    return new Response(r.replace('<p><a href="/"', form + '<p><a href="/"'), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+  }
   const now = iso(Date.now());
+  if (e) {   // a copy's own mailbox: that one only; the lead and its owner are not stopped
+    await env.DB.prepare('INSERT OR IGNORE INTO mail_suppress (key, at, why) VALUES (?1, ?2, ?3)').bind(e, now, 'stop link (audit copy), lead ' + id).run();
+    return page('Done. No more emails.', 'We won’t email you again about the audit. If you ever want to talk, call (706) 460-2226.');
+  }
   await env.DB.prepare("UPDATE leads SET stop = 'unsubscribed', stop_at = ?1 WHERE id = ?2 AND (stop IS NULL OR stop = '')").bind(now, +id).run();
   if (row && validEmail(row.email)) {
     await suppress(env, row.email, 'stop link, lead ' + id);
@@ -488,7 +534,7 @@ export async function followCron(env, now, h) {
 const MAX_VIEWS = 8;
 const tok = () => { const b = new Uint8Array(16); crypto.getRandomValues(b); return [...b].map(x => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[x % 56]).join(''); };
 export function auditText(lead, link) {
-  const biz = one(lead.business) || (lead.lang === 'es' ? 'su negocio' : 'your business');
+  const biz = plain(lead.business) || (lead.lang === 'es' ? 'su negocio' : 'your business');   // the caller's words, with no numbers or links
   return lead.lang === 'es'
     ? 'Always Open: aquí está la auditoría gratis de ' + biz + ' que pidió en la llamada: ' + link + ' Katie le da seguimiento. Responda STOP para no recibir más.'
     : 'Always Open: here’s the free audit for ' + biz + ' you asked for on the call: ' + link + ' Katie will follow up. Reply STOP to opt out.';
@@ -572,7 +618,7 @@ export async function handleAuditPage(req, env, url, h) {
     // Marked first, so two quick taps never send two copies. The first address asked for becomes the lead's own.
     await env.DB.prepare('UPDATE leads SET copy_at = ?1 WHERE id = ?2').bind(iso(now), lead.id).run();
     if (!validEmail(lead.email)) await env.DB.prepare('UPDATE leads SET email = ?1, email_key = ?2 WHERE id = ?3').bind(email, emailKey(email), lead.id).run();
-    const stop = await stopLink(env, lead.id), link = SITE + '/your-audit/' + t;
+    const stop = await stopLink(env, lead.id, validEmail(lead.email) && emailKey(lead.email) !== emailKey(email) ? email : ''), link = SITE + '/your-audit/' + t;
     const go = { audit: await goLink(env, lead.id, 'audit'), start: await goLink(env, lead.id, 'start'), sample: await goLink(env, lead.id, 'sample') };
     const m = lead.grade ? copyMail(lead, link, stop, env, go) : missMail(lead, stop, env, go);
     const r = await send(env, email, m, h);
@@ -593,6 +639,7 @@ export async function handleAuditPage(req, env, url, h) {
   const copyBox = callBox + '<div class="copy"><b>' + (es ? '¿Se la mandamos por correo?' : 'Want a copy by email?') + '</b><form method="post"><input type="email" name="email" required autocomplete="email" placeholder="' + (es ? 'su@correo.com' : 'you@yourbusiness.com') + '" aria-label="Email"><button type="submit">' + (es ? 'Mandármela' : 'Email it to me') + '</button></form></div>';
   let a = null;
   if (views < MAX_VIEWS) { try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { a = null; } }
+  if (a && a.found && !(await sameBiz(lead, a))) a = null;
   if (a && a.found) {
     // Kept for the emailed copy: our grade and our words for the fixes, and Google's place ID (never Google's details).
     const f0 = a.findings && a.findings[0];

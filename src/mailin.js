@@ -236,11 +236,15 @@ export async function reviewFromEmail(env, m, h) {
 }
 
 // A reply from someone who asked for the free audit: their automatic follow-ups stop.
-export async function leadReplied(env, addr, now) {
-  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(addr)) return 0;
+export async function leadReplied(env, addr, now, text) {
   try {
-    // the same person however they wrote it (j.smith+audit@gmail.com and jsmith@gmail.com): leadmail.js emailKey
-    const { emailKey } = await import('./leadmail.js');
+    // the same person however they wrote it (j.smith+audit@gmail.com and jsmith@gmail.com): leadmail.js emailKey;
+    // any address the form accepts (o'brien@, dana&sons@, josé@: Nov 10, those replies stopped nothing)
+    const { emailKey, validEmail, suppress } = await import('./leadmail.js');
+    if (!validEmail(addr)) return 0;
+    // "stop" (or unsubscribe, remove) at the top of the reply is for good, as the site promises: on the do-not-email list
+    const first = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(l => l && !/^>/.test(l))[0] || '';
+    if (/^(stop|unsubscribe|remove( me)?|no more|para|basta)\b/i.test(first)) { try { await suppress(env, addr, 'replied ' + first.slice(0, 20).toLowerCase()); } catch (e) { /* the rows below still stop */ } }
     let r;
     try { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE (lower(email) = ?2 OR email_key = ?3) AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr, emailKey(addr)).run(); }
     catch (e) { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE lower(email) = ?2 AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr).run(); }
@@ -271,7 +275,7 @@ export async function inbound(message, env, ctx, h) {
       return { skipped: 'unverified: ' + why };
     }
     if (m.auto) return { skipped: 'auto-reply' };   // an out-of-office reply is not a lead answering
-    return { lead: await leadReplied(env, m.from) };
+    return { lead: await leadReplied(env, m.from, 0, m.text) };
   })();
   const out = await work;
   return Object.assign({ forwarded: fwd }, out);

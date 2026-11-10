@@ -30,12 +30,19 @@ async function checkSite(url, phone) {
   try {
     const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 9000);
     const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal, headers: { 'user-agent': 'Mozilla/5.0 (compatible; AlwaysOpenAudit/1.0; +https://alwaysopenoffice.com)' } });
-    clearTimeout(timer);
     out.ms = Date.now() - t0;
     out.status = r.status;
     out.ok = r.ok;
     out.https = (r.url || url).startsWith('https://');
-    const html = (await r.text()).slice(0, 600000);
+    // the 9 seconds cover the whole page, not just its first bytes, and no more than 600 KB is read (Nov 10: a site
+    // that sent headers and then stalled hung the audit, the lead and the retry queue)
+    let html = '';
+    try {
+      const rd = r.body && r.body.getReader ? r.body.getReader() : null;
+      if (!rd) html = (await r.text()).slice(0, 600000);
+      else { const dec = new TextDecoder(); for (;;) { const { done, value } = await rd.read(); if (done) break; html += dec.decode(value, { stream: true }); if (html.length >= 600000) { try { await rd.cancel(); } catch (e) {} break; } } }
+    } finally { clearTimeout(timer); }
+    html = html.slice(0, 600000);
     out.mobile = /<meta[^>]+name=["']viewport["']/i.test(html);
     out.tapToCall = /href=["']tel:/i.test(html);
     const d = digits(phone);
@@ -132,6 +139,7 @@ export async function handleAudit(req, env, url, h) {
   if (req.method !== 'POST') return h.json({ ok: false, error: 'POST only' }, 405);
   let b = {};
   try { b = await req.json(); } catch (e) { return h.json({ ok: false, error: 'Bad request' }, 400); }
+  if (!b || typeof b !== 'object') return h.json({ ok: false, error: 'Bad request' }, 400);
   const q = String(b.q || '').trim().slice(0, 120), town = String(b.town || '').trim().slice(0, 80);
   if (q.length < 2) return h.json({ ok: false, error: 'Type the business name.' }, 400);
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS audits (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, q TEXT, town TEXT, kind TEXT, ip_hash TEXT, score INTEGER, data TEXT)').run();

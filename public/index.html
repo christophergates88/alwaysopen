@@ -1570,7 +1570,7 @@ Reply to this text now and Max tells them.</p><p class="tb o" data-i="4">Yes, 4:
         .then(function(r){return r.json().catch(function(){return {ok:r.ok};}).then(function(j){j.status=r.status;return j;});})
         .then(function(j){
           done();
-          if(j.ok)showSent(es?'Solicitud enviada':'Request sent',es&&j.message?(j.title||'')+' '+j.message:'Got it'+(first?', '+first:'')+'. Your free audit is on its way to your inbox now, and Katie follows up within one business day.',false);
+          if(j.ok)showSent(es?'Solicitud enviada':'Request sent',j.message?(j.title||'')+' '+j.message:(es?'Recibido. Katie le da seguimiento en un día hábil.':'Got it'+(first?', '+first:'')+'. Katie follows up within one business day.'),false);
           else if(j.status===400&&j.error){err.textContent=j.error;err.hidden=false;}
           else emailFallback(name,'Our form had a hiccup, so your request was not sent.');
         },function(){done();emailFallback(name,'Our form had a hiccup, so your request was not sent.');});

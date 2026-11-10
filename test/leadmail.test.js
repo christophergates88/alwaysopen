@@ -117,7 +117,9 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
   // Lee signs up; Sam taps the stop link
   await DB.prepare("INSERT INTO billing (client_id, session_id, business, email, status, created) VALUES ('lee', 's1', 'Lee Lawn', 'LEE@example.com', 'active', ?1)").bind(new Date().toISOString()).run();
   const stop = new URL(await L.stopLink(env, b));
-  const page = await L.handleStop(new Request(stop), env, stop);
+  // opening the link (a mail scanner does) only shows the button; the tap is a POST
+  assert.match(await (await L.handleStop(new Request(stop), env, stop)).text(), /Stop the emails/);
+  const page = await L.handleStop(new Request(stop, { method: 'POST' }), env, stop);
   assert.match(await page.text(), /No more emails/);
   const bad = new URL('https://alwaysopenoffice.com/lead/stop?i=' + a + '&k=0000');
   assert.match(await (await L.handleStop(new Request(bad), env, bad)).text(), /didn’t work/);

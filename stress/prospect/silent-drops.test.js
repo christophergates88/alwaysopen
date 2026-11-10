@@ -43,7 +43,7 @@ test('an owner who pastes their website, Google listing and Facebook page still 
   const r = await ask(s, { email: 'dana@sinclairplumbing.example', phone: '(478) 555-0101', notes: NOTE });
   assert.equal(r.status, 200);
   const row = await s.one('SELECT status, reason FROM leads');
-  assert.match(r.json().message, /on its way to your inbox now, and Katie follows up/, 'control: the owner is told an audit is coming and Katie will follow up');
+  assert.match(r.json().message, /Katie follows up/, 'the owner is told Katie will follow up (Nov 10: held for a look, so no audit is promised)');
   assert.equal(s.out.length + told(s) > 0, true,
     'the owner was promised an audit and a call; no audit went out, and Christopher got no push and no email (row: ' + row.status + ', "' + row.reason + '")');
 });

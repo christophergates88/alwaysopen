@@ -508,24 +508,29 @@ async function lead(req, env, ctx, url) {
   const at = new Date(now).toISOString();
   const origin = clean(req.headers.get('origin') || '', 200);
   const ip = req.headers.get('cf-connecting-ip') || '';
-  const ipHash = await hash(ip + '|' + (env.IP_SALT || 'salt'));
+  // One sender: an IPv6 home or server owns a whole /64 and can use a new address for every request, so it counts as one
+  const v6 = a => { const [h, t] = a.toLowerCase().split('::'); const hg = h ? h.split(':') : [], tg = t !== undefined && t ? t.split(':') : []; return hg.concat(Array(Math.max(0, 8 - hg.length - tg.length)).fill('0'), tg).slice(0, 4).map(g => g.replace(/^0+(?=.)/, '')).join(':'); };
+  const ipHash = await hash((ip.includes(':') ? v6(ip) + '::/64' : ip) + '|' + (env.IP_SALT || 'salt'));
   const LM = await import('./leadmail.js');
   // The sender's network (a /24), so one network can't send audit emails to a pile of strangers' addresses.
   const netHash = await hash('net:' + LM.netOf(ip) + '|' + (env.IP_SALT || 'salt'));
 
   // Quiet drops: a bot gets the normal thank-you, so it learns nothing.
-  let reason = '';
+  let reason = '', busy = '';
   if (trap) reason = 'trap field filled';
-  else if ((f.notes.match(/https?:\/\//g) || []).length > 2) reason = 'links in note';
+  else if ((f.notes.match(/https?:\/\//g) || []).length > 12) reason = 'links in note';   // a link list; three links is an owner's site, listing and page
 
   if (!reason) {
     const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE ip_hash = ?1 AND at > ?2')
       .bind(ipHash, new Date(now - 3600000).toISOString()).first();
-    if (recent && recent.n >= PER_HOUR) reason = 'too many from one sender';
+    if (recent && recent.n >= PER_HOUR * 2) reason = 'too many from one sender';   // a flood: dropped quietly
+    else if (recent && recent.n >= PER_HOUR) busy = 'more than ' + PER_HOUR + ' requests from this internet address in an hour (a shared office or event Wi-Fi, or a bot)';
   }
   // How long the form was open, from the start time we signed when the page loaded (a browser clock only as a fallback).
   // Timing alone never drops a request: no automatic audit email, and it reaches Christopher quietly to look at.
-  const timing = reason ? '' : await LM.formTiming(env, String(form.get('t') || ''), now, MIN_FILL_MS, MAX_AGE_MS);
+  // Odd but maybe real: held for a look (a quiet push and email, no automatic audit email, an honest page), never lost
+  const nl = (f.notes.match(/https?:\/\//g) || []).length;
+  let timing = reason ? '' : (busy || (nl > 2 ? 'the note has ' + nl + ' links' : '') || await LM.formTiming(env, String(form.get('t') || ''), now, MIN_FILL_MS, MAX_AGE_MS));
   if (!reason) {
     const problems = [];
     if (!f.name) problems.push('your name');
@@ -542,6 +547,18 @@ async function lead(req, env, ctx, url) {
   ).bind(at, f.name, f.email, f.phone, f.business, f.town, f.type, f.plan, f.link, f.notes, origin, ipHash, status, reason || (timing ? 'timing only: ' + timing : null), f.sms_ok, f.ref, f.lang, LM.emailKey(f.email), netHash).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
   f.net_hash = netHash;
+  // The per-sender cap again, after the row is in: requests sent in the same second all passed the count above
+  // together (Nov 10). Rows written before this one are already visible, so this one alone decides about itself.
+  if (!reason && id) {
+    const before = await env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE ip_hash = ?1 AND at > ?2 AND id < ?3').bind(ipHash, new Date(now - 3600000).toISOString(), id).first().catch(() => null);
+    if (before && before.n >= PER_HOUR * 2) {
+      reason = 'too many from one sender';
+      await env.DB.prepare("UPDATE leads SET status = 'spam', reason = ?1 WHERE id = ?2").bind(reason, id).run().catch(() => {});
+    } else if (before && before.n >= PER_HOUR && !timing) {
+      timing = 'more than ' + PER_HOUR + ' requests from this internet address in an hour (a shared office or event Wi-Fi, or a bot)';
+      await env.DB.prepare("UPDATE leads SET status = 'spam', reason = ?1 WHERE id = ?2").bind('timing only: ' + timing, id).run().catch(() => {});
+    }
+  }
 
   if (!reason && f.ref) {
     try {
@@ -563,6 +580,10 @@ async function lead(req, env, ctx, url) {
     ]));
   }
   const first = (f.name || '').split(/\s+/)[0];
+  if (!reason && hold === 'stopped') {   // they asked us to stop: no email, and the page does not promise one (Nov 10)
+    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Ese correo nos pidió no escribirle, así que no le mandaremos nada por correo. Si dejó un teléfono, Katie le llama en un día hábil.');
+    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'That email address asked us not to email it, so we won’t. If you left a phone number, Katie will call within one business day.');
+  }
   if (!reason && (timing || hold)) {
     if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Su solicitud nos llegó. Katie le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
     return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'Your request reached us. Katie follows up within one business day. You can close this tab.');
@@ -584,6 +605,8 @@ async function push(env, f, id) {
 function leadStep(f) {
   const first = String(f.name || '').split(/\s+/)[0] || 'them';
   if (f.quiet) return 'Look it over. If it\'s a real business, send the free audit by hand and call ' + first + '.';
+  if (/asked us not to email/.test(f.hold || '')) return f.phone ? 'Call ' + first + ' at ' + f.phone + '. Do not email: that address asked us to stop.' : 'Nothing to send: that address asked us to stop, and there is no phone number.';
+  if (/in the last 30 days/.test(f.hold || '')) return 'Call ' + first + (f.phone ? ' at ' + f.phone : '') + '. They already got an audit this month.';
   if (f.hold) return 'Send the free audit by hand, then call ' + first + (f.phone ? ' at ' + f.phone : '') + '.';
   return 'Call ' + first + (f.phone ? ' at ' + f.phone : '') + ' today. Their free audit already went to their inbox.';
 }
@@ -594,7 +617,7 @@ export function leadEmail(f, id, at) {
   ].filter(l => l.v);
   if (f.lang === 'es') lines.push({ k: 'Language', v: 'Spanish: answer in Spanish', bad: true });
   if (f.referredBy) lines.push({ k: 'Referred by', v: f.referredBy, ok: true });
-  if (f.notes) lines.push({ k: 'Their note', v: String(f.notes).replace(/\s+/g, ' ').slice(0, 220) });
+  if (f.notes) lines.push({ k: 'Their note', v: Array.from(String(f.notes).replace(/\s+/g, ' ')).slice(0, 220).join('') });   // whole characters, never half an emoji
   if (f.quiet || f.hold) lines.push({ k: 'Audit email', v: f.quiet || f.hold, bad: true });
   else lines.push({ k: 'Audit email', v: 'sent automatically', ok: true });
   return { tone: f.quiet ? 'bad' : 'info', sign: 'NEW LEAD', title: (f.name || 'Someone') + (f.business ? ' from ' + f.business : '') + ' asked for the free audit', who: 'website',
@@ -603,7 +626,7 @@ export function leadEmail(f, id, at) {
 
 async function mail(env, f, id, at) {
   if (!env.EMAIL || !env.MAIL_FROM || !env.MAIL_TO) return 'off';
-  const subject = (f.quiet ? 'Always Open website lead (held for a look): ' : 'Always Open website lead: ') + oneLine(f.business || f.name).slice(0, 120);
+  const subject = (f.quiet ? 'Always Open website lead (held for a look): ' : 'Always Open website lead: ') + Array.from(oneLine(f.business || f.name)).slice(0, 120).join('');
   const text = [
     'New request from the Always Open website.', '',
     ...(f.quiet ? [f.quiet, ''] : f.hold ? ['Audit email: ' + f.hold + '.', ''] : []),
@@ -614,6 +637,8 @@ async function mail(env, f, id, at) {
   ].join('\r\n');
   // The plain part stays exactly as it was: the Always Open check reads "Lead ID:", "Name:" lines out of it.
   // The HTML part is the neon page: who it is, the one thing to do, the details in short rows.
+  // a cut that lands inside an emoji leaves half of it, which the encoder refuses: whole characters only (Nov 10)
+  for (const k of Object.keys(f)) if (typeof f[k] === 'string') f[k] = f[k].replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
   const e = neonEmail(leadEmail(f, id, at));
   const raw = rawEmail({ fromName: 'Always Open website', from: env.MAIL_FROM, to: env.MAIL_TO, subject, replyTo: EMAIL_RE.test(f.email) ? f.email : '' }, text, e.html);
   try {
@@ -648,7 +673,8 @@ async function sameKey(a, b) {
   return d === 0;
 }
 function clean(v, max) {
-  return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max);
+  // cut by whole characters: a cut inside an emoji left half of it, and the email to Christopher could not be built (Nov 10)
+  return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max).replace(/[\uD800-\uDBFF]$/, '');
 }
 function oneLine(s) { return String(s || '').replace(/[\r\n\t]+/g, ' ').trim(); }
 function ascii(s) { return s.replace(/[^\x20-\x7E]/g, '').slice(0, 120); }

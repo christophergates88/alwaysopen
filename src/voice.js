@@ -1494,7 +1494,8 @@ async function ownLead(env, call, note, outcome, callback, summary) {
   } catch (e) { id = null; }
   // They said yes to the free audit by text: one text with their private link (leadmail.js).
   let texted = '';
-  if (id && note.auditText && E164.test(callback || '')) {
+  // the phone that called only: a number said out loud belongs to someone who never called or agreed (Nov 10)
+  if (id && note.auditText && E164.test(callback || '') && callback === call.caller) {
     const lang = /^es/i.test(call.lang || '') ? 'es' : '';
     try { texted = await (await import('./leadmail.js')).textAudit(env, id, callback, Object.assign({}, f, { lang })); } catch (e) { texted = 'failed'; }
   }

@@ -51,7 +51,9 @@ export async function matchLeads(env, now) {
   await ensureReferrals(env);
   let leads = [], cands = [];
   try {
-    leads = ((await env.DB.prepare("SELECT at, email, phone, ref FROM leads WHERE ref IS NOT NULL AND ref != '' AND status != 'spam' AND at > ?1 ORDER BY id DESC LIMIT 200").bind(iso(now - 120 * DAY)).all()).results) || [];
+    // only a lead who used the link: they clicked through from our email (engaged). The form alone takes any code with
+    // any address, so a client could type in a business that later found us on its own (Nov 10).
+    leads = ((await env.DB.prepare("SELECT at, email, phone, ref FROM leads WHERE ref IS NOT NULL AND ref != '' AND status != 'spam' AND engaged IS NOT NULL AND engaged != '' AND at > ?1 ORDER BY id DESC LIMIT 200").bind(iso(now - 120 * DAY)).all()).results) || [];
     if (!leads.length) return 0;
     cands = ((await env.DB.prepare('SELECT client_id, email, phone, business, created FROM billing WHERE created > ?1 AND NOT EXISTS (SELECT 1 FROM referrals r WHERE r.referred_id = billing.client_id) ORDER BY created LIMIT 300').bind(iso(now - 120 * DAY)).all()).results) || [];
   } catch (e) { return 0; }

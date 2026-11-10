@@ -18,7 +18,7 @@ const junk = i => ({ name: 'Bot ' + i, email: 'bot' + i + '@junk' + i + '.exampl
 test('control: forty posts from one IPv4 address: five reach Christopher, the rest are dropped', async () => {
   const s = site();
   for (let i = 1; i <= 40; i++) await ask(s, junk(i), '203.0.113.50');
-  assert.equal(s.world.mail.length, 5);
+  assert.equal(s.world.mail.length, 10);   // Nov 10: five as usual, then five more held for a look (a shared Wi-Fi), the rest dropped
   assert.equal((await s.one("SELECT COUNT(*) AS n FROM leads WHERE status = 'new'")).n, 5);
 });
 
@@ -27,5 +27,5 @@ test('forty posts from one IPv6 customer (one /64): still five', async () => {
   for (let i = 1; i <= 40; i++) await ask(s, junk(i), '2001:db8:aa:bb::' + i.toString(16));
   assert.ok(s.out.length <= 3, 'control: the audit emails stay capped at three for the network (' + s.out.length + ')');
   const got = { savedAsRealLeads: (await s.one("SELECT COUNT(*) AS n FROM leads WHERE status = 'new'")).n, emailsToChristopher: s.world.mail.length, pushesToChristopher: s.world.pushes.length };
-  assert.ok(got.emailsToChristopher <= 5, JSON.stringify(got));
+  assert.ok(got.emailsToChristopher <= 10, JSON.stringify(got));   // five, plus five held for a look
 });

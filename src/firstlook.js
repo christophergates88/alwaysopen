@@ -48,6 +48,8 @@ export async function firstLook(env, c, opts) {
     await env.DB.prepare('INSERT INTO firstlook_runs (client_id, day, n) VALUES (?1, ?2, 1) ON CONFLICT(client_id, day) DO UPDATE SET n = n + 1').bind(c.client_id, day).run();
     try { audit = await Promise.race([runAudit(env, c.business, (b && b.town) || ''), new Promise(r => setTimeout(() => r(null), 8000))]); } catch (e) { audit = null; }
   }
+  // the client's own listing only: a different business's grade on their welcome page is worse than none (Nov 10)
+  if (audit && audit.found) { try { if (!(await import('./mail.js')).nameMatch(c.business, (audit.business && audit.business.name) || '', (b && b.town) || '')) audit = null; } catch (e) { audit = null; } }
   const top = audit && audit.found && audit.findings && audit.findings[0];
   const today = todayFor(Object.assign({ findingTitle: top ? top.title : '' }, base));
   return {

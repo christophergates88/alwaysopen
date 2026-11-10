@@ -184,7 +184,7 @@ test('the stop link: signed with a stored secret, old links keep working after t
   const fresh = new URL(await L.stopLink(env, id));
   assert.notEqual(fresh.searchParams.get('k'), await oldStopSig('a-brand-new-ops-key', id), 'not signed with the ops key');
   const u = new URL(oldLink);
-  assert.match(await (await L.handleStop(new Request(u), env, u)).text(), /No more emails/);
+  assert.match(await (await L.handleStop(new Request(u, { method: 'POST' }), env, u)).text(), /No more emails/);   // the tap on the button (opening only shows it)
   const bad = new URL('https://alwaysopenoffice.com/lead/stop?i=' + id + '&k=' + 'f'.repeat(24));
   assert.match(await (await L.handleStop(new Request(bad), env, bad)).text(), /didn’t work/);
   assert.equal(await L.suppressed(env, 'danawhit@gmail.com'), true, 'the address, not just the row');
@@ -193,7 +193,7 @@ test('the stop link: signed with a stored secret, old links keep working after t
   await ask(s, { email: 'dana@example.com' });
   const row = await s.DB.prepare("SELECT id FROM leads WHERE email = 'dana@example.com'").first();
   const link = new URL(await L.stopLink(s.env, row.id));
-  await s.client.call(link.pathname + link.search);
+  await s.client.call(link.pathname + link.search, { method: 'POST' });
   const r = await ask(s, { email: 'DANA@example.com', business: 'Another Co' }, '192.0.2.77');
   assert.equal(s.out.length, 1, 'only the first audit');
   assert.doesNotMatch(r.json().message, /on its way/);
