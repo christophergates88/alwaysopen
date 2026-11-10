@@ -453,7 +453,9 @@ export async function approveRevive(env, c, row, edited) {
     let status = sent ? 'sent' : 'queued';
     if (ph10(row.phone) && TEXTING_ON) {
       const cr2 = await env.DB.prepare('SELECT business FROM app_clients WHERE client_id = ?1').bind(cid).first();
-      const tr = await sendText(env, { clientId: cid, to: row.phone, body: text + ' Reply STOP to end texts from ' + ((cr2 && cr2.business) || 'us') + '.', kind: 'revive' });
+      // the business's own hours, not New York's (Nov 10: a held note went out at 5 AM in San Diego, 3 AM in Hilo)
+      let tz = ''; try { tz = await (await import('./callbacks.js')).tzFor(env, cid); } catch (e) { tz = ''; }
+      const tr = await sendText(env, { clientId: cid, to: row.phone, body: text + ' Reply STOP to end texts from ' + ((cr2 && cr2.business) || 'us') + '.', kind: 'revive', tz: tz || undefined });
       res.push('text:' + (tr.ok ? 'sent' : (tr.why || 'failed'))); if (tr.ok) sent = true; status = sent ? 'sent' : (tr.retry ? 'queued' : status);
     }
     else if (!sent) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');

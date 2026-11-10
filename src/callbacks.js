@@ -389,17 +389,21 @@ export async function callbackCron(env) {
     await pushClient(env, r.client_id, { aps: { alert: { title: (r.name || fmtPhone(r.phone)) + ' at ' + sayTime(l.hour, l.minute), body: (r.reason ? r.reason + '. ' : '') + 'You said you would call. Tap when it is done.' }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' }).catch(() => {});
     await env.DB.prepare("UPDATE callbacks SET nudged_at = ?1 WHERE id = ?2").bind(new Date().toISOString(), r.id).run();
   }
-  const late = ((await env.DB.prepare("SELECT c.*, l.number, l.business, l.regulated, l.owner_set FROM callbacks c LEFT JOIN voice_lines l ON l.client_id = c.client_id WHERE c.status = 'pending' AND c.due_at < ?1 ORDER BY c.due_at LIMIT 30").bind(new Date(now - GRACE_MIN * 60e3).toISOString()).all()).results) || [];
+  const late = ((await env.DB.prepare("SELECT c.*, l.number, l.business, l.regulated, l.owner_set, l.facts FROM callbacks c LEFT JOIN voice_lines l ON l.client_id = c.client_id WHERE c.status = 'pending' AND c.due_at < ?1 ORDER BY c.due_at LIMIT 30").bind(new Date(now - GRACE_MIN * 60e3).toISOString()).all()).results) || [];
   let called = 0;
   for (const r of late) {
-    await env.DB.prepare("UPDATE callbacks SET status = 'missed' WHERE id = ?1").bind(r.id).run();
+    // claimed first, like every other job that calls a customer: two ticks at once never dial twice (Nov 10)
+    const cl = await env.DB.prepare("UPDATE callbacks SET status = 'missed' WHERE id = ?1 AND status = 'pending'").bind(r.id).run();
+    if (!(cl && cl.meta && cl.meta.changes)) continue;
     // a business that is no longer a client: Max does not phone its customers (Nov 10)
     const act = await env.DB.prepare('SELECT active, tier FROM app_clients WHERE client_id = ?1').bind(r.client_id).first().catch(() => null);
     if (act && !+act.active) continue;
     // Max phoning the customer for a new time is sold with Pro; on other plans the owner was nudged and it stays theirs
     if (act && act.tier && act.tier !== 'Pro') continue;
     const tz = await tzFor(env, r.client_id);
-    const slot = proposeSlot(tz, now, busyFromLine(r, tz));
+    // inside the business's own days and hours (Nov 10: a Friday evening reset offered Saturday to a Mon-Fri business)
+    let hours = null; try { hours = (await import('./availability.js')).bookingOf(r).days; } catch (e) { hours = null; }
+    const slot = proposeSlot(tz, now, busyFromLine(r, tz), hours);
     const line = r.number ? { client_id: r.client_id, number: r.number, business: r.business, regulated: r.regulated, owner_set: r.owner_set } : null;
     // Reset only once from the cron; a second attempt comes from Twilio's own retry rules (no-answer leaves it for the owner).
     const res = line && +r.attempts === 0 ? await placeCall(env, line, Object.assign({}, r, { due_at: new Date(slot.at).toISOString() }), 'reset', { newText: slot.spoken }) : { ok: false, why: line ? 'tried' : 'no line' };

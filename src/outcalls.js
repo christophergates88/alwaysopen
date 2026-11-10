@@ -147,6 +147,18 @@ export async function outcallTwiml(env, url, form) {
     await env.DB.prepare("UPDATE outcalls SET status = 'done', result = 'delivered', done_at = ?1 WHERE id = ?2").bind(new Date().toISOString(), id).run();
     return xml('<Say>Hi, this is Max for ' + biz + '. ' + msg + ' ' + (r.kind === 'urgent' ? msg : '') + '</Say><Hangup/>');
   }
+  // "today" or "tomorrow" as of this call, not as of when it was queued (Nov 10: queued at 9:45 PM, placed at 8 AM the
+  // day of the visit, and it still said "tomorrow")
+  if (r.kind === 'confirm' && /^confirm:\d+$/.test(r.ref || '')) {
+    try {
+      const f = await env.DB.prepare('SELECT appt_at FROM app_followups WHERE id = ?1 AND client_id = ?2').bind(+r.ref.split(':')[1], r.client_id).first();
+      if (f && f.appt_at) {
+        const tz = await tzFor(env, r.client_id), at = Date.parse(f.appt_at), now = Date.now(), l = local(tz, at);
+        const day = l.day === local(tz, now).day ? 'today' : l.day === local(tz, now + 864e5).day ? 'tomorrow' : 'on ' + new Date(at).toLocaleDateString('en-US', { weekday: 'long', timeZone: tz });
+        r.topic = String(r.topic || '').replace(/ is (today|tomorrow) at /, ' is ' + day + ' at ');
+      }
+    } catch (e) { /* the words as queued */ }
+  }
   const first = (r.name ? 'Hi ' + xa(r.name.split(' ')[0]) + '. ' : 'Hi. ') + 'This is Max, the automated assistant for ' + biz + '. This call may be recorded. ';
   if (machine) {
     await env.DB.prepare("UPDATE outcalls SET result = 'voicemail' WHERE id = ?1").bind(id).run().catch(() => {});
@@ -226,7 +238,11 @@ export async function outCallsCron(env, now) {
         const l = local(tz, Date.parse(f.appt_at)); await add('noshow', f, 'your visit at ' + sayHour(l.hour, l.minute));
       }
       if (p.quote) for (const f of ((await env.DB.prepare("SELECT id, name, phone, note FROM app_followups WHERE client_id = ?1 AND kind = 'quote' AND status = 'open' AND consent = 1 AND created < ?2 AND created > ?3 LIMIT 20").bind(c.client_id, iso(now - 3 * 864e5), iso(now - 30 * 864e5)).all()).results) || []) await add('quote', f, clean(f.note).slice(0, 60));
-      if (p.due) for (const f of ((await env.DB.prepare("SELECT k.id, k.first AS name, k.phone, k.job FROM checkins k WHERE k.client_id = ?1 AND k.status IN ('yes','no','done') AND k.done_at < ?2 AND k.done_at > ?3 AND NOT EXISTS (SELECT 1 FROM app_jobs j WHERE j.client_id = k.client_id AND j.phone = substr(k.phone, 3) AND j.at > ?2) LIMIT 20").bind(c.client_id, iso(now - 180 * 864e5), iso(now - 400 * 864e5)).all()).results) || []) await add('due', Object.assign(f, { ref: ph10(f.phone) + ':' + Math.floor(now / (180 * 864e5)) }), 'your ' + clean(f.job || 'last visit'));
+      if (p.due) for (const f of ((await env.DB.prepare("SELECT k.id, k.first AS name, k.phone, k.job FROM checkins k WHERE k.client_id = ?1 AND k.status IN ('yes','no','done') AND k.done_at < ?2 AND k.done_at > ?3 AND NOT EXISTS (SELECT 1 FROM app_jobs j WHERE j.client_id = k.client_id AND j.phone = substr(k.phone, 3) AND j.at > ?2) LIMIT 20").bind(c.client_id, iso(now - 180 * 864e5), iso(now - 400 * 864e5)).all()).results) || []) {
+        // once per customer in 180 days (Nov 10: a fixed 180-day bucket counted from 1970 called Gail again the next day)
+        const had = await env.DB.prepare("SELECT 1 AS x FROM outcalls WHERE client_id = ?1 AND kind = 'due' AND phone = ?2 AND created > ?3 LIMIT 1").bind(c.client_id, '+1' + ph10(f.phone), iso(now - 180 * 864e5)).first().catch(() => null);
+        if (!had) await add('due', Object.assign(f, { ref: ph10(f.phone) + ':' + Math.floor(now / (180 * 864e5)) }), 'your ' + clean(f.job || 'last visit'));
+      }
       if (p.rundown && local(tz, now).hour === 7) {
         const day = local(tz, now).day, dayStart = fromLocal(tz, day, 0, 0), dayEnd = dayStart + 864e5;
         const ap = ((await env.DB.prepare("SELECT appt_at, name FROM app_followups WHERE client_id = ?1 AND kind = 'appointment' AND status = 'open' AND appt_at >= ?2 AND appt_at < ?3 ORDER BY appt_at LIMIT 6").bind(c.client_id, iso(dayStart), iso(dayEnd)).all()).results) || [];
@@ -236,7 +252,10 @@ export async function outCallsCron(env, now) {
       }
     } catch (e) { /* one client's data never stops the rest */ }
   }
-  const due = ((await env.DB.prepare("SELECT * FROM outcalls WHERE status = 'pending' AND due_at <= ?1 AND attempts < 2 ORDER BY due_at LIMIT 40").bind(iso(now)).all()).results) || [];
+  // Calls for a business that ended, or whose line has been paused for two days, are dropped; a paused line's waiting calls
+  // are left out of the batch, so 40 of them can never hold up every other business's calls (Nov 10)
+  await env.DB.prepare("UPDATE outcalls SET status = 'skipped', result = 'plan ended or line paused' WHERE status = 'pending' AND (client_id IN (SELECT client_id FROM app_clients WHERE active = 0) OR (due_at < ?1 AND client_id NOT IN (SELECT client_id FROM voice_lines WHERE on_air = 1 AND NOT COALESCE(json_extract(CASE WHEN json_valid(owner_set) THEN owner_set ELSE '{}' END, '$.off'), 0))))").bind(iso(now - 2 * 864e5)).run().catch(() => {});
+  const due = ((await env.DB.prepare("SELECT * FROM outcalls WHERE status = 'pending' AND due_at <= ?1 AND attempts < 2 AND client_id IN (SELECT client_id FROM voice_lines WHERE on_air = 1 AND NOT COALESCE(json_extract(CASE WHEN json_valid(owner_set) THEN owner_set ELSE '{}' END, '$.off'), 0)) ORDER BY due_at LIMIT 40").bind(iso(now)).all()).results) || [];
   for (const r of due) if (await place(env, r, now)) stats.calls++;
   return stats;
 }

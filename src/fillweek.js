@@ -155,7 +155,17 @@ export async function onReply(env, cid, from10, body) {
   await ensureFill(env);
   const offer = await env.DB.prepare("SELECT * FROM fillweek_offers WHERE client_id = ?1 AND phone10 = ?2 AND status = 'sent' AND at > ?3 ORDER BY id DESC LIMIT 1").bind(cid, from10, new Date(Date.now() - 3 * 864e5).toISOString()).first().catch(() => null);
   if (!offer) return null;
-  if (!YES_RE.test(String(body || ''))) {
+  // a yes with a condition or another day is the customer's own counter-offer: it goes to the inbox for the owner, it
+  // never books the time offered (Nov 10: "Yes, but Friday would work better" booked Thursday)
+  const said = String(body || '');
+  // a weekday counts only when it is not the day offered ("Yes, Thursday works" books Thursday)
+  const DAYS = [['sun|sunday', 'domingo'], ['mon|monday', 'lunes'], ['tue|tues|tuesday', 'martes'], ['wed|weds|wednesday', 'miercoles'], ['thu|thur|thurs|thursday', 'jueves'], ['fri|friday', 'viernes'], ['sat|saturday', 'sabado']];
+  const offered = /^\d{4}-\d{2}-\d{2}$/.test(offer.day || '') ? new Date(offer.day + 'T12:00:00Z').getUTCDay() : -1;
+  const flat = said.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const named = DAYS.map((d, i) => new RegExp('\\b(' + d[0] + '|' + d[1] + ')\\b').test(flat) ? i : -1).filter(i => i >= 0);
+  const other = /\b(but|instead|rather|better|another|different|later|earlier|except|unless|pero|mejor|otro|otra|cambiar|en vez)\b/i.test(flat) ||
+    named.some(i => i !== offered) || /\b\d{1,2}(:\d{2})?\s*(am|pm|a\.m\.|p\.m\.)/i.test(flat);
+  if (!YES_RE.test(said) || other) {
     await env.DB.prepare("UPDATE fillweek_offers SET status = 'replied' WHERE id = ?1").bind(offer.id).run();
     return null;
   }

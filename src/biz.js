@@ -735,7 +735,7 @@ export async function bizCron(env, at) {
   let weekly = 0, insights = 0;
   for (const c of clients) {
     let tz = 'America/New_York';
-    try { const g = await env.DB.prepare('SELECT tz FROM gcal_tokens WHERE client_id = ?1').bind(c.client_id).first(); if (g && g.tz) tz = g.tz; } catch (e) {}
+    try { const g = await env.DB.prepare('SELECT tz FROM gcal_tokens WHERE client_id = ?1').bind(c.client_id).first(); if (g && g.tz) tz = g.tz; else tz = await (await import('./callbacks.js')).tzFor(env, c.client_id) || tz; } catch (e) {}   // the business's own zone (Nov 10: 3 AM in Hawaii)
     const lp = localParts(tz, at);
     if (lp.wd === 'Mon' && lp.hour === 8) {
       const p = await prefs(env, c.client_id);

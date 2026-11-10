@@ -65,7 +65,7 @@ export async function checkinCron(env) {
   await ensureCheckins(env); await ensureCallbacks(env);
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return { calls: 0 };
   const now = Date.now();
-  const due = ((await env.DB.prepare("SELECT k.*, l.number, l.business, l.regulated, l.on_air, l.owner_set, c.active FROM checkins k LEFT JOIN voice_lines l ON l.client_id = k.client_id LEFT JOIN app_clients c ON c.client_id = k.client_id WHERE k.status = 'pending' AND k.due_at <= ?1 AND k.attempts < 2 ORDER BY k.due_at LIMIT 30").bind(new Date(now).toISOString()).all()).results) || [];
+  const due = ((await env.DB.prepare("SELECT k.*, l.number, l.business, l.regulated, l.on_air, l.owner_set, c.active FROM checkins k LEFT JOIN voice_lines l ON l.client_id = k.client_id LEFT JOIN app_clients c ON c.client_id = k.client_id WHERE k.status = 'pending' AND k.due_at <= ?1 AND k.attempts < 2 AND ((l.on_air = 1 AND NOT COALESCE(json_extract(CASE WHEN json_valid(l.owner_set) THEN l.owner_set ELSE '{}' END, '$.off'), 0)) OR k.due_at < ?2) ORDER BY k.due_at LIMIT 30").bind(new Date(now).toISOString(), new Date(now - PAUSED_GRACE).toISOString()).all()).results) || [];   // a paused line's check-ins wait outside the batch until they expire (Nov 10: 30 of them held up every other business)
   let calls = 0;
   const seen = new Set();
   for (const r of due) {

@@ -13,9 +13,21 @@ const HELP_WORDS = new Set(['help', 'info']);
 // Someone saying in plain words to stop texting them, anywhere in the text, is an opt-out too ("Please stop texting me",
 // "Remove me from your list"). "Stop by after 3" and "cancel my appointment" are not.
 const STOP_SAID = /\b(?:stop|quit) (?:texting|messaging|sending (?:me )?(?:texts|messages))\b|\b(?:don'?t|do not|never) (?:text|message) me\b|\b(?:remove|take) me (?:off|from) (?:your|the|this) (?:list|texts|text list|messages)\b|\bunsubscribe me\b|\bno more (?:texts|messages)\b/i;
+// A text made only of stop words and politeness ("Please stop", "STOP STOP", "stop it now, thanks"), in English or
+// Spanish, is an opt-out too (Nov 10: these went to the inbox and the next review ask still went out).
+const STOP_ONLY = new Set(['stop', 'stopall', 'unsubscribe', 'cancel', 'quit', 'end', 'alto', 'basta', 'parar', 'para', 'pare', 'cancelar', 'detener', 'detente', 'baja']);
+const FILLER = new Set(['please', 'pls', 'plz', 'now', 'it', 'thanks', 'thank', 'you', 'thx', 'ok', 'okay', 'por', 'favor', 'gracias', 'ya', 'already', 'just']);
+function onlyStop(w) {
+  const words = w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  // "cancel", "cancelar" and "end" count only alone: "Cancel it" to a reminder may mean the appointment
+  if (words.length === 1) return STOP_ONLY.has(words[0]);
+  const strong = x => STOP_ONLY.has(x) && !['cancel', 'cancelar', 'end'].includes(x);
+  return words.length <= 6 && words.some(strong) && words.every(x => strong(x) || FILLER.has(x));
+}
+const STOP_ES = /\bno (?:mas|más) (?:mensajes|textos)\b|\bya no me (?:escriba|mande|envie|envíe)/i;
 export function keywordOf(body) {
   const w = String(body || '').replace(/[‘’]/g, "'").trim().toLowerCase().replace(/[\s.!]+$/, '').replace(/\s+/g, ' ');
-  if (STOP_WORDS.has(w) || STOP_SAID.test(w)) return 'stop';
+  if (STOP_WORDS.has(w) || STOP_SAID.test(w) || onlyStop(w) || STOP_ES.test(w)) return 'stop';
   return START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : '');
 }
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
@@ -89,7 +101,9 @@ export async function setBrand(env, cid, mg, status) {
 // sendText(env, { clientId, to, body, kind, tz }) -> { ok, sid?, why? }. kind: reply | test | textback | confirm | reminder | revive | invoice | review.
 export async function sendText(env, o) {
   const cid = String(o.clientId || ''), to10 = ph10(o.to), kind = String(o.kind || 'other'), body = String(o.body || '').trim().slice(0, 1000);
-  const log = async (status, why, sid) => { try { await ensureSms(env); await env.DB.prepare('INSERT INTO sms_log (client_id, to10, at, kind, sid, status, why, len) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, to10, new Date().toISOString(), kind, sid || '', status, why || '', body.length).run(); } catch (e) {} };
+  // slot: the row reserved for this text under the ceilings (below); the outcome is written on it
+  let slot = 0;
+  const log = async (status, why, sid) => { try { await ensureSms(env); if (slot) { await env.DB.prepare('UPDATE sms_log SET status = ?1, why = ?2, sid = ?3 WHERE id = ?4').bind(status, why || '', sid || '', slot).run(); return; } await env.DB.prepare('INSERT INTO sms_log (client_id, to10, at, kind, sid, status, why, len) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, to10, new Date().toISOString(), kind, sid || '', status, why || '', body.length).run(); } catch (e) {} };
   if (!TEXTING_ON) return { ok: false, why: 'texting off' };
   if (!textingReady(env)) { await log('skipped', 'not set up'); return { ok: false, why: 'texting not set up' }; }
   if (!to10 || !body || !cid) return { ok: false, why: 'bad number' };
@@ -100,6 +114,16 @@ export async function sendText(env, o) {
   // (reply) and tests always go; automatic texts wait for the next hour (checks.js watches the daily totals too).
   // A day's ceiling per business as well, so nothing (a busy public page, a loop) runs one number into the ground.
   if (kind !== 'reply' && kind !== 'test') {
+    const hour = new Date(Date.now() - 3600e3).toISOString(), day = new Date(Date.now() - 24 * 3600e3).toISOString(), sent = "status NOT IN ('skipped', 'held', 'failed')";
+    // Reserved in one statement under all three ceilings, before Twilio is asked: texts started in the same moment
+    // used to pass the counts together and all go out (Nov 10: ten past the day's ceiling, seventy past the hour's)
+    try {
+      const res = await env.DB.prepare("INSERT INTO sms_log (client_id, to10, at, kind, sid, status, why, len) SELECT ?1, ?2, ?3, ?4, '', 'sending', '', ?5 WHERE (SELECT COUNT(*) FROM sms_log WHERE client_id = ?1 AND at > ?6 AND " + sent + ") < ?7 AND (SELECT COUNT(*) FROM sms_log WHERE at > ?6 AND " + sent + ") < ?8 AND (?1 = ?10 OR (SELECT COUNT(*) FROM sms_log WHERE client_id = ?1 AND at > ?9 AND kind NOT IN ('reply', 'test') AND " + sent + ") < ?11)")
+        .bind(cid, to10, new Date().toISOString(), kind, body.length, hour, TEXTS_PER_CLIENT_HOUR, TEXTS_PER_HOUR, day, OWN, TEXTS_PER_CLIENT_DAY).run();
+      if (res && res.meta && res.meta.changes) slot = res.meta.last_row_id;
+    } catch (e) { slot = 0; }
+  }
+  if (kind !== 'reply' && kind !== 'test' && !slot) {
     const hour = new Date(Date.now() - 3600e3).toISOString(), day = new Date(Date.now() - 24 * 3600e3).toISOString(), sent = "status NOT IN ('skipped', 'held', 'failed')";
     const [mine, all, today] = await Promise.all([
       env.DB.prepare('SELECT COUNT(*) AS n FROM sms_log WHERE client_id = ?1 AND at > ?2 AND ' + sent).bind(cid, hour).first().catch(() => null),
@@ -138,8 +162,19 @@ export async function sendText(env, o) {
 export async function handleSms(req, env, form, sigOk) {
   if (!sigOk) return new Response('Forbidden', { status: 403 });
   const from10 = ph10(form.get('From')), to = String(form.get('To') || ''), body = String(form.get('Body') || '').trim().slice(0, 1600);
-  const xml = (s) => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + (s || '') + '</Response>', { headers: { 'content-type': 'text/xml' } });
+  const xml0 = (s) => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + (s || '') + '</Response>', { headers: { 'content-type': 'text/xml' } });
   const line = await env.DB.prepare('SELECT client_id, business FROM voice_lines WHERE number = ?1').bind(to).first().catch(() => null);
+  // An automatic reply goes out from the business's own number only once its texting is registered: before that the
+  // carriers drop it (Nov 10: HELP, START and the owner's "Got it" were sent from unregistered numbers, and lost). The
+  // owner's own answers come from Always Open's number instead, the way the questions to them do.
+  const xml = async (s) => {
+    if (!s || !line || line.client_id === OWN) return xml0(s);
+    if (await senderFor(env, line.client_id).catch(() => null)) return xml0(s);
+    const text = ((/<Message>([\s\S]*?)<\/Message>/.exec(s) || [])[1] || '').trim();
+    const own = text ? await env.DB.prepare('SELECT phone FROM app_clients WHERE client_id = ?1').bind(line.client_id).first().catch(() => null) : null;
+    if (own && ph10(own.phone) === from10) { try { await sendText(env, { clientId: OWN, to: '+1' + from10, kind: 'reply', body: (line.business ? line.business + ': ' : '') + text }); } catch (e) { /* nothing more to do */ } }
+    return xml0('');
+  };
   if (!line || !from10) return xml();
   await ensureSms(env);
   // Each text once: Twilio retrying, or the sweep below picking up one we already have, changes nothing.
@@ -164,8 +199,28 @@ export async function handleSms(req, env, form, sigOk) {
         const ans = await (await import('./timecard.js')).timecardReply(env, cid, body);
         if (ans) return xml('<Message>' + ans.replace(/[<&>]/g, '') + '</Message>');
       } catch (e) { /* falls through to a note for Max */ }
+      // A reply to Max's text about a call ("Thanks, I'll call Tom back, quote him $1,200") is about that call: it goes on
+      // the call, never into what Max tells every caller (Nov 10: that reply was told to every later caller). A note for
+      // Max starts with his name.
+      if (!/^\s*(?:tell\s+)?max\b/i.test(String(body || ''))) {
+        const since = new Date(Date.now() - 4 * 3600e3).toISOString();
+        const sum = await env.DB.prepare("SELECT 1 AS x FROM sms_log WHERE client_id = ?1 AND to10 = ?2 AND kind IN ('callsum', 'confirm') AND at > ?3 LIMIT 1").bind(cid, from10, since).first().catch(() => null);
+        const call0 = sum ? await env.DB.prepare("SELECT id, caller_name FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'spam') AND at > ?2 ORDER BY at DESC LIMIT 1").bind(cid, since).first().catch(() => null) : null;
+        // it reads like a reply about that customer: their name, a call-back, a quote or price, a number or an address,
+        // or a thanks/ok. "Closed this Friday for the holiday" is still a note for Max.
+        const t = String(body || ''), first = String((call0 && call0.caller_name) || '').trim().split(/\s+/)[0] || '';
+        const aboutCall = (first.length >= 3 && new RegExp('\\b' + first.replace(/[^A-Za-z'-]/g, '') + '\\b', 'i').test(t)) ||
+          /\bcall(?:ed|ing)? (?:him|her|them|\w+) back\b|\bquote\b|\$\s?\d|\d{3}\D?\d{3}\D?\d{4}|\b\d+ \w+ (?:st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|hwy|blvd)\b|^\s*(?:thanks|thank you|thx|ok|okay|got it|will do|on it)\b/i.test(t);
+        const call = aboutCall ? call0 : null;
+        if (call) {
+          const note = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+          await env.DB.prepare("UPDATE app_calls SET summary = TRIM(COALESCE(summary, '') || ?1), hq_synced = 0 WHERE id = ?2").bind(' Your reply: “' + note + '”', call.id).run().catch(() => {});
+          return xml('<Message>' + ('Got it. That is on your call with ' + (String(call.caller_name || '').replace(/[^A-Za-z .'-]/g, '').trim() || 'them') + '. To tell Max something for every caller, start the text with "Max".').replace(/[<&>]/g, '') + '</Message>');
+        }
+        if (sum && aboutCall) return xml('<Message>Max did not save that for callers, since it looks like a reply to his call text. To tell Max something for every caller, start the text with "Max".</Message>');
+      }
       const { tellMax } = await import('./duties.js');
-      const r = await tellMax(env, cid, body, 'Owner (text)').catch(() => ({ ok: false, error: 'That didn’t save. Try it in the app, on the Max tab.' }));
+      const r = await tellMax(env, cid, String(body || '').replace(/^\s*(?:tell\s+)?max\b[\s,:-]*/i, '') || body, 'Owner (text)').catch(() => ({ ok: false, error: 'That didn’t save. Try it in the app, on the Max tab.' }));
       const say = String(r.text || r.error || '').replace(/[<&>]/g, '');
       return xml(say ? '<Message>' + say + '</Message>' : '');
     }
