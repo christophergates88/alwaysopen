@@ -163,6 +163,7 @@ export async function apiWork(req, env, c) {
   if (b.action === 'stage') {
     if (!STAGES.includes(b.stage)) return aj({ ok: false, error: 'Bad request' }, 400);
     if (!money && b.stage === 'paid') return aj({ ok: false, error: 'Ask the owner to mark it paid.' }, 403);
+    if (!money) { const cur = await env.DB.prepare('SELECT stage FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first(); if (cur && cur.stage === 'paid') return aj({ ok: false, error: 'That job is marked paid. Ask the owner to change it.' }, 403); }
     const r = await env.DB.prepare('UPDATE biz_jobs SET stage = ?1, updated = ?2 WHERE id = ?3 AND client_id = ?4').bind(b.stage, ts, id, c.client_id).run();
     if (b.stage === 'paid') {
       const j = await env.DB.prepare('SELECT invoice_id FROM biz_jobs WHERE id = ?1').bind(id).first();
@@ -201,7 +202,10 @@ export async function apiWork(req, env, c) {
     const r = await env.DB.prepare('UPDATE biz_jobs SET amount = ?1, updated = ?2 WHERE id = ?3 AND client_id = ?4').bind(cents(b.amount), ts, id, c.client_id).run();
     return aj({ ok: !!r.meta.changes });
   }
-  if (b.action === 'delete') { const r = await env.DB.prepare('DELETE FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).run(); return aj({ ok: !!r.meta.changes }); }
+  if (b.action === 'delete') {
+    if (!money) { const cur = await env.DB.prepare('SELECT stage, amount, invoice_id FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first(); if (cur && (cur.stage === 'paid' || +cur.amount || +cur.invoice_id)) return aj({ ok: false, error: 'Ask the owner to remove that one.' }, 403); }
+    const r = await env.DB.prepare('DELETE FROM biz_jobs WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).run(); return aj({ ok: !!r.meta.changes });
+  }
   return aj({ ok: false, error: 'Bad request' }, 400);
 }
 // Marks an invoice paid and closes its reminders and job (owner tap, invoice page, or Stripe).
@@ -480,6 +484,9 @@ export async function apiInbox(req, env, c) {
   if (b.action === 'reply' && tm) {
     const text = cl(b.text, 1000);
     if (!text) return aj({ ok: false, error: 'Type a reply first.' }, 400);
+    // a reply answers someone: the number must have texted this business (Nov 10: any ten digits were texted)
+    const got = await env.DB.prepare("SELECT 1 AS x FROM biz_msgs WHERE client_id = ?1 AND channel = 'text' AND thread = ?2 AND dir = 'in' LIMIT 1").bind(c.client_id, tm[1]).first().catch(() => null);
+    if (!got) return aj({ ok: false, error: 'That conversation is gone. Pull down to refresh.' }, 404);
     const r = await replyText(env, c, tm[1], text);
     if (!r.ok) return aj(r, 409);
     await logAct(env, c, 'Replied to a text');

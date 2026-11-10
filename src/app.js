@@ -464,8 +464,8 @@ async function apiState(env, c, ctx) {
     features: Object.assign({}, f, { line: !!line, versions }),
     line: lineOut(line, c),
     reviews: rows(7).map(r => ({ id: r.id, name: r.title || '', stars: +r.stars || 0, review: r.context || '', reply: r.decided_text || r.text || '', status: r.status, at: r.created || '', decidedAt: r.decided_at || '' })),
-    followups: f.followups ? rows(8).map(fuOut) : [],
-    items: rows(0).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, checks: GUARDED(r.kind) ? guardChecks(r.text || '', c, r.kind) : [], photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
+    followups: f.followups ? rows(8).map(fuOut).map(x => tech ? Object.assign(x, { amount: '' }) : x) : [],
+    items: rows(0).filter(r => !(tech && r.kind === 'invoice')).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', context: r.context || '', stars: +r.stars || 0, text: r.text || '', checked: !!+r.checked || guard(r.text || '', c, r.kind).length === 0, checks: GUARDED(r.kind) ? guardChecks(r.text || '', c, r.kind) : [], photo: /^https:\/\/alwaysopenoffice\.com\/p\/[A-Za-z0-9]{32}$/.test(r.photo || '') ? '/p/' + r.photo.slice(-32) : '', created: r.created || '' })),
     done: rows(1).map(r => ({ id: r.id, kind: r.kind, title: r.title || '', status: r.status, text: r.decided_text || r.text || '', at: r.decided_at || r.updated || '', by: r.decided_by || '' })),
     months,
     monthNow,
@@ -658,6 +658,8 @@ async function apiMaxSetup(env, c) {
 async function apiLine(req, env, ctx, c) {
   const raw = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
   if (!raw) return aj({ ok: false, error: 'You don’t have a phone line yet. Ask us to set up Max.' }, 403);
+  // a tech's Max tab is the list of calls: the line's settings are the owner's (Nov 10: a tech's link could switch it off)
+  if (c.role === 'tech') return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
   const b = await readJson(req, 6000);
   if (!b) return aj({ ok: false, error: 'Bad request' }, 400);
   const by = whoBy(c, b.by);
@@ -837,6 +839,7 @@ async function apiDecide(req, env, ctx, c) {
   if (!id || !action) return aj({ ok: false, error: 'Bad request' }, 400);
   const it = await env.DB.prepare('SELECT * FROM app_items WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).first();
   if (!it) return aj({ ok: false, error: 'That one is gone. Pull down to refresh.' }, 404);
+  if (c.role === 'tech' && it.kind === 'invoice') return aj({ ok: false, error: 'Ask the owner for this one.' }, 403);
   if (it.status !== 'pending') return aj({ ok: false, error: it.status === 'closed' ? 'Always Open already took care of this one.' : 'Already handled.', status: it.status, by: it.decided_by || '' }, 409);
   const now = new Date().toISOString();
   if (action === 'skip') {
@@ -1058,7 +1061,9 @@ export async function monthFor(env, c, which, now) {
     try { money = mtd ? (await (await import('./money.js')).moneyState(env, c.client_id, now)).thisMonth : await (await import('./money.js')).caughtFor(env, c.client_id, Date.parse(ym + '-15T12:00:00Z')); } catch (e) { money = null; }
     a = await monthAnalytics(env, c.client_id, start, end, { tz, prev: await storedA(env, c.client_id, prevYm(ym)), money, regulated: !!+c.regulated });
   }
-  if (c.role === 'tech') a = Object.assign({}, a, { worth: null, work: Object.assign({}, a.work, { won: { n: a.work.won.n, amount: 0 }, followups: Object.assign({}, a.work.followups, { quoteAmount: 0 }) }) });
+  // a tech's month has no dollars anywhere: the worth, the won amounts, and any line of the write-up that names a figure
+  const noMoney = x => !/\$\s?\d/.test(String((x && x.t) || x || ''));
+  if (c.role === 'tech') a = Object.assign({}, a, { insights: (a.insights || []).filter(noMoney), next: noMoney(a.next) ? a.next : '', worth: null, work: Object.assign({}, a.work, { won: { n: a.work.won.n, amount: 0 }, followups: Object.assign({}, a.work.followups, { quoteAmount: 0 }) }) });
   let stats = numbersOnly(d.stats) || {};
   if (mtd || stats.posts == null) {
     const p = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_items WHERE client_id = ?1 AND kind = 'post' AND status IN ('approved', 'closed') AND COALESCE(decided_at, created) >= ?2 AND COALESCE(decided_at, created) < ?3").bind(c.client_id, start, end).first().catch(() => null);

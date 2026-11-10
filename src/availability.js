@@ -74,7 +74,7 @@ export function validDays(d) {
 function clamp(x, a, b) { return Math.max(a, Math.min(b, isFinite(x) ? x : a)); }
 
 // Open times over the next week, at most `max`, spread at least two hours apart. Null when booking is off.
-export async function slotsFor(env, line, now, max) {
+export async function slotsFor(env, line, now, max, all) {   // all: every free time, not spread out (to check a time someone picked)
   const bk = bookingOf(line);
   if (bk.mode === 'off') return null;
   await ensureBookings(env);
@@ -96,7 +96,7 @@ export async function slotsFor(env, line, now, max) {
       const start = fromLocal(tz, day.day, Math.floor(t / 60), t % 60), stop = start + len;
       if (start < now + LEAD_MS) continue;
       if (busy.some(b => b[0] < stop + gap && b[1] > start - gap)) continue;
-      if (out.length && start - out[out.length - 1].start < SPREAD_MS) continue;
+      if (!all && out.length && start - out[out.length - 1].start < SPREAD_MS) continue;
       out.push({ start, end: stop, say: spokenSlot(tz, start) });
     }
   }

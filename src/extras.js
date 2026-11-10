@@ -40,7 +40,17 @@ export async function handleBooking(req, env, ctx, url) {
   const lang = langOf(req, url), T = (k, v) => tr(lang, k, v), lq = lang === 'es' ? '?lang=es' : '';
   if (!c) return page(404, T('notFound'), '<p>' + T('notAvail') + '</p>', lang);
   if (!(await gcalStatus(env, c.client_id)).connected) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref) + lq, 302);
-  const open = await openSlots(env, c.client_id, Date.now(), 12).catch(() => null);
+  // The owner's own booking hours and visit length (the Booking card), the same times Max offers on the phone, when the
+  // business has a line; the calendar's weekday hours otherwise (Nov 10: the page offered days the owner takes no visits).
+  let open = null, line = null, A = null;
+  try {
+    line = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first();
+    if (line) { A = await import('./availability.js'); if (A.bookingOf(line).set) open = await A.slotsFor(env, line, Date.now(), 12); else line = null; }
+  } catch (e) { open = null; line = null; }
+  if (!open) open = await openSlots(env, c.client_id, Date.now(), 12).catch(() => null);
+  // A time someone picked counts if it is still free, even when the page would now list a different set (a booking
+  // in between moves the every-other-hour list; Nov 10: a free time was refused as "just taken").
+  const freeNow = async () => { try { return (line ? await A.slotsFor(env, line, Date.now(), 200, true) : await openSlots(env, c.client_id, Date.now(), 200, true)) || { slots: [] }; } catch (e) { return { slots: [] }; } };
   if (!open) return Response.redirect(SITE + '/q/' + encodeURIComponent(c.ref) + lq, 302);
   if (req.method === 'GET') return bookForm(c, open, '', null, lang, url);
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -51,7 +61,7 @@ export async function handleBooking(req, env, ctx, url) {
   const v = { name, phone, email, reason, start };
   if (!name || phone.replace(/\D/g, '').length < 10) return bookForm(c, open, T('errBook'), v, lang, url);
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bookForm(c, open, T('badEmail'), v, lang, url);
-  const slot = open.slots.find(s => s.start === start);
+  const slot = open.slots.find(s => s.start === start) || (start ? (await freeNow()).slots.find(s => s.start === start) : null);
   if (!slot) return bookForm(c, open, T('taken'), v, lang, url);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, at TEXT, name TEXT, phone TEXT, need TEXT, sms_ok INTEGER DEFAULT 0, status TEXT DEFAULT 'new', done_at TEXT, ip_hash TEXT)").run();
   const ip = (await sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
@@ -133,12 +143,15 @@ export async function apiInvoice(req, env, c) {
     const row = await env.DB.prepare('SELECT * FROM app_invoices WHERE id = ?1').bind(ins.meta.last_row_id).first();
     return aj({ ok: true, invoice: invOut(row) });
   }
-  const id = +b.id || 0;
+  const id = Math.floor(+b.id) || 0;
+  // no id: nothing to change (Nov 10: a missing id marked every job with no invoice as paid)
+  if (!(id > 0)) return aj({ ok: false, error: 'Bad request' }, 400);
+  if (b.action !== 'delete' && b.action !== 'paid' && b.action !== 'open') return aj({ ok: false, error: 'Bad request' }, 400);
   if (b.action === 'delete') { const r = await env.DB.prepare('DELETE FROM app_invoices WHERE id = ?1 AND client_id = ?2').bind(id, c.client_id).run(); return aj({ ok: !!r.meta.changes }); }
   const paid = b.action === 'paid';
   const r = await env.DB.prepare('UPDATE app_invoices SET status = ?1, paid_at = ?2 WHERE id = ?3 AND client_id = ?4').bind(paid ? 'paid' : 'open', paid ? new Date().toISOString() : '', id, c.client_id).run();
   if (paid) await env.DB.prepare("UPDATE app_items SET status = 'closed', updated = ?1 WHERE client_id = ?2 AND kind = 'invoice' AND status = 'pending' AND id LIKE ?3").bind(new Date().toISOString(), c.client_id, 'inv-' + id + '-%').run();
-  try { await env.DB.prepare("UPDATE biz_jobs SET stage = ?1, updated = ?2 WHERE client_id = ?3 AND invoice_id = ?4").bind(paid ? 'paid' : 'done', new Date().toISOString(), c.client_id, id).run(); } catch (e) { /* no jobs yet */ }
+  if (r.meta.changes) try { await env.DB.prepare("UPDATE biz_jobs SET stage = ?1, updated = ?2 WHERE client_id = ?3 AND invoice_id = ?4").bind(paid ? 'paid' : 'done', new Date().toISOString(), c.client_id, id).run(); } catch (e) { /* no jobs yet */ }
   return aj({ ok: !!r.meta.changes });
 }
 // Public invoice page. "Mark paid" here only works for the owner (?code=...); customers just see Pay invoice.

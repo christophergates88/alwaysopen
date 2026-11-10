@@ -171,7 +171,7 @@ export async function busyTimes(env, cid, from, to) {
 }
 
 // Up to `max` one-hour openings over the next 7 days, weekdays 9 to 5 in the calendar's zone, at least 2 hours out.
-export async function openSlots(env, cid, now, max) {
+export async function openSlots(env, cid, now, max, all) {   // all: every free hour, not spread out (to check a time someone picked)
   const a = await access(env, cid);
   if (!a) return null;
   now = now || Date.now();
@@ -181,6 +181,11 @@ export async function openSlots(env, cid, now, max) {
   const j = await r.json();
   const tz = j.timeZone || a.tz;
   const busy = (j.items || []).filter(e => e.status !== 'cancelled' && e.transparency !== 'transparent').map(e => [Date.parse((e.start || {}).dateTime || (e.start || {}).date), Date.parse((e.end || {}).dateTime || (e.end || {}).date)]);
+  // Max's own book too: a visit he pencilled in is not on Google until the owner confirms it (Nov 10: the booking page
+  // then sold the hour inside it)
+  try { const { ensureBookings } = await import('./availability.js'); await ensureBookings(env);
+    const taken = ((await env.DB.prepare("SELECT start, end FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled' AND end > ?2 AND start < ?3").bind(cid, now, now + 8 * 864e5).all()).results) || [];
+    for (const t of taken) busy.push([+t.start, +t.end]); } catch (e) { /* the calendar alone */ }
   const out = [];
   for (let d = 0; d < 8 && out.length < (max || 6); d++) {
     const lp = localParts(tz, now + d * 864e5);
@@ -191,7 +196,7 @@ export async function openSlots(env, cid, now, max) {
       if (start < now + 2 * 3600e3) continue;
       if (busy.some(b => b[0] < end && b[1] > start)) continue;
       out.push({ start, end, say: spokenSlot(tz, start) });
-      h++;   // spread choices out
+      if (!all) h++;   // spread choices out
     }
   }
   return { tz, slots: out };
@@ -200,8 +205,21 @@ export async function openSlots(env, cid, now, max) {
 export async function bookSlot(env, cid, slot, who) {
   const a = await access(env, cid);
   if (!a) return false;
+  // Claim the time in our own book first, in one statement: two people choosing the same hour at once get one booking,
+  // and nothing overlaps a visit Max already holds.
+  let claim = 0;
+  try {
+    const { ensureBookings } = await import('./availability.js'); await ensureBookings(env);
+    const ts = new Date().toISOString();
+    const r = await env.DB.prepare("INSERT INTO line_bookings (client_id, start, end, name, phone, reason, status, call_id, say, created, updated) SELECT ?1, ?2, ?3, ?4, ?5, ?6, 'booked', '', ?7, ?8, ?8 WHERE NOT EXISTS (SELECT 1 FROM line_bookings WHERE client_id = ?1 AND status != 'cancelled' AND start < ?3 AND end > ?2)")
+      .bind(cid, slot.start, slot.end, String(who.name || '').slice(0, 60), String(who.phone || '').slice(0, 20), String(who.reason || '').slice(0, 120), slot.say || '', ts).run();
+    if (!(r.meta && r.meta.changes)) return false;
+    claim = r.meta.last_row_id;
+  } catch (e) { return false; }
   const body = { summary: 'Appointment: ' + (who.name || 'caller'), description: 'Booked ' + (who.via ? 'from ' + who.via : 'by Max, the Always Open phone assistant') + '.\nName: ' + (who.name || '') + '\nPhone: ' + (who.phone || '') + '\nReason: ' + (who.reason || ''),
     start: { dateTime: new Date(slot.start).toISOString() }, end: { dateTime: new Date(slot.end).toISOString() } };
-  const r = await fetch(API, { method: 'POST', headers: { authorization: 'Bearer ' + a.token, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  return r.ok;
+  let ok = false;
+  try { const r = await fetch(API, { method: 'POST', headers: { authorization: 'Bearer ' + a.token, 'content-type': 'application/json' }, body: JSON.stringify(body) }); ok = r.ok; } catch (e) { ok = false; }
+  if (!ok && claim) await env.DB.prepare("UPDATE line_bookings SET status = 'cancelled' WHERE id = ?1").bind(claim).run().catch(() => {});
+  return ok;
 }

@@ -255,6 +255,8 @@ export async function apiCallbacks(req, env, c, line) {
     return { ok: true, message: 'Marked done.' };
   }
   if (b.action === 'later') {
+    // already called back (Nov 10: a second tap reopened it and Max rang the customer about a matter that was done)
+    if (row.status === 'done') return { ok: false, error: 'That one is already marked done.' };
     const due = Math.max(Date.now(), Date.parse(row.due_at)) + 30 * 60e3;
     await env.DB.prepare("UPDATE callbacks SET due_at = ?1, status = 'pending', nudged_at = '' WHERE id = ?2").bind(new Date(due).toISOString(), id).run();
     const tz = await tzFor(env, cid), l = local(tz, due);

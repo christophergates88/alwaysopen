@@ -437,7 +437,8 @@ export async function approveRevive(env, c, row, edited) {
     if (cu && +cu.optout) { await env.DB.prepare("UPDATE biz_revive SET status = 'skipped', result = 'opted out', updated = ?1 WHERE id = ?2").bind(ts, id).run(); return { status: 409, body: { ok: false, error: 'They asked us to stop, so nothing was sent.' } }; }
     if (!cu || !+cu.agreed) return { status: 409, body: { ok: false, needsOk: true, error: 'They haven’t said it’s OK to contact them. Mark them as OK first, or copy the message and reach out yourself.' } };
     const text = edited || row.draft;
-    const claim = await env.DB.prepare("UPDATE biz_revive SET status = 'sending', updated = ?1 WHERE id = ?2 AND client_id = ?3 AND status = 'pending'").bind(ts, id, cid).run();
+    // 'queued': approved, but it could not go at the time (night, or texting not approved yet); sendHeldRevive tries again
+    const claim = await env.DB.prepare("UPDATE biz_revive SET status = 'sending', updated = ?1 WHERE id = ?2 AND client_id = ?3 AND status IN ('pending', 'queued')").bind(ts, id, cid).run();
     if (!claim.meta.changes) return { status: 409, body: { ok: false, error: 'Already handled.' } };
     const res = [];
     let sent = false;
@@ -457,10 +458,28 @@ export async function approveRevive(env, c, row, edited) {
     }
     else if (!sent) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');
     await env.DB.prepare('UPDATE biz_revive SET status = ?1, result = ?2, draft = ?3, updated = ?4 WHERE id = ?5').bind(status, res.join(','), text, now(), id).run();
-    await logAct(env, c, 'Approved a message to ' + cl(row.name, 60));
+    if (!c.held) await logAct(env, c, 'Approved a message to ' + cl(row.name, 60));
     return { status: 200, body: { ok: true, status, result: res.join(',') } };
   }
   }
+
+// Messages the owner approved that could not go out at the time ("It goes out in the morning"): tried again on the
+// timer until they go, for a week; after that the owner's app shows them as not sent (Nov 10: nothing ever sent them).
+export async function sendHeldRevive(env) {
+  await ensurePast(env);
+  const week = new Date(Date.now() - 7 * 864e5).toISOString();
+  await env.DB.prepare("UPDATE biz_revive SET status = 'failed', result = TRIM(COALESCE(result, '') || ',held a week, not sent', ','), updated = ?1 WHERE status = 'queued' AND updated < ?2").bind(now(), week).run().catch(() => {});
+  const rows = (await env.DB.prepare("SELECT r.* FROM biz_revive r JOIN app_clients a ON a.client_id = r.client_id AND a.active = 1 WHERE r.status = 'queued' ORDER BY r.updated LIMIT 25").all().catch(() => ({ results: [] }))).results || [];
+  let sent = 0;
+  for (const row of rows) {
+    const c = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1 AND active = 1').bind(row.client_id).first().catch(() => null);
+    if (!c) continue;
+    c.held = true;
+    const r = await approveRevive(env, c, row, row.draft).catch(() => null);
+    if (r && r.body && r.body.status === 'sent') sent++;
+  }
+  return sent;
+}
 
 // ---------------- opt-out link in every message ----------------
 export async function handleOptOut(req, env, url) {

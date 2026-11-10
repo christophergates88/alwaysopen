@@ -110,6 +110,13 @@ async function place(env, r, now) {
     if (!callHoursOk(await tzFor(env, r.client_id), now, r.phone)) return false;   // a later tick
   }
   if (+r.attempts >= 2) { await skip('tried twice', true); return false; }
+  // the thing this call is about is still open: an appointment or estimate the owner removed or closed is never called
+  // about (Nov 10: Max's second try still rang a customer whose appointment the owner had deleted)
+  const m = /^(confirm|noshow|quote):(\d+)$/.exec(String(r.ref || ''));
+  if (m) {
+    const f = await env.DB.prepare("SELECT status FROM app_followups WHERE id = ?1 AND client_id = ?2").bind(+m[2], r.client_id).first().catch(() => null);
+    if (!f || f.status !== 'open') { await skip('closed by the owner', true); return false; }
+  }
   if (r.kind === 'urgent' && now - Date.parse(r.created) > 3600e3) { await skip('too late to matter', true); return false; }
   const claim = await env.DB.prepare("UPDATE outcalls SET attempts = attempts + 1, result = 'calling', due_at = ?1 WHERE id = ?2 AND status = 'pending' AND attempts = ?3")
     .bind(new Date(now + 3 * 3600e3).toISOString(), r.id, r.attempts).run();
