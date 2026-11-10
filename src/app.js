@@ -519,7 +519,11 @@ async function apiState(env, c, ctx) {
   // Calls Max is on right now, for the live card on Today.
   try {
     if (!liveTable) { await env.DB.prepare('CREATE TABLE IF NOT EXISTS call_live (id TEXT PRIMARY KEY, heard TEXT, said TEXT, turns INTEGER, updated TEXT)').run(); liveTable = true; }
-    const rows = f.calls ? ((await env.DB.prepare("SELECT c.id, c.at, c.caller, c.caller_name, l.heard, l.said, l.turns, l.updated FROM app_calls c LEFT JOIN call_live l ON l.id = c.id WHERE c.client_id = ?1 AND c.outcome = 'live' AND c.test = 0 AND c.at > ?2 ORDER BY c.at DESC LIMIT 3").bind(cid, new Date(Date.now() - 20 * 60000).toISOString()).all()).results || []) : [];
+    // a test call shows too while Max has a question out on it (the owner's own Shoulder Tap test calls, Nov 10)
+    const liveSql = test => "SELECT c.id, c.at, c.caller, c.caller_name, l.heard, l.said, l.turns, l.updated FROM app_calls c LEFT JOIN call_live l ON l.id = c.id WHERE c.client_id = ?1 AND c.outcome = 'live' AND " + (test ? "(c.test = 0 OR c.id IN (SELECT call_id FROM call_taps WHERE client_id = ?1 AND status = 'open'))" : 'c.test = 0') + " AND c.at > ?2 ORDER BY c.at DESC LIMIT 3";
+    const since20 = new Date(Date.now() - 20 * 60000).toISOString();
+    let rows = [];
+    if (f.calls) { try { rows = (await env.DB.prepare(liveSql(true)).bind(cid, since20).all()).results || []; } catch (e) { rows = (await env.DB.prepare(liveSql(false)).bind(cid, since20).all()).results || []; } }
     out.live = rows.map(r => ({ id: r.id, at: r.at, numberText: fmtNum(r.caller || ''), name: r.caller_name || '', heard: r.heard || '', said: r.said || '', turns: +r.turns || 0, updated: r.updated || r.at }));
   } catch (e) { out.live = []; }
   // Shoulder Tap (tap.js): Max's open question on each live call, whether the owner can tell Max something or take the

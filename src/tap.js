@@ -26,8 +26,18 @@ const one = s => String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F\u2028\
 export function cleanAsk(q) {
   let t = one(q).replace(/^["'“”‘’\s:]+|["'“”‘’\s]+$/g, '').slice(0, 140).trim();
   if (!/[a-z0-9]/i.test(t)) return '';
+  // a link or web address is never put in the owner's text (a caller could get one sent from the business's own number)
+  if (/https?:|www\.|[a-z0-9-]\.[a-z]{2,}\b|@/i.test(t)) return '';
   if (!/[?.!]$/.test(t)) t += '?';
   return t;
+}
+// A reaction, not an answer: an iPhone tapback ('Liked "Max: Live call..."'), Android's 'Reacted 👍 to', or a reply with
+// no letters or digits ("?", "👍"). The question stays open and the owner is asked for words (Nov 10: Max read the
+// tapback out, the caller's own number included).
+export function notAnAnswer(t) {
+  const x = String(t || '').trim();
+  if (!/[\p{L}\p{N}]/u.test(x)) return true;
+  return /^(Liked|Loved|Disliked|Laughed at|Emphasized|Emphasised|Questioned|Reacted\s.{1,12}\sto|Removed (a|an)\s.{1,20}\sfrom)\s*[“"']/i.test(x);
 }
 // The owner's answer as Max gets it: one line, nothing that could be read as a control tag.
 export function cleanAnswer(t) { return one(t).slice(0, 240).trim(); }
@@ -163,7 +173,12 @@ export async function openTap(env, o, h) {
   h = h || {};
   await ensureTaps(env);
   const now = nowIso();
-  await env.DB.prepare("INSERT OR IGNORE INTO call_taps (id, call_id, client_id, kind, q, asked_at, status) VALUES (?1, ?2, ?3, 'ask', ?4, ?5, 'open')").bind(o.id, o.sid, o.cid, o.q, now).run();
+  // One open question per business at a time, so the owner's reply can only belong to one caller (Nov 10: with two
+  // calls waiting, Mike's "Yes, 7 tonight" for Dana was told to Tom), and the hour's limit counted again here, not only
+  // when the call began. Both in the statement that saves the question; a refused one gets the callback promise.
+  const ins = await env.DB.prepare("INSERT OR IGNORE INTO call_taps (id, call_id, client_id, kind, q, asked_at, status) SELECT ?1, ?2, ?3, 'ask', ?4, ?5, 'open' WHERE NOT EXISTS (SELECT 1 FROM call_taps WHERE client_id = ?3 AND kind = 'ask' AND status = 'open' AND call_id != ?2 AND asked_at > ?6) AND (SELECT COUNT(*) FROM call_taps WHERE client_id = ?3 AND kind = 'ask' AND asked_at > ?7) < ?8")
+    .bind(o.id, o.sid, o.cid, o.q, now, new Date(Date.now() - TAP_WAIT_MS - 30000).toISOString(), new Date(Date.now() - 3600e3).toISOString(), TAP_PER_HOUR).run().catch(() => null);
+  if (!(ins && ins.meta && ins.meta.changes)) return { ok: false, told: [], busy: true };
   const own = await ownerOf(env, o.cid);
   const told = [];
   let name = '';
@@ -197,11 +212,12 @@ async function poke(env, callId, o) {
   try { return await env.CALLROOM.get(env.CALLROOM.idFromName(callId)).tapAnswer(o); } catch (e) { return 'late'; }
 }
 async function liveCall(env, callId, cid) {
-  return env.DB.prepare("SELECT id, caller, caller_name, outcome FROM app_calls WHERE id = ?1 AND client_id = ?2").bind(callId, cid).first().catch(() => null);
+  return env.DB.prepare("SELECT id, caller, caller_name, outcome, test FROM app_calls WHERE id = ?1 AND client_id = ?2").bind(callId, cid).first().catch(() => null);
 }
 const REPLY = {
   said: name => 'Got it. ' + name + ' is telling them now.',
   queued: name => 'Got it. ' + name + ' tells them as soon as they stop talking.',
+  ringing: () => 'Got it. They are being put through to you now, so answer your phone. Your answer is on the call too.',
   late: (name, row, call) => 'That call ended before your answer got there' + (row && row.q ? '. They asked: "' + row.q + '"' : '') + '. ' + (call && fmt(call.caller) ? 'Call them back: ' + fmt(call.caller) + '.' : 'It is in your calls list.')
 };
 async function record(env, row, text, via, by, state) {
@@ -219,6 +235,7 @@ export async function tapFromText(env, cid, body, maxName) {
   const since = new Date(Date.now() - TAP_LATE_MS).toISOString();
   const row = await env.DB.prepare("SELECT * FROM call_taps WHERE client_id = ?1 AND kind = 'ask' AND asked_at > ?2 ORDER BY asked_at DESC LIMIT 1").bind(cid, since).first().catch(() => null);
   if (!row) return null;
+  if ((row.status === 'open' || row.status === 'timeout') && notAnAnswer(body)) return { state: 'reaction', reply: 'Type the answer in words and ' + (maxName || 'Max') + ' tells them.' };
   const text = cleanAnswer(body);
   if (!text) return null;
   const call = await liveCall(env, row.call_id, cid);
@@ -229,7 +246,7 @@ export async function tapFromText(env, cid, body, maxName) {
   const name = maxName || 'Max';
   const state = live ? await poke(env, row.call_id, { id: waiting ? row.id : '', text, via: 'text' }) : 'late';
   if (waiting) await record(env, row, text, 'text', 'Owner (text)', state);
-  else if (state !== 'late') await env.DB.prepare("INSERT INTO call_taps (id, call_id, client_id, kind, q, asked_at, status, answer, answered_at, via, by) VALUES (?1, ?2, ?3, 'tell', '', ?4, 'answered', ?5, ?4, 'text', 'Owner (text)')").bind(tapId(), row.call_id, cid, nowIso(), text).run().catch(() => {});
+  else if (state !== 'late' && state !== 'ringing') await env.DB.prepare("INSERT INTO call_taps (id, call_id, client_id, kind, q, asked_at, status, answer, answered_at, via, by) VALUES (?1, ?2, ?3, 'tell', '', ?4, 'answered', ?5, ?4, 'text', 'Owner (text)')").bind(tapId(), row.call_id, cid, nowIso(), text).run().catch(() => {});
   else return null;
   return { state, reply: REPLY[state](name, row, call) };
 }
@@ -239,10 +256,14 @@ export async function tapFromText(env, cid, body, maxName) {
 export async function tapFromOwnerText(env, from10, body, maxName) {
   await ensureTaps(env);
   const since = new Date(Date.now() - TAP_LATE_MS).toISOString();
-  const rows = (await env.DB.prepare("SELECT DISTINCT client_id FROM call_taps WHERE kind = 'ask' AND asked_at > ?1 LIMIT 20").bind(since).all().catch(() => ({ results: [] }))).results || [];
+  // The sender's own businesses only, the one with a question still open first, then the newest (Nov 10: the first 20
+  // businesses in no order were tried, so an owner with two could answer the wrong caller, and past 20 nobody matched).
+  const rows = (await env.DB.prepare("SELECT client_id, MAX(asked_at) AS last, SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open FROM call_taps WHERE kind = 'ask' AND asked_at > ?1 GROUP BY client_id ORDER BY open DESC, last DESC LIMIT 500").bind(since).all().catch(() => ({ results: [] }))).results || [];
   for (const r of rows) {
     const own = await ownerOf(env, r.client_id);
-    if (own && ph10(own.phone) && ph10(own.phone) === from10) { const t = await tapFromText(env, r.client_id, body, maxName); if (t) return t; }
+    if (!(own && ph10(own.phone) && ph10(own.phone) === from10)) continue;
+    const t = await tapFromText(env, r.client_id, body, maxName);
+    if (t) return t;
   }
   return null;
 }
@@ -255,7 +276,8 @@ export async function tapFromApp(env, c, b) {
   const call = await liveCall(env, callId, c.client_id);
   if (!call) return { ok: false, error: 'That call is gone. Pull down to refresh.' };
   const line = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first().catch(() => null);
-  if (!line || +line.regulated || !tapFeature(line, false) || tapPref(line) === 'off') return { ok: false, error: 'Shoulder Tap is not on for your line.' };
+  // the owner's own test call counts as the test it is (Nov 10: the app refused to answer on the rollout's test calls)
+  if (!line || +line.regulated || !tapFeature(line, !!+call.test) || tapPref(line) === 'off') return { ok: false, error: 'Shoulder Tap is not on for your line.' };
   await ensureTaps(env);
   const by = c.staff || c.whoName || c.owner_first || 'Owner';
   if (b.action === 'take') {
@@ -273,7 +295,7 @@ export async function tapFromApp(env, c, b) {
   const waiting = !!row && (row.status === 'open' || row.status === 'timeout');
   const state = call.outcome === 'live' ? await poke(env, callId, { id: waiting ? row.id : '', text, via: 'app' }) : 'late';
   if (waiting) await record(env, row, text, 'app', by, state);
-  else if (state !== 'late') await env.DB.prepare("INSERT INTO call_taps (id, call_id, client_id, kind, q, asked_at, status, answer, answered_at, via, by) VALUES (?1, ?2, ?3, 'tell', '', ?4, 'answered', ?5, ?4, 'app', ?6)").bind(tapId(), callId, c.client_id, nowIso(), text, by).run().catch(() => {});
+  else if (state !== 'late' && state !== 'ringing') await env.DB.prepare("INSERT INTO call_taps (id, call_id, client_id, kind, q, asked_at, status, answer, answered_at, via, by) VALUES (?1, ?2, ?3, 'tell', '', ?4, 'answered', ?5, ?4, 'app', ?6)").bind(tapId(), callId, c.client_id, nowIso(), text, by).run().catch(() => {});
   const name = 'Max';
   return { ok: true, state, said: REPLY[state](name, row, call) };
 }
@@ -288,7 +310,8 @@ export async function markTap(env, id, status) {
 
 // For the app: the question out on each live call, and whether this line has Shoulder Tap at all.
 export async function tapState(env, line, liveIds) {
-  const on = !!line && !+line.regulated && tapFeature(line, false);
+  // on for the owner's own test calls too: they see the card and the question on those calls
+  const on = !!line && !+line.regulated && tapFeature(line, true);
   const out = { on, when: line ? tapPref(line) : 'day', open: {}, month: null };
   // the demo account shows the card with a made-up month (its line never takes a real call, so nothing is ever asked)
   if (line && line.client_id === 'demo-plumbing') return Object.assign(out, { on: true, month: { asked: 9, answered: 8, secs: 21 } });

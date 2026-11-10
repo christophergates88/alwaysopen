@@ -322,7 +322,7 @@ test('from the app: answer the question, tell Max something, or take the call; a
   const after = await w.hook('after', { CallSid: x.sid, SessionDuration: '40', SessionStatus: 'ended', HandoffData: '{"reason":"transfer"}' });
   assert.match(after.text, /<Dial[^>]*>.*<Number[^>]*>\+14785557777<\/Number>/);
   const late = (await w.app('/api/tap', { call: x.sid, text: 'one more thing' })).json();
-  assert.equal(late.state, 'late');
+  assert.equal(late.state, 'ringing');   // Nov 10: they are being put through, and the owner is told so
   const kinds = (await w.taps()).map(r => r.kind + ':' + r.status + ':' + r.via);
   assert.deepEqual(kinds, ['ask:answered:app', 'tell:answered:app', 'take:answered:app']);
 }));

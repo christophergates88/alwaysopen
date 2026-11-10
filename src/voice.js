@@ -953,12 +953,23 @@ export class CallRoom extends DurableObject {
     if (this.live === mine) this.live = null; // never clear a newer turn's answer
     this.mark('D', raw.slice(0, 240));
     const cur = (await this.load()) || s;
-    if (cur.done || cur.turn !== my || mine.dead) return;   // dead: the alarm gave up on this answer and already said sorry
+    if (cur.done || cur.turn !== my || mine.dead) {   // dead: the alarm gave up on this answer and already said sorry
+      // talked over and already on their next turn: if they heard Max say he would check, the question still goes out
+      const askQ = sp.flags.ask || ((/\[\s*ASK\s*:?\s*([^\]]{1,200})\]/i.exec(raw) || [])[1] || '').trim();
+      if (!cur.done && !mine.dead && mine.cut != null && askQ && this.tapStart(cur, askQ)) await this.keep(cur);
+      return;
+    }
     for (const x of [r, r2]) if (x) { cur.aiIn += x.inTok || 0; cur.aiOut += x.outTok || 0; cur.model = x.model || cur.model; }
     if (r2) r = r2;
     if (mine.first != null) cur.lat = (cur.lat || []).concat([mine.first]).slice(-40);
     // The caller talked over it: keep only what they heard, and let their next words lead.
-    if (mine.cut != null) { cur.msgs.push({ r: 'a', t: cutText(mine.lead, mine.cut), lead: mine.lead || undefined }); cur.last = Date.now(); await this.keep(cur); return; }
+    if (mine.cut != null) {
+      cur.msgs.push({ r: 'a', t: cutText(mine.lead, mine.cut), lead: mine.lead || undefined }); cur.last = Date.now(); await this.keep(cur);
+      // they heard "Let me check with Mike" and talked over the rest: the question still goes out (Nov 10: it was dropped)
+      const askQ = sp.flags.ask || ((/\[\s*ASK\s*:?\s*([^\]]{1,200})\]/i.exec(raw) || [])[1] || '').trim();
+      if (askQ && this.tapStart(cur, askQ)) await this.keep(cur);
+      return;
+    }
     if (!r || (!spoken && !sp.flags.end && !sp.flags.transfer)) {
       mine.started = true;   // it says something below, so the next turn may react as usual
       cur.fails = (cur.fails || 0) + 1;
@@ -1082,7 +1093,17 @@ export class CallRoom extends DurableObject {
   async tapAnswer(o) {
     const text = cleanAnswer(o && o.text);
     const s = await this.load();
-    if (!text || !s || !s.sid || s.done || s.finalized || s.endAt || s.transfer || s.handoff || s.robo || s.mode === 'interview') return 'late';
+    if (!text || !s || !s.sid) return 'late';
+    // Being put through to the owner, or ending: the caller will not hear it from Max, but the answer is kept on the call
+    // so the write-up shows it (Nov 10: an answer texted during the transfer ring was lost)
+    if (s.transfer || s.handoff || ((s.endAt || s.done) && !s.finalized)) {
+      const rec = o.id ? (s.taps || []).find(t => t.id === o.id) : null;
+      if (rec && !rec.a) { rec.a = text; rec.late = true; await this.keep(s).catch(() => {}); }
+      return s.transfer || s.handoff ? 'ringing' : 'late';
+    }
+    if (s.done || s.finalized || s.robo || s.mode === 'interview') return 'late';
+    // The caller's line has closed (a reconnect may still come for 20 seconds): not "telling them now" (Nov 10)
+    if (s.closedAt || !this.ctx.getWebSockets().length) return 'late';
     const now = Date.now(), who = (s.line.tap && s.line.tap.who) || '';
     const rec = o.id ? (s.taps || []).find(t => t.id === o.id) : null;
     const got = { id: rec ? rec.id : '', q: rec ? rec.q : '', text, at: now, say: '', who };
@@ -2089,7 +2110,14 @@ export class Speaker {
     this.whole = !(opts && opts.chunk === 'word'); this.sent = 0; this.capT = null;
   }
   push(tok) {
-    if (this.stopped) return;
+    if (this.stopped) {
+      // nothing more is said, but a question Max already promised to put to the owner still counts (Nov 10: a caller
+      // talking over "Let me check with Mike right now" dropped the [ASK] that ended the reply)
+      this.after = (String(this.after || '') + String(tok || '')).slice(-600);
+      const m = /\[\s*ASK\s*:?\s*([^\]]{1,200})\]/i.exec(this.after);
+      if (m && !this.flags.ask) this.flags.ask = m[1].trim().slice(0, 200);
+      return;
+    }
     this.buf += String(tok || '');
     for (;;) {
       const i = this.buf.indexOf('[');
