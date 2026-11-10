@@ -183,6 +183,24 @@ Two separate things share one Meta app:
   to Google, Facebook and Instagram. A photo an owner sends becomes a drafted post within ten minutes (`src/posts.js`);
   with Full Max’s “Posts from your photos” switch on, it goes without the tap.
 
+## Shoulder Tap (src/tap.js)
+
+When a caller asks something only the owner knows, Max says he is checking, ends his reply with `[ASK: question]`, and
+the owner gets the question by text, push and on the live card in the app. A reply text (or the app's answer box) is said
+to the caller in the same call. No answer in 75 seconds: Max promises a call back as before. Late answers go on the call.
+
+- Who has it: `TAP_LIVE` in src/tap.js is false, so only lines whose `facts` list it: `features: ["tap"]` (every call) or
+  `testFeatures: ["tap"]` (calls from the numbers in `testers`). Since Nov 10 the Always Open line has
+  `testFeatures: ["prompt6","tap"]`. Going live everywhere is `TAP_LIVE = true` and a deploy.
+- Never on regulated lines (insurance, medical, legal). Daytime only (the business's call hours) unless a test call or the
+  owner's own setting is "any time" (`owner_set.tap`: off, day, always).
+- Limits: 2 asks a call, 12 an hour per business. The owner's texts come from the business's own number when its texting
+  is approved, else from Always Open's number with the business named. On the Always Open line Max asks Christopher
+  (OPS_TEXT_TO).
+- Practice calls: a voice_log row of kind `rehearse-request` with `features: ["tap"]`, `who`, and turns like
+  `{"owner": "Yes, by 3"}` (empty for no answer). Results are `rehearse` rows.
+- Turn it off for one line: remove "tap" from that line's features. For everyone: the owner's switch, or `TAP_LIVE = false`.
+
 ## How to roll back a deploy
 
 1. Actions tab, the failed run, read the "Check the live site" step: it says what it saw and whether it already
