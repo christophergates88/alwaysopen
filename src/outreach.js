@@ -246,6 +246,12 @@ export async function importList(env, c, csv, lookup, review) {
     await env.DB.prepare("INSERT OR REPLACE INTO outreach_review (id, client_id, kind, at, state, reasons, n) VALUES (?1,?2,'list',?3,'held',?4,?5)").bind(batch, c.client_id, now, JSON.stringify(rv.reasons), held).run();
     await askChristopher(env, c, batch, 'list', rv.reasons);
   }
+  // Landlines came back with no caller ID type at all: the lookup itself is failing (Twilio's caller name data), and every
+  // number is being skipped. That needs a look, so it gets one push.
+  const lines = checked.filter(x => CALLABLE.has(x.lk.type));
+  if (lines.length >= 5 && !lines.some(x => x.lk.callerType)) {
+    try { await (await import('./app.js')).opsPing(env, 'Outreach: caller ID lookups came back empty', (c.business || c.client_id) + ' added ' + lines.length + ' landlines and none came back with a caller ID type, so all were skipped. Check that Twilio Lookup returns caller names on the account.', 'default', 'telephone_receiver'); } catch (e) { /* the skips stand */ }
+  }
   const parts = [ready + ' ready'];
   if (held) parts.push(held + ' being checked by Always Open before any call (usually within a day)');
   if (skipped) parts.push(skipped + ' skipped (cell phones, home lines, hospitals, schools and the states we don\'t call are never called)');

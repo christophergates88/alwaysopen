@@ -161,6 +161,14 @@ test('import: Pro and signed terms first; every number checked; the free checks 
   const s = await O.outreachState(env, C);
   assert.equal(s.counts.skipped, 7);
   assert.ok(s.skippedList.some(x => x.b === 'Home Line' && x.why === 'home or personal line'));
+  // when caller ID comes back empty for every landline, nothing is called and Christopher gets one push (the lookup is failing)
+  const pushed = [], real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { pushed.push(String((init && init.body) || '') + ' ' + JSON.stringify((init && init.headers) || {})); return new Response('ok'); };
+  try {
+    const e2 = await O.importList(Object.assign({}, env, { NTFY_URL: 'https://ntfy.example/ops' }), C, 'A,478-555-0191\nB,478-555-0192\nC,478-555-0193\nD,478-555-0194\nE,478-555-0195', () => ({ type: 'landline', callerType: '', callerName: '' }));
+    assert.deepEqual([e2.ready, e2.skipped], [0, 5]);
+  } finally { globalThis.fetch = real; }
+  assert.ok(pushed.some(x => /caller ID lookups came back empty/.test(x)), 'one push says the lookup is failing');
 });
 
 test('a list that needs a look is held, Christopher gets a page with Approve and Reject, and approving lets it call', async () => {
