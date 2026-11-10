@@ -61,7 +61,7 @@ test('live: with every gate open nothing blocks the call, and an unknown call id
 
 test('the terms: the owner is the caller, releases and indemnifies us, and signs by typing a full name (Pro only)', async () => {
   const txt = O.TERMS_TEXT;
-  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Florida, Indiana, Minnesota and Oklahoma/, /legal name and call-back number you give us are your own/]) assert.match(txt, w);
+  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Florida, Indiana, Minnesota and Oklahoma/, /legal name and call-back number you give us are your own/, /asks you directly not to be called, you will enter their number at alwaysopenoffice.com\/stop-calls/]) assert.match(txt, w);
   assert.doesNotMatch(txt, /\bAI\b/);
   const DB = makeDB(), env = { DB };
   assert.equal((await O.agree(env, C, Object.assign({}, SIGN, { agree: false }))).ok, false, 'the box must be ticked');
