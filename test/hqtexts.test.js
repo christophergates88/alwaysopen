@@ -139,3 +139,18 @@ test('the Mac can share the people he texts (name and number only), for "Text Mi
   const v = JSON.parse((await e.DB.prepare("SELECT v FROM hq_kv WHERE k = 'people'").first()).v);
   assert.deepEqual(v.list, [{ n: 'Mike Barnes', p: '4785550123', last: '2026-11-09' }]);
 });
+
+test('people he answers himself get no push of our own unless it\'s urgent; the heads-up stays neutral for the lock screen', async () => {
+  const e = env(); seen = [];
+  await setMode(e, 'on');
+  await family(e, [{ name: 'Katie', relation: 'wife', phones: ['+19125151023'], texts: 'tell' }]);
+  answers = [{ action: 'escalate', category: 'personal', tell: 'Katie asked you to grab a bath mat.', suggest: 'got it, grabbing one after work' }];
+  const k = (await post(e, [chat({ handle: '+19125151023', name: 'Katie Gates', new: ['Bath mat!!'] })])).decisions[0];
+  assert.equal(k.action, 'escalate'); assert.equal(k.quiet, true);
+  answers = [{ action: 'escalate', category: 'urgent', urgent: true, tell: 'Katie needs you to call now.', suggest: '' }];
+  const u = (await post(e, [chat({ handle: '+19125151023', name: 'Katie Gates', new: ['call me asap'] })])).decisions[0];
+  assert.equal(u.quiet, false, 'urgent always reaches him');
+  answers = [{ action: 'escalate', category: 'money', tell: 'Josh asked for $40.', suggest: '' }];
+  assert.equal((await post(e, [chat({ new: ['venmo me 40'] })])).decisions[0].quiet, false, 'everyone else still gets the push');
+  assert.match(seen[0].system[0].text, /lock screen/);
+});
