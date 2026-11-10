@@ -35,7 +35,8 @@ const HEALTH = {
   backup: ['The weekly backup didn\'t happen', 'There\'s no fresh copy of the data.', claude('the Always Open backup didn\'t run.'), false],
   'google-connections': ['A client\'s Google connection is broken', 'Their reviews or calendar stopped syncing.', 'Nothing yet. The owner has a Reconnect button in their app. If it\'s still broken in 2 days, call them.', false],
   cron: ['Always Open\'s background jobs stopped', 'Reminders, checks and follow-ups aren\'t running.', claude('Always Open\'s background jobs stopped running.'), true],
-  'outreach-dnc': ['Outreach calls are paused: the Do Not Call check isn\'t answering', 'No Outreach call goes out until every number passes the national Do Not Call check, so nobody is being called.', 'Nothing if it clears within the hour. If it doesn\'t, check the DNCScrub account (billing and the API key), then ' + claude('the Outreach Do Not Call check is failing.'), false]
+  'outreach-dnc': ['Outreach calls are paused: the Do Not Call list needs loading', 'No Outreach call goes out until the number passes the national Do Not Call list, and the list is missing or more than 30 days old, so nobody is being called.', 'Log in at telemarketing.donotcall.gov, download the full list (all area codes), then double-click Load Do Not Call list in the GatesHQ folder on the Mac. If that doesn\'t clear it, ' + claude('the Outreach Do Not Call list will not load.'), false],
+  'outreach-dnc-due': ['The Do Not Call list is due for its monthly refresh', 'Outreach pauses itself when the list is more than 30 days old.', 'Log in at telemarketing.donotcall.gov, download the full list (all area codes), then double-click Load Do Not Call list in the GatesHQ folder on the Mac.', false]
 };
 const KINDS = [
   [/^stripe-dispute/, () => ['A client disputed a charge', 'Stripe opened a dispute.', 'Open Stripe, Disputes, and answer it before the deadline.']],

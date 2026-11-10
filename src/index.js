@@ -429,6 +429,17 @@ async function serve(req, env, ctx) {
     if (path === '/ops/hear-max') { const { boardOk } = await import('./opsboard.js'); return (await import('./hearmax.js')).armPage(env, req, url, await boardOk(env, url.searchParams.get('t') || '')); }
     // anyone can stop Outreach calls to their number from the website (outreach.js stopPage)
     if (path === '/stop-calls') return withSiteHeaders(await (await import('./outreach.js')).stopPage(env, req, url), url);
+    if (path === '/ops/dnc-list') {
+      // Our copy of the National Do Not Call Registry (dnclist.js): the Mac's monthly loader sends it here (POST, one step
+      // at a time), and GET says how old it is. The ops key only; the list itself is never sent back out.
+      const k = req.headers.get('x-key') || '';
+      if (!env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const D = await import('./dnclist.js');
+      if (req.method === 'GET') return json(Object.assign({ ok: true }, await D.dncListStatus(env)), 200);
+      if (req.method !== 'POST') return json({ ok: false, error: 'POST or GET' }, 405);
+      let body = null; try { body = await req.json(); } catch (e) { return json({ ok: false, error: 'send JSON' }, 400); }
+      try { const r = await D.loadStep(env, body); return json(r, r.ok ? 200 : 400); } catch (e) { return json({ ok: false, error: String((e && e.message) || e).slice(0, 200) }, 500); }
+    }
     if (path === '/ops/outreach-review') {
       // A held Outreach list or sentence: why it was held, and Approve or Reject (outreach.js reviewPage). The push that
       // links here carries a dated board token; the ops board's cookie works too.

@@ -20,10 +20,11 @@
 //   - never a regulated client; the owner's switch on; Christopher's kill switch on (billing_config outreach_enabled)
 //   - weekday business hours in the called number's time zone; one attempt per number per client per 30 days; one
 //     Outreach call per business per 7 days across every client; at most 50 a day per client, 3 every 10 minutes
-//   - the national Do Not Call Registry, every state's do-not-call list and known TCPA litigators (DNCScrub, Contact
-//     Center Compliance), when the list is added and again right before the call when the last check is a day old. No
-//     key, or no answer from the check, and nobody is called (Christopher, Nov 10, 2026: "scrub the numbers against the
-//     national do not call list as well")
+//   - the National Do Not Call Registry, from our own copy of the FTC's list (dnclist.js: free, because Always Open is an
+//     exempt organization; loaded every month from the Mac), when the list is added and again right before the call when
+//     the last check is a day old. No copy, a copy more than 30 days old, or no answer, and nobody is called (Christopher,
+//     Nov 10, 2026: "scrub the numbers against the national do not call list as well"; the paid DNCScrub check, with
+//     state lists and known litigators, stays wired in but only runs if its key is ever set: "eww no dnc scrub costs money")
 //   - weekdays 9 to 5 in every time zone the area code covers, never on a federal holiday; never office or cleaning
 //     supplies (the one kind of business-to-business call the Telemarketing Sales Rule does not exempt)
 //   - a bought list is always held for a person's look first
@@ -40,6 +41,7 @@
 import { callHoursOk, ph10, xml, xa, readAnswer, tzFor, dialOut, zonesOfNumber } from './callbacks.js';
 import { contradicts } from './disclosure.js';
 import { hardErrors } from './grades.js';
+import { registryCheck, dncListStatus, DNC_DUE_DAYS } from './dnclist.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 export const OUTREACH_LIVE = true;
@@ -50,13 +52,15 @@ export const ATTEST = 'I confirm this list is mine to use, every number on it is
 // Drafted Nov 10, 2026 for Carter to read; not legal advice to the client, and it says so. 2026-11-10b: "What we do"
 // now lists the checks added that afternoon (nobody had signed the first version). 2026-11-10c: the Do Not Call and
 // litigator checks, holidays, the website stop page (still nobody had signed). 2026-11-10d: the owner passes on any
-// do-not-call request made to them directly (still nobody had signed).
-export const TERMS_VERSION = '2026-11-10d';
+// do-not-call request made to them directly (still nobody had signed). 2026-11-10e: the check is our own copy of the
+// National Do Not Call Registry (no more than 31 days old); the paid state and litigator lists are no longer promised
+// (still nobody had signed).
+export const TERMS_VERSION = '2026-11-10e';
 export const TERMS_TITLE = 'Outreach Calls: Terms, Release and Indemnity';
 export const TERMS = [
   ['Who is calling', 'Outreach calls are placed at your direction, to the list you provide, saying the words you write, to promote your business. For every purpose, including the Telephone Consumer Protection Act (47 U.S.C. § 227), the FCC’s rules, the Telemarketing Sales Rule (16 C.F.R. Part 310) and any state telemarketing or calling law, you are the seller and the party on whose behalf each call is made, and you decide whether, whom and when to call. Always Open, a service of Lake Country Foam Party, LLC ("Always Open", "we"), only provides the technology that places the calls you direct.'],
   ['Your promises', 'You represent and warrant that: (a) you lawfully obtained every number on your list and have the right to use it to contact those businesses about your services; (b) every number belongs to a business and is not a residential line or a personal or wireless number of any individual; (c) you will not upload any number that is on the National Do Not Call Registry, a state do-not-call list, or your own do-not-call list, unless the law allows that call; (d) your message is true, not misleading, and does not claim to be from a person; (e) the legal name and call-back number you give us are your own and correct; (f) you hold any registration, license or bond a state requires of you to make these calls; (g) you will follow every law that applies to these calls, wherever the called business is; and (h) when anyone asks you directly not to be called, you will enter their number at alwaysopenoffice.com/stop-calls or tell us the same day, so that no Outreach call reaches them again.'],
-  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business; we check it against the National Do Not Call Registry, state do-not-call lists and a list of people known to sue over calls, and skip any match; and we skip numbers in California, Florida, Indiana, Minnesota and Oklahoma and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, never on federal holidays, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop or asks on our website. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked; a list you bought is always held. Outreach may not be used to sell office or cleaning supplies. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
+  ['What we do and may do', 'Before each call we check that the number is reported as a landline whose caller ID belongs to a business; we check it against the National Do Not Call Registry, using the FTC’s list no more than 31 days old, and skip any match; and we skip numbers in California, Florida, Indiana, Minnesota and Oklahoma and lines of hospitals, health care facilities, schools and emergency services. We call only during weekday business hours where the number is, never on federal holidays, at most once a month per number for you, at most 50 a day, and never again to anyone who says stop or asks on our website. Each call says it is an automated assistant calling for your legal name, how to stop the calls, and your call-back number. We review lists and messages and may hold any of them until a person has looked; a list you bought is always held. Outreach may not be used to sell office or cleaning supplies. These checks are a courtesy, not a promise that any call is lawful, and they do not shift your responsibility to us. We may refuse, pause or end Outreach, remove any number or change your message at any time, without notice. We keep your list, your signed terms, your message and records of every call, and may share them with any authority or court, or to defend a claim.'],
   ['Release', 'To the fullest extent the law allows, you release and forever discharge Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from any and all claims, demands, losses and liabilities of any kind, known or unknown, arising out of or related to Outreach calls made for you, your list, your message, or your use or misuse of Outreach.'],
   ['Indemnity', 'You will defend, indemnify and hold harmless Always Open and Lake Country Foam Party, LLC, and its members, managers, employees, contractors and agents, from and against any claim, lawsuit, investigation, fine, penalty, statutory damages, judgment, settlement, cost and attorneys’ fees arising out of or related to: (a) any call made at your direction; (b) your list or your message; (c) any breach of these terms or of your promises above; or (d) any violation of law by you or on your behalf. This applies even if a claim is made against us directly.'],
   ['Limits', 'Outreach is provided "as is". We make no promise about results or that any call complies with any law. To the fullest extent the law allows, our total liability to you for anything related to Outreach is limited to the fees you paid us in the month the claim arose, and we are not liable for any indirect, incidental, special, consequential or punitive damages.'],
@@ -95,15 +99,31 @@ export function blockedState(phone) { const d = ph10(phone); return d ? (AREA_ST
 // schools and the rest of the public-safety lines Indiana and others name. Read from the list's name and the caller ID.
 export const SENSITIVE = /\b(hospitals?|medical cent(er|re)|health ?care|clinic|urgent care|emergency (room|department|services|medical|line|dispatch|management)|e?911|9-1-1|physicians?|doctors?|dr\.?\s|pediatric|surgery|surgical|nursing|assisted living|senior living|care home|hospice|rehab(ilitation)? cent(er|re)|psychiatric|mental health|poison|fire (dept|department|district|station|rescue)|police|sheriff|marshal|ambulance|ems|paramedics?|dispatch|crisis|schools?|elementary|daycare|day care|preschool|city hall|town hall|courthouse)\b/i;
 
-// The national Do Not Call check (Nov 10, 2026: Christopher asked for it on top of the business-to-business rules).
-// DNCScrub by Contact Center Compliance (dnc.com): the National Do Not Call Registry, every state's list and known TCPA
-// litigators, in one answer per number. Its key is the DNC_LOGIN_ID secret ("Set Do Not Call key" on the Mac); the
-// account needs a National Do Not Call Registry subscription. No key, or no answer, and nobody is called.
-export const DNC_FRESH_MS = 24 * 3600000;   // checked again right before a call when the last check is older (the rule: 31 days)
-export function dncReady(env) { return !!(env && env.DNC_LOGIN_ID); }
-// phones: 10-digit numbers. Map(phone10 -> { ok, code, reason, why }), or null when the check could not run.
-export async function dncScrub(env, phones, f) {
-  if (!dncReady(env)) return null;
+// The Do Not Call check (Nov 10, 2026: Christopher asked for it on top of the business-to-business rules). First our own
+// copy of the National Do Not Call Registry (dnclist.js). Then, only if its key is ever set, DNCScrub by Contact Center
+// Compliance (dnc.com, paid: every state's list and known TCPA litigators; the DNC_LOGIN_ID secret). A number either
+// check can't answer for is not called.
+export const DNC_FRESH_MS = 24 * 3600000;   // checked again right before a call when the last check is older
+export function paidDncOn(env) { return !!(env && env.DNC_LOGIN_ID); }
+// Calls can go out: our copy of the national list is loaded and no more than 30 days old.
+export async function dncReady(env, now) { try { return (await dncListStatus(env, now)).ready; } catch (e) { return false; } }
+// phones: 10-digit numbers. Map(phone10 -> { ok, listed?, unknown?, code?, reason?, why }); "unknown" is never called.
+export async function dncScrub(env, phones, f, now) {
+  const out = await registryCheck(env, phones, now);
+  if (!paidDncOn(env)) return out;
+  const clean = phones.map(p => ph10(p)).filter(p => p && out.get(p) && out.get(p).ok);
+  if (!clean.length) return out;
+  const m = await dncScrubPaid(env, clean, f);
+  for (const p of clean) {
+    const x = m && m.get(p);
+    if (!x) out.set(p, { ok: false, unknown: true, why: 'the Do Not Call check gave no answer' });
+    else if (!x.ok) out.set(p, x);
+  }
+  return out;
+}
+// DNCScrub's own answer. Map(phone10 -> { ok, code, reason, why }), or null when it could not run.
+export async function dncScrubPaid(env, phones, f) {
+  if (!paidDncOn(env)) return null;
   const out = new Map();
   for (let at = 0; at < phones.length; at += 100) {
     const part = phones.slice(at, at + 100);
@@ -123,7 +143,7 @@ export async function dncScrub(env, phones, f) {
       out.set(p, { ok: code === 'C', code, reason, why: code === 'C' ? '' : dncWhy(code, reason) });
     }
     // a number the answer left out was not checked, so it is not called
-    for (const p of part) if (!out.has(p)) out.set(p, { ok: false, code: '', reason: '', why: 'the Do Not Call check gave no answer' });
+    for (const p of part) if (!out.has(p)) out.set(p, { ok: false, unknown: true, code: '', reason: '', why: 'the Do Not Call check gave no answer' });
   }
   return out;
 }
@@ -288,7 +308,7 @@ async function askChristopher(env, c, id, kind, reasons) {
 
 // The owner pastes or uploads a list. Every number is checked and the list is read; what can't be called is kept but
 // marked skipped with the reason, and a list that needs a look is held until Christopher approves it.
-// opts: { source } (a SOURCES key, required), { dncFetch } (tests).
+// opts: { source } (a SOURCES key, required), { dncFetch, now } (tests).
 export async function importList(env, c, csv, lookup, review, opts) {
   await ensureOutreach(env);
   opts = opts || {};
@@ -313,17 +333,19 @@ export async function importList(env, c, csv, lookup, review, opts) {
       checked[at + k] = { r, lk, v: pre.ok ? rowVerdict(r, lk, opted) : pre };
     }));
   }
-  // the national and state Do Not Call lists and known litigators, for every number that passed the rest. Not checked
-  // (no key yet, or no answer) leaves it unchecked: it is checked right before any call, and never called without it.
-  const now = new Date().toISOString();
+  // the national Do Not Call list, for every number that passed the rest. Not checked (no current list for its area code,
+  // or no answer) leaves it unchecked: it is checked right before any call, and never called without it.
+  const nowMs = opts.now || Date.now(), now = new Date(nowMs).toISOString();
   const live = checked.filter(x => x.v.ok).map(x => ph10(x.r.phone));
-  const dnc = live.length ? await dncScrub(env, live, opts.dncFetch) : null;
+  const dnc = live.length ? await dncScrub(env, live, opts.dncFetch, nowMs) : null;
+  let unchecked = 0;
   for (const x of checked) {
     x.dnc = ''; x.dncAt = '';
     if (!x.v.ok || !dnc) continue;
     const d = dnc.get(ph10(x.r.phone));
-    x.dnc = d && d.ok ? 'clean' : 'dnc: ' + ((d && (d.reason || d.code)) || 'no answer'); x.dncAt = now;
-    if (!d || !d.ok) x.v = { ok: false, why: d ? d.why : 'the Do Not Call check gave no answer' };
+    if (!d || d.unknown) { unchecked++; continue; }
+    x.dnc = d.ok ? 'clean' : 'dnc: ' + (d.reason || d.why || d.code); x.dncAt = now;
+    if (!d.ok) x.v = { ok: false, why: d.why };
   }
   const rv = await reviewList(env, c, checked, '', review);   // the sentence is read on its own when it is saved
   if (source === 'bought') rv.reasons.unshift('This list was bought. Bought lists often mix in home and cell numbers, so a person looks before any call.'), rv.hold = true;
@@ -351,7 +373,7 @@ export async function importList(env, c, csv, lookup, review, opts) {
   const parts = [ready + ' ready'];
   if (held) parts.push(held + ' being checked by Always Open before any call (usually within a day)');
   if (skipped) parts.push(skipped + ' skipped (cell phones, home lines, Do Not Call lists, hospitals, schools and the states we don\'t call are never called)');
-  return { ok: true, ready, held, skipped, dncChecked: !!dnc, message: parts.join(', ') + '.' + (dnc ? '' : ' Every number is checked against the Do Not Call lists before Max calls it.') };
+  return { ok: true, ready, held, skipped, dncChecked: !!live.length && !unchecked, message: parts.join(', ') + '.' + (unchecked ? ' Every number is checked against the national Do Not Call list before Max calls it.' : '') };
 }
 
 // Signed the current version of the terms (an older confirmation, or an older version, does not count).
@@ -458,7 +480,7 @@ export function blockedBy(row, ctx) {
   if (!ctx.pitchOn || !ctx.pitch) why.push('owner switch off');
   if (ctx.pitchHeld) why.push('sentence being checked');   // or not approved: the owner writes a new one
   if (!ctx.legal || !ctx.callback) why.push('no legal name or call-back number');
-  if (!ctx.dncReady) why.push('Do Not Call check not set up');
+  if (!ctx.dncReady) why.push('Do Not Call list not loaded');
   if (!CALLABLE.has(row.line_type)) why.push('not a business landline');
   if (row.caller_type !== 'BUSINESS') why.push('caller ID not a business');
   if (blockedState(row.phone)) why.push('state not called');
@@ -496,8 +518,8 @@ export async function outreachCron(env, now, opts) {
   await ensureOutreach(env);
   now = now || Date.now();
   const look = (opts && opts.lookup) || (p => lookupNumber(env, p));
-  const kill = await killSwitchOn(env), dncOn = dncReady(env);
-  let dncDown = false, dncChecked = false;
+  const kill = await killSwitchOn(env), dncOn = await dncReady(env, now);
+  let dncDown = false, dncChecked = false, waitingOnList = 0;
   // up to 60 waiting numbers per client, taken in turns (each client's first, then each client's second...), so one long
   // list never crowds out another client's
   const rows = ((await env.DB.prepare("WITH q AS (SELECT x.*, ROW_NUMBER() OVER (PARTITION BY x.client_id ORDER BY x.id) AS rn FROM outreach_lists x WHERE x.status = 'ready') SELECT o.*, l.number, l.business AS biz, l.regulated, l.owner_set, p.text AS pitch, p.on_ AS pitch_on, p.legal, p.callback, p.review AS pitch_review, json_extract(l.owner_set, '$.ownerName') AS owner, (SELECT 1 FROM outreach_terms a WHERE a.client_id = o.client_id AND a.version = ?1) AS att, (SELECT 1 FROM outreach_optout z WHERE z.phone10 = substr(o.phone, 3)) AS opted, (SELECT MAX(y.last_called) FROM outreach_lists y WHERE y.phone = o.phone AND y.last_called != '') AS any_at FROM q o LEFT JOIN voice_lines l ON l.number = (SELECT v.number FROM voice_lines v WHERE v.client_id = o.client_id ORDER BY v.number LIMIT 1) LEFT JOIN outreach_pitch p ON p.client_id = o.client_id WHERE o.rn <= 60 ORDER BY o.rn, o.client_id LIMIT 900").bind(TERMS_VERSION).all()).results) || [];
@@ -519,6 +541,7 @@ export async function outreachCron(env, now, opts) {
     const why = blockedBy(r, { now, killSwitchOn: kill, regulated: !!+r.regulated, pro: cl.pro, attested: !!r.att, pitch: r.pitch, pitchOn: !!+r.pitch_on, pitchHeld: r.pitch_review === 'held' || r.pitch_review === 'rejected',
       legal: r.legal, callback: r.callback, dncReady: dncOn, optedOut: !!r.opted, anyClientAt: calledNow.has(r.phone) ? new Date(now).toISOString() : r.any_at, dayCount: cl.day, tickCount: cl.tick, hoursOk });
     if (why.length === 1 && why[0] === 'not live') could++;
+    if (why.length === 1 && why[0] === 'Do Not Call list not loaded') waitingOnList++;
     if (why.length) continue;
     // right before the call: the line and its caller ID are read again (numbers move to cell phones and homes)
     const lk = asLookup(await look(r.phone)), v = rowVerdict(r, lk, false), at = new Date(now).toISOString();
@@ -526,15 +549,15 @@ export async function outreachCron(env, now, opts) {
       await env.DB.prepare("UPDATE outreach_lists SET status = ?1, line_type = ?2, caller_type = ?3, caller_name = ?4, checked_at = ?5 WHERE id = ?6").bind('skipped: ' + v.why + ' (checked before calling)', lk.type || 'unknown', lk.callerType, lk.callerName, at, r.id).run();
       continue;
     }
-    // and the Do Not Call lists, unless they were checked in the last day; no answer means no call this run
+    // and the Do Not Call list, unless it was checked in the last day; no answer means no call this run
     let dnc = r.dnc, dncAt = r.dnc_at;
     if (!(dnc === 'clean' && dncAt && now - Date.parse(dncAt) < DNC_FRESH_MS)) {
-      const m = await dncScrub(env, [ph10(r.phone)], opts && opts.dncFetch);
-      if (!m) { dncDown = true; await env.DB.prepare("UPDATE outreach_lists SET result = 'Do Not Call check did not answer; tried again next run' WHERE id = ?1").bind(r.id).run(); continue; }
-      const x = m.get(ph10(r.phone)); dncChecked = true;
-      dnc = x && x.ok ? 'clean' : 'dnc: ' + ((x && (x.reason || x.code)) || 'no answer'); dncAt = at;
-      if (!x || !x.ok) {
-        await env.DB.prepare('UPDATE outreach_lists SET status = ?1, dnc = ?2, dnc_at = ?3 WHERE id = ?4').bind('skipped: ' + (x ? x.why : 'the Do Not Call check gave no answer') + ' (checked before calling)', dnc, dncAt, r.id).run();
+      const x = (await dncScrub(env, [ph10(r.phone)], opts && opts.dncFetch, now)).get(ph10(r.phone));
+      if (!x || x.unknown) { dncDown = true; await env.DB.prepare('UPDATE outreach_lists SET result = ?1 WHERE id = ?2').bind('Do Not Call check did not answer (' + (x ? x.why : 'no answer') + '); tried again next run', r.id).run(); continue; }
+      dncChecked = true;
+      dnc = x.ok ? 'clean' : 'dnc: ' + (x.reason || x.why || x.code); dncAt = at;
+      if (!x.ok) {
+        await env.DB.prepare('UPDATE outreach_lists SET status = ?1, dnc = ?2, dnc_at = ?3 WHERE id = ?4').bind('skipped: ' + x.why + ' (checked before calling)', dnc, dncAt, r.id).run();
         continue;
       }
       await env.DB.prepare('UPDATE outreach_lists SET dnc = ?1, dnc_at = ?2 WHERE id = ?3').bind(dnc, dncAt, r.id).run();
@@ -551,11 +574,17 @@ export async function outreachCron(env, now, opts) {
     cl.day++; cl.tick++; calledNow.add(r.phone);
     if (d.ok) dialed++;
   }
-  // the check stays broken: one alert a day until it answers again, and the alert clears once it does
+  // the list is missing, too old, or doesn't answer while numbers are waiting: one alert a day until it does, cleared once
+  // a check passes; and from day 24, while numbers are waiting, a reminder to load the next month's list
   try {
     const O = await import('./ops.js');
-    if (dncDown) await O.opsAlert(env, 'health:outreach-dnc', '', 'The Do Not Call check (DNCScrub) did not answer, so no Outreach calls went out.');
+    if (waitingOnList) await O.opsAlert(env, 'health:outreach-dnc', '', waitingOnList + ' Outreach call(s) are waiting because the Do Not Call list is not loaded or is more than 30 days old. Download the full list at telemarketing.donotcall.gov and double-click Load Do Not Call list on the Mac.');
+    else if (dncDown) await O.opsAlert(env, 'health:outreach-dnc', '', 'The Do Not Call check could not answer for a number Outreach was about to call, so it was not called.');
     else if (dncChecked) await O.clearAlert(env, 'health:outreach-dnc');
+    if (dncOn && rows.length) {
+      const st = await dncListStatus(env, now);
+      if (st.days >= DNC_DUE_DAYS) await O.opsAlert(env, 'health:outreach-dnc-due', '', 'The Do Not Call list is ' + st.days + ' days old. Outreach pauses after ' + st.dueBy + ' unless the new month\'s list is loaded: download the full list at telemarketing.donotcall.gov, then double-click Load Do Not Call list on the Mac.');
+    }
   } catch (e) { /* the calls are held either way */ }
   return { could, dialed };
 }
@@ -740,6 +769,6 @@ export async function outreachState(env, c) {
   return { live: OUTREACH_LIVE, pro: outreachAllowed(c), label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: !!signed, signed: signed ? { name: signed.name, at: signed.at } : null,
     terms: { version: TERMS_VERSION, title: TERMS_TITLE, parts: TERMS.map(([h, t]) => ({ h, t })) }, pitch: p ? p.text : '', on: !!(p && +p.on_),
     legal: (p && p.legal) || '', callback: cbDefault, sentenceHeld: !!(p && p.review === 'held'), sentenceRejected: !!(p && p.review === 'rejected'),
-    states: Object.values(STATE_NAMES), dailyCap: DAILY_CAP, skippedList, dncReady: dncReady(env), sources: Object.entries(SOURCES).map(([k, t]) => ({ k, t })),
+    states: Object.values(STATE_NAMES), dailyCap: DAILY_CAP, skippedList, dncReady: await dncReady(env), sources: Object.entries(SOURCES).map(([k, t]) => ({ k, t })),
     counts: { ready: n('ready'), held: n('held'), skipped: n('skipped'), called: n('called') + n('done'), interested: n('interested'), optout: n('optout') } };
 }

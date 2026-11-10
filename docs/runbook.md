@@ -221,11 +221,17 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   time", then the owner's sentence, the owner's call-back number and one yes/no question. No voicemail. Not recorded.
 - Every number is checked with Twilio Lookup (line type and caller ID, about 2 cents) when the list is added and again
   right before the call. Called only if it is a landline or fixed internet line AND its caller ID type is BUSINESS.
-- The Do Not Call check (DNCScrub, Contact Center Compliance, dnc.com): the National Do Not Call Registry, every state
-  list and known TCPA litigators, at import and again right before a call when the last check is over a day old. Key:
-  Worker secret `DNC_LOGIN_ID` ("Set Do Not Call key.command" on the Mac). The DNCScrub account needs a National Do Not
-  Call Registry subscription (telemarketing.donotcall.gov). No key, or no answer: nobody is called, and a "health:
-  outreach-dnc" alert goes out once a day while it stays broken.
+- The Do Not Call check: our own copy of the National Do Not Call Registry (`src/dnclist.js`, tables `dnc_slices` and
+  `dnc_loads`), at import and again right before a call when the last check is over a day old. Always Open is
+  registered at telemarketing.donotcall.gov as an Exempt Organization (business-to-business calls, and calls to people
+  who asked for them), so the whole list is free; the SAN is in the account there. **Every month**: log in, download
+  the full list (all area codes, flat text), then double-click **Load Do Not Call list.command** in the GatesHQ folder
+  (`GatesHQ/tools/dncload.mjs`, from `tools/dncload.mjs` here; it posts to `/ops/dnc-list` with the ops key, and its
+  last run is in `GatesHQ/dnc-load-result.txt`). `GET /ops/dnc-list` with the key says how old the copy is. No copy, a
+  copy more than 30 days old, or an area code it doesn't have: that number is not called, and while numbers wait a
+  "health:outreach-dnc" alert goes out once a day. From day 24 a "health:outreach-dnc-due" reminder goes out once a
+  day while Outreach has numbers waiting. The paid DNCScrub check (state lists, known litigators) is still wired in and
+  runs on top only if the Worker secret `DNC_LOGIN_ID` is ever set; Christopher passed on paying for it (Nov 10, 2026).
 - Every call is in `outreach_calls` (sid, exact words, every check and when, who answered, the outcome, seconds). Keep
   it: the Telemarketing Sales Rule wants five years of records.
 - A machine (or an answer Twilio can't place) hears only "a telemarketing call ... on behalf of <legal name>, press 9 or

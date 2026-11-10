@@ -10,6 +10,8 @@ import fs from 'node:fs';
 import { register } from 'node:module';
 register('./rehearsal/hooks.mjs', import.meta.url);
 const O = await import('../src/outreach.js');
+const D = await import('../src/dnclist.js');
+const L = await import('../tools/dncload.mjs');
 const { makeDB } = await import('./rehearsal/harness.js');
 
 const C = { client_id: 'c1', regulated: 0, tier: 'Pro', business: 'Ace Hoods' };
@@ -30,7 +32,19 @@ function fakeDnc(flags) {
   f.calls = 0; f.seen = []; return f;
 }
 const DNCOK = fakeDnc();
-const SRC = { source: 'found', dncFetch: DNCOK };
+const SRC = { source: 'found', dncFetch: DNCOK, now: THU_10AM_ET };
+// Our copy of the national Do Not Call list, as the Mac's loader sends it: the numbers named are on it, dated the day
+// before `at` (THU_10AM_ET unless said), covering 478 and 706 plus the area codes of the numbers named.
+async function loadList(env, listed, at) {
+  at = at || THU_10AM_ET;
+  const st = L.newState();
+  L.feed(st, Buffer.from(listed.map(p => p.slice(0, 3) + ',' + p.slice(3)).join('\n') + '\n'));
+  const acs = new Set([478, 706, ...L.areaCodes(st)]);
+  const b = await D.loadStep(env, { op: 'begin', asOf: D.nyYmd(at - 86400000) }, at);
+  assert.equal(b.ok, true, b.error);
+  for (const ac of acs) assert.equal((await D.loadStep(env, Object.assign({ op: 'area', id: b.id }, L.areaBody(st, ac)), at)).ok, true);
+  assert.equal((await D.loadStep(env, { op: 'finish', id: b.id, areaCodes: acs.size }, at)).ok, true);
+}
 
 // Twilio stand-in: every dial is answered with a call id, and written down
 function fakeTwilio() {
@@ -38,8 +52,9 @@ function fakeTwilio() {
   globalThis.fetch = async (url, init) => { calls.push({ url: String(url), to: new URLSearchParams(String((init && init.body) || '')).get('To') }); return new Response(JSON.stringify({ sid: 'CA' + calls.length }), { status: 201, headers: { 'content-type': 'application/json' } }); };
   return { calls, done: () => { globalThis.fetch = real; } };
 }
-async function ready(env, client) {
+async function ready(env, client, o) {
   const DB = env.DB, c = client || C;
+  if (!(o && o.noList)) await loadList(env, []);
   await O.ensureOutreach(env);
   await DB.prepare("INSERT OR IGNORE INTO billing_config (k, v) VALUES ('outreach_enabled', '1')").run();
   await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, owner_set) VALUES (?1, ?2, ?3, 1, '{}')").bind(c.client_id === 'c1' ? '+14785550100' : '+14785550200', c.client_id, c.business || '').run();
@@ -61,8 +76,9 @@ test('live: with every gate open nothing blocks the call, and an unknown call id
 
 test('the terms: the owner is the caller, releases and indemnifies us, and signs by typing a full name (Pro only)', async () => {
   const txt = O.TERMS_TEXT;
-  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Florida, Indiana, Minnesota and Oklahoma/, /legal name and call-back number you give us are your own/, /asks you directly not to be called, you will enter their number at alwaysopenoffice.com\/stop-calls/]) assert.match(txt, w);
+  for (const w of [/you are the seller and the party on whose behalf each call is made/, /release and forever discharge Always Open and Lake Country Foam Party, LLC/, /defend, indemnify and hold harmless/, /not legal advice/i, /Georgia law governs/, /Telephone Consumer Protection Act/, /National Do Not Call Registry/, /California, Florida, Indiana, Minnesota and Oklahoma/, /legal name and call-back number you give us are your own/, /asks you directly not to be called, you will enter their number at alwaysopenoffice.com\/stop-calls/, /no more than 31 days old/]) assert.match(txt, w);
   assert.doesNotMatch(txt, /\bAI\b/);
+  assert.doesNotMatch(txt, /people known to sue|state do-not-call lists and/, 'only the checks that run are promised');
   const DB = makeDB(), env = { DB };
   assert.equal((await O.agree(env, C, Object.assign({}, SIGN, { agree: false }))).ok, false, 'the box must be ticked');
   assert.equal((await O.agree(env, C, Object.assign({}, SIGN, { version: '2026-11-10' }))).ok, false, 'the version before this one is refused');
@@ -412,58 +428,90 @@ test('a business that calls back and says "take us off your list" is never calle
   for (const w of ['can you call me back', 'I need to remove a stump', 'we stopped by yesterday']) assert.ok(!O.DNC_RE.test(w), w);
 });
 
-test('the Do Not Call check: national, state and litigator matches are skipped; no key or no answer means nobody is called', async () => {
-  // what DNCScrub's answers mean
+test('the Do Not Call check: a number on our copy of the national list is skipped; no copy or no answer means not checked', async () => {
+  // what DNCScrub's answers mean (the paid check: it only runs if its key is ever set)
   const env = { DNC_LOGIN_ID: 'k' };
-  const m = await O.dncScrub(env, ['4785550101', '4785550102', '4785550103', '4785550104', '4785550105'], fakeDnc({ '4785550102': ['D', 'National (USA)'], '4785550103': ['D', 'State (Georgia)'], '4785550104': ['D', 'Litigator'], '4785550105': ['W', ''] }));
+  const m = await O.dncScrubPaid(env, ['4785550101', '4785550102', '4785550103', '4785550104', '4785550105'], fakeDnc({ '4785550102': ['D', 'National (USA)'], '4785550103': ['D', 'State (Georgia)'], '4785550104': ['D', 'Litigator'], '4785550105': ['W', ''] }));
   assert.deepEqual([...m.entries()].map(([p, x]) => p + ' ' + x.ok + ' ' + x.why), ['4785550101 true ', '4785550102 false on the national Do Not Call list', '4785550103 false on a state Do Not Call list', '4785550104 false known to sue over calls', '4785550105 false did not pass the Do Not Call check (W)']);
-  assert.equal(await O.dncScrub({}, ['4785550101'], DNCOK), null, 'no key: not checked');
-  assert.equal(await O.dncScrub(env, ['4785550101'], async () => new Response('no', { status: 401 })), null, 'a refused key: not checked');
-  assert.equal(await O.dncScrub(env, ['4785550101'], async () => { throw new Error('down'); }), null, 'no answer: not checked');
-  const gap = await O.dncScrub(env, ['4785550101', '4785550109'], async () => new Response(JSON.stringify({ results: [{ Phone: '4785550101', ResultCode: 'C' }] }), { status: 200 }));
+  assert.equal(await O.dncScrubPaid({}, ['4785550101'], DNCOK), null, 'no key: the paid check does not run');
+  assert.equal(await O.dncScrubPaid(env, ['4785550101'], async () => new Response('no', { status: 401 })), null, 'a refused key: not checked');
+  assert.equal(await O.dncScrubPaid(env, ['4785550101'], async () => { throw new Error('down'); }), null, 'no answer: not checked');
+  const gap = await O.dncScrubPaid(env, ['4785550101', '4785550109'], async () => new Response(JSON.stringify({ results: [{ Phone: '4785550101', ResultCode: 'C' }] }), { status: 200 }));
   assert.equal(gap.get('4785550109').ok, false, 'a number the answer left out is not called');
-  // at import: a match is skipped with the reason the owner sees
-  const DB = makeDB(), e2 = { DB, DNC_LOGIN_ID: 'k' };
+  // at import: a number on the national list is skipped with the reason the owner sees; the rest are marked checked
+  const DB = makeDB(), e2 = { DB };
   await O.agree(e2, C, SIGN);
-  const dnc = fakeDnc({ '4785550162': ['D', 'National (USA)'], '4785550163': ['D', 'Litigator'] });
-  const r = await O.importList(e2, C, 'A,478-555-0161\nB,478-555-0162\nC,478-555-0163', () => BIZ(), undefined, { source: 'found', dncFetch: dnc });
-  assert.deepEqual([r.ready, r.skipped], [1, 2]);
+  await loadList(e2, ['4785550162']);
+  const r = await O.importList(e2, C, 'A,478-555-0161\nB,478-555-0162\nC,706-555-0163', () => BIZ(), undefined, { source: 'found', now: THU_10AM_ET });
+  assert.deepEqual([r.ready, r.skipped, r.dncChecked], [2, 1, true]);
+  assert.doesNotMatch(r.message, /checked against/);
   const st = Object.fromEntries((await DB.prepare("SELECT phone, status, dnc FROM outreach_lists WHERE client_id = 'c1'").all()).results.map(x => [x.phone, x.status + ' | ' + x.dnc]));
-  assert.deepEqual(st, { '+14785550161': 'ready | clean', '+14785550162': 'skipped: on the national Do Not Call list | dnc: National (USA)', '+14785550163': 'skipped: known to sue over calls | dnc: Litigator' });
-  // without a key the list still goes in, unchecked, and the owner is told it is checked before any call
+  assert.deepEqual(st, { '+14785550161': 'ready | clean', '+14785550162': 'skipped: on the national Do Not Call list | dnc: on the national Do Not Call list', '+17065550163': 'ready | clean' });
+  // with its key set, the paid check runs on top of ours: a litigator is skipped too
+  const DB4 = makeDB(), e4 = { DB: DB4, DNC_LOGIN_ID: 'k' };
+  await O.agree(e4, C, SIGN); await loadList(e4, []);
+  const r4 = await O.importList(e4, C, 'A,478-555-0164\nB,478-555-0165', () => BIZ(), undefined, { source: 'found', now: THU_10AM_ET, dncFetch: fakeDnc({ '4785550165': ['D', 'Litigator'] }) });
+  assert.deepEqual([r4.ready, r4.skipped], [1, 1]);
+  assert.equal((await DB4.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550165'").first()).status, 'skipped: known to sue over calls');
+  // no list loaded (or none for that area code): the list still goes in, unchecked, and the owner is told it is checked
+  // before any call
   const DB3 = makeDB(), e3 = { DB: DB3 };
   await O.agree(e3, C, SIGN);
-  const r3 = await O.importList(e3, C, 'A,478-555-0171', () => BIZ(), undefined, { source: 'found' });
+  const r3 = await O.importList(e3, C, 'A,478-555-0171', () => BIZ(), undefined, { source: 'found', now: THU_10AM_ET });
   assert.equal(r3.ready, 1);
-  assert.match(r3.message, /checked against the Do Not Call lists before Max calls it/);
-  assert.equal((await O.outreachState(e3, C)).dncReady, false, 'the app says calls start once the check is connected');
+  assert.match(r3.message, /checked against the national Do Not Call list before Max calls it/);
+  assert.equal((await DB3.prepare("SELECT dnc FROM outreach_lists WHERE phone = '+14785550171'").first()).dnc, '');
+  assert.equal((await O.outreachState(e3, C)).dncReady, false, 'the app says calls start once the list is loaded');
 });
 
-test('the cron: no Do Not Call key, nobody is called; a match found right before the call is skipped; no answer holds the call', async () => {
-  const DB = makeDB(), base = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
-  await ready(base);
+test('the cron: no list, nobody is called and Christopher hears why; a listed number is skipped; an old list or no answer holds the call', async () => {
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
+  await ready(env, C, { noList: true });
   await add(DB, 'c1', '+14785550181'); await add(DB, 'c1', '+14785550182');
+  const DEC10 = THU_10AM_ET + 35 * 86400000;   // Thursday, Dec 10, 10 AM Eastern
   const tw = fakeTwilio();
   try {
-    await O.outreachCron(base, THU_10AM_ET, { lookup: BIZ, dncFetch: DNCOK });
-    assert.equal(tw.calls.length, 0, 'no key: not one call');
-    const env = Object.assign({}, base, { DNC_LOGIN_ID: 'k' });
-    const down = async () => { throw new Error('down'); };
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: down });
-    assert.equal(tw.calls.length, 0, 'the check did not answer: no calls');
-    assert.match((await DB.prepare("SELECT result FROM outreach_lists WHERE phone = '+14785550181'").first()).result, /Do Not Call check did not answer/);
-    const dnc = fakeDnc({ '4785550182': ['D', 'State (Georgia)'] });
-    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ, dncFetch: dnc });
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
+    assert.equal(tw.calls.length, 0, 'no list: not one call');
+    assert.ok(await DB.prepare("SELECT 1 AS y FROM ops_alerts WHERE type = 'health:outreach-dnc'").first(), 'Christopher is told the list is what is waiting');
+    await loadList(env, ['4785550182']);
+    await O.outreachCron(env, THU_10AM_ET, { lookup: BIZ });
     assert.deepEqual(tw.calls.map(x => x.to), ['+14785550181']);
-    assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550182'").first()).status, 'skipped: on a state Do Not Call list (checked before calling)');
-    // a clean check from the last day isn't paid for twice
+    assert.equal((await DB.prepare("SELECT status FROM outreach_lists WHERE phone = '+14785550182'").first()).status, 'skipped: on the national Do Not Call list (checked before calling)');
+    // 35 days on, the same list no longer counts
     await add(DB, 'c1', '+14785550183');
-    await DB.prepare("UPDATE outreach_lists SET dnc = 'clean', dnc_at = ?1 WHERE phone = '+14785550183'").bind(new Date(THU_10AM_ET - 3600000).toISOString()).run();
-    const again = fakeDnc();
-    await O.outreachCron(env, THU_10AM_ET + 600000, { lookup: BIZ, dncFetch: again });
-    assert.equal(again.calls, 0, 'checked an hour ago: not checked again');
+    await O.outreachCron(env, DEC10, { lookup: BIZ });
+    assert.equal(tw.calls.length, 1, 'a list more than 30 days old: not called');
+    // a new month's list, and the paid check switched on: no answer from it holds the call; an answer lets it go
+    await loadList(env, [], DEC10);
+    const paid = Object.assign({}, env, { DNC_LOGIN_ID: 'k' });
+    await O.outreachCron(paid, DEC10, { lookup: BIZ, dncFetch: async () => { throw new Error('down'); } });
+    assert.equal(tw.calls.length, 1, 'the paid check did not answer: no call');
+    assert.match((await DB.prepare("SELECT result FROM outreach_lists WHERE phone = '+14785550183'").first()).result, /Do Not Call check did not answer/);
+    await O.outreachCron(paid, DEC10 + 600000, { lookup: BIZ, dncFetch: DNCOK });
     assert.deepEqual(tw.calls.map(x => x.to), ['+14785550181', '+14785550183']);
+    // a clean check from the last day isn't done twice
+    await add(DB, 'c1', '+14785550184');
+    await DB.prepare("UPDATE outreach_lists SET dnc = 'clean', dnc_at = ?1 WHERE phone = '+14785550184'").bind(new Date(DEC10 - 3600000).toISOString()).run();
+    const again = fakeDnc();
+    await O.outreachCron(paid, DEC10 + 1200000, { lookup: BIZ, dncFetch: again });
+    assert.equal(again.calls, 0, 'checked an hour ago: not checked again');
+    assert.deepEqual(tw.calls.map(x => x.to), ['+14785550181', '+14785550183', '+14785550184']);
   } finally { tw.done(); }
+});
+
+test('the monthly reminder: from day 24, while numbers are waiting, Christopher is told to load the next list', async () => {
+  const DB = makeDB(), env = { DB, VOICE_KEY: 'k' };
+  await ready(env);
+  await add(DB, 'c1', '+14785550185');
+  const night = Date.parse('2026-11-06T03:00:00Z');   // 10 PM Eastern: nothing is called, the numbers just wait
+  await O.outreachCron(env, night, { lookup: BIZ });
+  assert.equal(await DB.prepare("SELECT 1 AS y FROM ops_alerts WHERE type = 'health:outreach-dnc-due'").first(), null, 'a fresh list: no reminder');
+  await O.outreachCron(env, night + 24 * 86400000, { lookup: BIZ });
+  assert.ok(await DB.prepare("SELECT 1 AS y FROM ops_alerts WHERE type = 'health:outreach-dnc-due'").first(), 'day 25 of the list: reminded');
+  const s = await D.dncListStatus(env, night + 24 * 86400000);
+  assert.deepEqual([s.ready, s.days, s.asOf, s.dueBy], [true, 25, '2026-11-04', '2026-12-04']);
+  assert.equal((await D.dncListStatus(env, night + 31 * 86400000)).ready, false, 'day 32: not ready');
 });
 
 test('every call is written down for good: the exact words, every check and when, and what happened', async () => {
@@ -524,7 +572,9 @@ test('anyone can stop the calls from the website: every client, at once, twenty 
   assert.equal((await post({ phone: '478-555-0399' }, '9.9.9.9')).status, 200, 'the 20th from one connection');
   assert.equal((await post({ phone: '478-555-0398' }, '9.9.9.9')).status, 429, 'the 21st waits a day');
   const policy = fs.readFileSync(new URL('../public/do-not-call.html', import.meta.url), 'utf8');
-  for (const w of [/Do Not Call policy/, /National Do Not Call Registry, state do-not-call lists/, /at least five years/, /trained on this policy/, /\/stop-calls/]) assert.match(policy, w);
+  for (const w of [/Do Not Call policy/, /National Do Not Call Registry, using the FTC’s list no more than 31 days old/, /If our copy of the list is missing or out of date, no calls are made/, /at least five years/, /trained on this policy/, /\/stop-calls/]) assert.match(policy, w);
   for (const f of ['terms', 'privacy']) assert.match(fs.readFileSync(new URL('../public/' + f + '.html', import.meta.url), 'utf8'), /do-not-call\.html/);
+  // only the checks that actually run are promised, anywhere a client or a called business can read
+  for (const f of ['public/do-not-call.html', 'public/terms.html', 'public/privacy.html', 'public/index.html', 'src/apppage.js']) assert.doesNotMatch(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /known to sue|litigator|state do-not-call lists|national and state Do Not Call|Contact Center Compliance/i, f);
   assert.match(fs.readFileSync(new URL('../src/index.js', import.meta.url), 'utf8'), /'\/stop-calls'[\s\S]{0,200}stopPage/);
 });
