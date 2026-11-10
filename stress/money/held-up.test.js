@@ -76,7 +76,9 @@ test('minutes: last month\'s overage is put on the Stripe invoice once however m
   ck.set('2026-02-01T23:50:00Z'); await w.cron();
   assert.equal(w.S.invoiceItems.length, 0, 'nothing on the 1st');
   for (const t of ['2026-02-02T00:00:00Z', '2026-02-02T00:10:00Z', '2026-02-03T12:00:00Z', '2026-02-20T12:00:00Z']) { ck.set(t); await w.cron(); }
-  assert.deepEqual(w.S.invoiceItems.map(i => [i.customer, i.amount, i.description]).sort(), [[c.customer, 500, 'Max minutes past 300 in 2026-01: 20 minutes at 25¢'], [gone.customer, 500, 'Max minutes past 300 in 2026-01: 20 minutes at 25¢']].sort());
+  // Nov 10: c had the extra-minutes add-on in January (dropped mid-month in the test above), so January counts at 600
+  // and its 320 minutes owe nothing; the minutes a client had in a month decide, not today's add-on
+  assert.deepEqual(w.S.invoiceItems.map(i => [i.customer, i.amount, i.description]).sort(), [[gone.customer, 500, 'Max minutes past 300 in 2026-01: 20 minutes at 25¢']].sort());
   assert.deepEqual(w.S.invoices.filter(i => i.made_by_worker).map(i => [i.customer, i.status]), [[gone.customer, 'open']], 'the cancelled client has no next invoice, so theirs is finalized now, once');
 });
 

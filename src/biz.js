@@ -261,6 +261,8 @@ export async function apiQuote(req, env, c) {
   if (!q) return aj({ ok: false, error: 'That estimate is gone. Pull down to refresh.' }, 404);
   if (b.action === 'delete') { await env.DB.prepare('DELETE FROM biz_quotes WHERE id = ?1').bind(id).run(); return aj({ ok: true }); }
   if (b.action === 'invoice') {
+    // an invoice brings its reminders, which the site sells with Pro (Nov 10: Starter got them through an estimate)
+    if (!(await import('./app.js')).features(c).invoices) return aj({ ok: false, error: 'Invoices and their reminders come with the Pro plan.' }, 403);
     if (+q.invoice_id) return aj({ ok: false, error: 'This estimate is already an invoice.' }, 409);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? b.due : new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
     const pay = cl(b.payLink, 500), st = await stripeStatus(env, c.client_id);
@@ -431,16 +433,24 @@ export async function handleStripe(req, env, ctx, url) {
   if (ev.type === 'account.updated') {
     await env.DB.prepare('UPDATE biz_stripe SET ready = ?1, checked = ?2 WHERE account = ?3').bind(o.charges_enabled ? 1 : 0, now(), o.id).run();
   } else if (ev.type === 'checkout.session.completed' && o.payment_status === 'paid') {
+    // Only a session we made (a biz_pay row), on the account it was made for, for that business's own invoice. The
+    // metadata alone was trusted before: a business could name another business's invoice number in a session on its
+    // own Stripe account and be pushed that customer's name and amount (Nov 10).
     const pay = await env.DB.prepare('SELECT * FROM biz_pay WHERE session = ?1').bind(o.id).first();
-    const invId = pay ? +pay.invoice_id : +((o.metadata || {}).ao_invoice || 0);
-    const cid = pay ? pay.client_id : String((o.metadata || {}).ao_client || '');
     const acct = await env.DB.prepare('SELECT client_id FROM biz_stripe WHERE account = ?1').bind(ev.account || '').first();
-    if (invId && cid && acct && acct.client_id === cid) {
-      await markInvoicePaid(env, cid, invId);
-      await env.DB.prepare('UPDATE biz_pay SET paid = 1 WHERE session = ?1').bind(o.id).run();
-      const inv = await env.DB.prepare('SELECT name, amount, number FROM app_invoices WHERE id = ?1').bind(invId).first();
-      await env.DB.prepare('INSERT INTO biz_activity (client_id, at, who, role, what) VALUES (?1,?2,?3,?4,?5)').bind(cid, now(), 'Stripe', 'system', 'Card payment received for invoice ' + (inv && inv.number ? '#' + inv.number : '#' + invId)).run();
-      if (inv) ctx.waitUntil(pushClient(env, cid, { aps: { alert: { title: 'Paid: ' + inv.name, body: money(+inv.amount) + ' came in by card' + (inv.number ? ' for invoice #' + inv.number : '') + '.' }, sound: 'default', 'thread-id': 'money' }, screen: 'home' }).catch(() => {}));
+    if (pay && acct && acct.client_id === pay.client_id && pay.account === (ev.account || '') && !+pay.paid) {
+      const cid = pay.client_id, invId = +pay.invoice_id;
+      const inv = await env.DB.prepare('SELECT name, amount, number, status FROM app_invoices WHERE id = ?1 AND client_id = ?2').bind(invId, cid).first();
+      const claim = await env.DB.prepare('UPDATE biz_pay SET paid = 1 WHERE session = ?1 AND (paid IS NULL OR paid = 0)').bind(o.id).run();
+      if (inv && claim.meta && claim.meta.changes) {
+        const again = inv.status === 'paid';   // a second open session for the same invoice was paid too
+        await markInvoicePaid(env, cid, invId);
+        const ref = inv.number ? '#' + inv.number : '#' + invId;
+        await env.DB.prepare('INSERT INTO biz_activity (client_id, at, who, role, what) VALUES (?1,?2,?3,?4,?5)').bind(cid, now(), 'Stripe', 'system', (again ? 'A second card payment came in for invoice ' : 'Card payment received for invoice ') + ref).run();
+        ctx.waitUntil(pushClient(env, cid, { aps: { alert: again
+          ? { title: 'Paid twice: ' + inv.name, body: 'A second card payment of ' + money(+(o.amount_total || inv.amount)) + ' came in for invoice ' + ref + '. Refund one in your Stripe dashboard.' }
+          : { title: 'Paid: ' + inv.name, body: money(+inv.amount) + ' came in by card' + (inv.number ? ' for invoice #' + inv.number : '') + '.' }, sound: 'default', 'thread-id': 'money' }, screen: 'home' }).catch(() => {}));
+      }
     }
   }
   return new Response('ok');

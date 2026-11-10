@@ -25,12 +25,14 @@ async function signals(env, c) {
   const quotes = await one("SELECT COUNT(*) AS n FROM biz_quotes WHERE client_id = ?1 AND status NOT IN ('accepted','paid','declined','void') AND created > ?2", cid, since);
   const fu = await one("SELECT COUNT(*) AS n FROM app_followups WHERE client_id = ?1 AND status = 'open'", cid);
   const line = await one('SELECT industry, facts, on_air FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1', cid);
+  // the same meter the app shows and the bill uses (minutes.js): this month, Max's own time, the plan's real allowance
+  let meter = null; try { meter = await (await import('./minutes.js')).meterFor(env, cid); } catch (e) { meter = null; }
   const bill = await one('SELECT type FROM billing WHERE client_id = ?1', cid);
   let website = '';
   try { website = String((JSON.parse(line.facts || '{}') || {}).website || '').trim(); } catch (e) {}
   const kind = String(line.industry || bill.type || '');
   return {
-    calls: +calls.n || 0, missed: +calls.missed || 0, minutes: Math.round((+calls.secs || 0) / 60),
+    calls: +calls.n || 0, missed: +calls.missed || 0, minutes: Math.round((+calls.secs || 0) / 60), meter,
     reviews: +reviews.n || 0, low: +reviews.low || 0, leads: +leads.n || 0,
     unpaidN: +unpaid.n || 0, unpaid: +unpaid.s || 0, quotes: (+quotes.n || 0) + (+fu.n || 0),
     hasLine: !!(line && +line.on_air), website, kind,
@@ -67,9 +69,11 @@ export function score(s, c) {
     add({ id: 'plan-pro', kind: 'plan', name: 'Pro plan', price: dollars(PLANS.Pro.cents) + ' a month', what: 'Follow-up reminders for quotes, invoices and appointments, and missed-call text-back from your own number.', fit: f, why, ask: 'I’d like to hear about moving to the Pro plan.' });
   }
   if (s.hasLine) {
-    const used = s.minutes / 300, why = ['You used ' + s.minutes + ' of your 300 Max minutes in the last 30 days.'];
+    const inc = (s.meter && s.meter.included) || 300, mins = s.meter ? s.meter.used : s.minutes;
+    const used = mins / inc, why = ['You used ' + mins + ' of your ' + inc + ' Max minutes this month.'];
     let f = used >= 0.85 ? 90 : used >= 0.6 ? 60 : used >= 0.4 ? 35 : 10;
-    why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so ' + MAX.moreMinutes + ' more for ' + dollars(MAX.moreCents) + ' (about ' + Math.round(MAX.moreCents / MAX.moreMinutes) + '¢ a minute) is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
+    if (inc > 300) { f = 5; why.push('You already have the extra minutes, so there is nothing more to add here.'); }
+    else why.push(used >= 0.85 ? 'You are close to the limit. Past it, minutes cost 25¢ each, so ' + MAX.moreMinutes + ' more for ' + dollars(MAX.moreCents) + ' (about ' + Math.round(MAX.moreCents / MAX.moreMinutes) + '¢ a minute) is the cheaper way.' : used >= 0.6 ? 'Worth watching. If a busy month comes, you would run past 300.' : 'You have plenty of room, so you don’t need more right now.');
     add({ id: 'addon-minutes', kind: 'addon', name: 'More Max minutes', price: dollars(MAX.moreCents) + ' a month for ' + MAX.moreMinutes + ' more', what: 'Another 300 minutes a month of Max answering the calls you can’t.', fit: f, why, ask: 'I’d like to hear about more Max minutes.' });
   }
   {

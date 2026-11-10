@@ -152,15 +152,23 @@ async function pay(env, h, r, now) {
   if (!h.stripe) return 'wait';
   const claim = await env.DB.prepare("UPDATE referrals SET status = 'crediting', last_check = ?1 WHERE id = ?2 AND status = 'earned'").bind(iso(now), r.id).run();
   if (!(claim.meta && claim.meta.changes)) return 'wait';
+  let sent = false;
   try {
     const cents = monthCents(await h.stripe(env, 'GET', 'subscriptions/' + b.sub));
     if (!cents) throw new Error('could not price the month');
-    const tx = await h.stripe(env, 'POST', 'customers/' + b.customer + '/balance_transactions', { amount: -cents, currency: 'usd', description: 'Referral: one free month', metadata: { referral: String(r.id) } });
+    // one key per referral, so a retry can never credit twice; once asked, a lost answer is settled by recoverStuck
+    // from Stripe's own list, never by asking again (Nov 10: a lost answer gave two free months)
+    sent = true;
+    const tx = await h.stripe(env, 'POST', 'customers/' + b.customer + '/balance_transactions', { amount: -cents, currency: 'usd', description: 'Referral: one free month', metadata: { referral: String(r.id) } }, 'referral-' + r.id);
     await env.DB.prepare("UPDATE referrals SET status = 'credited', credited_at = ?1, credit_cents = ?2, txn = ?3, note = '' WHERE id = ?4").bind(iso(now), cents, (tx && tx.id) || '', r.id).run();
     await tell(env, h, r, cents);
     await bank(env, h, r.referrer_id, now);
     return 'credited';
   } catch (e) {
+    if (sent) {   // Stripe may have done it: left as 'crediting' for recoverStuck to look up in half an hour
+      await env.DB.prepare("UPDATE referrals SET note = ?1 WHERE id = ?2 AND status = 'crediting'").bind('answer lost, checking Stripe: ' + String((e && e.message) || e).slice(0, 100), r.id).run();
+      return 'failed';
+    }
     await env.DB.prepare("UPDATE referrals SET status = 'earned', note = ?1 WHERE id = ?2 AND status = 'crediting'").bind('credit failed: ' + String((e && e.message) || e).slice(0, 120), r.id).run();
     if (h.alert) await h.alert('referral-credit', 'A referral credit did not go through', 'Referral ' + r.id + ': ' + String((e && e.message) || e).slice(0, 200) + '. It will try again.').catch(() => {});
     return 'failed';

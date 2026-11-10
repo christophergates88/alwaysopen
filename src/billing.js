@@ -388,6 +388,8 @@ export async function subUpdated(env, o, h, call) {
     env.DB.prepare('UPDATE billing SET status = ?1, plan = ?2, max = ?3, updated = ?4 WHERE client_id = ?5').bind(status, plan, max, new Date().toISOString(), b.client_id),
     env.DB.prepare('UPDATE app_clients SET tier = ?1 WHERE client_id = ?2').bind(plan, b.client_id)
   ]);
+  // the extra minutes changing: noted per month, so last month's overage is billed against what they had then (minutes.js)
+  if (+max !== +b.max) { try { await (await import('./minutes.js')).noteAddon(env, b.client_id, +max === 1, Date.now()); } catch (e) { /* the 10-minute job marks months too */ } }
   if (plan !== b.plan && h && h.notify) await h.notify('Plan changed in Stripe', b.plan + ' to ' + plan + ' for ' + b.client_id + '.');
 }
 

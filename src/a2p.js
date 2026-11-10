@@ -293,7 +293,8 @@ export async function advance(env, cid) {
 export async function a2pCron(env) {
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_PRIMARY_PROFILE_SID)) return { skipped: true };
   await ensureA2p(env);
-  const rows = ((await env.DB.prepare("SELECT client_id FROM a2p_reg WHERE status IN ('submitted','in_review') ORDER BY updated LIMIT 10").all()).results) || [];
+  // only for a business that is still a client: nothing more is filed with the carriers for one that left (Nov 10)
+  const rows = ((await env.DB.prepare("SELECT r.client_id FROM a2p_reg r JOIN app_clients c ON c.client_id = r.client_id AND c.active = 1 WHERE r.status IN ('submitted','in_review') ORDER BY r.updated LIMIT 10").all()).results) || [];
   let moved = 0;
   for (const r of rows) { try { await advance(env, r.client_id); moved++; } catch (e) {} await new Promise(x => setTimeout(x, 1100)); }   // Twilio asks for one brand/campaign request per second
   return { moved };

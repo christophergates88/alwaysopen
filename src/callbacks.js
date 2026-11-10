@@ -393,6 +393,11 @@ export async function callbackCron(env) {
   let called = 0;
   for (const r of late) {
     await env.DB.prepare("UPDATE callbacks SET status = 'missed' WHERE id = ?1").bind(r.id).run();
+    // a business that is no longer a client: Max does not phone its customers (Nov 10)
+    const act = await env.DB.prepare('SELECT active, tier FROM app_clients WHERE client_id = ?1').bind(r.client_id).first().catch(() => null);
+    if (act && !+act.active) continue;
+    // Max phoning the customer for a new time is sold with Pro; on other plans the owner was nudged and it stays theirs
+    if (act && act.tier && act.tier !== 'Pro') continue;
     const tz = await tzFor(env, r.client_id);
     const slot = proposeSlot(tz, now, busyFromLine(r, tz));
     const line = r.number ? { client_id: r.client_id, number: r.number, business: r.business, regulated: r.regulated, owner_set: r.owner_set } : null;

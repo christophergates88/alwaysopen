@@ -165,6 +165,9 @@ async function incoming(env, f) {
     // Paused (by the owner in the app, or by us): Max is not on this call. Noted so the voicemail sweep never writes it
     // up as a hang-up (no "hung up" push, no "Sorry we missed you" text for a call the owner may well have answered).
     try { await (await import('./voicemail.js')).markPassedBy(env, sid, E164.test(line.transfer_to || '') ? 'line paused: rang through' : 'line paused'); } catch (e) { /* the sweep also skips paused lines */ }
+    // a plan that ended: the number is only kept in case they come back; calls are not put through on our minutes (Nov 10)
+    const gone = await clientGone(env, line.client_id);
+    if (gone) return twiml(say(biz + ' is not taking calls at this number. Goodbye.') + '<Hangup/>');
     if (E164.test(line.transfer_to || '')) return twiml('<Dial timeout="25" callerId="' + xa(E164.test(from) ? from : to) + '"><Number>' + xa(line.transfer_to) + '</Number></Dial>');
     return twiml(say('Thanks for calling ' + biz + '. We cannot take your call right now. Please call back during business hours. Goodbye.') + '<Hangup/>');
   }
@@ -2881,6 +2884,12 @@ function textMsg(token, last, lang) { const o = { type: 'text', token, last }; i
 
 // ---------- helpers ----------
 // The line as callers get it: HQ's setup with the owner's own changes from the app on top (see withOwner in app.js).
+// A business whose plan ended (app_clients.active = 0). Our own line and the sample line are never "gone".
+async function clientGone(env, cid) {
+  if (!cid || cid === OWN_ID || cid === 'demo-plumbing') return false;
+  const r = await env.DB.prepare('SELECT active FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  return !!r && !+r.active;
+}
 async function lineFor(env, number) {
   if (!number) return null;
   return withOwner(await env.DB.prepare('SELECT * FROM voice_lines WHERE number = ?1').bind(number).first());
