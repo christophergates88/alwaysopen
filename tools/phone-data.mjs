@@ -12,7 +12,8 @@ const WHY = {
   cb: 'No more “someone will call you.” Max names a set time inside your hours. If you miss it, he calls them to set a new one.',
   fill: 'A day is wide open. Past customers who are due, and said yes to texts, get offered it. The first yes is booked.',
   storm: 'When a weather warning hits your county, our team drafts a storm-day post. You approve it from wherever you are.',
-  ai: 'Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.'
+  ai: 'Customers ask answer assistants who to call. Once a month we ask them about you, and fix whatever they get wrong, where it comes from.',
+  outreach: 'Give Max a list of businesses and one sentence. He calls their business landlines, never cell phones or homes, and every yes lands in your leads.'
 };
 
 // The seven cards for a trade, from a few facts about it.
@@ -67,6 +68,17 @@ function tradeCards(v) {
       { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', v.storm.title || 'Storm tonight in Putnam County', v.storm.post + ' ' + v.storm.extra], ['sys', 'Posted to your Google profile · 3:15 PM']] }
     ]
   });
+  // Outreach (Nov 10, 2026): the call as src/outreach.js script() says it, to a made-up business's landline. Who it's for
+  // and how to stop come first, so the card opens on them; the rest of the call plays when tapped.
+  if (v.outreach) cards.push({
+    key: 'outreach', title: 'Outreach calls', tag: TAG.pro, why: WHY.outreach,
+    intro: [['sys', 'Max calls ' + v.outreach.to + '’s business line · ' + (v.outreach.when || 'Tue 10:05 AM')],
+      ['out', 'Hi, this is Max, an automated assistant calling for ' + v.biz + ' LLC. To stop these calls, say stop or press 9 at any time.']],
+    choices: [
+      { label: 'Hear the rest', then: [['out', v.outreach.pitch + ' You can reach ' + v.biz + ' at 478-555-0142. Would you like ' + v.owner + ' to give you a call about it?'], ['in', 'Sure, have ' + (he === 'she' ? 'her' : 'him') + ' call.'], ['note', 'On ' + v.owner + '’s phone · new lead', v.outreach.to + ' wants a call', v.outreach.need + ' · 478-555-0181', 'ok']] },
+      { label: 'Say stop', then: [['in', 'Stop.'], ['out', 'Understood. You will not get these calls again. Goodbye.'], ['sys', v.outreach.to + ' is never called again, by any business on Always Open']] }
+    ]
+  });
   cards.push({
     key: 'ai', title: 'What assistants say about you', tag: TAG.growth, why: WHY.ai,
     intro: [['sys', 'A customer asks an answer assistant'], ['in', v.ai.q], ['ai', v.ai.wrong]],
@@ -87,7 +99,8 @@ const PLUMB = {
   check: { q: 'did the water heater hold up?', bad: 'the water heater is leaking again.' },
   busy: 'Sam’s under a house in Greensboro.', cbWhy: 'Breaker tripping',
   fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your water heater is due for its yearly flush' },
-  storm: { post: 'If a limb takes out a line or a pipe bursts, we’re answering the phone all night. Stay safe and call us any time.', extra: 'Sump pump questions too.' }
+  storm: { post: 'If a limb takes out a line or a pipe bursts, we’re answering the phone all night. Stay safe and call us any time.', extra: 'Sump pump questions too.' },
+  outreach: { to: 'Ace Diner', pitch: 'We clean restaurant grease lines after closing, before they back up.', need: 'Grease line cleaning' }
 };
 
 export const PAGES = {
@@ -117,6 +130,7 @@ export const PAGES = {
       busy: 'Sam’s on a call in Greensboro.', cbWhy: 'Breaker tripping',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your system is due for its fall tune-up' },
       storm: { post: 'If the power blinks and your AC or heat won’t come back on, call us. We’re answering the phone all night.', extra: 'Ask us about surge protection, too.' },
+      outreach: { to: 'Lakeview Property Management', pitch: 'We keep rooftop units running for property managers, with one maintenance plan for every building.', need: 'Maintenance plan · 6 buildings' },
       ai: { q: 'Who can fix my AC tonight in Eatonton?', wrong: 'Tolliver Heating and Air is listed at 478-555-0100.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who can fix my AC tonight in Eatonton?', right: 'Tolliver Heating and Air, 478-555-0142. They answer around the clock.' }
     })
   },
@@ -132,6 +146,7 @@ export const PAGES = {
       busy: 'Sam’s on a job in Greensboro.', cbWhy: 'Porch estimate',
       fill: { day: 'Thursday', slot: 'Thursday morning', reason: 'your deck is due for its yearly seal' },
       storm: { post: 'If a limb comes down on your roof or deck tonight, call us. We’re answering all night and can tarp first thing.', extra: 'Stay off ladders until it passes.' },
+      outreach: { to: 'Harbor Realty', pitch: 'We do the repairs and punch lists agents need before a house lists, usually inside a week.', need: 'Pre-listing repairs' },
       ai: { q: 'Who builds screened porches near Eatonton?', wrong: 'Brannock Builders may be closed. One listing says “permanently closed.”', fixT: 'An old listing says closed', fixP: 'A duplicate listing said closed. We had it removed.', q2: 'Who builds screened porches near Eatonton?', right: 'Brannock Builders, 478-555-0142. They build porches and decks around Lake Oconee.' }
     })
   },
@@ -147,6 +162,7 @@ export const PAGES = {
       busy: 'Sam’s got a car on the lift.', cbWhy: 'Cracked windshield',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your car is due for an oil change' },
       storm: { post: 'Storms tonight. If a limb hits your car or you get stuck, call us. We’re answering the phone all night.', extra: 'We can line up a tow first thing.' },
+      outreach: { to: 'Oconee Landscaping', pitch: 'We keep work trucks and vans on the road, with fleet pricing and same-day oil changes.', need: 'Fleet service · 5 work trucks' },
       ai: { q: 'Is Pickard Auto open Saturdays?', wrong: 'No. Pickard Auto is closed on weekends, according to Facebook.', fixT: 'Wrong hours on Facebook', fixP: 'They’re open Saturday 8 to noon. We fixed it on Facebook.', q2: 'Who can look at my car Saturday in Eatonton?', right: 'Pickard Auto is open Saturday 8 to noon. 478-555-0142.' }
     })
   },
@@ -162,6 +178,7 @@ export const PAGES = {
       busy: 'Sam’s out on the water.', cbWhy: 'Seawall washing out',
       fill: { day: 'Thursday', slot: 'Thursday at 9 AM', reason: 'your lift is due for its spring service' },
       storm: { title: 'Storm tonight on the lake', post: 'If your dock or lift takes a hit tonight, call us. We’re answering all night and out first thing.', extra: 'Tie down cushions and covers now.' },
+      outreach: { to: 'Lakeside Vacation Rentals', pitch: 'We inspect and repair docks for rental homes before the summer season.', need: 'Dock inspections · 12 rental homes' },
       ai: { q: 'What’s the number for Kessler Marine?', wrong: '478-555-0100, according to Yelp.', fixT: 'Wrong phone on Yelp', fixP: 'That’s the old number. We fixed it on Yelp.', q2: 'Who fixes boat lifts on Lake Oconee?', right: 'Kessler Marine, 478-555-0142. They answer around the clock.' }
     })
   },
@@ -177,6 +194,7 @@ export const PAGES = {
       busy: 'Jess is mid-color.', cbWhy: 'Lash extensions',
       fill: { day: 'Thursday', slot: 'Thursday at 2 PM', reason: 'it’s been six weeks since your color' },
       storm: { title: 'Storms this afternoon', post: 'If you need to move your visit because of the weather, call us. We’re answering all day and will fit you in.', extra: 'No fee for weather changes.' },
+      outreach: { to: 'Oconee Event Barn', pitch: 'We do hair and makeup for wedding parties, on site at venues around the lake.', need: 'Wedding parties · 14 this spring' },
       ai: { q: 'Is Larkspur Salon open Sundays?', wrong: 'Yes. Larkspur Salon is open Sundays 10 to 4, according to Yelp.', fixT: 'Wrong hours on Yelp', fixP: 'They’re closed Sundays. We fixed it on Yelp.', q2: 'Where can I get color Saturday near Eatonton?', right: 'Larkspur Salon is open Saturday 9 to 5. 478-555-0142.' }
     })
   },
@@ -191,6 +209,7 @@ export const PAGES = {
       check: { q: 'did the catering order go the way you wanted?', bad: 'the order came out short.' }, checkWhy: 'A few days after a catering order, Max calls: how did it go? A no reaches you right away, so you can make it right. Every customer gets the review request, whatever they answer.',
       busy: 'Sam’s on the line for lunch.', cbWhy: 'Wedding cake',
       storm: { title: 'Closing at 8 tonight', post: 'Storms are on the way, so we’re closing at 8. Delivery runs until 7:30. Stay dry.', extra: 'Regular hours tomorrow.' },
+      outreach: { to: 'Putnam Title and Escrow', pitch: 'We cater office lunches for ten to a hundred, delivered by 11:30.', need: 'Office lunch · 25 people, monthly' },
       ai: { q: 'Is Brickyard Kitchen open Mondays?', wrong: 'No. Brickyard Kitchen is closed Mondays, according to Tripadvisor.', fixT: 'Wrong hours on Tripadvisor', fixP: 'They’re open Mondays now. We fixed it on Tripadvisor.', q2: 'Where can I get lunch Monday in Eatonton?', right: 'Brickyard Kitchen is open Monday 11 to 9. 478-555-0142.' }
     })
   },
@@ -259,13 +278,13 @@ export const FOLDS = {
   index: {
     try: 'Our own line. Call it and test him.',
     day: 'What happens at 2 AM, 7 AM and 4:45 PM while you work.',
-    only: 'Tap to open all six.',
+    only: 'Tap to open all seven.',
     what: 'Reviews, your Google profile, posts and follow-ups, in detail.',
     audit: 'What the free audit covers, with a sample report.'
   },
   trade: {
     calls: 'How calls, follow-ups and reviews work for a business like yours.',
-    only: 'Tap to open all three.'
+    only: 'Tap to open all four.'
   },
   dental: {
     calls: 'How Max answers, and what reaches the front desk.'

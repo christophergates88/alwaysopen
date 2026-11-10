@@ -205,15 +205,32 @@ to the caller in the same call. No answer in 75 seconds: Max promises a call bac
 
 Live since Nov 10, 2026 (Carter read the B2B plan; Christopher said go). Max calls a client's own list of business
 landlines with one sentence the owner wrote, and asks if they want a call; yes becomes a lead, stop is for good.
+Tightened the same afternoon, after Christopher asked whether it met the commercial-landline rules.
 
+- Pro only (or the `outreach` extra in `app_clients.feats`), never a regulated client. Growth and Starter see what it
+  does and an "Ask about Pro" button.
 - Three switches, all needed: `OUTREACH_LIVE` in src/outreach.js (true), Christopher's kill switch
   (`billing_config` row `outreach_enabled` = '1'; '0' stops every outreach call at the next tick), and the owner's own
-  switch, which only turns on after the owner signs the Outreach terms.
-- The terms (`TERMS`, version `TERMS_VERSION`): the client is the caller/seller, warranties about the list, release,
-  indemnity, limits, not legal advice. Signatures are in `outreach_terms` (name typed, time, text hash, IP hash,
-  browser). Changing the wording means a new `TERMS_VERSION`, and every owner signs again before calls resume.
-- Never: regulated clients, mobile or unknown numbers (Twilio Lookup), weekends, outside 9 to 5 where the number is,
-  a number called in the last 30 days, anyone who said stop (for every client), an ended client or a paused line.
+  switch, which only turns on after the owner signs the Outreach terms and gives the business's legal name and a
+  call-back number (their own, not the line Max calls from).
+- The terms (`TERMS`, version `TERMS_VERSION`, now `2026-11-10b`): the client is the caller/seller, warranties about
+  the list, release, indemnity, limits, not legal advice. Signatures are in `outreach_terms` (name typed, time, text
+  hash, IP hash, browser). Changing the wording means a new `TERMS_VERSION`, and every owner signs again before calls
+  resume.
+- The call: "an automated assistant calling for <legal name>", then "To stop these calls, say stop or press 9 at any
+  time", then the owner's sentence, the owner's call-back number and one yes/no question. No voicemail. Not recorded.
+- Every number is checked with Twilio Lookup (line type and caller ID, about 2 cents) when the list is added and again
+  right before the call. Called only if it is a landline or fixed internet line AND its caller ID type is BUSINESS.
+- Never: cell phones, home lines, unknown or unlisted caller IDs, toll-free, hospitals, clinics, doctors, care homes,
+  schools, police, fire, 911 and other emergency lines (`SENSITIVE`), area codes in California, Florida, Indiana,
+  Minnesota and Oklahoma (`BLOCKED_STATES`), weekends, outside 9 to 5 where the number is, a number this client called
+  in the last 30 days, a number any client called in the last 7, anyone who said stop (for every client, including a
+  business that calls the line back and says "take us off your list"), an ended client or a paused line.
+- Limits: 3 calls per client every 10 minutes, 30 per run in all, 50 per client a day.
+- Lists and sentences are read automatically (the rules, then Claude Haiku). Plainly personal or sensitive names are
+  skipped on their own. Only a list or sentence that needs a person's look is held (`outreach_review`), and Christopher
+  gets one push with a link to `/ops/outreach-review?id=...` (ops board token or cookie): Approve lets it call, Reject
+  calls nobody. `/ops/outreach-review` with no id lists what is waiting.
 - Stop everything now: `UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'`.
 
 ## How to roll back a deploy

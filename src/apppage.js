@@ -1249,21 +1249,42 @@ function afterCard(L){
 }
 function outreachCard(){
   var R=S.outreach;if(!R)return '';
-  var c=R.counts||{};
-  var h='<h2>'+esc(R.label)+'</h2><div class="card form">';
+  var c=R.counts||{},mx=esc((S.line&&S.line.name)||'Max');
+  var h='<h2>'+esc(R.label)+'</h2>';
+  // Not on Pro: what it does, and how to get it.
+  if(!R.pro)return h+'<div class="feature locked"><h3>'+mx+' calls businesses for you</h3><p>Give '+mx+' a list of businesses and one sentence about what you offer. '+mx+' calls their business landlines on weekdays, says who the call is for, and asks if they want to hear from you. Every yes lands in your leads. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-outreach">Ask about Pro</button></div></div>';
+  h+='<div class="card form">';
   if(!R.live)h+='<p class="note" style="margin-top:0"><b>Not calling yet.</b> This is being reviewed before it goes live. You can set it up now, and nothing is dialed until then.</p>';
   h+='<p class="fine">'+esc(R.sub)+'</p>';
   // The terms come first: Outreach only turns on once the owner has read and signed them (the current version).
-  if(!R.attested)return h+'<p>Before '+esc((S.line&&S.line.name)||'Max')+' calls anyone for you, read and sign the Outreach terms. You are the caller: your list, your words, your responsibility.</p><div class="acts"><button class="btn red" type="button" data-a="or-terms">Read and sign the terms</button></div></div>';
-  h+='<p class="fine"><span class="chip">Terms signed</span> '+esc(R.signed&&R.signed.name||'')+(R.signed&&R.signed.at?', '+esc(new Date(R.signed.at).toLocaleDateString()):'')+'. <a href="#" data-a="or-terms">Read them</a></p>'+
-    '<label>What Max says for you (one sentence)<textarea id="or-pitch" maxlength="240" rows="3" placeholder="We clean commercial kitchen hoods and can work around your hours.">'+esc(R.pitch||'')+'</textarea></label>'+
-    '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span><b>Outreach calls on</b><br><span class="fine">Max calls the businesses on your list, weekdays 9 to 5 their time.</span></span></label>'+
+  if(!R.attested)return h+'<p>Before '+mx+' calls anyone for you, read and sign the Outreach terms. You are the caller: your list, your words, your responsibility.</p><div class="acts"><button class="btn red" type="button" data-a="or-terms">Read and sign the terms</button></div></div>';
+  h+='<p class="fine"><span class="chip">Terms signed</span> '+esc(R.signed&&R.signed.name||'')+(R.signed&&R.signed.at?', '+esc(new Date(R.signed.at).toLocaleDateString()):'')+'. <a href="#" data-a="or-terms">Read them</a></p>';
+  if(R.sentenceHeld)h+='<p class="note"><b>We are reading your sentence.</b> '+mx+' starts calling once it is approved, usually within a day.</p>';
+  else if(R.sentenceRejected)h+='<p class="note"><b>'+mx+' can’t use this sentence.</b> Write a new one: plain and true, about your own work, with no prices or promises.</p>';
+  h+='<label>Your business’s legal name<input type="text" id="or-legal" maxlength="80" autocomplete="organization" placeholder="Smith Plumbing LLC" value="'+esc(R.legal||'')+'"></label>'+
+    '<label>Number they can call you back on<input type="tel" id="or-cb" maxlength="20" autocomplete="tel" placeholder="(478) 555-0100" value="'+esc(R.callback?fmtPhone(R.callback):'')+'"></label>'+
+    '<label>What '+mx+' says for you (one sentence)<textarea id="or-pitch" maxlength="240" rows="3" placeholder="We clean commercial kitchen hoods and can work around your hours.">'+esc(R.pitch||'')+'</textarea></label>'+
+    '<p class="fine" style="margin-bottom:4px">What they hear</p><p class="sample" id="or-hear" style="margin-top:0">'+esc(orHear())+'</p>'+
+    '<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="or-on"'+(R.on?' checked':'')+'> <span><b>Outreach calls on</b><br><span class="fine">'+mx+' calls the businesses on your list, weekdays 9 to 5 their time, up to '+(R.dailyCap||50)+' a day.</span></span></label>'+
     '<div class="acts"><button class="btn red" type="button" data-a="or-save">Save</button></div>'+
     '<label>Businesses to call (one per line: name, phone, contact)<textarea id="or-list" rows="4" placeholder="Ace Diner, 478-555-0101, Sam"></textarea></label>'+
     '<div class="acts"><button class="btn line" type="button" data-a="or-list">Check and add</button></div>'+
-    '<p class="fine">'+c.ready+' ready, '+c.skipped+' skipped (mobile numbers are never called), '+c.called+' called, '+c.interested+' interested, '+c.optout+' asked not to be called.</p>';
+    '<p class="fine">Every number is checked when you add it and again right before '+mx+' calls. Cell phones, home lines, hospitals, schools, emergency lines and numbers in '+esc((R.states||[]).join(', ').replace(/, ([^,]*)$/,' and $1'))+' are never called. Anyone who says stop is never called again.</p>'+
+    '<p class="fine">'+(c.ready||0)+' ready, '+(c.held?c.held+' being checked, ':'')+(c.skipped||0)+' skipped, '+(c.called||0)+' called, '+(c.interested||0)+' want a call, '+(c.optout||0)+' asked not to be called.</p>'+
+    (R.skippedList&&R.skippedList.length?'<p class="fine">Skipped: '+R.skippedList.slice(0,8).map(function(x){return esc(x.b||x.p)+' ('+esc(x.why)+')';}).join(', ')+(c.skipped>8?', and '+(c.skipped-8)+' more':'')+'.</p>':'');
   return h+'</div>';
 }
+// The call as the business hears it, from what is typed right now (the server says exactly this; outreach.js script()).
+function orHear(){
+  var R=S.outreach||{},v=function(id,d){var x=$('#'+id);return x?x.value.trim():d;};
+  var legal=v('or-legal',R.legal||'')||'[your legal name]',pitch=v('or-pitch',R.pitch||'')||'[your sentence]',cb=v('or-cb',R.callback?fmtPhone(R.callback):'')||'[your number]';
+  var biz=(S.client&&S.client.business)||legal,who=(S.client&&S.client.first)||('someone from '+biz);
+  return 'Hi, this is '+((S.line&&S.line.name)||'Max')+', an automated assistant calling for '+legal+'. To stop these calls, say stop or press 9 at any time. '+pitch+' You can reach '+biz+' at '+cb+'. Would you like '+who+' to give you a call about it? Say yes or no.';
+}
+function fmtPhone(p){var d=String(p||'').replace(/[^0-9]/g,'');if(d.length===11&&d.charAt(0)==='1')d=d.slice(1);return d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):String(p||'');}
+function orPreview(){var x=$('#or-hear');if(x)x.textContent=orHear();}
+// What Save sends: the sentence, the switch, the legal name and the call-back number.
+function orPitchBody(on){var R=S.outreach||{},v=function(id,d){var x=$('#'+id);return x?x.value:d;};return {action:'pitch',text:v('or-pitch',R.pitch||''),on:on,legal:v('or-legal',R.legal||''),callback:v('or-cb',R.callback||'')};}
 // The terms, in a sheet: read, tick, type your full name, sign. thenOn: turn Outreach on right after signing.
 function outreachTerms(thenOn){
   var R=S.outreach;if(!R||!R.terms)return;
@@ -1578,10 +1599,10 @@ document.addEventListener('click',function(e){
     api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'agree',version:S.outreach.terms.version,name:nm1,agree:true})}).then(function(res){
       if(!res.j.ok){toast(res.j.error||'Could not sign.');return;}
       var sc=$('#scrim');if(sc){sc.hidden=true;sc.innerHTML='';}
-      if(on1)api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'pitch',text:($('#or-pitch')||{}).value||S.outreach.pitch||'',on:true})}).then(function(r2){toast(r2.j.ok?'Signed. Outreach is on.':(r2.j.error||'Signed. Now write your sentence and turn it on.'));load(true);});
+      if(on1)api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(orPitchBody(true))}).then(function(r2){toast(r2.j.ok?(r2.j.message||'Signed. Outreach is on.'):(r2.j.error||'Signed. Now write your sentence and turn it on.'));load(true);});
       else{toast('Signed. Now write your sentence and turn it on.');load(true);}});}
   else if(a==='or-attest'||a==='or-save'||a==='or-list'){if(a==='or-attest'){outreachTerms(false);return;}
-    var ob=a==='or-save'?{action:'pitch',text:($('#or-pitch')||{}).value||'',on:!!(($('#or-on')||{}).checked)}:{action:'list',csv:($('#or-list')||{}).value||''};
+    var ob=a==='or-save'?orPitchBody(!!(($('#or-on')||{}).checked)):{action:'list',csv:($('#or-list')||{}).value||''};
     if(a==='or-save'&&ob.on&&!S.outreach.attested){outreachTerms(true);return;}
     api('outreach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ob)}).then(function(res){if(res.j&&res.j.needTerms){outreachTerms(true);return;}toast(res.j.ok?(res.j.message||'Saved.'):(res.j.error||'Could not save.'));if(res.j.ok)load(true);});}
   else if(a&&a.indexOf('after-')===0){var k=a.slice(6),o={};o[k]=!(S.after&&S.after[k]);lineSave({after:o},function(){load(true);});}
@@ -1595,6 +1616,7 @@ document.addEventListener('click',function(e){
   else if(a==='tap-when')lineSave({tap:$('#tap-when').value},function(){load(true);});
   else if(a==='line-save')lineSave({hours:$('#lh').value,owner:$('#lo').value,transferTo:$('#lt').value,transferWhen:$('#lw').value,greeting:$('#lg').value});
   else if(a==='ask-pro')askAbout('Pro','I\u2019d like to hear about the Pro plan: follow-ups and missed-call text-back.');
+  else if(a==='ask-outreach')askAbout('Pro','I’d like to hear about the Pro plan and Outreach calls to businesses.');
   else if(a==='ask-growth')askAbout('Growth','I\u2019d like to hear about the Growth plan and competitor watch.');
   else if(a==='ask-max')maxSetup(t);
   else if(a==='go-leads'){TAB='customers';render();window.scrollTo(0,0);}
@@ -1606,7 +1628,7 @@ document.addEventListener('click',function(e){
   else if(a&&a.indexOf('pc-')===0)pastAct(a,id,t);
 });
 function touch(t){if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&TOUCHED.indexOf(t)<0)TOUCHED.push(t);}
-document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
+document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&/^or-(legal|cb|pitch)$/.test(t.id))orPreview();if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;touch(t);if(t&&t.id==='lw')DIRTY=true;});
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
 document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id&&e.target.id.indexOf('tap-CA')===0){e.preventDefault();tapSend(e.target);return;}if(e.key==='Escape'&&!$('#scrim').hidden)close();else if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('mapbox')){e.preventDefault();mapOpen();}});

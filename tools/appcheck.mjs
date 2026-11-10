@@ -134,6 +134,31 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
     }
   }
 }
+// the same card on Pro once the terms are signed (Nov 10, 2026): the legal name, the call-back number, the sentence, and
+// the call as the business will hear it, following what is typed
+{
+  const cid = (await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id;
+  const O = await import('../src/outreach.js');
+  await DB.prepare("UPDATE app_clients SET tier = 'Pro' WHERE client_id = ?1").bind(cid).run();
+  const cl = await DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(cid).first();
+  const sg = await O.agree(env, cl, { version: O.TERMS_VERSION, name: 'Dana Sinclair', agree: true });
+  if (!sg.ok) problems.push('outreach (Pro): could not sign the terms: ' + sg.error);
+  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
+  const mx = await page.$('[data-tab="max"]'); if (mx) { await mx.click(); await page.waitForTimeout(300); }
+  const card = await page.evaluateHandle(() => { const h = [...document.querySelectorAll('h2')].find(x => /Outreach calls/.test(x.textContent)); return h ? h.nextElementSibling : null; });
+  const el = card && card.asElement();
+  if (!el || !(await el.$('#or-legal')) || !(await el.$('#or-cb')) || !(await el.$('#or-hear'))) problems.push('outreach (Pro): the legal name, call-back number or preview is missing');
+  else {
+    await page.fill('#or-legal', 'Sinclair Plumbing LLC'); await page.fill('#or-cb', '(478) 555-0142'); await page.fill('#or-pitch', 'We service commercial water heaters and can come after hours.');
+    const hear = await page.textContent('#or-hear');
+    if (!/calling for Sinclair Plumbing LLC\. To stop these calls, say stop or press 9 at any time\. We service commercial water heaters/.test(hear) || !/\(478\) 555-0142/.test(hear)) problems.push('outreach (Pro): the preview did not follow what was typed: ' + hear.slice(0, 140));
+    const bad = await el.evaluate(c => { const out = []; c.querySelectorAll('button,input,textarea,label').forEach(x => { const b = x.getBoundingClientRect(); if (b.width && b.height && (b.height < 43.5) && !x.matches('label') && !x.matches('input[type=checkbox]')) out.push(x.tagName + '#' + x.id + ' ' + Math.round(b.height)); }); c.querySelectorAll('p,label,span,b').forEach(x => { const px = parseFloat(getComputedStyle(x).fontSize); if (px < 15 && !x.closest('.fine,small')) out.push('text ' + px + 'px "' + x.textContent.trim().slice(0, 30) + '"'); });
+      const J = /\b(configure|integration|sync|status|enable|dashboard|pending|queue|listing|segment|settings|feature)s?\b/i; c.querySelectorAll('b,h2,h3,button').forEach(x => { const m = x.textContent.match(J); if (m) out.push('jargon "' + m[0] + '"'); }); if (/\bAI\b/.test(c.innerText)) out.push('says AI'); return out; });
+    bad.forEach(x => problems.push('outreach card (Pro): ' + x));
+    if (shots) { await el.evaluate(x => x.previousElementSibling.scrollIntoView()); await el.screenshot({ path: path.join(shots, 'app-outreach-pro.png') }); }
+  }
+  await DB.prepare("UPDATE app_clients SET tier = 'Growth' WHERE client_id = ?1").bind(cid).run();
+}
 // the live map (Brief 4, Part 1): the map itself on Customers, examples when nobody is near, a full-screen sheet on tap
 { const cu = await page.$('[data-tab="customers"]'); if (cu) { await cu.click(); await page.waitForTimeout(300); }
   const box = await page.$('#map .mapbox');

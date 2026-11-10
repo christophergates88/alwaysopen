@@ -37,7 +37,8 @@ const PLANS = [
     'Llamadas de vuelta con hora fija. Si a usted se le pasa, Max llama para poner otra', 'La llamada de los tres días: Max llama al cliente, y un no le llega a usted de inmediato',
     'Pases: si alguien necesita otro oficio, Max lo comunica con un negocio cercano en Always Open, y ese negocio le puede mandar trabajo a usted', 'Confirmaciones y recordatorios de citas',
     'Recordatorios de facturas y pagos', 'Recordatorios de temporada y a clientes anteriores, pedidos de referidos',
-    'Llene mi semana: un día libre en su calendario se les ofrece a clientes anteriores que aceptaron mensajes, y el primer sí queda reservado'] }
+    'Llene mi semana: un día libre en su calendario se les ofrece a clientes anteriores que aceptaron mensajes, y el primer sí queda reservado',
+    'Llamadas a otros negocios: Max llama a una lista de negocios que usted le da, a sus líneas fijas de negocio, y les pregunta si quieren que usted los llame (las llamadas son en inglés)'] }
 ];
 const planHtml = p => '<h3>' + p.name + '</h3><div class="price"><b>' + p.price + '</b><span>/ mes</span></div><p class="perday">' + p.per + '</p><p class="for">' + p.for + '</p><ul>' +
   p.items.map(i => /^<li/.test(i) ? i : '<li>' + i + '</li>').join('') + '</ul>' + (p.note ? '<p class="plan-note">' + p.note + '</p>' : '') + '<a class="btn ' + p.btn[0] + '" href="/start?plan=' + p.name + '">' + p.btn[1] + '</a>';
@@ -53,7 +54,7 @@ export const ES_HOME = [
   { s: 'header.hero p.fine', h: 'Sin cargo de instalación · Mes a mes · Inglés y español' },
   { s: 'header.hero .onlylink', h: 'Todo lo que hacemos, en una pantalla <span aria-hidden="true">&darr;</span>' },
   { s: '#only .head .eyebrow', h: 'Solo aquí' },
-  { s: '#only .head h2', h: 'Seis cosas que nadie más hace.' },
+  { s: '#only .head h2', h: 'Siete cosas que nadie más hace.' },
   { s: '#only .head > p:not(.eyebrow)', h: 'Contestar reseñas y llamadas es lo mínimo. Estas son las partes que construimos porque los negocios pequeños seguían perdiendo los mismos trabajos de la misma manera.' },
   ...scene(1, 'Pases entre negocios', 'Ejemplo: Max le dice a quien llama que el negocio no hace trabajos eléctricos y lo comunica con Lane Electric, un negocio cercano en Always Open.',
     bub('in', '¿Ustedes hacen trabajos eléctricos? Se me sigue botando el breaker.') + bub('out', 'Nosotros no hacemos electricidad, pero Lane Electric, a dos millas de aquí, también está en Always Open. ¿Quiere que lo comunique?') + bub('in', 'Sí, por favor.') + bub('sys', 'Comunicado con Lane Electric · 2:14 PM'),
@@ -73,6 +74,10 @@ export const ES_HOME = [
   ...scene(6, 'Lo que dicen de usted los asistentes', 'Ejemplo: un asistente le da a un cliente un número viejo sacado de Yelp, y la revisión mensual lo detecta y lo corrige.',
     bub('in', '¿Cuál es el número de Sinclair Plumbing en Eatonton?') + bub('out', '478-555-0100, según Yelp.') + card('La revisión de este mes', 'Teléfono equivocado en Yelp', 'Ese es el número viejo. Lo corregimos en Yelp, y ahora el asistente lo nombra a usted primero entre los plomeros de Eatonton.'),
     'Los clientes les preguntan a los asistentes a quién llamar. Una vez al mes les preguntamos por usted y corregimos lo que digan mal, desde donde se origine.'),
+  // Outreach (Nov 10, 2026): the call is in English, as the real one is, so its words stay English here
+  ...scene(7, 'Llamadas a otros negocios', 'Ejemplo: Max llama a la línea de negocio de un restaurante de parte de Sinclair Plumbing, dice que es un asistente automático y cómo detener las llamadas, y el restaurante pide que el dueño lo llame.',
+    bub('sys', 'Max llama a la línea de negocio de Ace Diner · martes 10:05 AM') + bub('out', 'Hi, this is Max, an automated assistant calling for Sinclair Plumbing LLC. To stop these calls, say stop or press 9 at any time. We clean restaurant grease lines after closing, before they back up. You can reach Sinclair Plumbing at 478-555-0142. Would you like Sam to give you a call about it?') + bub('in', 'Sure, have him call.') + card('En su teléfono · cliente potencial nuevo', 'Ace Diner quiere una llamada', 'Limpieza de líneas de grasa · 478-555-0181'),
+    'Dele a Max una lista de negocios y una frase sobre lo que usted ofrece. Él llama a sus líneas fijas de negocio entre semana, dice de parte de quién llama y cómo detener las llamadas, y cada sí llega a sus clientes potenciales. Las llamadas son en inglés. Nunca se llama a celulares ni a teléfonos de casa.'),
   { s: '#only p.sample', h: 'Ejemplos. Los suyos llevan el nombre de su negocio.' },
   { s: '#pricing .head .eyebrow', h: 'Precios' },
   { s: '#pricing .head h2', h: 'Pruébelo un mes. Si no vale la pena, no lo paga.' },
@@ -232,7 +237,7 @@ export const ES_DOES = [
   { s: '#does h2', h: 'La parte de atrás de su negocio, llevada por nosotros.' },
   { s: '#does .head p:not(.eyebrow)', h: 'Todo lo que un negocio necesita y nunca tiene tiempo de hacer, desde el teléfono hasta el seguimiento. Usted lo aprueba desde su teléfono, y una página le muestra lo que se hizo, al día todo el mes y enviada a usted el día 2.' },
   { s: '#does .pillar:nth-child(1) h3', h: 'Llamadas, de día y de noche' },
-  { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max contesta, de día y de noche</b><span>: a su nombre, con los datos que usted aprueba, y le avisa al instante si es urgente</span></li><li><b>Devoluciones a tiempo</b><span>: una hora fija dentro de su horario, no “alguien lo llamará”</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li>' },
+  { s: '#does .pillar:nth-child(1) ul', h: '<li><b>Max contesta, de día y de noche</b><span>: a su nombre, con los datos que usted aprueba, y le avisa al instante si es urgente</span></li><li><b>Devoluciones a tiempo</b><span>: una hora fija dentro de su horario, no “alguien lo llamará”</span></li><li><b>Inglés y español</b><span>: en todos los planes, sin costo extra</span></li><li><b>Llamadas a otros negocios</b><span>: en Pro, Max llama a los negocios de su lista y les pregunta si quieren saber de usted</span></li>' },
   { s: '#does .pillar:nth-child(1) a', h: 'Escúchelo <span aria-hidden="true">&rarr;</span>' },
   { s: '#does .pillar:nth-child(2) h3', h: 'Reseñas y su nombre en internet' },
   { s: '#does .pillar:nth-child(2) ul', h: '<li><b>Cada reseña respondida</b><span>: con su voz, también las buenas</span></li><li><b>Perfil de Google al día</b><span>: y los mismos datos en cada directorio</span></li><li><b>Vigilancia de la competencia</b><span>: cómo se compara con los negocios cercanos, cuando usted quiera</span></li><li><b>Lo que dicen los asistentes de usted</b><span>: revisado cada mes y corregido donde esté mal</span></li>' },

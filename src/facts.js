@@ -5,7 +5,7 @@
 export const PLANS = {
   Starter: { cents: 14900, perDay: 5, blurb: 'Every review answered, your Google profile kept current, Max answering your calls (300 minutes a month), a booking and quote page, a monthly report and your own app.' },
   Growth: { cents: 29900, perDay: 10, blurb: 'Starter, plus review requests after every job, posts from your photos, every lead logged, competitor watch and Storm Desk.' },
-  Pro: { cents: 49900, perDay: 16, blurb: 'Growth, plus your own business number, missed-call text-back, and reminders for quotes, appointments and invoices.' }
+  Pro: { cents: 49900, perDay: 16, blurb: 'Growth, plus your own business number, missed-call text-back, reminders for quotes, appointments and invoices, and Outreach calls to businesses.' }
 };
 export const MAX = { includedMinutes: 300, moreMinutes: 300, moreCents: 5900, overCentsPerMinute: 25, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
 export const ADDONS = {
@@ -49,6 +49,6 @@ export function ownLineFacts() {
     // the check-in when a caller goes quiet asks, it doesn't tease ("See? Told you I was good. Left you speechless.").
     greeting2: 'What can I do for you?',
     nudge: 'Still there? I can tell you what we do, what it costs, or how it works on your number.',
-    plans: 'Every plan, Starter included, has a booking and quote page customers can use any hour. Growth adds review requests after every job, posts from their photos, matching listings, every lead logged, and competitor watch. Pro adds their own business number with missed-call text-back and reminders for quotes, appointments and invoices; texting starts once carriers approve the number, ' + PROMISES.textingApproval + '. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
+    plans: 'Every plan, Starter included, has a booking and quote page customers can use any hour. Growth adds review requests after every job, posts from their photos, matching listings, every lead logged, and competitor watch. Pro adds their own business number with missed-call text-back and reminders for quotes, appointments and invoices; texting starts once carriers approve the number, ' + PROMISES.textingApproval + '. Pro adds Outreach too: Max calls a list of businesses the owner gives him, on their business landlines only, never cell phones or homes, and asks if they want a call from the owner; the owner signs Outreach terms in the app first. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
   };
 }

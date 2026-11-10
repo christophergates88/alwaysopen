@@ -350,7 +350,7 @@ export async function handleApp(req, env, ctx, url) {
       let b = {}; try { b = await req.json(); } catch (e) {}
       const r = b.action === 'agree' ? await outreachAgree(env, c, b, { by: c.whoName || c.owner_first || 'Owner', ip: await ipKey(req, env), ua: req.headers.get('user-agent') || '' })
         : b.action === 'attest' ? await outreachAttest(env, c, c.owner_name || 'owner')
-        : b.action === 'pitch' ? await outreachPitch(env, c, b.text, !!b.on)
+        : b.action === 'pitch' ? await outreachPitch(env, c, b.text, !!b.on, { legal: b.legal, callback: b.callback })
         : b.action === 'list' ? await outreachImport(env, c, String(b.csv || '').slice(0, 60000))
         : { ok: false, error: 'Bad request' };
       return aj(r, r.ok ? 200 : 400);
@@ -1454,7 +1454,9 @@ export function features(c) {
     // what the site sells as Pro: invoice reminders and past-customer reminders
     invoices: pro || has('followups'), past: (pro || has('followups')) && !reg,
     // the three-day check-in and hand-offs are on the Pro card of the pricing page (Nov 10: the app gave them to Growth and Starter)
-    checkins: (pro || has('checkins')) && !reg, handoffs: (pro || has('handoffs')) && !reg, tier: c.tier || '' };
+    checkins: (pro || has('checkins')) && !reg, handoffs: (pro || has('handoffs')) && !reg,
+    // Outreach calls to businesses: Pro only, never a regulated client (outreach.js outreachAllowed is the same rule)
+    outreach: (pro || has('outreach')) && !reg, tier: c.tier || '' };
 }
 function qrOut(q) {
   const m = String(q || '').match(/^(\d{2,3})\|([Mhvz0-9 .-]+)$/);

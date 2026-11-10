@@ -1387,6 +1387,10 @@ async function writeUp(env, sid, s, why) {
     env.DB.prepare('DELETE FROM call_live WHERE id = ?1').bind(sid).run().catch(() => {});
     return interviewWriteUp(env, call, msgs, line, brain, pushClient);
   }
+  // A business that got an Outreach call rings back and says "take us off your list": Outreach never calls it again,
+  // for any client (outreach.js inboundOptOut; only numbers Outreach has called count).
+  let orOut = false;
+  if (heard && !call.test && call.caller) { try { orOut = await (await import('./outreach.js')).inboundOptOut(env, call.caller, msgs.filter(x => x.r === 'u').map(x => x.t).join(' '), call.client_id); } catch (e) { orOut = false; } }
   let note = null, aiIn = (s && s.aiIn) || 0, aiOut = (s && s.aiOut) || 0, model = (s && s.model) || '';
   if (heard && s && s.robo) note = { name: '', callback: '', reason: 'Robocall or sales call', details: '', when: '', urgent: false, spam: true, summary: 'A robocall or sales call. Max ended it.' };
   else if (heard) {
@@ -1411,6 +1415,7 @@ async function writeUp(env, sid, s, why) {
       : notPickedUp ? 'They asked to be put through, and nobody picked up. Call them back.' : 'They hung up before leaving a message.');
   // Shoulder Tap: what Max asked the owner mid-call and what came back, on the call's own note.
   if (s && s.taps && s.taps.length) { summary = (summary + tapSummary(s.taps)).trim(); closeTaps(env, sid).catch(() => {}); }
+  if (orOut) summary = (summary + ' They asked not to get Outreach calls, so Max will not call them again.').trim();
   const transcript = transcriptOf(msgs, s && s.held);
   if (s && s.lat && s.lat.length) await vlog(env, 'latency', JSON.stringify({ sid, model: (s && s.model) || '', firstWordMs: s.lat }));
   await env.DB.prepare('UPDATE app_calls SET transferred = CASE WHEN transferred = 2 THEN 0 ELSE transferred END, caller_name = ?1, reason = ?2, details = ?3, wants = ?4, callback = ?5, urgency = ?6, summary = ?7, transcript = ?8, lang = ?9, turns = ?10, relay_seconds = ?11, ai_in = ?12, ai_out = ?13, ai_model = ?14, outcome = ?15, notified = 1, hq_synced = 0 WHERE id = ?16')

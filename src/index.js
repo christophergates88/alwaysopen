@@ -403,6 +403,13 @@ async function serve(req, env, ctx) {
     if (path === '/hear-max.mp3' || path === '/hear-max-es.mp3') return (await import('./hearmax.js')).serveAudio(env, req, path === '/hear-max-es.mp3' ? 'es' : 'en');
     if (path === '/ops/post') return (await import('./postqueue.js')).handlePostQueue(req, env, url);
     if (path === '/ops/hear-max') { const { boardOk } = await import('./opsboard.js'); return (await import('./hearmax.js')).armPage(env, req, url, await boardOk(env, url.searchParams.get('t') || '')); }
+    if (path === '/ops/outreach-review') {
+      // A held Outreach list or sentence: why it was held, and Approve or Reject (outreach.js reviewPage). The push that
+      // links here carries a dated board token; the ops board's cookie works too.
+      const { boardOk } = await import('./opsboard.js'), k = req.headers.get('x-key') || '';
+      if (!((k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) || await boardOk(env, url.searchParams.get('t') || '', req))) return new Response('This link has expired. Open the newest Outreach push or the ops board.', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+      return (await import('./outreach.js')).reviewPage(env, req, url);
+    }
     if (path.startsWith('/voice/')) return handleVoice(req, env, ctx, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD' } });

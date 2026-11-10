@@ -22,6 +22,12 @@ rep('href="https://alwaysopenoffice.com/marine"', 'href="https://alwaysopenoffic
 META = ('Always Open runs the back side of a marina: every call answered, every review replied to, slip renewals and '
         'service quotes followed up on the day you pick, and open rental days filled from your own customers. You approve it all from your phone.')
 s = re.sub(r'(<meta (?:name|property)="(?:og:)?description" content=")[^"]*(">)', lambda m: m.group(1) + META + m.group(2), s)
+# the share card (Nov 5, 2026: each trade page has its own og tags and card; this page's card is og-marinas.jpg)
+rep('<meta property="og:title" content="Always Open for dock builders and boat shops">', '<meta property="og:title" content="Always Open for marinas">')
+rep('<meta property="og:url" content="https://alwaysopenoffice.com/marine">', '<meta property="og:url" content="https://alwaysopenoffice.com/marinas">')
+rep('https://alwaysopenoffice.com/og-marine.jpg', 'https://alwaysopenoffice.com/og-marinas.jpg', 0)
+rep('<meta property="og:image:alt" content="Always Open, for dock builders and boat shops: Your business, always open. Every call answered. Quotes followed up. Slow weeks filled from your own customers. You approve it all from your phone. Call max. we dare you. (706) 460-2226.">',
+    '<meta property="og:image:alt" content="Always Open, for marinas: Your marina, always open. Every call answered. Slip renewals followed up. Open rental days filled. You approve it all from your phone. Call max. we dare you. (706) 460-2226.">')
 rep('?from=marine#', '?from=marinas#', 0)
 rep('&amp;from=marine"', '&amp;from=marinas"', 0)
 rep('This page covers what matters most to dock builders and boat repair shops. Run a marina? <a href="/marinas">See the marinas page</a>.', 'This page covers what matters most to marinas. Build docks or fix boats? <a href="marine.html">See the page for docks and boat repair</a>.')
@@ -103,7 +109,13 @@ rep('A jammed lift back in service by noon on a holiday weekend. If yours groans
     'Fourteen boats winterized this week and tucked in for the season. A few spots are still open for November, so call us before the first hard freeze.')
 
 # ---- the rest of the page
-rep('Three things nobody else does for dock builders and marinas.', 'Three things nobody else does for marinas.')
+rep('Four things nobody else does for dock builders and marinas.', 'Four things nobody else does for marinas.')
+# Outreach (Nov 10, 2026): a marina calls companies about team outings, not rental homes about dock repairs
+rep('Lakeside Vacation Rentals', 'Greensboro Engineering', 0)
+rep('a vacation rental company’s business line', 'an engineering firm’s business line')
+rep('We inspect and repair docks for rental homes before the summer season.', 'We host company outings on the lake, with pontoons for teams of ten to forty.', 0)
+rep('Dock inspections · 12 rental homes', 'Team outing · 25 people', 0)
+rep('Max calls the rental managers and lakeside businesses on your list', 'Max calls the companies and event planners on your list')
 rep('the jobs dock builders and marinas kept losing the same way', 'the calls and customers marinas kept losing the same way')
 rep('<h2>Plans for docks and marine</h2>', '<h2>Plans for marinas</h2>')
 rep('A caller needs a boat mechanic, not you?', 'A caller needs a dock builder, not you?')

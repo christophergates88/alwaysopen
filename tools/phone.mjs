@@ -46,7 +46,7 @@ const CHIPS = [
 const TRADES = [['plumbing', 'Plumber'], ['hvac', 'Heating and air'], ['builders', 'Builder'], ['auto-repair', 'Auto repair'], ['marine', 'Docks and marine'], ['salons', 'Salon or gym'], ['restaurants', 'Restaurant or shop'], ['dental', 'Dental'], ['insurance', 'Insurance']];
 // The cards lead with what no answering service does (an open day filled, a check-in, a hand-off); Max answering
 // comes after, so a phone visitor's first card is never "we pick up the phone".
-const LEAD = ['fill', 'radar', 'guard', 'check', 'handoff', 'max', 'cb', 'storm', 'ai'];
+const LEAD = ['fill', 'radar', 'guard', 'check', 'handoff', 'outreach', 'max', 'cb', 'storm', 'ai'];
 const rank = k => { const i = LEAD.indexOf(k); return i < 0 ? LEAD.length : i; };
 function set(key, p0, on) {
   const p = Object.assign({}, p0, { cards: p0.cards.slice().sort((a, b) => rank(a.key) - rank(b.key)) });
@@ -118,7 +118,7 @@ const CSS = `
 .aos-why{font-size:15px;line-height:1.45;color:#A3ACBF}
 .aos-why a{color:#FF8C82;font-weight:700;white-space:nowrap;text-underline-offset:3px}
 @media (prefers-reduced-motion:no-preference){.aos-live .aos-path.on>*{animation:aosIn .3s ease-out both}@keyframes aosIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
-.ao-dots{display:flex;justify-content:center;gap:0;margin-top:6px}
+.ao-dots{display:flex;justify-content:center;gap:0;margin-top:6px;margin-inline:-12px}
 .ao-dots button{width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;display:grid;place-items:center}
 .ao-dots button::after{content:"";width:8px;height:8px;border-radius:99px;background:var(--dot,#4A5368);transition:width .2s}
 .ao-dots button[aria-current="true"]::after{width:20px;background:var(--dot-on,#FF6A5E)}
