@@ -1,0 +1,18 @@
+name: Gates HQ rehearsal
+# Practice calls and texts for Gates HQ with the real model on the live site (src/hqrehearse.js).
+# Nothing is dialed, texted or saved. Run it by hand after changing how Gates HQ talks or texts.
+on:
+  workflow_dispatch:
+    inputs:
+      what: { description: "all, calls or texts", default: "all" }
+jobs:
+  rehearse:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Practice calls and texts
+        env:
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+          WHAT: ${{ github.event.inputs.what }}
+        run: |
+          curl -sS -m 290 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"what\":\"${WHAT:-all}\"}" https://alwaysopenoffice.com/ops/hq-rehearse > out.json || true
+          python3 -c "import json;print(json.dumps(json.load(open('out.json')),indent=1,ensure_ascii=False))" || cat out.json
