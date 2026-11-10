@@ -528,6 +528,16 @@ export async function reviewPage(env, req, url) {
       : '<form method="post"><button class="ok" name="act" value="approve">Approve</button><button class="no" name="act" value="reject">Reject</button></form><p class="fine">Approve lets Max call the business landlines on it (every other check still applies). Reject means nothing on it is called.</p>'));
 }
 
+// The ops board: every list or sentence still held for a look, with the page that approves or rejects it.
+export async function outreachBoard(env) {
+  await ensureOutreach(env);
+  const rows = ((await env.DB.prepare("SELECT r.id, r.kind, r.at, r.n, COALESCE(c.business, r.client_id) AS biz FROM outreach_review r LEFT JOIN app_clients c ON c.client_id = r.client_id WHERE r.state = 'held' ORDER BY r.at").all()).results) || [];
+  if (!rows.length) return [];
+  const { boardToken } = await import('./opsboard.js'), t = await boardToken(env);
+  return rows.map(r => ({ key: 'outreach:' + r.id, group: 'Outreach: waiting for your look', title: r.biz,
+    detail: (r.kind === 'list' ? 'A list of ' + (r.n || 0) + ' businesses' : 'The sentence Max says') + ', held ' + String(r.at || '').slice(0, 10) + '. Nothing on it is called until you approve it: ' + SITE + '/ops/outreach-review?id=' + encodeURIComponent(r.id) + '&t=' + t }));
+}
+
 // For the app and the monthly page.
 export async function outreachState(env, c) {
   await ensureOutreach(env);

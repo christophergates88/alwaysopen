@@ -182,6 +182,9 @@ test('a list that needs a look is held, Christopher gets a page with Approve and
   const rv = await DB.prepare("SELECT id, kind, state FROM outreach_review WHERE client_id = 'c1'").first();
   assert.deepEqual([rv.kind, rv.state], ['list', 'held']);
   const u = new URL('https://x/ops/outreach-review?id=' + rv.id);
+  const board = await O.outreachBoard(env);
+  assert.equal(board.length, 1, 'held: on the ops board');
+  assert.match(board[0].detail, /A list of 2 businesses, held .*\/ops\/outreach-review\?id=/);
   const page = await (await O.reviewPage(env, new Request(u), u)).text();
   for (const w of [/Several names look like people/, />Approve</, />Reject</, /Jane Doe/, /noindex/]) assert.match(page, w);
   await O.reviewPage(env, new Request(u, { method: 'POST', body: form({ act: 'approve' }) }), u);
@@ -191,6 +194,7 @@ test('a list that needs a look is held, Christopher gets a page with Approve and
   assert.equal((await DB.prepare('SELECT state FROM outreach_review WHERE id = ?1').bind(rv.id).first()).state, 'approved');
   const idx = new URL('https://x/ops/outreach-review');
   assert.match(await (await O.reviewPage(env, new Request(idx), idx)).text(), /Nothing is waiting on you/);
+  assert.deepEqual(await O.outreachBoard(env), [], 'decided: off the ops board');
 });
 
 test('a list made mostly of home phones is held even when the automatic read is unavailable; rejecting it calls nobody', async () => {
