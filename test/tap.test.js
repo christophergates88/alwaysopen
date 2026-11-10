@@ -140,11 +140,12 @@ test('the rule is in Max’s instructions only on a call where the owner can be 
   assert.doesNotMatch(V.systemPrompt(L, '', 'en-US', false), /\[ASK/);
   const on = Object.assign({}, L, { tap: { who: 'Mike' } });
   const p = V.systemPrompt(on, '', 'en-US', false);
-  assert.match(p, /Let me check with Mike right now/); assert.match(p, /\[ASK: the question for Mike/); assert.match(p, /never for an emergency/);
+  assert.match(p, /Let me check with Mike right now/); assert.match(p, /\[ASK: the question for Mike/); assert.match(p, /Not for an emergency/); assert.match(p, /do not say you do not know or that it waits for the callback/);
   const p6 = V.systemPrompt(Object.assign({}, on, { features: ['prompt6'] }), '', 'en-US', false);
   assert.match(p6, /\[ASK: the question for Mike, 12 words or fewer\]/);
   assert.match(V.systemPrompt(Object.assign({}, L, { tap: { who: '' } }), '', 'en-US', false), /Let me check with the owner right now/);
-  assert.ok(p.length - V.systemPrompt(L, '', 'en-US', false).length < 1100, 'the rule is short');
+  assert.ok(p.length - V.systemPrompt(L, '', 'en-US', false).length < 2000, 'the rule is short (Nov 10: firmer, with two examples, after the real model ignored the softer one)');
+  assert.match(p, /If you do not know, check with Mike right now if it is a price for their job/, 'the callback line points to the check first');
 });
 
 // ---------- a whole call ----------

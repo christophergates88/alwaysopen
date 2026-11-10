@@ -1788,8 +1788,21 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     wrapUp ? 'The call is running long: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n');
 }
+// Shoulder Tap on: the lines that send every unknown to the callback point to checking with the owner first, for the
+// questions the owner can answer while the caller waits (Nov 10: on the real model Max kept saying "the owner quotes that
+// himself" and "I don't have anything on that part", and never asked).
+function withTap(p, L) {
+  if (!L.tap) return p;
+  const who = L.tap.who || 'the owner';
+  const first = 'check with ' + who + ' right now if it is a price for their job, whether someone can come at a time, whether we do that kind of job or brand, or how their job or part stands (Controls: [ASK]); anything else';
+  return p
+    .replace('If you do not know, say the team will have the answer on the callback', 'If you do not know, ' + first + ', say the team will have the answer on the callback')
+    .replace('If you do not know, say the team will have it on the callback', 'If you do not know, ' + first + ', say the team will have it on the callback')
+    .replace('(only this; anything else, the team answers on the callback)', '(only this; for anything else, ' + first.replace(' (Controls: [ASK])', '') + ', the team answers on the callback)')
+    .replace('(use only this; if something is not here, say the team will answer it on the callback)', '(use only this; if something is not here, ' + first.replace(' (Controls: [ASK])', '') + ', say the team will answer it on the callback)');
+}
 export function systemPrompt(L, caller, lang, wrapUp) {
-  if (P6(L)) return systemPrompt6(L, caller, lang, wrapUp);
+  if (P6(L)) return withTap(systemPrompt6(L, caller, lang, wrapUp), L);
   const facts = [
     ['What we do', L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
     ['Address', L.address], ['Website', L.website], ['Other notes', L.notes], ['From the owner (things they want callers told)', L.owner]
@@ -1799,7 +1812,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     ? (L.transferWhen === 'asked' ? 'If the caller asks to talk to a person, or it is urgent, you may try to connect them.' : 'Only if it is urgent' + (L.urgent ? ' (urgent means: ' + L.urgent + ')' : '') + ', you may try to connect them to the owner.') +
       ' To do that, say one short line such as "Let me try to reach them for you now, one moment." and end that reply with [TRANSFER].'
     : 'You cannot connect calls to anyone. If they ask for a person, say the team will call them back.';
-  return [
+  return withTap([
     'You are ' + (L.name ? L.name + ', ' : '') + (L.role || 'the phone receptionist') + ' for ' + L.business + (L.town ? ', a local business in ' + L.town : '') + '.' + (L.goal ? '' : ' You answer when the team cannot get to the phone.') + (L.name ? ' ' + L.name + ' is the name you go by.' : '') + (L.overflowNow ? ' Right now is during business hours, so the owner is most likely on another call or with a customer: if it comes up, say they are tied up right now (never that the office is closed) and will call back.' : ''),
     'The caller has already heard: "' + (L.recorded ? '(the owner\'s own recorded greeting) ' + DISCLOSURE + ' What can I do for you?' : greetingText(L.business, L.spanish, L.greeting)) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + (L.heardQuiet ? ' ' + L.heardQuiet : '') + '" Do not repeat the greeting or the recording notice.',
     L.pitch ? 'If they sound annoyed or doubtful about talking to AI, own it lightly and keep going, in your own words, along the lines of: "' + L.pitch + '"' : '',
@@ -1857,7 +1870,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- ' + transfer,
     ...(L.tap ? ['- ' + tapRule(L)] : []),
     wrapUp ? '\nThe call is running long. Wrap up now: confirm their name and number, say what happens next, and say goodbye.' : ''
-  ].filter(x => x !== null).join('\n');
+  ].filter(x => x !== null).join('\n'), L);
 }
 
 // Merge the call into the alternating user/assistant turns the AI expects, starting with the caller.
