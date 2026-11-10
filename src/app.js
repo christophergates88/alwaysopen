@@ -337,6 +337,7 @@ export async function handleApp(req, env, ctx, url) {
       const r = await apiAnswer(req, env, c);
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/checkins' && meth === 'POST') {
+      if (!features(c).checkins) return aj({ ok: false, error: 'The three-day check-in comes with the Pro plan.' }, 403);
       const r = await apiCheckins(req, env, c);
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/outcalls' && meth === 'POST') {
@@ -353,6 +354,7 @@ export async function handleApp(req, env, ctx, url) {
         : { ok: false, error: 'Bad request' };
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/handoff' && meth === 'POST') {
+      if (!features(c).handoffs) return aj({ ok: false, error: 'Hand-offs come with the Pro plan.' }, 403);
       const r = await apiHandoff(req, env, c);
       return aj(r, r.ok ? 200 : 400);
     } else if (sub === '/api/callbacks' && meth === 'POST') {
@@ -510,8 +512,8 @@ async function apiState(env, c, ctx) {
   try { out.lost = (c.regulated || tech) ? null : await lostState(env, cid); } catch (e) { out.lost = null; }
   try { out.callbacks = await callbackState(env, cid); } catch (e) { out.callbacks = null; }
   // Hand-offs need Max answering; check-in calls need a logged job (Growth and Pro) and Max's line to call from.
-  try { out.handoff = (c.regulated || c.staff || !line) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
-  try { out.checkins = (c.regulated || !line || !f.jobs) ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
+  try { out.handoff = (c.regulated || c.staff || !line || !f.handoffs) ? null : await handoffState(env, cid); } catch (e) { out.handoff = null; }
+  try { out.checkins = (c.regulated || !line || !f.jobs || !f.checkins) ? null : await checkinState(env, cid); } catch (e) { out.checkins = null; }
   try { out.outcalls = (c.regulated || !line || c.role === 'tech') ? null : await outcallsState(env, c); } catch (e) { out.outcalls = null; }
   try { out.outreach = (c.regulated || !line || c.role === 'tech' || c.staff) ? null : await outreachState(env, c); } catch (e) { out.outreach = null; }
   if (!f.past) delete out.past;
@@ -1449,7 +1451,9 @@ export function features(c) {
   return { jobs: growth && !reg, photos: growth && !reg, qr: /^https:\/\//.test(c.review_link || ''), hours: true, refer: true, calls: has('calls'),
     competitors: growth, followups: (pro || has('followups')) && !reg, textback: (pro || has('textback')) && !reg,
     // what the site sells as Pro: invoice reminders and past-customer reminders
-    invoices: pro || has('followups'), past: (pro || has('followups')) && !reg, tier: c.tier || '' };
+    invoices: pro || has('followups'), past: (pro || has('followups')) && !reg,
+    // the three-day check-in and hand-offs are on the Pro card of the pricing page (Nov 10: the app gave them to Growth and Starter)
+    checkins: (pro || has('checkins')) && !reg, handoffs: (pro || has('handoffs')) && !reg, tier: c.tier || '' };
 }
 function qrOut(q) {
   const m = String(q || '').match(/^(\d{2,3})\|([Mhvz0-9 .-]+)$/);

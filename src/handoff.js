@@ -39,11 +39,15 @@ export async function neighborsFor(env, cid) {
   await ensureHandoff(env);
   const me = await prefs(env, cid);
   if (!me.give) return [];
+  // both sides on a plan that includes hand-offs (Pro), as the pricing page sells them (Nov 10)
+  const pro = "(c.tier = 'Pro' OR (',' || REPLACE(COALESCE(c.feats, ''), ' ', '') || ',') LIKE '%,handoffs,%')";
+  const mine = await env.DB.prepare('SELECT 1 AS x FROM app_clients c WHERE c.client_id = ?1 AND ' + pro).bind(cid).first().catch(() => null);
+  if (!mine) return [];
   const here = await env.DB.prepare('SELECT m.lat, m.lng, v.industry, c.regulated FROM map_listing m JOIN app_clients c ON c.client_id = m.client_id LEFT JOIN voice_lines v ON v.client_id = m.client_id WHERE m.client_id = ?1 LIMIT 1').bind(cid).first().catch(() => null);
   if (!here || here.lat == null || here.lng == null || +here.regulated) return [];
   const rows = ((await env.DB.prepare(
     'SELECT c.client_id, c.business, c.regulated, m.lat, m.lng, v.industry, v.number, v.on_air, v.owner_set, b.status AS bstatus FROM handoff_prefs h JOIN app_clients c ON c.client_id = h.client_id JOIN map_listing m ON m.client_id = h.client_id ' +
-    'LEFT JOIN voice_lines v ON v.client_id = h.client_id LEFT JOIN billing b ON b.client_id = h.client_id WHERE h.take = 1 AND h.client_id != ?1 AND c.active = 1 LIMIT 500').bind(cid).all()).results) || [];
+    'LEFT JOIN voice_lines v ON v.client_id = h.client_id LEFT JOIN billing b ON b.client_id = h.client_id WHERE h.take = 1 AND h.client_id != ?1 AND c.active = 1 AND ' + pro + ' LIMIT 500').bind(cid).all()).results) || [];
   const out = [];
   for (const r of rows) {
     // On the air means on the air for callers: a line its owner paused in the app takes no hand-offs either.

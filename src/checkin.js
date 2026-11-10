@@ -24,6 +24,9 @@ export async function ensureCheckins(env) {
 
 export async function checkinsOn(env, cid) {
   await ensureCheckins(env);
+  // sold with Pro (Nov 10): no plan that includes it, no calls, whatever the switch says
+  const cl = await env.DB.prepare('SELECT tier, feats FROM app_clients WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  if (cl && cl.tier !== 'Pro' && !/(^|,)\s*checkins\s*(,|$)/.test(String(cl.feats || ''))) return false;
   const r = await env.DB.prepare('SELECT on_ FROM checkin_prefs WHERE client_id = ?1').bind(cid).first().catch(() => null);
   if (r) return !!+r.on_;
   // Nobody chose yet: on for trades (a call a few days after the job), never for regulated businesses. Each customer still

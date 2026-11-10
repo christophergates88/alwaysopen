@@ -52,14 +52,13 @@ export function tapPref(line) {
   let o = {}; try { o = JSON.parse((line && line.owner_set) || '{}') || {}; } catch (e) { o = {}; }
   return o.tap === 'off' || o.tap === 'always' ? o.tap : 'day';
 }
-// TAP_LIVE is false: Shoulder Tap runs only on a line whose facts list it (features: every call; testFeatures: the
-// owner's own test calls). When Christopher has heard it on his own calls and says go, it is one word here: true puts it
-// on every line that is not regulated, and a new client's line has it from its first call (the site says "on every plan").
-export const TAP_LIVE = false;
-// Is Shoulder Tap switched on for this line at all? The owner's switch and the hour come after.
-export function tapFeature(line, test) {
-  if (TAP_LIVE) return true;
+// Who has Shoulder Tap. On for every line that is not regulated since Nov 10, 2026 (the Worker setting TAP_LIVE = "1" in
+// wrangler.toml; without it, as in the tests, only lines whose facts list it: features for every call, testFeatures for
+// the owner's own test calls). One line can be switched off from HQ: facts.off: ["tap"]. The owner has their own switch.
+export function tapFeature(line, test, env) {
   let f = {}; try { f = JSON.parse((line && line.facts) || '{}') || {}; } catch (e) { f = {}; }
+  if (Array.isArray(f.off) && f.off.includes('tap')) return false;
+  if (env && String(env.TAP_LIVE || '') === '1') return true;
   const on = k => Array.isArray(f[k]) && f[k].includes('tap');
   return on('features') || (!!test && on('testFeatures'));
 }
@@ -154,7 +153,7 @@ async function ownerOf(env, cid) {
 // Only when the line has the feature, the owner has not switched it off, it is an hour they take questions (their own
 // test calls may try it at any hour), there is a phone to reach them on, and they have not been asked too often.
 export async function tapSetup(env, call, line, now) {
-  if (!line || +line.regulated || !tapFeature(line, !!call.test)) return null;
+  if (!line || +line.regulated || !tapFeature(line, !!call.test, env)) return null;
   const pref = tapPref(line);
   if (pref === 'off') return null;
   const cid = call.client_id;
@@ -277,7 +276,7 @@ export async function tapFromApp(env, c, b) {
   if (!call) return { ok: false, error: 'That call is gone. Pull down to refresh.' };
   const line = await env.DB.prepare('SELECT * FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first().catch(() => null);
   // the owner's own test call counts as the test it is (Nov 10: the app refused to answer on the rollout's test calls)
-  if (!line || +line.regulated || !tapFeature(line, !!+call.test) || tapPref(line) === 'off') return { ok: false, error: 'Shoulder Tap is not on for your line.' };
+  if (!line || +line.regulated || !tapFeature(line, !!+call.test, env) || tapPref(line) === 'off') return { ok: false, error: 'Shoulder Tap is not on for your line.' };
   await ensureTaps(env);
   const by = c.staff || c.whoName || c.owner_first || 'Owner';
   if (b.action === 'take') {
@@ -311,7 +310,7 @@ export async function markTap(env, id, status) {
 // For the app: the question out on each live call, and whether this line has Shoulder Tap at all.
 export async function tapState(env, line, liveIds) {
   // on for the owner's own test calls too: they see the card and the question on those calls
-  const on = !!line && !+line.regulated && tapFeature(line, true);
+  const on = !!line && !+line.regulated && tapFeature(line, true, env);
   const out = { on, when: line ? tapPref(line) : 'day', open: {}, month: null };
   // the demo account shows the card with a made-up month (its line never takes a real call, so nothing is ever asked)
   if (line && line.client_id === 'demo-plumbing') return Object.assign(out, { on: true, month: { asked: 9, answered: 8, secs: 21 } });

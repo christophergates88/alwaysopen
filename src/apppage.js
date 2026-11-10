@@ -1244,7 +1244,7 @@ function afterCard(L){
   return '<h2>After the call</h2><div class="card">'+
     sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
     (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
-    (S.features.jobs?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
+    (S.features.checkins?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
     (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>'+outCard(L)+outreachCard();
 }
 function outreachCard(){

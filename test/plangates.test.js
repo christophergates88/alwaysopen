@@ -64,3 +64,24 @@ test('the Closed today message sets it on the line, and Open after all clears it
   const l2 = await DB.prepare("SELECT owner_set FROM voice_lines WHERE client_id = 'k1'").first();
   assert.equal(JSON.parse(l2.owner_set).closed, undefined);
 });
+
+test('the three-day check-in and hand-offs come with Pro, as the pricing page sells them (Nov 10)', async () => {
+  for (const tier of ['Starter', 'Growth']) {
+    const f = APP.features({ tier, regulated: 0, feats: 'calls' });
+    assert.equal(f.checkins, false, tier + ' has no check-ins'); assert.equal(f.handoffs, false, tier + ' has no hand-offs');
+  }
+  const pro = APP.features({ tier: 'Pro', regulated: 0, feats: 'calls' });
+  assert.equal(pro.checkins, true); assert.equal(pro.handoffs, true);
+  assert.equal(APP.features({ tier: 'Pro', regulated: 1, feats: 'calls' }).checkins, false, 'never for regulated businesses');
+  const world = new H.World(), DB = H.makeDB();
+  const env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  const CODE = 'G'.repeat(30);
+  await DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, tier, owner_first, active, feats) VALUES ('g1', ?1, 'g1-ref', 'Growth Co', 'Growth', 'Gail', 1, 'calls')").bind(sha(CODE)).run();
+  const site = H.makeClient(worker, env);
+  assert.equal((await site.call('/app/' + CODE + '/api/handoff', { json: { give: true, take: true } })).status, 403);
+  assert.equal((await site.call('/app/' + CODE + '/api/checkins', { json: { on: true } })).status, 403);
+  const { checkinsOn } = await import('../src/checkin.js');
+  await DB.prepare("INSERT INTO checkin_prefs (client_id, on_, updated) VALUES ('g1', 1, 'x')").run().catch(async () => { await checkinsOn(env, 'g1'); await DB.prepare("INSERT INTO checkin_prefs (client_id, on_, updated) VALUES ('g1', 1, 'x')").run(); });
+  assert.equal(await checkinsOn(env, 'g1'), false, 'a switch left on from before does not call anyone on Growth');
+});

@@ -189,9 +189,8 @@ When a caller asks something only the owner knows, Max says he is checking, ends
 the owner gets the question by text, push and on the live card in the app. A reply text (or the app's answer box) is said
 to the caller in the same call. No answer in 75 seconds: Max promises a call back as before. Late answers go on the call.
 
-- Who has it: `TAP_LIVE` in src/tap.js is false, so only lines whose `facts` list it: `features: ["tap"]` (every call) or
-  `testFeatures: ["tap"]` (calls from the numbers in `testers`). Since Nov 10 the Always Open line has
-  `testFeatures: ["prompt6","tap"]`. Going live everywhere is `TAP_LIVE = true` and a deploy.
+- Who has it: every line that is not regulated, since Nov 10, 2026 (`TAP_LIVE = "1"` in wrangler.toml [vars]). Set it
+  to "0" and deploy to go back to per-line opt-in (`features: ["tap"]`, or `testFeatures: ["tap"]` for test calls).
 - Never on regulated lines (insurance, medical, legal). Daytime only (the business's call hours) unless a test call or the
   owner's own setting is "any time" (`owner_set.tap`: off, day, always).
 - Limits: 2 asks a call, 12 an hour per business. The owner's texts come from the business's own number when its texting
@@ -199,7 +198,8 @@ to the caller in the same call. No answer in 75 seconds: Max promises a call bac
   (OPS_TEXT_TO).
 - Practice calls: a voice_log row of kind `rehearse-request` with `features: ["tap"]`, `who`, and turns like
   `{"owner": "Yes, by 3"}` (empty for no answer). Results are `rehearse` rows.
-- Turn it off for one line: remove "tap" from that line's features. For everyone: the owner's switch, or `TAP_LIVE = false`.
+- Turn it off for one line: add `"off": ["tap"]` to that line's facts. The owner has their own switch on the Max tab.
+  For everyone: `TAP_LIVE = "0"` and a deploy.
 
 ## How to roll back a deploy
 

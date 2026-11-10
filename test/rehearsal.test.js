@@ -562,7 +562,8 @@ test('Max books a visit with no calendar connected: the owner gets a job with th
 
 test('after the call: one card with three switches, check-ins on by default for a plumber, and an on-the-way text from the job card', async () => {
   let st = (await site.call(A('/api/state'))).json();
-  assert.deepEqual(st.after, { promise: true, textback: true, checkins: true, canText: true }, 'a plumber starts with all three on');
+  // Nov 10: the three-day check-in is a Pro feature (the pricing page's Pro card); this client is on Growth
+  assert.deepEqual(st.after, { promise: true, textback: true, checkins: false, canText: true }, 'a Growth plumber starts with call-backs and text-back on');
   const off = await site.call(A('/api/line'), { json: { after: { promise: false, checkins: false }, by: 'Dana' } });
   assert.equal(off.status, 200, off.text);
   st = (await site.call(A('/api/state'))).json();

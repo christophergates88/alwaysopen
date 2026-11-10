@@ -41,6 +41,8 @@ MAIL_TO = "christophergates.cg@gmail.com"
 OPS_TEXT_TO = "+14783652533"
 # The postal address every marketing email carries (the free-audit email and its two follow-ups).
 BUSINESS_ADDRESS = "103 W Sumter St, Eatonton, GA 31024"
+# Shoulder Tap for every line that is not regulated (src/tap.js tapFeature). "0" puts it back on per-line opt-in.
+TAP_LIVE = "1"
 # Always Open's approved ISV reseller profile in Twilio Trust Hub (not a secret). Each client's texting registration is assigned to it.
 # Once Google approves Business Profile access, the site drafts review replies for clients it reaches through the API
 # (the Always Open check skips those). "primary" = draft an hour after a review comes in.

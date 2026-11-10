@@ -18,24 +18,48 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const linkify = h => h.replace(/https:\/\/[^\s<,]+[^\s<,.)]/g, u => '<a href="' + u + '" style="color:inherit;word-break:break-all">' + u + '</a>');
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 
-// A link token made from the key but not the key itself, so the email link never exposes it.
-export async function boardToken(env) {
-  if (!env.LEADS_KEY) return '';
+// The board's link. Since Nov 10, 2026 a link is dated and works for 30 days (the Monday email and every push carry a
+// fresh one), and the device that opens the board keeps a signed cookie for a year, so a bookmark keeps working there.
+// The old link, which never changed, opens the board until Dec 10, 2026, so a bookmark has a month to be opened once.
+// None of these is the key itself.
+const DAY = 864e5, LINK_DAYS = 30, COOKIE_DAYS = 365, LEGACY_UNTIL = Date.parse('2026-12-10T00:00:00Z');
+async function mac(env, msg, bytes) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.LEADS_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('ops-board-v1'));
-  return [...new Uint8Array(sig)].slice(0, 20).map(b => b.toString(16).padStart(2, '0')).join('');
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].slice(0, bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
-export async function boardOk(env, t) {
-  const want = await boardToken(env);
-  return !!(t && want && eq(String(t), want));
+export async function boardToken(env, now) {
+  if (!env.LEADS_KEY) return '';
+  const d = new Date(now || Date.now()).toISOString().slice(0, 10).replace(/-/g, '');
+  return d + await mac(env, 'ops-board-v2:' + d, 16);
+}
+const legacyToken = env => mac(env, 'ops-board-v1', 20);
+function cookieOf(req) { const m = /(?:^|;\s*)aob=([0-9]+\.[0-9a-f]{32})/.exec((req && req.headers && req.headers.get('cookie')) || ''); return m ? m[1] : ''; }
+async function cookieOk(env, req) {
+  const v = cookieOf(req); if (!v) return false;
+  const [exp, sig] = v.split('.');
+  return +exp > Date.now() && eq(sig, await mac(env, 'ops-cookie:' + exp, 16));
+}
+// The Set-Cookie header for a device that just opened the board.
+export async function boardCookie(env) {
+  const exp = String(Date.now() + COOKIE_DAYS * DAY);
+  return 'aob=' + exp + '.' + await mac(env, 'ops-cookie:' + exp, 16) + '; Path=/; Max-Age=' + COOKIE_DAYS * 86400 + '; HttpOnly; Secure; SameSite=Lax';
+}
+export async function boardOk(env, t, req) {
+  if (!env.LEADS_KEY) return false;
+  t = String(t || '');
+  if (/^\d{8}[0-9a-f]{32}$/.test(t)) {
+    const d = t.slice(0, 8), at = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)), age = Date.now() - at;
+    if (age >= -DAY && age <= LINK_DAYS * DAY && eq(t.slice(8), await mac(env, 'ops-board-v2:' + d, 16))) return true;
+  }
+  if (t && Date.now() < LEGACY_UNTIL && eq(t, await legacyToken(env))) return true;
+  return !!req && await cookieOk(env, req);
 }
 async function allowed(req, env, url, tok) {
   if (!env.LEADS_KEY) return false;
   const key = req.headers.get('x-key') || '';
   if (key && eq(key, env.LEADS_KEY)) return true;
-  const t = tok || url.searchParams.get('t') || '';
-  const want = await boardToken(env);
-  return !!(t && want && eq(t, want));
+  return boardOk(env, tok || url.searchParams.get('t') || '', req);
 }
 
 async function ensure(env) {
@@ -224,15 +248,16 @@ export async function handleOpsBoard(req, env, url) {
     try { return new Response(buildPack(new Date().toISOString().slice(0, 10)), { headers: { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="compliance-guard-rules.pdf"', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } }); }
     catch (e) { return new Response('Could not build the pack: ' + String((e && e.message) || e).slice(0, 120), { status: 500 }); }
   }
-  const tok = url.searchParams.get('t') || await boardToken(env);
+  const tok = await boardToken(env);   // a fresh link for the page's own buttons and links, whatever opened it
+  const cookie = await boardCookie(env);
   if (path === '/ops/numbers') {
     const N = await import('./numbers.js');
-    return new Response(N.renderNumbers(await N.numbersState(env), '/ops?t=' + tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+    return new Response(N.renderNumbers(await N.numbersState(env), '/ops?t=' + tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
   }
   const items = await boardItems(env);
   let map = []; try { map = await mapAdmin(env); } catch (e) { map = []; }
   let drift = ''; try { drift = driftTable(await driftRows(env)); } catch (e) { drift = ''; }
-  return new Response(boardHtml(items, tok, map, drift), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+  return new Response(boardHtml(items, tok, map, drift), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
 }
 
 // Monday email to MAIL_TO. Once per week.

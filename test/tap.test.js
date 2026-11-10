@@ -478,3 +478,15 @@ test('a practice call can try Shoulder Tap: the question Max sends is noted, and
   await V.rehearse(w.env);
   assert.doesNotMatch(w.world.aiSeen[0].system[0].text, /\[ASK/);
 });
+
+// ---------- live for everyone (Nov 10) ----------
+test('Shoulder Tap is on for every line through the Worker setting; HQ can switch one line off; regulated never', async () => {
+  const fs = await import('node:fs');
+  assert.match(fs.readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8'), /^TAP_LIVE = "1"$/m, 'the live setting is in wrangler.toml');
+  const live = { TAP_LIVE: '1' };
+  assert.equal(T.tapFeature({ facts: '{}' }, false, live), true, 'a line with nothing set has it');
+  assert.equal(T.tapFeature({ facts: '{"off":["tap"]}' }, false, live), false, 'switched off for one line');
+  assert.equal(T.tapFeature({ facts: '{}' }, false, {}), false, 'without the setting it is per-line opt-in again');
+  assert.equal(T.tapFeature({ facts: '{"testFeatures":["tap"]}' }, true, {}), true);
+  assert.equal(await T.tapSetup(Object.assign({}, live), { client_id: 'x', test: 0 }, { regulated: 1, facts: '{}' }, Date.now()), null, 'regulated lines never');
+});
