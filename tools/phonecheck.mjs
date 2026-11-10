@@ -1,7 +1,7 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 17,400 px (raised from 16,800 on Nov 10 for the Shoulder Tap band, about 1,200 px, open on the home page and folded on the trade pages) (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
+// taller than 18,000 px (raised from 16,800 on Nov 10 for the Shoulder Tap band, about 1,220 px, open on the home page and folded on the trade pages; the deploy machine measures about 600 px more than a Mac, 17,814 at 375 wide that day) (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 17400], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
+const PAGES = [['/', 18000], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();

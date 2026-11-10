@@ -229,11 +229,13 @@ export async function payingServed(env, now, h) {
   const stripe = h.stripe || (await import('./billing.js')).stripe;
   try { await (await import('./billing.js')).ensureEvents(env, stripe); } catch (e) { /* tried again tomorrow */ }
   const rows = ((await env.DB.prepare("SELECT b.client_id, b.business, b.sub, b.status, b.updated, c.active, v.on_air FROM billing b LEFT JOIN app_clients c ON c.client_id = b.client_id LEFT JOIN voice_lines v ON v.client_id = b.client_id WHERE b.sub IS NOT NULL AND b.sub != ''").all()).results) || [];
-  const notes = [], fixed = [];
+  const notes = [], fixed = [], missing = [];
   for (const r of rows) {
     let st = '';
     // Our own reading of Stripe's status: a pause or a cancellation at the period's end reads "active" there.
-    try { st = String((await import('./billing.js')).statusOf(await stripe(env, 'GET', 'subscriptions/' + r.sub)) || ''); } catch (e) { st = e && e.status === 404 ? 'canceled' : ''; }
+    // A 404 is not a cancellation: a key from another Stripe account or mode reads every subscription as missing, and
+    // switching everyone off on that would take every paying client's line down (Nov 10). It is said, never acted on.
+    try { st = String((await import('./billing.js')).statusOf(await stripe(env, 'GET', 'subscriptions/' + r.sub)) || ''); } catch (e) { if (e && e.status === 404) missing.push(r.business || r.client_id); st = ''; }
     if (!st) continue;
     if (st !== r.status) await env.DB.prepare('UPDATE billing SET status = ?1, updated = ?2 WHERE client_id = ?3').bind(st, new Date(now).toISOString(), r.client_id).run();
     const biz = r.business || r.client_id;
@@ -249,6 +251,7 @@ export async function payingServed(env, now, h) {
       if (!(await getMark(env, k))) { await setMark(env, k, st, now); notes.push(biz + ' hasn’t paid in over two weeks (Stripe: ' + st + ') and is still being served. Your call: pause or keep going'); }
     }
   }
+  if (missing.length) notes.push('Stripe says it has no subscription for ' + missing.slice(0, 6).join(', ') + (missing.length > 6 ? ' and ' + (missing.length - 6) + ' more' : '') + (missing.length === rows.length && rows.length > 1 ? '. That is every client: the Stripe key is probably from another account or test mode. Nobody was switched off.' : '. Nobody was switched off. Look in Stripe before changing anything.'));
   if (fixed.length || notes.length) await ping(env, h, 'Always Open: billing and service checked', fixed.concat(notes).join('\n'), notes.length ? 'high' : 'default', 'moneybag');
   return { checked: rows.length, fixed, notes };
 }

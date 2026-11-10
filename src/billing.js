@@ -18,7 +18,7 @@ export const PLANS = FACT_PLANS;
 const MAX = { cents: FACT_MAX.moreCents, blurb: FACT_MAX.blurb };
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
 const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
-export const EVENTS = ['checkout.session.completed', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
+export const EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = c => '$' + (c / 100).toFixed(0);
@@ -87,7 +87,10 @@ export async function createFromSession(env, s, h) {
   const email = s.customer_email || (s.customer_details && s.customer_details.email) || '';
   // Only the website's own checkout (/start) carries the plan and business. A payment through a Stripe Payment Link (sent
   // by hand) has neither: it is never made into a client or a phone line on its own; Christopher sets it up in HQ.
-  if (!PLANS[m.plan]) {
+  // Complete but not paid (a bank debit still clearing, which can fail days later) is not a client yet: the
+  // async_payment_succeeded event brings it back here once the money is in (Nov 10).
+  if (s.payment_status && !/^(paid|no_payment_required)$/.test(s.payment_status)) return null;
+  if (!Object.hasOwn(PLANS, String(m.plan))) {
     const known = email ? await env.DB.prepare('SELECT business FROM billing WHERE lower(email) = lower(?1)').bind(email).first().catch(() => null) : null;
     if (h && h.notify) await h.notify('Payment Link payment: ' + (email || 'no email'), '$' + ((+s.amount_total || 0) / 100).toFixed(2) + ' through a Stripe Payment Link. Nothing was set up on its own: add them in Always Open HQ, or send them alwaysopenoffice.com/start instead.' + (known ? ' Careful: ' + (known.business || 'a client') + ' already pays with this email, so this may be a second subscription.' : ''), 'high');
     return null;
@@ -104,10 +107,12 @@ export async function createFromSession(env, s, h) {
   if (!(ins.meta && ins.meta.changes)) return finishIfMissing(env, await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first(), h);
   await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
+  // the same owner again (lost their link, say): a second number and subscription, so the push says so (Nov 10)
+  const again = await env.DB.prepare("SELECT business FROM billing WHERE client_id != ?1 AND ((?2 != '' AND lower(email) = lower(?2)) OR (?3 != '' AND phone = ?3)) LIMIT 1").bind(cid, email, m.phone || '').first().catch(() => null);
   try { await noteSignup(env, { clientId: cid, ref: m.ref, email, phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
   // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
   try { await queueLine(env, cid); if (h && h.later) h.later(provisionLine(env, cid).catch(() => {})); } catch (e) { /* the timer picks it up */ }
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card. Their app is live and Max’s line is being set up on its own.');
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
   return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
 }
 
@@ -139,7 +144,7 @@ ol{margin:0;padding-left:1.2em;display:grid;gap:8px}.fine{font-size:13px;color:v
 
 function startPage(v, err) {
   v = v || {};
-  const plan = PLANS[v.plan] ? v.plan : 'Growth';
+  const plan = Object.hasOwn(PLANS, String(v.plan)) ? v.plan : 'Growth';
   return page('Start', `<div><p class="mono">Sign up</p><h1>Start Always Open today.</h1></div>
 <p class="sub">Month to month, no setup fee, cancel any time. If the first month isn't worth it, tell us within 30 days and we refund it.</p>
 ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
@@ -160,7 +165,7 @@ ${REF_RE.test(v.ref || '') ? '<input type="hidden" name="ref" value="' + esc(v.r
 async function checkout(req, env) {
   const f = await req.formData();
   const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree', 'ref']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
-  if (!PLANS[v.plan]) v.plan = 'Growth';
+  if (!Object.hasOwn(PLANS, String(v.plan))) v.plan = 'Growth';
   if (TYPES.indexOf(v.type) < 0) v.type = 'Other';
   if (!v.business || !v.owner || v.phone.replace(/\D/g, '').length < 10 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) || !v.town) return startPage(v, 'Please fill in every box.');
   if (v.agree !== '1') return startPage(v, 'Please check the box to agree to the terms.');
@@ -173,7 +178,7 @@ async function checkout(req, env) {
     const s = await stripe(env, 'POST', 'checkout/sessions', {
       mode: 'subscription', line_items: items, customer_email: v.email, metadata: meta, subscription_data: { metadata: meta },
       allow_promotion_codes: 'true', billing_address_collection: 'auto',
-      success_url: SITE + '/welcome?s={CHECKOUT_SESSION_ID}', cancel_url: SITE + '/start?plan=' + v.plan
+      success_url: SITE + '/welcome?s={CHECKOUT_SESSION_ID}', cancel_url: SITE + '/start?plan=' + encodeURIComponent(v.plan) + (meta.ref ? '&ref=' + encodeURIComponent(meta.ref) : '')
     });
     return Response.redirect(s.url, 303);
   } catch (e) { return startPage(v, 'Payment could not start: ' + String(e.message || e).slice(0, 160)); }
@@ -184,6 +189,7 @@ async function welcome(env, url, h) {
   if (!/^cs_[A-Za-z0-9_]{10,200}$/.test(id) || !env.STRIPE_KEY) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404);
   let s;
   try { s = await stripe(env, 'GET', 'checkout/sessions/' + id); } catch (e) { if (e && (e.status === 404 || e.status === 400)) return page('Welcome', '<h1>Welcome.</h1><p class="sub">We could not find that signup. Email hello@alwaysopenoffice.com and we will sort it out.</p>', 404); return page('Welcome', '<h1>Almost there.</h1><p class="sub">We could not confirm the payment yet. Refresh this page in a minute.</p>', 502); }
+  if (s.status === 'complete' && s.payment_status && !/^(paid|no_payment_required)$/.test(s.payment_status)) return page('Welcome', '<h1>Your payment is on its way.</h1><p class="sub">Your bank is still clearing it. As soon as it lands we set everything up and email your private app link. Questions? Email hello@alwaysopenoffice.com.</p>', 202);
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
   if (!b) return page('Welcome', '<h1>Thank you.</h1><p class="sub">Your payment went through. Katie will be in touch today to set everything up. Questions? Email hello@alwaysopenoffice.com or call (706) 460-2226.</p>');
@@ -255,17 +261,17 @@ export async function billingPage(env, c, base, req, url, h) {
         return Response.redirect(SITE + base + '/billing?done=paused', 303);
       }
       if (a === 'resume') {
-        await stripe(env, 'POST', 'subscriptions/' + b.sub, { pause_collection: '' });
-        await env.DB.prepare("UPDATE billing SET status = 'active', paused_until = NULL, updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
+        const rs = await stripe(env, 'POST', 'subscriptions/' + b.sub, { pause_collection: '' });
+        await env.DB.prepare("UPDATE billing SET status = ?3, paused_until = NULL, updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id, String(statusOf(rs) || 'active')).run();
         return Response.redirect(SITE + base + '/billing?done=resumed', 303);
       }
       if (a === 'plan') {
         const plan = String(f.get('plan') || '');
-        if (!PLANS[plan] || plan === b.plan) return Response.redirect(SITE + base + '/billing', 303);
+        if (!Object.hasOwn(PLANS, plan) || plan === b.plan) return Response.redirect(SITE + base + '/billing', 303);
         const sub = await stripe(env, 'GET', 'subscriptions/' + b.sub + '?expand[]=items.data.price.product');
         const item = (sub.items.data || []).find(i => !/Max/.test((i.price && i.price.product && i.price.product.name) || '')) || sub.items.data[0];
         const prod = await stripe(env, 'POST', 'products', { name: 'Always Open ' + plan });
-        await stripe(env, 'POST', 'subscriptions/' + b.sub, { items: [{ id: item.id, price_data: { currency: 'usd', unit_amount: PLANS[plan].cents, recurring: { interval: 'month' }, product: prod.id } }], proration_behavior: 'always_invoice', cancel_at_period_end: 'false' });
+        await stripe(env, 'POST', 'subscriptions/' + b.sub, { items: [{ id: item.id, price_data: { currency: 'usd', unit_amount: PLANS[plan].cents, recurring: { interval: 'month' }, product: prod.id } }], proration_behavior: 'always_invoice', cancel_at_period_end: 'false', payment_behavior: 'error_if_incomplete' });   // a declined card refuses the change (Nov 10: Pro stuck at Starter's price)
         await env.DB.batch([
           env.DB.prepare('UPDATE billing SET plan = ?1, updated = ?2 WHERE client_id = ?3').bind(plan, new Date().toISOString(), c.client_id),
           env.DB.prepare('UPDATE app_clients SET tier = ?1 WHERE client_id = ?2').bind(plan, c.client_id)
@@ -280,8 +286,8 @@ export async function billingPage(env, c, base, req, url, h) {
         return Response.redirect(SITE + base + '/billing?done=canceled', 303);
       }
       if (a === 'undo') {
-        await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'false' });
-        await env.DB.prepare("UPDATE billing SET status = 'active', updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
+        const rs = await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'false' });
+        await env.DB.prepare("UPDATE billing SET status = ?3, updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id, String(statusOf(rs) || 'active')).run();
         return Response.redirect(SITE + base + '/billing?done=undone', 303);
       }
     } catch (e) { note = '<p class="err">That did not go through: ' + esc(String(e.message || e).slice(0, 160)) + '. Try again, or message us.</p>'; }
@@ -333,7 +339,7 @@ export async function handleBilling(req, env, url, h) {
       if (set === 'canceled') { await env.DB.prepare('UPDATE app_clients SET active = 0 WHERE client_id = ?1').bind(b.client_id).run(); await expireCredits(env, { stripe }, b.client_id); await lineEnded(env, b.client_id).catch(() => {}); }
       if (msg && h.notify) await h.notify((b.business || 'A client') + ': ' + msg, 'Stripe event ' + ev.type + '.', set === 'past_due' ? 'high' : 'default');
     };
-    if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') await createFromSession(env, o, h);
+    if ((ev.type === 'checkout.session.completed' || ev.type === 'checkout.session.async_payment_succeeded') && o.mode === 'subscription') await createFromSession(env, o, h);
     else if (ev.type === 'invoice.payment_failed') await bySub(invoiceSub(o), 'past_due', 'payment failed. Stripe retries automatically and emails them.');
     else if (ev.type === 'invoice.paid' && o.billing_reason !== 'subscription_create') await bySub(invoiceSub(o), 'active', '');
     else if (ev.type === 'customer.subscription.deleted') await bySub(o.id, 'canceled', 'subscription ended. Their app is off.');
@@ -407,7 +413,7 @@ export async function dispute(env, type, o, h) {
   }
   const why = o.reason ? ' Reason given: ' + String(o.reason).replace(/_/g, ' ') + '.' : '';
   const ops = await import('./ops.js');
-  await ops.opsAlert(env, 'stripe-dispute', (b && b.client_id) || '', 'Chargeback: ' + biz + ' disputed ' + amt + '.' + why + ' Answer by ' + due + ' in the Stripe dashboard, Payments, Disputes, or the money and a fee are lost.' + hist);
+  await ops.opsAlert(env, 'stripe-dispute', ((b && b.client_id) || '') + ':' + String(o.id || ''), 'Chargeback: ' + biz + ' disputed ' + amt + '.' + why + ' Answer by ' + due + ' in the Stripe dashboard, Payments, Disputes, or the money and a fee are lost.' + hist);
 }
 
 // The webhook endpoint listens for every event in EVENTS. One set up before an event was added gets it here (checks.js
