@@ -25,6 +25,27 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 `CLOUDFLARE_API_TOKEN` and `LEADS_KEY`. Plain settings (towns, counties, renewals, the sending address) are in
 `wrangler.toml`.
 
+The ops key goes in the `x-key` header and nowhere else: no route takes it in the address (Nov 11, 2026; `/leads`,
+`/storms` and `/radar` used to). The ops board uses dated links and a device cookie instead (`src/opsboard.js`).
+
+## Security headers (src/headers.js)
+
+Every answer says https-only for a year (`strict-transport-security`) and `nosniff`; every page carries a content
+policy. The public pages get `SITE_CSP`, which names exactly what they load: our own files, Google Fonts, Cloudflare's
+visitor counter and, for the map, MapLibre from cdnjs with OpenFreeMap tiles. **A public page that starts loading from
+a new place must be added there**, or browsers will refuse it: `tools/phonecheck.mjs` serves the pages with the same
+policy and fails the deploy on any refusal, and `test/headers.test.js` checks every outside address the pages name.
+The client app keeps its own stricter policy (`CSP` in `src/app.js`). `/.well-known/security.txt` is answered by the
+Worker; `public/sitemap.xml` lists the public pages (add a new page there; the test fails if one is missing).
+
+## The Always Open check (a Claude scheduled task, outside the Worker)
+
+Four times a day it files new signups, leads, calls and app activity into Always Open HQ and writes the daily summary.
+It writes a heartbeat each run; when the heartbeat is over 14 hours old the site says so once a day, as a normal push
+(`checkHeartbeat` in `src/funding.js`). It is not an emergency: the site drafts review replies itself, and every lead,
+signup, call and client message reaches Christopher by push and email as it happens. To restart it: claude.ai,
+Scheduled tasks, turn on "Always Open check" (or tell Claude to).
+
 ## The first thing to check when something is wrong
 
 1. Open `https://alwaysopenoffice.com/health`. `ok` means the Worker, the database, Stripe, the keys and the
