@@ -44,6 +44,16 @@ policy and fails the deploy on any refusal, and `test/headers.test.js` checks ev
 The client app keeps its own stricter policy (`CSP` in `src/app.js`). `/.well-known/security.txt` is answered by the
 Worker; `public/sitemap.xml` lists the public pages (add a new page there; the test fails if one is missing).
 
+## Always Open HQ (src/opshq.js, at /ops/hq)
+
+One page behind the ops board's link (the board links to it): who is waiting on a reply, with the box to answer; open
+requests; every client; the calls Max took in the last 7 days. It reads the site's own tables each time it opens, so
+there is nothing to copy and nothing to fall behind. An answer typed there is saved as Katie's (`app_messages`, `dir`
+'out'), shows in the client's app as "Always Open", and buzzes their iPhone on the next ten-minute run. A request's
+buttons (Talking, Won, Lost) set `leads.status`; anything but "new" stops the follow-up emails and the call-back
+reminder for that request. Money stays on /ops/numbers, the week's to-dos on /ops. The older HQ page on claude.ai
+(filled by the scheduled task below) shows the same things later and second-hand; nothing depends on it.
+
 ## The Always Open check (a Claude scheduled task, outside the Worker)
 
 Four times a day it files new signups, leads, calls and app activity into Always Open HQ and writes the daily summary.

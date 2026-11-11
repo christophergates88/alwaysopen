@@ -18,8 +18,8 @@
 const SITE = 'https://alwaysopenoffice.com';
 const FROM = { email: 'hello@alwaysopenoffice.com', name: 'Always Open' };
 const H = 3600e3, DAY = 24 * H;
-const AUTO_BY = 'Always Open (automatic)';
-const INTERNAL = new Set(['always-open', 'demo-plumbing']);
+export const AUTO_BY = 'Always Open (automatic)';
+export const INTERNAL = new Set(['always-open', 'demo-plumbing']);
 
 const ready = new WeakSet();
 export async function ensureChecks(env) {
