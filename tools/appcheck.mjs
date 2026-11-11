@@ -109,6 +109,7 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
     out.docW = document.documentElement.scrollWidth; out.winW = innerWidth;
     document.querySelectorAll('a[href],button,summary,input:not([type=hidden]),select,textarea').forEach(el => {
       if (!vis(el)) return;
+      if (el.closest('.maplibregl-ctrl')) return;   // the map's own small credit button (the map check below covers the map's taps)
       if (el.matches('a') && getComputedStyle(el).display === 'inline') { const par = el.parentElement; const t = (par.textContent || '').trim(), mine = (el.textContent || '').trim(); if (t.length > mine.length + 1) return; }
       const b = (el.matches('input[type=checkbox],input[type=radio]') && el.closest('label') ? el.closest('label') : el).getBoundingClientRect();
       if (b.height < 43.5 || b.width < 43.5) out.small.push(el.tagName + '#' + el.id + '[' + el.type + '] ' + (el.textContent || el.getAttribute('aria-label') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 40) + ' ' + Math.round(b.width) + 'x' + Math.round(b.height));
@@ -117,7 +118,7 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
     while (walker.nextNode()) {
       const n = walker.currentNode; if (!n.textContent.trim()) continue;
       const el = n.parentElement; if (!el || seen.has(el)) continue; seen.add(el);
-      if (el.closest('script,style,noscript,[role="img"],svg')) continue; if (!vis(el)) continue;
+      if (el.closest('script,style,noscript,[role="img"],svg,.maplibregl-ctrl')) continue; if (!vis(el)) continue;   // the map's credit line is the map maker's, at its size
       const s = getComputedStyle(el), px = parseFloat(s.fontSize);
       const label = /Mono|monospace/.test(s.fontFamily) || el.closest('small,em,.kick,.fine,.note,.tab,.segn') || s.textTransform === 'uppercase';   // a tab-bar caption under its icon reads at 12 px, like iOS
       if (px < (label ? 12 : 15)) out.tiny.push(el.tagName + '.' + (el.className || '') + ' ' + px + 'px "' + n.textContent.trim().slice(0, 30) + '"');

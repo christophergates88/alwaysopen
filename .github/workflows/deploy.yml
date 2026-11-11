@@ -22,18 +22,19 @@ jobs:
       - name: Check the site on phones
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.56.0
-          # The browser and the system libraries it needs. Ubuntu's package servers have bad minutes (Nov 11, 2026: half an
-          # hour of "Temporary failure resolving" failed two deploys that had nothing wrong with them). So: two tries of
-          # four minutes each; if the servers still don't answer, the browser alone is fetched and the checks run with
-          # the fonts the machine already has (the only thing the servers add), so a good change still goes live.
-          ok=0
-          for i in 1 2; do
-            if timeout 240 npx playwright install --with-deps chromium; then ok=1; break; fi
-            echo "Browser install with its system libraries failed (try $i of 2)."; [ "$i" = 2 ] || sleep 30
-          done
-          if [ "$ok" = 0 ]; then
-            echo "::warning::Ubuntu's package servers did not answer. The checks are running without the browser's extra fonts this time; if a size check fails below, run the deploy again later."
-            npx playwright install chromium
+          # The check browser. The machine already has the system libraries Chromium needs, so the browser alone is
+          # fetched (kept between runs) and proven to start. Only if it does not start are Ubuntu's libraries fetched too:
+          # their package servers were unreachable for hours on Nov 11, 2026, which failed two good deploys and then cost
+          # every deploy eight minutes of waiting, for fonts the checks do not need.
+          npx playwright install chromium
+          if ! node --input-type=commonjs -e "require('playwright').chromium.launch().then(b => b.close()).catch(e => { console.error(String(e).slice(0, 300)); process.exit(1); })"; then
+            echo "The browser did not start on its own. Fetching its system libraries."
+            ok=0
+            for i in 1 2; do
+              if timeout 240 npx playwright install --with-deps chromium; then ok=1; break; fi
+              echo "Browser install with its system libraries failed (try $i of 2)."; [ "$i" = 2 ] || sleep 30
+            done
+            [ "$ok" = 1 ] || { echo "::error::The check browser could not be started, and Ubuntu's package servers did not answer. Run the deploy again later."; exit 1; }
           fi
           node tools/phonecheck.mjs
           APP_SHOTS=app-shots node tools/appcheck.mjs
