@@ -51,13 +51,17 @@ test('the page needs the board link, escapes what owners and reviewers wrote, an
   const url = t => new URL('https://alwaysopenoffice.com/ops/post' + (t ? '?t=' + t : ''));
   assert.equal((await Q.handlePostQueue(new Request(url('')), env, url(''))).status, 404);
   const tok = await boardToken(env);
-  const page = await (await Q.handlePostQueue(new Request(url(tok)), env, url(tok))).text();
-  assert.match(page, /Post on Google/);
+  // the list is on Always Open HQ now: the old address sends you there, and HQ shows it
+  const go = await Q.handlePostQueue(new Request(url(tok)), env, url(tok));
+  assert.equal(go.status, 302);
+  assert.match(go.headers.get('location'), /^https:\/\/alwaysopenoffice\.com\/ops\/hq\?t=[0-9a-f]{40}#google$/);
+  const HQ = await import('../src/opshq.js');
+  const page = HQ.hqHtml(await HQ.hqState(env, now), tok);
+  assert.match(page, /<section id="google"><h2>Post on Google \(\d+\)<\/h2>/);
   assert.doesNotMatch(page, /<script>alert/);
   assert.match(page, /Copy and open Google/);
   const r = await Q.handlePostQueue(new Request(url(tok), { method: 'POST', body: JSON.stringify({ id: 'm:old' }) }), env, url(tok));
   assert.deepEqual(await r.json(), { ok: true });
-  assert.match(Q.queuePage([], tok, now), /All caught up/);
 });
 
 test('the reminder: 10 AM and 4 PM Eastern, once each, only when something is waiting', async () => {
@@ -68,7 +72,7 @@ test('the reminder: 10 AM and 4 PM Eastern, once each, only when something is wa
   assert.deepEqual(await Q.queuePush(env, Date.parse('2026-11-04T15:20:00Z'), { ping }), { skipped: 'sent' });
   assert.equal(pings.length, 1);
   assert.match(pings[0].title, /^2 replies and 1 post ready to post on Google$/);
-  assert.match(pings[0].click, /^https:\/\/alwaysopenoffice\.com\/ops\/post\?t=[0-9a-f]{40}$/);
+  assert.match(pings[0].click, /^https:\/\/alwaysopenoffice\.com\/ops\/hq\?t=[0-9a-f]{40}#google$/);
   for (const id of ['m:old', 'm:new', 'phst1']) await Q.markPosted(env, id, now);
   assert.deepEqual(await Q.queuePush(env, Date.parse('2026-11-04T21:10:00Z'), { ping }), { waiting: 0 }, 'nothing waiting: no push');
   assert.equal(pings.length, 1);
@@ -84,7 +88,8 @@ test('a regulated client’s edited reply is held for a compliance look: not in 
   assert.ok(items.some(i => i.id === 'm:asis'));
   assert.ok(!items.some(i => i.id === 'm:edited'));
   assert.equal(items.held, 1);
-  assert.match(Q.queuePage(items, 't', now), /1 edited reply from a regulated client is held for a compliance look/);
+  const HQ = await import('../src/opshq.js');
+  assert.match(HQ.hqHtml(await HQ.hqState(env, now), 't'), /1 edited reply from a regulated client is held for a compliance look/);
   assert.equal(await Q.markPosted(env, 'm:edited', now), false);
   assert.equal(await Q.markPosted(env, 'm:asis', now), true);
 });
@@ -94,5 +99,6 @@ test('a Google review that mentions Yelp is still a Google review; a hand-made Y
   await env.DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, decided_text, status, hq_synced, checked, created, updated, decided_at, notified) VALUES ('m:g2', 'c1', 'reply', 'Pat L.', 'Way better than the Yelp reviews said.', 9, 'x', 'Thanks, Pat!', 'approved', 1, 0, '2026-11-04T14:00:00Z', '2026-11-04T14:00:00Z', '2026-11-04T14:00:00Z', 0)").run();
   const ids = (await Q.queueItems(env, now)).map(i => i.id);
   assert.ok(ids.includes('m:g2')); assert.ok(!ids.includes('yelp1'));
-  assert.match(Q.queuePage(await Q.queueItems(env, now), 't', now), /★★★★★ from Pat L\./, 'a star count outside 0-5 is clamped, not a crash');
+  const HQ2 = await import('../src/opshq.js');
+  assert.match(HQ2.hqHtml(await HQ2.hqState(env, now), 't'), /★★★★★ from Pat L\./, 'a star count outside 0-5 is clamped, not a crash');
 });

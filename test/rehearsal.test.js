@@ -231,7 +231,7 @@ test('a message to the team reaches Christopher by push and email', async () => 
   assert.ok(mailText.includes('Answer on Always Open HQ. It shows in their app.') && mailText.includes(link), 'the email says where to answer, with the same link: ' + mailText.slice(0, 300));
   const hq = await site.call(link.replace('https://alwaysopenoffice.com', ''));
   assert.equal(hq.status, 200);
-  assert.match(hq.text, /<h2>Waiting on a reply \(1\)<\/h2>/);
+  assert.match(hq.text, /<h2>Reply to clients \(1\)<\/h2>/);
   assert.match(hq.text, /Hours change: We are closed Monday for the holiday\./);
   assert.equal((await site.call('/ops/hq')).status, 404, 'without the link the page is not there');
   const t = new URL(link).searchParams.get('t');
@@ -239,7 +239,7 @@ test('a message to the team reaches Christopher by push and email', async () => 
   assert.deepEqual(sent.json(), { ok: true });
   const seen = (await site.call(A('/api/state'))).json().messages;
   assert.ok(seen.some(m => m.dir === 'out' && m.text === 'Done. Max tells callers you are closed Monday.'), 'the client sees the answer in their app');
-  assert.match((await site.call(link.replace('https://alwaysopenoffice.com', ''))).text, /<h2>Waiting on a reply \(0\)<\/h2>/, 'answered: nobody is waiting');
+  assert.match((await site.call(link.replace('https://alwaysopenoffice.com', ''))).text, /Clients waiting on your reply: none/, 'answered: nobody is waiting');
 });
 
 test('"finished a job" adds the customer once and needs their OK to be contacted', async () => {

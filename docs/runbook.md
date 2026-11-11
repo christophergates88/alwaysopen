@@ -44,19 +44,22 @@ policy and fails the deploy on any refusal, and `test/headers.test.js` checks ev
 The client app keeps its own stricter policy (`CSP` in `src/app.js`). `/.well-known/security.txt` is answered by the
 Worker; `public/sitemap.xml` lists the public pages (add a new page there; the test fails if one is missing).
 
-## Always Open HQ (src/opshq.js, at /ops/hq)
+## Always Open HQ: the one page (src/opshq.js, at /ops and /ops/hq)
 
-One page behind the ops board's link (the board links to it): who is waiting on a reply, with the box to answer; open
-requests; every client; the calls Max took in the last 7 days. It reads the site's own tables each time it opens, so
-there is nothing to copy and nothing to fall behind. An answer typed there is saved as Katie's (`app_messages`, `dir`
-'out'), shows in the client's app as "Always Open", and buzzes their iPhone on the next ten-minute run. A request's
-buttons (Talking, Won, Lost) set `leads.status`; anything but "new" stops the follow-up emails and the call-back
-reminder for that request. Money stays on /ops/numbers, the week's to-dos on /ops. The push and the email for a client
-message carry a fresh link straight to this page. `Open Always Open HQ.command` in GatesHQ opens it from the Mac.
+Everything that can need Christopher is on this page and nowhere else (Nov 11, 2026: "there's too many small places
+something could be"). The top says how many things need him, then a tally that always shows all five kinds with a
+count, so a zero is a checked zero: clients waiting on a reply (answer box), replies and posts approved for Google
+(Copy and open Google, then Posted), requests to call back (Talking, Won, Lost), this week's to-dos (Done), and things
+that are off (failing checks, a low Twilio balance, crashed pages, each in plain words with what to do). Folded below:
+clients, calls, closed requests, how things stand, who is drifting, the switches (Outreach, the map), and a link to
+the numbers. It reads the site's own tables each time it opens. An answer typed there is saved as Katie's and shows
+in the client's app as "Always Open". The old to-do board (/ops) is this page; the old Google posting page (/ops/post)
+sends you to its Google part; every push and the Monday email open it. `Open Always Open HQ.command` opens it from the
+Mac. A new kind of thing that needs him goes into this page's list (gather() in opshq.js, or boardItems() in
+opsboard.js), never onto a page of its own.
 
-The older HQ page on claude.ai (filled by the scheduled task below) shows messages, requests, clients and calls later
-and second-hand; for those, use this page. It still holds a few tools this page does not: adding a client by hand, the
-approved wording for regulated clients, and the monthly report numbers. So it and its scheduled check stay as they are.
+The older HQ page on claude.ai (filled by the scheduled task below) still holds a few tools this page does not: adding
+a client by hand, the approved wording for regulated clients, and the monthly report numbers.
 
 ## The Always Open check (a Claude scheduled task, outside the Worker)
 

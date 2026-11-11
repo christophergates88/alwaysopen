@@ -1,10 +1,12 @@
 // The Google posting queue, until Google turns on posting through its API (launch.js, gbp.js). Owners approve replies
-// and posts in their app; this page lists every approved one, oldest first, across all clients, so Christopher posts
-// them in a few taps: "Copy and open Google" puts the approved words on his clipboard and opens that business's reviews
-// on Google, he pastes and posts, then taps "Posted". Posted ones are recorded in gbp_posted (result "by hand"), the same
-// table the API uses, so nothing is ever posted twice and the monthly report counts them. A push at 10 AM and 4 PM
-// Eastern says how many are waiting, only when there are any. Once the Google switch is on, anything approved after
-// that moment is posted by the Worker itself and never shows up here.
+// and posts in their app; every approved one, oldest first, across all clients, is listed on Always Open HQ under
+// "Post on Google" (opshq.js), so Christopher posts them in a few taps: "Copy and open Google" puts the approved words
+// on his clipboard and opens that business's reviews on Google, he pastes and posts, then taps "Posted". Posted ones
+// are recorded in gbp_posted (result "by hand"), the same table the API uses, so nothing is ever posted twice and the
+// monthly report counts them. A push at 10 AM and 4 PM Eastern says how many are waiting, only when there are any, and
+// opens HQ at that list. Once the Google switch is on, anything approved after that moment is posted by the Worker
+// itself and never shows up here. This used to be its own page at /ops/post; that address now sends you to HQ
+// (Nov 11, 2026: "there's too many small places something could be"). Posted is still saved here (POST /ops/post).
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SITE = 'https://alwaysopenoffice.com';
@@ -62,44 +64,6 @@ export async function markPosted(env, id, now) {
   return true;
 }
 
-function ago(iso, now) {
-  const m = Math.max(0, Math.round((now - Date.parse(iso || 0)) / 60000));
-  if (m < 60) return m + ' min ago';
-  const h = Math.round(m / 60);
-  return h < 36 ? h + (h === 1 ? ' hour ago' : ' hours ago') : Math.round(h / 24) + ' days ago';
-}
-
-export function queuePage(items, tok, now) {
-  now = now || Date.now();
-  const n = items.length, mins = Math.max(1, Math.round(n * 0.5));
-  const cards = items.map(it => {
-    const st = Math.max(0, Math.min(5, Math.round(+it.stars || 0)));
-    const head = it.kind === 'post' ? 'Google post' : (st ? '★'.repeat(st) + '☆'.repeat(5 - st) + ' from ' + esc(it.title || 'a customer') : 'Review from ' + esc(it.title || 'a customer'));
-    return '<article class="q" data-id="' + esc(it.id) + '"><div class="top"><b>' + esc(it.business) + '</b><span>' + esc(ago(it.approvedAt, now)) + '</span></div>' +
-      '<p class="hd">' + head + '</p>' + (it.kind !== 'post' && it.review ? '<p class="rv">“' + esc(it.review.slice(0, 400)) + (it.review.length > 400 ? '…' : '') + '”</p>' : '') +
-      '<p class="lab">' + (it.kind === 'post' ? 'The approved post' : 'The approved reply') + '</p><div class="words">' + esc(it.words) + '</div>' +
-      '<div class="acts"><a class="go" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-words="' + esc(it.words) + '">Copy and open Google</a><button class="done" type="button">Posted</button></div>' +
-      '<p class="how">' + (it.kind === 'post' ? 'On Google, tap Add update, paste, and post.' : 'On Google, find this review, tap Reply, paste, and post.') + '</p></article>';
-  }).join('');
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">' +
-    '<title>Post on Google · Always Open</title><style>' +
-    ':root{--bg:#0F131B;--card:#171C27;--line:#262E40;--ink:#ECEEF3;--mute:#A3ACBF;--sign:#FF6A5E;--ok:#5CC9A4}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}' +
-    'main{max-width:640px;margin:0 auto;padding:22px 16px 60px}h1{font-size:1.7rem;margin:0 0 4px}.sub{color:var(--mute);margin:0 0 20px}' +
-    '.count{display:inline-block;font-weight:800;color:#fff;text-shadow:0 0 10px rgba(255,106,94,.8)}' +
-    '.q{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px;transition:opacity .35s,transform .35s}.q.gone{opacity:0;transform:translateX(24px)}' +
-    '.top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.top span{color:var(--mute);font-size:.85rem}.hd{margin:6px 0 2px;color:#FFB4AC;font-weight:600}.rv{margin:4px 0 0;color:var(--mute);font-size:.95rem}' +
-    '.lab{margin:12px 0 4px;font-size:.8rem;color:var(--mute);text-transform:none}.words{background:#0B0E14;border:1px solid var(--line);border-radius:12px;padding:12px;white-space:pre-wrap;user-select:all}' +
-    '.acts{display:flex;gap:10px;margin-top:12px}.acts a,.acts button{flex:1;min-height:52px;padding:0 12px;border-radius:12px;font-family:inherit;font-weight:700;font-size:16px;line-height:1.2;text-align:center;display:flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}.acts a{flex:1.4}' +
-    '.go{background:var(--sign);color:#1A0605;border:0}.done{background:transparent;color:var(--ok);border:2px solid var(--ok)}.how{margin:8px 0 0;color:var(--mute);font-size:.85rem}' +
-    '.empty{text-align:center;padding:60px 10px;color:var(--mute)}.empty b{display:block;font-size:1.6rem;color:var(--ok);margin-bottom:6px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:99px;font-weight:600;opacity:0;transition:opacity .2s}.toast.on{opacity:1}' +
-    '</style></head><body><main><h1>Post on Google</h1><p class="sub" id="sub">' + (n ? '<span class="count" id="n">' + n + '</span> approved by the owners, waiting for Google. About ' + mins + (mins === 1 ? ' minute' : ' minutes') + '.' : '') + '</p>' +
-    (+items.held ? '<p class="sub">' + items.held + (items.held === 1 ? ' edited reply from a regulated client is' : ' edited replies from regulated clients are') + ' held for a compliance look first, so ' + (items.held === 1 ? 'it is' : 'they are') + ' not here.</p>' : '') +
-    (n ? cards : '') + '<div class="empty" id="empty"' + (n ? ' hidden' : '') + '><b>All caught up</b>Nothing is waiting for Google.</div></main><div class="toast" id="toast"></div>' +
-    '<script>(function(){var tok=' + JSON.stringify(String(tok || '')) + ',left=' + n + ';function toast(t){var e=document.getElementById("toast");e.textContent=t;e.classList.add("on");setTimeout(function(){e.classList.remove("on")},1800)}' +
-    'document.querySelectorAll(".go").forEach(function(a){a.addEventListener("click",function(){var w=a.getAttribute("data-words");try{navigator.clipboard.writeText(w).then(function(){toast("Copied. Paste it on Google.")},function(){toast("Hold on the words to copy them.")})}catch(e){toast("Hold on the words to copy them.")}})});' +
-    'document.querySelectorAll(".done").forEach(function(b){b.addEventListener("click",function(){var q=b.closest(".q");b.disabled=true;b.textContent="Saving…";fetch("/ops/post?t="+encodeURIComponent(tok),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:q.getAttribute("data-id")})}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw 0;q.classList.add("gone");setTimeout(function(){q.remove()},350);left--;var c=document.getElementById("n");if(c)c.textContent=left;if(!left){document.getElementById("sub").textContent="";document.getElementById("empty").hidden=false}}).catch(function(){b.disabled=false;b.textContent="Posted";toast("Could not save. Try again.")})})})})();</script></body></html>';
-}
-
 export async function handlePostQueue(req, env, url) {
   const { boardOk } = await import('./opsboard.js');
   const tok = url.searchParams.get('t') || '';
@@ -109,8 +73,9 @@ export async function handlePostQueue(req, env, url) {
     const ok = await markPosted(env, b.id);
     return new Response(JSON.stringify({ ok }), { status: ok ? 200 : 404, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
-  const items = await queueItems(env);
-  return new Response(queuePage(items, tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
+  // the list lives on Always Open HQ now; an old link or push lands on it there, with a fresh link
+  const fresh = await (await import('./opsboard.js')).boardToken(env);
+  return new Response(null, { status: 302, headers: { location: SITE + '/ops/hq?t=' + fresh + '#google', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
 }
 
 // 10 AM and 4 PM Eastern, from the 10-minute cron: one push when something is waiting.
@@ -135,6 +100,6 @@ export async function queuePush(env, now, h) {
   const what = [replies ? replies + (replies === 1 ? ' reply' : ' replies') : '', posts ? posts + (posts === 1 ? ' post' : ' posts') : ''].filter(Boolean).join(' and ');
   const biz = [...new Set(items.map(i => i.business))];
   const ping = h.ping || (await import('./app.js')).opsPing;
-  await ping(env, what + ' ready to post on Google', 'Approved by ' + (biz.length > 3 ? biz.length + ' businesses' : biz.join(', ')) + '. About ' + Math.max(1, Math.round(items.length * 0.5)) + ' min: copy, paste, tap Posted.', 'default', ['memo'], SITE + '/ops/post?t=' + tok);
+  await ping(env, what + ' ready to post on Google', 'Approved by ' + (biz.length > 3 ? biz.length + ' businesses' : biz.join(', ')) + '. About ' + Math.max(1, Math.round(items.length * 0.5)) + ' min: copy, paste, tap Posted.', 'default', ['memo'], SITE + '/ops/hq?t=' + tok + '#google');
   return { waiting: items.length };
 }

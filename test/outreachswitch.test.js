@@ -47,7 +47,7 @@ test('the board shows the switch with what it controls, and the page asks twice 
   assert.match(html, /<h2>Outreach calls<\/h2>/);
   assert.match(html, /Max calling businesses: OFF/, 'no setting saved yet reads as off');
   assert.match(html, /Tap again to turn on/);
-  assert.match(html, /fetch\("\/ops\/outreach-switch"/);
+  assert.match(html, /send\('\/ops\/outreach-switch'/);
   const index = (await import('node:fs')).readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
   assert.match(index, /path === '\/ops\/outreach-switch'\) return handleOpsBoard/);
 });

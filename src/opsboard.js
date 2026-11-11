@@ -10,12 +10,12 @@ const fundingStateLine = async env => { try { return (await fundingState(env)).t
 import { DEMO_ID } from './demo.js';
 import { buildPack } from './cpack.js';
 import { markCredited } from './referral.js';
-import { mapAdmin, setShow, previewKey } from './map.js';
-import { driftRows, driftTable, driftText, DRIFT_CSS } from './drift.js';
+import { setShow, previewKey } from './map.js';
+import { driftRows, driftText } from './drift.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Addresses in a line become links you can tap (the text is escaped first, so nothing else turns into markup).
-const linkify = h => h.replace(/https:\/\/[^\s<,]+[^\s<,.)]/g, u => '<a href="' + u + '" style="color:inherit;word-break:break-all">' + u + '</a>');
+export const linkify = h => h.replace(/https:\/\/[^\s<,]+[^\s<,.)]/g, u => '<a href="' + u + '" style="color:inherit;word-break:break-all">' + u + '</a>');
 const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 
 // The board's link. Since Nov 10, 2026 a link is dated and works for 30 days (the Monday email and every push carry a
@@ -79,12 +79,12 @@ export async function boardItems(env) {
     const bits = [];
     if (+w.replies) bits.push(w.replies + (+w.replies === 1 ? ' reply' : ' replies'));
     if (+w.posts) bits.push(w.posts + (+w.posts === 1 ? ' post' : ' posts'));
-    items.push({ key: 'google:' + w.client_id + ':' + w.replies + ':' + w.posts, group: 'Google: approved, waiting to be posted', title: w.biz, detail: bits.join(' and ') + ' approved by the owner, not posted yet. Post them in a few taps: https://alwaysopenoffice.com/ops/post?t=' + await boardToken(env) });
+    items.push({ key: 'google:' + w.client_id + ':' + w.replies + ':' + w.posts, group: 'Google: approved, waiting to be posted', title: w.biz, detail: bits.join(' and ') + ' approved by the owner, not posted yet. Post them in a few taps: https://alwaysopenoffice.com/ops/hq?t=' + await boardToken(env) + '#google' });
   }
   const yelp = await all(env, "SELECT i.client_id, COALESCE(c.business, i.client_id) AS biz, COUNT(*) AS n FROM app_items i LEFT JOIN app_clients c ON c.client_id = i.client_id WHERE i.status = 'approved' AND i.hq_synced = 0 AND i.client_id != ?1 AND i.id NOT LIKE 'm:%' AND i.id NOT LIKE 'g:%' AND LOWER(i.context || i.title) LIKE '%yelp%' GROUP BY i.client_id", DEMO_ID);
   for (const y of yelp) items.push({ key: 'yelp:' + y.client_id + ':' + y.n, group: 'Yelp: replies to hand to the owner', title: y.biz, detail: y.n + (+y.n === 1 ? ' reply is' : ' replies are') + ' approved. The owner posts them, we never ask for Yelp reviews' });
   const signups = await all(env, "SELECT b.client_id, b.business, b.plan, b.created, p.status AS line, p.number FROM billing b LEFT JOIN provision p ON p.client_id = b.client_id WHERE b.hq_synced = 0 AND b.status IN ('active', 'past_due') AND b.client_id != ?1 ORDER BY b.created DESC LIMIT 50", DEMO_ID);
-  for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups (the Always Open check adds them to HQ)', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) + '. Max’s line: ' + (s.line === 'live' ? 'live at ' + String(s.number || '').replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : (s.line || 'not started')) });
+  for (const s of signups) items.push({ key: 'signup:' + s.client_id, group: 'New signups', title: s.business || s.client_id, detail: (s.plan || '') + ' plan, signed up ' + String(s.created || '').slice(0, 10) + '. Max’s line: ' + (s.line === 'live' ? 'live at ' + String(s.number || '').replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : (s.line || 'not started')) });
   try { items.push(...await (await import('./provision.js')).provisionBoard(env)); } catch (e) {}
   try { items.push(...await (await import('./gbp.js')).gbpBoard(env)); } catch (e) {}
   try { items.push(...await (await import('./aicheck.js')).aiCheckBoard(env)); } catch (e) {}
@@ -174,7 +174,7 @@ function groups(items) {
   return g;
 }
 
-function mapSection(rows) {
+export function mapSection(rows) {
   if (!rows.length) return '';
   return '<section><h2>The Always Open map</h2>' + rows.map(r => '<div class="it"><div><b>' + esc(r.business) + '</b><span>' +
     esc(r.listed ? (r.placed ? 'On the map' : 'On the map once we find their town or address') : (r.regulated ? 'Off (regulated: only if they ask)' : (r.paying ? 'Off' : 'Off (not billed through Stripe)'))) +
@@ -200,7 +200,7 @@ export function boardEmail(items, link, numbersLink, drift) {
     doThis: todo.slice(0, 5).map(x => x.title + ': ' + cut(x.detail, 160)),
     stats: [{ n: String(todo.length), label: 'for you to do', tone: todo.length ? 'bad' : '' }, { n: String(errs), label: 'page errors', tone: errs ? 'bad' : '' }],
     linesTitle: lines.length ? 'How things stand' : '', lines,
-    button: { text: 'Open this week\'s checklist', url: link }, note: numbersLink ? 'Revenue, costs and margin: ' + numbersLink : ''
+    button: { text: 'Open Always Open HQ', url: link }, note: numbersLink ? 'Revenue, costs and margin: ' + numbersLink : ''
   };
 }
 
@@ -233,24 +233,10 @@ export function switchSection(s) {
     '<button type="button" style="white-space:nowrap" data-osw="' + (s.on ? '0' : '1') + '">' + (s.on ? 'Turn off' : 'Turn on') + '</button></div></section>';
 }
 
-function boardHtml(items, tok, map, drift, sw) {
-  const g = groups(items);
-  const sec = [...g].map(([name, list]) => '<section><h2>' + esc(name) + '</h2>' + list.map(x => '<div class="it" data-k="' + esc(x.key) + '"><div><b>' + esc(x.title) + '</b><span>' + linkify(esc(x.detail)) + '</span></div><button type="button">Done</button></div>').join('') + '</section>').join('');
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>This week</title>' +
-    '<style>' + DRIFT_CSS + ':root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--soft:#F5F4F0;--ok:#1E7A4F}@media(prefers-color-scheme:dark){:root{--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--paper:#12151D;--soft:#1A1F2B}}' +
-    '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:640px;margin:0 auto;padding:24px 16px 60px}h1{font-size:26px;margin:0 0 4px}h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:26px 0 8px}p{color:var(--slate);margin:0}' +
-    '.it{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-bottom:8px}.it span{display:block;color:var(--slate);font-size:14px}button{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;cursor:pointer}</style></head><body><main><h1>This week</h1><p>What only you can do. Tap Done when it is handled.</p>' +
-    '<p style="margin:0 0 16px"><a href="/ops/numbers?t=' + esc(tok || '') + '" style="color:inherit;font-weight:600">The numbers: revenue, funnel, costs and margin →</a></p>' +
-    '<p style="margin:0 0 16px"><a href="/ops/hq?t=' + esc(tok || '') + '" style="color:inherit;font-weight:600">HQ: who is waiting on a reply, requests, clients and calls →</a></p>' + switchSection(sw) + (drift || '') +
-    (sec || '<section><h2>All clear</h2><p>Nothing is waiting on you.</p></section>') +
-    mapSection(map || []) +
-    '<script>var T=' + JSON.stringify(tok || '') + ';document.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;if(b.dataset.osw){if(b.dataset.osw==="1"&&!b.dataset.sure){b.dataset.sure="1";b.textContent="Tap again to turn on";return;}b.disabled=true;fetch("/ops/outreach-switch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,on:b.dataset.osw==="1"})}).then(function(r){if(r.ok)location.reload();else{b.disabled=false;b.textContent="Did not work. Try again"}}).catch(function(){b.disabled=false});return;}if(b.dataset.map){b.disabled=true;fetch("/ops/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,id:b.dataset.map,show:b.dataset.show==="1"})}).then(function(r){if(r.ok)location.reload();else b.disabled=false});return;}var r=b.closest(".it");b.disabled=true;fetch("/ops/done",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,k:r.dataset.k})}).then(function(x){return x.json()}).then(function(j){if(j.ok)r.remove();else b.disabled=false}).catch(function(){b.disabled=false})});</script></main></body></html>';
-}
-
 export async function handleOpsBoard(req, env, url) {
   const path = url.pathname;
-  // Always Open HQ: who is waiting on a reply, requests, clients and calls (opshq.js)
-  if (path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead') return (await import('./opshq.js')).handleHq(req, env, url, { allowed, boardToken, boardCookie });
+  // The page: /ops and /ops/hq are both Always Open HQ (opshq.js), the one page with everything that needs him on it.
+  if (path === '/ops' || path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead') return (await import('./opshq.js')).handleHq(req, env, url, { allowed, boardToken, boardCookie });
   if (path === '/ops/done') {
     let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
     if (req.method !== 'POST' || !(await allowed(req, env, url, String(b.t || '')))) return new Response('{"ok":false}', { status: 403, headers: { 'content-type': 'application/json' } });
@@ -294,11 +280,7 @@ export async function handleOpsBoard(req, env, url) {
     const N = await import('./numbers.js');
     return new Response(N.renderNumbers(await N.numbersState(env), '/ops?t=' + tok), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
   }
-  const items = await boardItems(env);
-  let map = []; try { map = await mapAdmin(env); } catch (e) { map = []; }
-  let drift = ''; try { drift = driftTable(await driftRows(env)); } catch (e) { drift = ''; }
-  let sw = null; try { sw = await outreachSwitch(env); } catch (e) { sw = null; }
-  return new Response(boardHtml(items, tok, map, drift, sw), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
+  return new Response('Not found', { status: 404 });
 }
 
 // Monday email to MAIL_TO. Once per week.

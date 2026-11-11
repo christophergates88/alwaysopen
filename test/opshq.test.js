@@ -70,23 +70,30 @@ test('it shows who is waiting, open requests, clients and real calls, straight f
   const c = s.clients.find(x => x.id === 'sinclair');
   assert.equal(c.calls7, 1); assert.equal(c.pending, 1); assert.equal(+c.line.on_air, 1); assert.equal(c.bill.status, 'active');
   const html = Q.hqHtml(s, 'TOK');
-  assert.match(html, /<h2>Waiting on a reply \(1\)<\/h2>/);
+  assert.match(html, /<h2>Reply to clients \(1\)<\/h2>/);
+  // the tally: always all five kinds, each with its count, and the total on top
+  assert.deepEqual(Q.tally(s).map(x => x.id), ['reply', 'google', 'requests', 'todo', 'off']);
+  const total = Q.tally(s).reduce((a, x) => a + x.n, 0);
+  assert.ok(html.includes('<p class="big">' + total + ' things need you</p>') && html.includes('<title>(' + total + ') Always Open HQ</title>'));
+  assert.match(html, /<a class="t" href="#reply"><span class="n">1<\/span><span>Clients waiting on your reply<\/span>/);
+  assert.match(html, /Approved for Google, waiting to be posted: none/, 'a zero is shown as a checked zero, not left out');
+  assert.match(html, /Everything that can need you is in this list, and nowhere else\./);
   assert.match(html, /Can Max say we do &lt;b&gt;tankless&lt;\/b&gt; installs\?/, 'what a client typed is shown as text, never as markup');
   assert.doesNotMatch(html, /<b>tankless<\/b>/);
   assert.match(html, /Waiting 20 hr/);
   assert.match(html, /data-send="sinclair">Send as Katie</);
-  assert.match(html, /<h2>Requests \(3 open\)<\/h2>/);
+  assert.match(html, /<h2>Requests to call back \(3\)<\/h2>/);
   assert.match(html, /<b>Lakeside Dental<\/b><span class="sub">Asked for a call from their letter/); assert.match(html, /grade D/);
   assert.match(html, /<b>Moss Roofing<\/b>/); assert.match(html, /Asked what the Growth plan costs/);
-  assert.match(html, /1 closed or test/);
-  assert.match(html, /<h2>Clients \(2\)<\/h2>/);
+  assert.match(html, /<summary>Requests already closed \(1\)<\/summary>/);
+  assert.match(html, /<summary>Clients \(2\)<\/summary>/);
   assert.match(html, /Oak &amp; Iron &lt;Builders&gt;/);
   assert.match(html, /1 waiting on their OK, oldest 2 days/);
   assert.match(html, /Max answering/); assert.match(html, /Max off/);
   assert.match(html, /Your own line and the demo/);
-  assert.match(html, /Calls Max took, last 7 days \(2\)/); assert.match(html, /Tom Reyes/); assert.match(html, /Urgent/);
+  assert.match(html, /Calls Max took this week \(2\)/); assert.match(html, /Tom Reyes/); assert.match(html, /Urgent/);
   assert.match(html, /1 test call is not shown/);
-  assert.match(html, /href="\/ops\?t=TOK"/); assert.match(html, /href="\/ops\/numbers\?t=TOK"/);
+  assert.match(html, /href="\/ops\/numbers\?t=TOK"/);
   assert.doesNotMatch(html, /prompt\(|alert\(|confirm\(/, 'no pop-up boxes');
   assert.doesNotMatch(html, /\bAI\b/);
 });
@@ -123,7 +130,7 @@ test('a request moves between new, talking, won and lost, with a note', async ()
   await post(env, '/ops/hq/lead', { t, id, status: 'lost', note: '  went with\n a cousin  ' });
   assert.deepEqual({ ...(await DB.prepare('SELECT status, reason FROM leads WHERE id = ?1').bind(id).first()) }, { status: 'lost', reason: 'went with a cousin' });
   const html = Q.hqHtml(await Q.hqState(env, NOW), t);
-  assert.match(html, /<h2>Requests \(2 open\)<\/h2>/);
+  assert.match(html, /<h2>Requests to call back \(2\)<\/h2>/);
   assert.match(html, /Note: went with a cousin/);
 });
 
@@ -135,17 +142,48 @@ test('a site with nothing in it yet still opens the page, and so does one that h
   const res = await get(env, '/ops/hq', { 'x-key': 'k-for-tests' });
   assert.equal(res.status, 200);
   const html = await res.text();
-  assert.match(html, /Nobody is waiting on you\./); assert.match(html, /No open requests\./); assert.match(html, /No clients yet\./); assert.match(html, /No calls from real callers this week\./);
+  assert.match(html, /Clients waiting on your reply: none/); assert.match(html, /Requests to call back: none/); assert.match(html, /No clients yet\./); assert.match(html, /No calls from real callers this week\./);
 });
 
 test('the board links to HQ, and the times read in Eastern', async () => {
   const { env } = await world();
   const t = await B.boardToken(env);
   const board = await (await get(env, '/ops?t=' + t)).text();
-  assert.match(board, /href="\/ops\/hq\?t=[0-9a-f]+"[^>]*>HQ: who is waiting on a reply, requests, clients and calls/);
+  assert.match(board, /<h1>Always Open HQ<\/h1>/, 'the old board address is the same one page');
   assert.equal(Q.when('2026-11-11T14:05:00Z', NOW), 'Today 9:05 AM');
   assert.equal(Q.when('2026-11-10T22:30:00Z', NOW), 'Yesterday 5:30 PM');
   assert.equal(Q.when('2026-11-08T15:00:00Z', NOW), 'Sun 10:00 AM');
   assert.equal(Q.when('2026-10-20T15:00:00Z', NOW), 'Oct 20');
   assert.equal(Q.ago(iso(NOW - 25 * 60000), NOW), '25 min'); assert.equal(Q.ago(iso(NOW - 5 * H), NOW), '5 hr'); assert.equal(Q.ago(iso(NOW - 72 * H), NOW), '3 days');
+});
+
+test('one page: Google replies with Copy and Posted, the week\'s to-dos with Done, and what is off, all in the one list', async () => {
+  const { env, DB } = await world();
+  await (await import('../src/gbp.js')).ensureGbp(env);
+  await DB.prepare("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, decided_text, decided_at, decided_by, created) VALUES ('g:r1', 'sinclair', 'reply', 'Pat L.', 'Fast and <b>fair</b>.', 5, 'Thank you, Pat.', 'approved', 'Thank you, Pat.', ?1, 'Dana', ?1)").bind(iso(NOW - 3 * H)).run();
+  await DB.prepare("UPDATE billing SET status = 'past_due', updated = ?1 WHERE client_id = 'sinclair'").bind(iso(NOW - 5 * H)).run();
+  const s = await Q.hqState(env, NOW), html = Q.hqHtml(s, 'TOK');
+  assert.deepEqual(s.post.map(i => i.id), ['g:r1']);
+  assert.match(html, /<section id="google"><h2>Post on Google \(1\)<\/h2>/);
+  assert.match(html, /★★★★★ from Pat L\./); assert.match(html, /Fast and &lt;b&gt;fair&lt;\/b&gt;\./);
+  assert.match(html, /data-copy="Thank you, Pat\.">Copy and open Google<\/a><button type="button" data-posted="g:r1">Posted<\/button>/);
+  assert.ok(!s.todo.some(x => x.key.startsWith('google:')), 'not listed twice: the to-dos leave Google to its own part');
+  assert.ok(s.todo.some(x => x.key.startsWith('pay:sinclair')), 'a failed payment is a to-do');
+  assert.match(html, /<section id="todo"><h2>To do this week \(\d+\)<\/h2>/); assert.match(html, /data-done="pay:sinclair:[^"]+" data-at="todo">Done</);
+  assert.ok(s.off.length >= 1 && s.off.every(x => x.title && x.what && x.doThis), 'each thing that is off says what happened and what to do');
+  assert.match(html, /<section id="off"><h2>Things that are off \(\d+\)<\/h2>/); assert.match(html, /<b>Do this:<\/b>/);
+  assert.ok(!s.info.some(x => /^(err:|google:)/.test(x.key)) && s.info.some(x => x.key.startsWith('sys:')), 'status lines sit under How things stand');
+  assert.match(html, /<summary>How things stand<\/summary>/); assert.match(html, /<summary>Switches: Outreach calls and the map<\/summary>/); assert.match(html, /Max calling businesses: OFF/);
+  // Posted takes it off the list; Done takes the to-do off
+  const t = await B.boardToken(env), PQ = await import('../src/postqueue.js');
+  const pu = new URL('https://alwaysopenoffice.com/ops/post?t=' + t);
+  assert.deepEqual(await (await PQ.handlePostQueue(new Request(pu, { method: 'POST', body: JSON.stringify({ id: 'g:r1' }) }), env, pu)).json(), { ok: true });
+  const key = s.todo.find(x => x.key.startsWith('pay:sinclair')).key;
+  assert.equal((await post(env, '/ops/done', { t, k: key })).status, 200);
+  const s2 = await Q.hqState(env, NOW);
+  assert.equal(s2.post.length, 0); assert.ok(!s2.todo.some(x => x.key === key));
+  assert.match(Q.hqHtml(s2, t), /Approved for Google, waiting to be posted: none/);
+  // the page's own script stands alone and has no pop-up boxes
+  const js = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  assert.doesNotThrow(() => new Function(js)); assert.doesNotMatch(js, /\b(alert|confirm|prompt)\(/);
 });

@@ -161,7 +161,7 @@ export function renderNumbers(s, back) {
   const pc = s.perClient.map(r => '<tr class="' + (r.margin < 0 ? 'neg' : '') + '"><td><b>' + esc(r.business) + '</b><span>' + esc(r.plan) + '</span></td><td>' + $(r.revenue) + '</td><td>' + num(r.calls) + '</td><td>' + num(r.minutes) + '</td><td>' + num(r.texts) + '</td><td>' + $(r.cost) + '</td><td>' + $(r.margin) + '</td></tr>').join('');
   const co = s.cohorts.map(c => '<tr><th>' + esc(c.label) + '</th><td>' + c.joined + '</td><td>' + c.active + '</td><td>' + pct(c.active, c.joined) + '</td></tr>').join('');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>The numbers</title><style>' + CSS + '</style></head><body><main>' +
-    '<p class="nm-top"><a href="' + esc(back) + '">← This week</a><span>As of ' + esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></p>' +
+    '<p class="nm-top"><a href="' + esc(back) + '">← Always Open HQ</a><span>As of ' + esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></p>' +
     '<h1>Always Open, in numbers</h1>' +
     '<div class="nm-tiles">' +
     tile($(s.mrr.cents / 100), 'monthly revenue', s.mrr.clients + ' paying · ' + plans) +
