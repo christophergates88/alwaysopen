@@ -28,6 +28,12 @@ Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `S
 The ops key goes in the `x-key` header and nowhere else: no route takes it in the address (Nov 11, 2026; `/leads`,
 `/storms` and `/radar` used to). The ops board uses dated links and a device cookie instead (`src/opsboard.js`).
 
+On the Mac the ops key lives in the Keychain (login keychain, item "Always Open ops key", account `alwaysopen`), not in
+a file. `GatesHQ/alwaysopen/opskey.sh` prints it for the `.command` files; `aopush.py` asks the Keychain itself (and
+`dayplans`, `textpilot` and `wifisense` get it from `aopush`). It was moved out of `alwaysopen/deploy.sh` and its three
+old copies by `Move ops key to Keychain.command` (result in `GatesHQ/opskey-move-result.txt`). Until that has been run
+on a Mac, every reader falls back to the old file. To see the key: Keychain Access, search "Always Open ops key".
+
 ## Security headers (src/headers.js)
 
 Every answer says https-only for a year (`strict-transport-security`) and `nosniff`; every page carries a content
@@ -93,6 +99,17 @@ Loud at night only: a number that no longer reaches us (`health:twilio-numbers`)
 A 7 AM push says "all good" every morning; if it does not arrive, that is itself the alarm, and the outside monitor
 backs it up. Plain `/health` (what the outside monitor reads) only goes red for the site, the database, the keys, the
 10-minute jobs and the phone numbers; `/health?all=1` shows everything, as the ops board does.
+
+## The client app's long screens fold (src/apppage.js `fold`)
+
+Max and Money keep each group of switches behind one row: the group's name, one line saying where it stands ("5 of 8
+on.", "Max books an open time. A visit takes 1 hour."), and an arrow. A tap opens it in place; nothing moves to another
+screen, so it is still four screens and one column. Open by itself only when it needs the owner: What Max knows while
+the hours are empty, and Teach Max when he heard new things on a call. A fold stays how the owner left it for the visit,
+so Save never shuts the group they are in. Never folded: the on/off card, the timecard, minutes, Calls, Tell Max
+something, and every card the website shows off (`data-card`). `tools/appcheck.mjs` holds the rules: each closed row
+says where it stands and is 48 px or taller, everything inside is measured with the folds open, the eleven owner tasks
+still take the tab and at most one more tap, and Max stays under 4,200 px closed (it was 8,600 flat).
 
 ## What Max says about himself
 

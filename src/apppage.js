@@ -317,6 +317,18 @@ button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-co
 .sample{margin:0 0 12px;padding:9px 12px;border-radius:12px;border:1px dashed var(--line);background:var(--soft,transparent);font-size:15px;color:var(--slate)}.sample b{color:var(--ink)}.vers{margin-top:10px;display:grid;gap:10px}.ver{border:1px dashed var(--line);border-radius:12px;padding:10px}.ver .btn{margin-top:8px}
 select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px;color:var(--ink)}
 .form details summary{cursor:pointer;font-weight:600;color:var(--slate);min-height:44px;display:flex;align-items:center}
+.fold{margin:0 0 10px}
+.fold>summary{list-style:none;cursor:pointer;display:block;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 16px;-webkit-tap-highlight-color:transparent}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary:focus-visible{outline:2px solid var(--sign);outline-offset:2px}
+.fold .fr{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}
+.fold .ft{min-width:0;display:grid;gap:2px}
+.fold .ft b{font:800 1.05rem/1.2 var(--display);font-stretch:92%}
+.fold .ft .fine{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.fold .fr svg{width:20px;height:20px;flex:none;color:var(--slate);transition:transform .18s}
+.fold[open]>summary{margin-bottom:12px}
+.fold[open] .fr svg{transform:rotate(90deg)}
+.fold+h2,.fold+.feature{margin-top:22px}
 .score .big{display:grid;justify-items:start;gap:2px}
 .score .big b{font:850 3rem/1 var(--display);font-stretch:92%}
 .trend{width:100%;height:auto;display:block;margin-top:8px}
@@ -1121,16 +1133,23 @@ function vReviews(){
 
 /* ---------- Max (the phone line) ---------- */
 function sel(a,b){return a===b?' selected':'';}
-var MSEG='answer';
-function mSegBar(L,f){
-  var tabs=[['answer','Answering'],['job','Job description'],['teach','Teach '+L.name]];
-  if(!L.duties)tabs.splice(1,1);
-  if(L.booking)tabs.push(['book','Booking']);
-  if(S.after)tabs.push(['after','After the call']);
-  if(f.calls)tabs.push(['calls','Calls']);
-  if(!tabs.some(function(x){return x[0]===MSEG;}))MSEG='answer';
-  return '<div class="seg msg" role="tablist" aria-label="'+esc(L.name)+'">'+tabs.map(function(x){return '<button type="button" role="tab" class="segb" data-mseg="'+x[0]+'" aria-selected="'+(x[0]===MSEG)+'">'+esc(x[1])+'</button>';}).join('')+'</div>';
+// Folds (Nov 11, 2026): the groups of switches and boxes on Max and Money each sit behind one row that says where the
+// group stands ("7 of 9 on"), and open in place on a tap. Still one column and four screens: nothing moved to another
+// page. A fold stays the way the owner left it for the visit (FOLD), so Save does not shut the group they are in.
+// title and sum are already-escaped text.
+var FOLD={};
+function fold(k,title,sum,body,open){
+  if(!body)return '';
+  var o=FOLD[k]==null?!!open:FOLD[k];
+  return '<details class="fold" data-fold="'+k+'"'+(o?' open':'')+'><summary><span class="fr"><span class="ft"><b>'+title+'</b>'+(sum?'<span class="fine">'+sum+'</span>':'')+'</span>'+ICON.chev+'</span></summary><div class="foldin">'+body+'</div></details>';
 }
+// The same, for a block that starts with its own <h2>: the heading becomes the row's title.
+function foldH(k,html,sum,open){
+  html=html||'';var a=html.indexOf('>'),b=html.indexOf('</h2>');
+  if(html.slice(0,3)!=='<h2'||a<0||b<a)return html;
+  return fold(k,html.slice(a+1,b),sum,html.slice(b+5),open);
+}
+function nOf(n,all,word){return n+' of '+all+' '+word+'.';}
 function vMax(){
   var L=S.line,f=S.features||{};
   var h='<h1>'+esc(L?L.name:'Calls')+'</h1>';
@@ -1149,13 +1168,15 @@ function vMax(){
     h+=timecardCard();
     h+=tapCard(L);
     if(S.minutes){var mm=S.minutes,pc=Math.min(100,mm.pct||0);h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>Minutes this month</b><span class="fine">'+mm.used+' of '+mm.included+'</span></div><div style="height:8px;border-radius:99px;background:var(--panel);margin:8px 0 6px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(mm.over?'var(--sign)':pc>=80?'var(--warn,#F2C46B)':'var(--ok)')+'"></div></div><p class="fine">'+(mm.over?mm.over+' minutes past your plan so far, $'+(mm.overCents/100).toFixed(2)+' at 25¢ a minute on your next invoice. Max keeps answering.':pc>=80?'Getting close. Past '+mm.included+', minutes are 25¢ each. Max keeps answering.':'Every plan comes with 300 minutes of Max a month.')+'</p></div>';}
-    h+='<h2>What '+esc(L.name)+' knows</h2><div class="card form">'+
+    var kn=[String(L.hours||'').trim().replace(/[. ]+$/,'')||'Hours not filled in yet'];
+    if(L.transferText&&L.transferWhen!=='never')kn.push('Urgent calls go to '+L.transferText);
+    h+=fold('knows','What '+esc(L.name)+' knows',esc(kn.join('. ')+'.'),'<div class="card form">'+
       '<label>Your hours<input type="text" id="lh" maxlength="300" value="'+esc(L.hours)+'" placeholder="For example: Mon to Fri 8 to 5, Sat 9 to 1"></label>'+
       '<label>What should '+esc(L.name)+' tell callers?<textarea id="lo" maxlength="800" placeholder="Specials, how you book, areas you serve, anything to steer clear of.">'+esc(L.owner)+'</textarea></label>'+
       '<label>Urgent calls go to<input type="tel" id="lt" maxlength="20" inputmode="tel" value="'+esc(L.transferText)+'" placeholder="Your cell, or leave blank"></label>'+
       '<label>Put callers through to that number<select id="lw"><option value="never"'+sel(L.transferWhen,'never')+'>Never, just take a message</option><option value="urgent"'+sel(L.transferWhen,'urgent')+'>Only if it\\u2019s urgent</option><option value="asked"'+sel(L.transferWhen,'asked')+'>When they ask, or it\\u2019s urgent</option></select></label>'+
       '<details><summary>Greeting</summary><label style="margin-top:8px">What '+esc(L.name)+' says first<textarea id="lg" maxlength="320" placeholder="'+esc(L.defaultGreeting)+'">'+esc(L.greeting)+'</textarea></label><p class="fine">We always add that callers are talking to an automated assistant and that the call may be recorded. Leave it empty for the standard one.</p></details>'+
-      '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>';
+      '<div class="acts"><button class="btn red" type="button" data-a="line-save">Save</button></div></div>',!String(L.hours||'').trim());
     if(L.voices)h+=voiceCard(L);
     if(f.calls)h+='<h2>Calls</h2>'+callsList();
   }{
@@ -1187,11 +1208,11 @@ function jobCard(L){
   var v=J.values||{};
   var h='<h2>Tell '+esc(L.name)+' something</h2><div class="card form"><label>Say it like you would to your crew<input type="text" id="tm-text" maxlength="280" placeholder="Closed Friday. No jobs in Macon this week."></label><div class="acts"><button class="btn red" type="button" data-a="tell-go">Tell '+esc(L.name)+'</button></div>'+
     '<p class="fine">Or text it from your phone to '+esc(L.numberText)+'. Text UNDO to take the last one back. It goes into What '+esc(L.name)+' knows, with the date.</p></div>';
-  h+='<h2>Job description</h2><div class="card form"><p class="fine" style="margin-top:0">What '+esc(L.name)+' may do on a call. Changes apply to the next call.</p>'+J.list.map(function(d){
+  h+=fold('job','Job description',nOf(J.list.filter(function(d){return !!v[d.key];}).length,J.list.length,'on'),'<div class="card form"><p class="fine" style="margin-top:0">What '+esc(L.name)+' may do on a call. Changes apply to the next call.</p>'+J.list.map(function(d){
     return '<label class="opt" style="display:flex;gap:10px;align-items:flex-start;margin-top:10px"><input type="checkbox" data-duty="'+esc(d.key)+'"'+(v[d.key]?' checked':'')+' style="margin-top:3px"> <span><b>'+esc(d.label)+'</b><br><span class="fine">'+esc(d.sub)+'</span></span></label>'+
       (d.text?'<label style="margin:6px 0 0 30px">'+esc(d.textLabel)+'<input type="text" data-dtext="'+esc(d.text)+'" maxlength="400" value="'+esc(v[d.text]||'')+'" placeholder="'+esc(d.textHint)+'"></label>':'');
   }).join('')+'<div class="acts"><button class="btn red" type="button" data-a="duty-save">Save</button></div>'+
-    '<p class="fine">Booking, call-backs and the calls '+esc(L.name)+' makes have their own switches under Booking and After the call.</p></div>';
+    '<p class="fine">Booking, call-backs and the calls '+esc(L.name)+' makes have their own switches under Booking and After the call.</p></div>');
   return h;
 }
 function dutySave(){
@@ -1230,24 +1251,33 @@ function bookCard(L){
   var B=L.booking,d=B.days||{},wk=d.Mon||d.Tue||d.Wed||d.Thu||d.Fri||[480,1020];
   var row=function(id,label,v){return '<div class="sw" style="gap:8px"><label style="flex:1">'+label+'<span style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bk-'+id+'-on"'+(v?' checked':'')+' aria-label="Open '+label+'"><input type="time" id="bk-'+id+'-o" value="'+hhmm(v?v[0]:480)+'"> to <input type="time" id="bk-'+id+'-c" value="'+hhmm(v?v[1]:1020)+'"></span></label></div>';};
   var cal=S.calendar||{};
-  return '<h2>Booking</h2><div class="card form">'+
+  var len=B.slotMin<60?B.slotMin+' minutes':(B.slotMin/60)+(B.slotMin===60?' hour':' hours');
+  var sum=B.mode==='off'?esc(L.name)+' takes a message.':esc(L.name)+(B.mode==='hold'?' pencils in a time, and we confirm by text.':' books an open time.')+' A visit takes '+len+'.';
+  return foldH('book','<h2>Booking</h2><div class="card form">'+
     '<label>When a caller wants a visit<select id="bk-mode"><option value="book"'+sel(B.mode,'book')+'>'+esc(L.name)+' books an open time</option><option value="hold"'+sel(B.mode,'hold')+'>'+esc(L.name)+' pencils in a time, we confirm by text</option><option value="off"'+sel(B.mode,'off')+'>'+esc(L.name)+' takes a message</option></select></label>'+
     '<label>A visit takes<select id="bk-len">'+[30,60,90,120,180,240].map(function(m){return '<option value="'+m+'"'+(B.slotMin===m?' selected':'')+'>'+(m<60?m+' minutes':(m/60)+(m===60?' hour':' hours'))+'</option>';}).join('')+'</select></label>'+
     '<label>Time between visits<select id="bk-buf">'+[0,15,30,60].map(function(m){return '<option value="'+m+'"'+(B.bufferMin===m?' selected':'')+'>'+(m?m+' minutes':'None')+'</option>';}).join('')+'</select></label>'+
     row('wk','Weekdays',wk)+row('sat','Saturday',d.Sat)+row('sun','Sunday',d.Sun)+
     '<p class="fine">'+esc(L.name)+' offers two times at a time, at least two hours out, and never the same time twice.'+(cal.needsReconnect?' Google stopped answering for your calendar. Connect it again below.':cal.connected?' Your Google Calendar is connected, so busy times there are skipped too.':' Connect Google Calendar (optional) so '+esc(L.name)+' never double-books with your own plans.')+'</p>'+
-    '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.needsReconnect?'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Reconnect Google Calendar</a>':cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>';
+    '<div class="acts"><button class="btn red" type="button" data-a="bk-save">Save</button>'+(cal.needsReconnect?'<a class="btn red sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Reconnect Google Calendar</a>':cal.connected?'<button class="btn ghost sm" type="button" data-a="gcal-off">Disconnect calendar</button>':'<a class="btn line sm" href="/google/connect?code='+encodeURIComponent(BASE.split('/').pop())+'">Connect Google Calendar</a>')+'</div></div>',sum);
 }
 function afterCard(L){
   var A=S.after;
   var sw=function(k,title,sub){return '<div class="sw"><div><b>'+title+'</b><span>'+sub+'</span></div><button class="switch" type="button" role="switch" aria-checked="'+(A[k]?'true':'false')+'" data-a="after-'+k+'" aria-label="'+title+'"><i></i></button></div>';};
-  return '<h2>After the call</h2><div class="card">'+
+  var on=[];if(A.promise)on.push('a call-back time is promised');if(S.features.textback&&A.textback)on.push('a text after a missed call');if(S.features.checkins&&A.checkins)on.push('a check-in after a job');
+  return foldH('after','<h2>After the call</h2><div class="card">'+
     sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
     (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
     (S.features.checkins?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
-    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>'+outCard(L)+outreachCard();
+    (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>',on.length?'On: '+on.join(', ')+'.':'All off.')+outCard(L)+outreachCard();
 }
+// Outreach, folded: closed, the row says whether it is on and how many businesses are ready.
 function outreachCard(){
+  var R=S.outreach;if(!R)return '';
+  var c=R.counts||{};
+  return foldH('outreach',outreachBody(),!R.pro?'Comes with Pro.':(!R.attested?'Read and sign the terms to start.':(R.on?'On':'Off')+', '+(c.ready||0)+' ready to call.'+(R.live?'':' Not calling yet.')));
+}
+function outreachBody(){
   var R=S.outreach;if(!R)return '';
   var c=R.counts||{},mx=esc((S.line&&S.line.name)||'Max');
   var h='<h2>'+esc(R.label)+'</h2>';
@@ -1303,16 +1333,17 @@ function outreachTerms(thenOn){
 function outCard(L){
   var O=S.outcalls;if(!O||!O.list)return '';
   var one=function(x){return '<label class="opt" style="display:flex;gap:10px;align-items:flex-start;margin-top:10px"><input type="checkbox" data-oc="'+esc(x.key)+'"'+(O.on[x.key]?' checked':'')+' style="margin-top:3px"> <span><b>'+esc(x.label)+'</b><br><span class="fine">'+esc(x.sub)+'</span></span></label>';};
-  return '<h2>Calls '+esc(L.name)+' makes</h2><div class="card"><p class="fine" style="margin-top:0">To you, or to customers who already agreed to hear from you when you logged the appointment, estimate or job. Nobody is asked twice. Never between 9 PM and 8 AM, and anyone who says stop is never called again.</p>'+O.list.map(one).join('')+'</div>';
+  return foldH('outcalls','<h2>Calls '+esc(L.name)+' makes</h2><div class="card"><p class="fine" style="margin-top:0">To you, or to customers who already agreed to hear from you when you logged the appointment, estimate or job. Nobody is asked twice. Never between 9 PM and 8 AM, and anyone who says stop is never called again.</p>'+O.list.map(one).join('')+'</div>',nOf(O.list.filter(function(x){return !!O.on[x.key];}).length,O.list.length,'on'));
 }
 function voiceCard(L){
-  return '<h2>Voice and greeting</h2><div class="card form">'+
+  var vl=(L.voices.filter(function(v){return v.key===L.voice;})[0]||{}).label||'';
+  return foldH('voice','<h2>Voice and greeting</h2><div class="card form">'+
     '<label>Name<input type="text" id="vc-name" maxlength="30" value="'+esc(L.name)+'" placeholder="Max"></label>'+
     '<label>Voice<select id="vc-voice">'+L.voices.map(function(v){return '<option value="'+esc(v.key)+'"'+sel(L.voice,v.key)+'>'+esc(v.label)+'</option>';}).join('')+'</select></label>'+
     '<div class="acts"><button class="btn red" type="button" data-a="vc-save">Save</button><a class="btn line sm" href="tel:'+esc(L.number)+'">Call to hear it</a></div>'+
     '<p class="fine" style="margin-top:12px"><b>Your own greeting.</b> Record up to 15 seconds in your own voice (WAV or MP3). Callers hear it first, then '+esc(L.name)+' says he is an automated assistant and the call may be recorded.</p>'+
     (L.greetingAudio?'<audio controls src="'+esc(L.greetingAudio)+'" style="width:100%"></audio><div class="acts"><button class="btn ghost sm" type="button" data-a="vc-rm">Remove my recording</button></div>':'<label>Recording<input type="file" id="vc-file" accept="audio/wav,audio/x-wav,audio/mpeg,.wav,.mp3"></label><div class="acts"><button class="btn line sm" type="button" data-a="vc-up">Upload</button></div>')+
-    '</div>';
+    '</div>',esc('Named '+L.name+(vl?'. Voice: '+vl:'')+'.'+(L.greetingAudio?' Your own greeting plays first.':'')));
 }
 function voiceUpload(){
   var f=$('#vc-file');f=f&&f.files&&f.files[0];if(!f){toast('Pick a WAV or MP3 file first.');return;}
@@ -1337,7 +1368,8 @@ function teachCard(L){
     '<div class="acts" style="margin-bottom:10px"><button class="btn line" type="button" data-a="facts-call">Have '+esc(L.name)+' call me</button></div>'+
     L.know.map(function(x){return '<label>'+esc(x.label)+'<textarea id="kf-'+esc(x.key)+'" rows="2" maxlength="600" placeholder="'+esc(x.hint||'')+'">'+esc(x.value||'')+'</textarea></label>';}).join('')+
     '<div class="acts"><button class="btn red" type="button" data-a="facts-save">Save</button></div></div>';
-  return h;
+  var heard=!!(L.pending&&L.pending.items&&L.pending.items.length);
+  return foldH('teach',h,heard?'New from your call. Check it.':nOf(L.know.filter(function(x){return !!String(x.value||'').trim();}).length,L.know.length,'filled in'),heard);
 }
 function factsSave(){var L=S.line,f={};(L.know||[]).forEach(function(x){var el=$('#kf-'+x.key);if(el)f[x.key]=el.value;});lineSave({facts:f});}
 function factsCall(){
@@ -1535,8 +1567,7 @@ ${PAST_JS}
 ${RIVALS_JS}
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg],[data-mseg]');if(!t)return;
-  if(t.dataset.mseg){MSEG=t.dataset.mseg;render();window.scrollTo(0,0);return;}
+  var t=e.target.closest('[data-tab],[data-a],[data-close],[data-go],[data-seg]');if(!t)return;
   if(t.dataset.seg){SEG=t.dataset.seg;try{localStorage.setItem('ao-seg',SEG);}catch(x){}render();var vw=$('#view');if(vw&&vw.getBoundingClientRect().top<0)window.scrollTo(0,0);return;}
   if(t.dataset.go){TAB={approve:'today',up:'money',fu:'today',home:'today',ask:'today'}[t.dataset.go]||t.dataset.go;if(TABS.indexOf(TAB)<0)TAB='today';render();window.scrollTo(0,0);return;}
   if(t.dataset.close){close();return;}
@@ -1633,6 +1664,7 @@ document.addEventListener('click',function(e){
 function touch(t){if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&TOUCHED.indexOf(t)<0)TOUCHED.push(t);}
 document.addEventListener('input',function(e){var t=e.target;touch(t);if(t&&/^or-(legal|cb|pitch)$/.test(t.id))orPreview();if(t&&t.dataset&&t.dataset.ed)EDIT[t.dataset.ed]=t.value;if(t&&/^(lh|lo|lt|lw|lg)$/.test(t.id))DIRTY=true;});
 document.addEventListener('change',function(e){var t=e.target;touch(t);if(t&&t.id==='lw')DIRTY=true;});
+document.addEventListener('toggle',function(e){var d=e.target;if(d&&d.dataset&&d.dataset.fold)FOLD[d.dataset.fold]=d.open;},true);
 $('#scrim').addEventListener('click',function(e){if(e.target.id==='scrim')close();});
 document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id&&e.target.id.indexOf('tap-CA')===0){e.preventDefault();tapSend(e.target);return;}if(e.key==='Escape'&&!$('#scrim').hidden)close();else if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('mapbox')){e.preventDefault();mapOpen();}});
 $('#refresh').addEventListener('click',function(){load();});

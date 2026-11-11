@@ -70,9 +70,9 @@ function insightsBlock(){
 }
 function teamBlock(){
   var tm=S.team||[];
-  var h='<h2>Team</h2><div class="list">'+tm.map(function(m){return '<article class="card"><b>'+esc(m.name)+'</b><div class="chips"><button class="chip" type="button" data-a="bz-role" data-id="'+esc(m.id)+'" data-s="manager" aria-pressed="'+(m.role==='manager')+'">Manager</button><button class="chip" type="button" data-a="bz-role" data-id="'+esc(m.id)+'" data-s="tech" aria-pressed="'+(m.role==='tech')+'">Tech (no money)</button></div></article>';}).join('')+'</div>';
+  var h='<div class="list">'+tm.map(function(m){return '<article class="card"><b>'+esc(m.name)+'</b><div class="chips"><button class="chip" type="button" data-a="bz-role" data-id="'+esc(m.id)+'" data-s="manager" aria-pressed="'+(m.role==='manager')+'">Manager</button><button class="chip" type="button" data-a="bz-role" data-id="'+esc(m.id)+'" data-s="tech" aria-pressed="'+(m.role==='tech')+'">Tech (no money)</button></div></article>';}).join('')+'</div>';
   if(!tm.length)h+='<div class="empty slim"><b>Just you so far</b><span>Ask us in Ask us for a link for each person on your team.</span></div>';
-  return h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="bz-act">See who did what</button></div>';
+  return fold('team','Team',tm.length?tm.length+(tm.length===1?' person':' people')+' besides you.':'Just you so far.',h+'<div class="acts" style="margin:4px 0 0"><button class="btn line" type="button" data-a="bz-act">See who did what</button></div>');
 }
 function setBlock(){
   var g1='',g2='',gT='',g3='',h='<label class="opt" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="bz-weekly"'+(S.weekly?' checked':'')+'> <span>Monday morning summary of last week</span></label>';
@@ -117,8 +117,17 @@ function setBlock(){
     '<label class="opt" style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="bz-ho-take"'+(H.take?' checked':'')+'> <span>Take callers that nearby Always Open businesses pass to us</span></label>'+
     '<p class="note" style="margin:4px 0 0">'+(H.give?(H.nearby?H.nearby+' nearby business'+(H.nearby===1?'':'es')+' can take hand-offs right now.':'No nearby business takes hand-offs yet. Max will not offer any.'):'Off.')+(H.given||H.taken?' This month: sent '+H.given+', took '+H.taken+'.':'')+' Nearest first, never by plan. Only businesses on Always Open.</p>';}
   g3=g3+h;
-  var card=function(t,x){return x?'<h2>'+t+'</h2><div class="card">'+x+'</div>':'';};
-  return card('Your preferences',g1)+card('What the public sees',g2)+card('Texting',gT)+card('What we do for you',g3);
+  // each group folds; closed, the row says where the group stands
+  var card=function(k,t,x,sum){return x?fold(k,t,sum,'<div class="card">'+x+'</div>'):'';};
+  var s1='Monday summary '+(S.weekly?'on':'off')+(S.line?', Spanish '+(S.line.spanish?'on':'off'):'')+'.';
+  var s2=S.answer?(S.answer.show?'Your answer rate shows on the map.':'Your answer rate is not on the map.'):'';
+  var sT=S.texting?esc(String(S.texting.label||'').replace(/[. ]+$/,'')+'.'):'';
+  var s3=[];
+  if(S.fullMax&&S.fullMax.allowed)s3.push('Full Max '+(S.fullMax.on?(S.fullMax.paused?'paused':'on'):'off'));
+  if(S.fillWeek){var fs=S.fillWeek.steps||[];s3.push(S.fillWeek.on?'Fill my week on':'Fill my week '+fs.filter(function(x){return x.done;}).length+' of '+fs.length+' ready');}
+  if(S.checkins)s3.push('Check-in calls '+(S.checkins.on?'on':'off'));
+  if(S.handoff)s3.push('Hand-offs '+(S.handoff.give||S.handoff.take?'on':'off'));
+  return card('prefs','Your preferences',g1,s1)+card('public','What the public sees',g2,s2)+card('texting','Texting',gT,sT)+card('doing','What we do for you',g3,s3.length?esc(s3.join(', ')+'.'):'');
 }
 function mapSheet(){var m=S.map||{};
   sheet('<h2>What the map shows</h2><p class="fine">Your name, trade and town. Your phone and street address show only if you add them. Changes show in about ten minutes.</p>'+
@@ -187,11 +196,11 @@ function bizAct(a,id,t){
   else if(a==='bz-map')mapSheet();
   else if(a==='bz-map-save'){var b=$('[data-a="bz-map-save"]');b.disabled=true;post('map',{phone:$('#mp-phone').value,address:$('#mp-addr').value}).then(function(res){b.disabled=false;if(res.j.ok){S.map=res.j.map;close();toast('Saved.');load(true);}else toast(res.j.error||'Could not save.');});}
   else if(a==='bz-ob-all'){OBALL=!OBALL;render();}
-  else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';MSEG='answer';try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
+  else if(a==='bz-ob-hours'){if(S.line&&hasMax()){TAB='max';FOLD.knows=true;try{history.replaceState(null,'','#max');}catch(x){}render();var lh=document.getElementById('lh');if(lh){lh.scrollIntoView({block:'center'});lh.focus();}toast('Type your hours here, then tap Save.');}else hoursSheet('Your regular hours');}
   else if(a==='bz-ob-cal'){location.href='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-ob-fb'){location.href='/meta/connect?code='+encodeURIComponent(BASE.split('/').pop());}
   else if(a==='bz-jobs-more'){JOBMORE=true;render();}
-  else if(a==='bz-ob-teach'){TAB='max';MSEG='teach';try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
+  else if(a==='bz-ob-teach'){TAB='max';FOLD.teach=true;try{history.replaceState(null,'','#max');}catch(x){}render();var tc=document.getElementById('kf-services');if(tc)tc.scrollIntoView({behavior:'smooth',block:'center'});}
   else if(a==='bz-onway'){needName(function(by){t.disabled=true;post('work',{action:'onway',id:+id,by:by}).then(function(res){t.disabled=false;toast(res.j.ok?res.j.message:(res.j.error||'Could not send.'));});});}
   else if(a==='bz-cancelbk'){t.disabled=true;post('work',{action:'cancel-booking',id:+id}).then(function(res){t.disabled=false;if(res.j.ok){toast(res.j.told?'Cancelled. We texted them.':'Cancelled. The time is open again.');load(true);}else toast(res.j.error||'Could not cancel.');});}
   else if(a==='bz-ob-max'){if(S.line)location.href='tel:'+S.line.number;}

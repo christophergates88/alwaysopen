@@ -84,6 +84,25 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
   const btn = await page.$('[data-tab="' + tab + '"]');
   if (!btn) problems.push('no ' + tab + ' tab');
   if (btn) { await btn.click(); await page.waitForTimeout(400); }
+  // Folds (Nov 11, 2026): Max and Money keep their groups of switches behind one row each. Closed, a row must say where
+  // the group stands and be a full-size tap; the screen is photographed the way the owner first sees it; then every fold
+  // is opened so all that is inside is measured exactly as it was when the screens were flat.
+  const folds = await page.evaluate(() => [...document.querySelectorAll('#view details.fold')].map(d => { const b = d.querySelector('summary').getBoundingClientRect(); return { k: d.dataset.fold, open: d.open, title: (d.querySelector('.ft b') || {}).textContent || '', sum: ((d.querySelector('.ft .fine') || {}).textContent || '').trim(), h: Math.round(b.height), inside: d.querySelectorAll('.foldin input,.foldin select,.foldin textarea,.foldin button,.foldin a').length }; }));
+  if ((tab === 'max' || tab === 'money') && !folds.length) problems.push(tab + ': no folds (the long groups should each sit behind one row)');
+  if ((tab === 'today' || tab === 'customers') && folds.length) problems.push(tab + ': has folds; only Max and Money fold');
+  for (const f of folds) {
+    if (!f.title.trim()) problems.push(tab + ': fold ' + f.k + ' has no title');
+    if (!f.sum) problems.push(tab + ': fold ' + f.k + ' does not say where it stands while closed');
+    if (f.h < 48) problems.push(tab + ': fold ' + f.k + ' row is ' + f.h + ' px tall (48 or more)');
+    if (f.open && f.k !== 'knows') problems.push(tab + ': fold ' + f.k + ' starts open');
+  }
+  if (tab === 'max') { const want = ['knows', 'voice', 'job', 'teach', 'book', 'after', 'outcalls', 'outreach'], got = folds.map(f => f.k); want.forEach(k => { if (!got.includes(k)) problems.push('max: no fold for ' + k); }); }
+  if (tab === 'money') { const got = folds.map(f => f.k); ['prefs', 'doing', 'team'].forEach(k => { if (!got.includes(k)) problems.push('money: no fold for ' + k); }); }
+  if (shots && folds.length) await page.screenshot({ path: path.join(shots, 'app-' + tab + '-folded.png'), fullPage: true });
+  const tall = await page.evaluate(() => document.documentElement.scrollHeight);
+  if (tab === 'max' && tall > 4200) problems.push('max: ' + tall + ' px tall with its folds closed (it was 8,600 flat; keep it under 4,200)');
+  await page.evaluate(() => document.querySelectorAll('#view details.fold').forEach(d => { d.open = true; }));
+  await page.waitForTimeout(150);
   const r = await page.evaluate(() => {
     const out = { small: [], tiny: [] };
     const vis = el => { const s = getComputedStyle(el); const b = el.getBoundingClientRect(); return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0; };
@@ -103,7 +122,7 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
       const label = /Mono|monospace/.test(s.fontFamily) || el.closest('small,em,.kick,.fine,.note,.tab,.segn') || s.textTransform === 'uppercase';   // a tab-bar caption under its icon reads at 12 px, like iOS
       if (px < (label ? 12 : 15)) out.tiny.push(el.tagName + '.' + (el.className || '') + ' ' + px + 'px "' + n.textContent.trim().slice(0, 30) + '"');
     }
-    // Brief 4: no doors, no segments, plain words, 17 px body, one column
+    // Brief 4: no doors, no segments, plain words, 17 px body, one column (a fold opens in place, so it is neither)
     document.querySelectorAll('#view [data-go], #view [data-seg], #view [data-mseg], #view .seg, #view a[target=_blank], #view details.drawer, #view .drawer, #view .accordion').forEach(x => { if (!x.closest('.maplibregl-ctrl')) (out.doors = out.doors || []).push(x.outerHTML.slice(0, 70)); });
     const JARGON = /\b(configure|integration|sync|status|enable|dashboard|pending|queue|listing|segment|settings|feature)s?\b/i;
     document.querySelectorAll('#view h1, #view h2, #view h3, #view button, #view .lede, #view b').forEach(x => { if (!vis(x)) return; const t = x.textContent.trim(); const m = t.match(JARGON); if (m) (out.jargon = out.jargon || []).push('"' + m[0] + '" in "' + t.slice(0, 50) + '"'); });
@@ -124,7 +143,7 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
 // the After-the-call screen, where the outreach card lives (Brief 3, Part 8d): same size rules, and a screenshot
 { const mx = await page.$('[data-tab="max"]'); if (mx) { await mx.click(); await page.waitForTimeout(300); }
   {
-    const card = await page.evaluateHandle(() => { const h = [...document.querySelectorAll('h2')].find(x => /Outreach calls/.test(x.textContent)); return h ? h.nextElementSibling : null; });
+    const card = await page.evaluateHandle(() => { const d = document.querySelector('details[data-fold="outreach"]'); if (!d) return null; d.open = true; return d.querySelector('.foldin'); });
     const el = card && card.asElement();
     if (!el) problems.push('after: no outreach card');
     else {
@@ -145,7 +164,10 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
   if (!sg.ok) problems.push('outreach (Pro): could not sign the terms: ' + sg.error);
   await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
   const mx = await page.$('[data-tab="max"]'); if (mx) { await mx.click(); await page.waitForTimeout(300); }
-  const card = await page.evaluateHandle(() => { const h = [...document.querySelectorAll('h2')].find(x => /Outreach calls/.test(x.textContent)); return h ? h.nextElementSibling : null; });
+  const sumPro = await page.evaluate(() => { const d = document.querySelector('details[data-fold="outreach"]'); return d ? ((d.querySelector('.ft .fine') || {}).textContent || '') + (d.open ? ' [open]' : '') : 'none'; });
+  if (!/^(On|Off), \d+ ready to call\./.test(sumPro)) problems.push('outreach (Pro): closed, the row should say on or off and how many are ready; it says "' + sumPro + '"');
+  await page.click('details[data-fold="outreach"] > summary'); await page.waitForTimeout(200);   // the owner's own tap
+  const card = await page.evaluateHandle(() => { const d = document.querySelector('details[data-fold="outreach"]'); return d && d.open ? d.querySelector('.foldin') : null; });
   const el = card && card.asElement();
   if (!el || !(await el.$('#or-legal')) || !(await el.$('#or-cb')) || !(await el.$('#or-hear'))) problems.push('outreach (Pro): the legal name, call-back number or preview is missing');
   else {
@@ -220,7 +242,26 @@ for (const [task, tab, sel] of [['see a call', 'today', '.call'], ['call back', 
   ['hear Max', 'max', 'a[href^="tel:"]'], ['close for today', 'today', '[data-a="closed"]'], ['turn Max off', 'max', '[data-a="line-toggle"]'],
   ['text Katie', 'today', 'header [data-a="katie"]'], ['see what Max knows', 'max', '#lo']]) {
   await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(250);
-  if (!(await page.$(sel))) problems.push('two taps: "' + task + '" is not on ' + tab);
+  const el = await page.$(sel);
+  if (!el) { problems.push('two taps: "' + task + '" is not on ' + tab); continue; }
+  if (!(await el.isVisible())) {
+    const row = await el.evaluateHandle(x => { const d = x.closest('details.fold:not([open])'); return d ? d.querySelector('summary') : null; });
+    if (row.asElement()) { await row.asElement().click(); await page.waitForTimeout(200); }
+    if (!(await el.isVisible())) problems.push('two taps: "' + task + '" on ' + tab + ' takes more than the tab and one more tap');
+  }
+}
+// a fold stays how the owner left it: open one, leave the screen, come back
+{ await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
+  await page.click('[data-tab="max"]'); await page.waitForTimeout(250);
+  const before = await page.evaluate(() => document.querySelector('details[data-fold="job"]').open);
+  await page.click('details[data-fold="job"] > summary'); await page.waitForTimeout(200);
+  const shown = await page.isVisible('details[data-fold="job"] [data-a="duty-save"]');
+  await page.click('[data-tab="today"]'); await page.waitForTimeout(200); await page.click('[data-tab="max"]'); await page.waitForTimeout(250);
+  const after = await page.evaluate(() => ({ job: document.querySelector('details[data-fold="job"]').open, teach: document.querySelector('details[data-fold="teach"]').open }));
+  if (before || !shown || !after.job || after.teach) problems.push('folds: Job description should start closed, open on a tap, and still be open after leaving and coming back (started ' + (before ? 'open' : 'closed') + ', Save ' + (shown ? 'shown' : 'hidden') + ', came back ' + (after.job ? 'open' : 'closed') + ', Teach ' + (after.teach ? 'open' : 'closed') + ')');
+  if (shots) { await page.evaluate(() => { document.querySelector('details[data-fold="job"]').scrollIntoView(); scrollBy(0, -90); }); await page.screenshot({ path: path.join(shots, 'app-max-fold-open.png') }); }
+  await page.click('details[data-fold="job"] > summary'); await page.waitForTimeout(150);
+  if (await page.evaluate(() => document.querySelector('details[data-fold="job"]').open)) problems.push('folds: a second tap did not close Job description');
 }
 await browser.close(); srv.close();
 errors.forEach(e => problems.push('page error: ' + e.slice(0, 120)));
