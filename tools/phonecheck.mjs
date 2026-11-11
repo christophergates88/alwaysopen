@@ -9,6 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
+import { SITE_CSP } from '../src/headers.js';
+
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = await import('playwright')); }
@@ -33,7 +35,10 @@ const server = http.createServer((req, res) => {
   if (!path.extname(p)) p += '.html';
   const f = path.join(PUB, path.normalize(p).replace(/^(\.\.[/\\])+/, ''));
   if (!f.startsWith(PUB) || !fs.existsSync(f)) { res.writeHead(404); return res.end('not found'); }
-  res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' });
+  // pages go out with the live site's content policy (src/headers.js), so a page that loads from somewhere new fails here
+  const head = { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' };
+  if (path.extname(f) === '.html') head['content-security-policy'] = SITE_CSP;
+  res.writeHead(200, head);
   fs.createReadStream(f).pipe(res);
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -50,6 +55,8 @@ for (const w of WIDTHS) {
   // fonts come from Google; the check runs without them
   await ctx.route(/fonts\.(googleapis|gstatic)\.com|cloudflareinsights/, r => r.abort());
   const page = await ctx.newPage();
+  const refused = new Set();
+  page.on('console', m => { if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) refused.add(new URL(page.url()).pathname + ': the content policy refused something: ' + m.text().replace(/\s+/g, ' ').slice(0, 220)); });
   for (const [p, maxH] of PAGES) {
     const name = (p === '/' ? 'home' : p.slice(1)) + '@' + w;
     await page.goto(BASE + p, { waitUntil: 'load' });
@@ -178,6 +185,9 @@ for (const w of WIDTHS) {
       if (SHOTS) { if (await page.$('#check')) { await page.locator('#check').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(SHOTS, name + '-audit.png') }); } await page.screenshot({ path: path.join(SHOTS, name + '-full.png'), fullPage: true }); }
     }
   }
+  // the rest of the public pages, opened once for the content policy alone
+  if (w === WIDTHS[0]) for (const p of ['/map', '/support', '/terms', '/privacy', '/do-not-call', '/jobdone', '/404']) { await page.goto(BASE + p, { waitUntil: 'load' }); await page.waitForTimeout(250); }
+  refused.forEach(x => problems.push(x));
   await ctx.close();
 }
 await browser.close();

@@ -3,3 +3,5 @@ Allow: /
 Disallow: /lead
 Disallow: /leads
 Disallow: /jobdone
+
+Sitemap: https://alwaysopenoffice.com/sitemap.xml

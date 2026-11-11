@@ -732,11 +732,11 @@ export async function stopPage(env, req, url) {
   await ensureOutreach(env);
   const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const page = (body, status) => new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stop Outreach calls</title><meta name="description" content="Stop automated Outreach calls from Always Open to your business number.">' +
-    '<style>:root{--paper:#F5F4F0;--card:#FFFFFF;--ink:#171B26;--slate:#586075;--line:#DCDAD3;--sign:#D92D20}@media (prefers-color-scheme:dark){:root{--paper:#12151D;--card:#1A1F2B;--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--sign:#FF5A4D;color-scheme:dark}}' +
+    '<style>:root{--paper:#F5F4F0;--card:#FFFFFF;--ink:#171B26;--slate:#586075;--line:#DCDAD3;--sign:#D92D20;--link:#C9281C}@media (prefers-color-scheme:dark){:root{--paper:#12151D;--card:#1A1F2B;--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--sign:#FF5A4D;--link:#FF5A4D;color-scheme:dark}}' +
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:560px;margin:0 auto;padding:40px 16px 70px}h1{font-size:1.9rem;line-height:1.15;margin:0 0 10px}' +
     'label{display:block;font-weight:600;margin:18px 0 6px}input{font:inherit;width:100%;min-height:50px;padding:10px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}' +
     'button{font:inherit;font-weight:700;min-height:50px;width:100%;margin-top:14px;border:0;border-radius:12px;background:var(--sign);color:#fff;cursor:pointer}.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:18px 0}' +
-    '.fine{color:var(--slate);font-size:15px}a{color:var(--sign)}.hp{position:absolute;left:-9999px}</style></head><body><main>' + body +
+    '.fine{color:var(--slate);font-size:15px}a{color:var(--link)}.hp{position:absolute;left:-9999px}</style></head><body><main>' + body +
     '<p class="fine">Always Open places Outreach calls for its business clients. Read our <a href="/do-not-call">Do Not Call policy</a>, or email <a href="mailto:hello@alwaysopenoffice.com">hello@alwaysopenoffice.com</a>.</p></main></body></html>',
     { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
   const form = '<h1>Stop Outreach calls</h1><p>Enter the number that got the call. It won’t be called again by any business Always Open places calls for.</p>' +

@@ -44,6 +44,7 @@ import { connectionsCron } from './connections.js';
 import { socialCron } from './social.js';
 import { photoPostCron } from './posts.js';
 import { boardToken } from './opsboard.js';
+import { harden, sitePolicy } from './headers.js';
 import { tryRefresh as gcalRefresh } from './gcal.js';
 import { tryRefresh as gbpRefresh } from './gbp.js';
 
@@ -393,6 +394,12 @@ async function serve(req, env, ctx) {
     if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score' || path === '/audit/letter') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash((r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
+    if (path === '/.well-known/security.txt' || path === '/security.txt') {
+      // Where someone who finds a security problem can report it (RFC 9116). The date always sits about a year ahead.
+      const d = new Date(); d.setUTCMonth(d.getUTCMonth() + 11, 1); d.setUTCHours(0, 0, 0, 0);
+      return new Response(['Contact: mailto:hello@alwaysopenoffice.com', 'Expires: ' + d.toISOString().replace('.000Z', 'Z'), 'Preferred-Languages: en', 'Canonical: https://alwaysopenoffice.com/.well-known/security.txt', ''].join('\n'),
+        { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=86400' } });
+    }
     if (path === '/locations') { const k = req.headers.get('x-key') || ''; return handleLocations(req, env, !!env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)); }
     if (path.startsWith('/google/')) return handleGoogle(req, env, url);
     if (path === '/app' || path.startsWith('/app/')) return handleApp(req, env, ctx, url);
@@ -461,7 +468,8 @@ async function serve(req, env, ctx) {
 
 export default {
   async fetch(req, env, ctx) {
-    try { return await serve(req, env, ctx); } catch (e) { return crashed(req, env, ctx, e); }
+    // every answer leaves with the security headers (headers.js); a crash page too
+    try { return harden(await serve(req, env, ctx)); } catch (e) { return harden(await crashed(req, env, ctx, e)); }
   },
   // Storm Desk: every 10 minutes, look for new National Weather Service warnings in our counties.
   // Mail to hello@ (Cloudflare Email Routing -> this Worker): forwarded to Christopher first, then Google's review emails
@@ -507,7 +515,8 @@ async function stormMail(env, s) {
   catch (e) { return 'failed: ' + String((e && e.message) || e).slice(0, 180); }
 }
 async function stormsList(req, env, url) {
-  const key = url.searchParams.get('key') || '';
+  // the ops key travels in the x-key header like every other ops address, never in the address itself (addresses get logged)
+  const key = req.headers.get('x-key') || '';
   if (!env.LEADS_KEY || !(await sameKey(key, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
   try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS storms (id TEXT PRIMARY KEY, at TEXT, event TEXT, grp TEXT, counties TEXT, headline TEXT, ends TEXT, link TEXT, sent TEXT)').run(); } catch (e) {}
   const rows = await env.DB.prepare("SELECT * FROM storms WHERE id NOT LIKE 'sample:%' ORDER BY at DESC LIMIT 30").all();
@@ -515,7 +524,7 @@ async function stormsList(req, env, url) {
 }
 
 function withSiteHeaders(res, url) {
-  const out = new Response(res.body, res);
+  const out = sitePolicy(new Response(res.body, res));
   out.headers.set('x-content-type-options', 'nosniff');
   out.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   out.headers.set('x-frame-options', 'SAMEORIGIN');
@@ -695,7 +704,8 @@ async function mail(env, f, id, at) {
 }
 
 async function leadsList(req, env, url) {
-  const key = url.searchParams.get('key') || '';
+  // the ops key travels in the x-key header like every other ops address, never in the address itself (addresses get logged)
+  const key = req.headers.get('x-key') || '';
   if (!env.LEADS_KEY || !(await sameKey(key, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
   let since = url.searchParams.get('since') || '';
   if (!/^\d{4}-\d{2}-\d{2}/.test(since)) since = new Date(Date.now() - 3 * 86400000).toISOString();
@@ -881,7 +891,8 @@ async function radarMail(env, week, towns, errors, skipped) {
   try { await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, env.MAIL_TO, raw)); } catch (e) {}
 }
 async function radarRun(req, env, url) {
-  const key = url.searchParams.get('key') || '';
+  // the ops key travels in the x-key header like every other ops address, never in the address itself (addresses get logged)
+  const key = req.headers.get('x-key') || '';
   if (!env.LEADS_KEY || !(await sameKey(key, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
   return json(await radarWatch(env), 200);
 }

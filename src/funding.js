@@ -117,8 +117,12 @@ export function renewalsDue(spec, now) {
   return out;
 }
 
-// The Always Open check (a scheduled task outside the worker) writes a heartbeat each run. If it stops, reviews stop
-// being drafted and leads stop being filed with nobody told, so the hourly pass watches for it.
+// The Always Open check (a scheduled task outside the worker) writes a heartbeat each run. If it stops, new leads,
+// signups and calls stop being filed in Always Open HQ and the daily summary stops, so the hourly pass watches for it.
+// It is a nuisance, not an emergency: since Nov 4, 2026 the website drafts the review replies itself, and every lead,
+// signup, call and client message reaches Christopher by push and email the moment it happens. So a stopped check is
+// said once a day, in plain words, never as an urgent push. (Until Nov 11 it went out as "urgent" every four hours and
+// said reviews weren't being drafted: 25 pushes in five days, for something that could wait.)
 const CHECK_WARN_H = 14, CHECK_URGENT_H = 30;
 export async function ensureHeartbeats(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS heartbeats (task TEXT PRIMARY KEY, at TEXT)').run();
@@ -130,17 +134,19 @@ export function checkLevel(lastIso, now) {
   return { level: h >= CHECK_URGENT_H ? 'urgent' : (h >= CHECK_WARN_H ? 'warn' : 'ok'), hours: h };
 }
 const etTime = iso => new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' });
-async function checkHeartbeat(env) {
+export async function checkHeartbeat(env, now) {
   await ensureHeartbeats(env);
+  now = now || Date.now();
   const r = await env.DB.prepare("SELECT at FROM heartbeats WHERE task = 'check'").first();
-  const lv = checkLevel(r && r.at, Date.now());
+  const lv = checkLevel(r && r.at, now);
   if (lv.level === 'unknown') return { check: 'no heartbeat yet' };
   if (lv.level === 'ok') { await fundAlert(env, 'check-run', 'ok'); return { check: 'ok' }; }
-  await fundAlert(env, 'check-run', lv.level, lv.level === 'urgent' ? 'Always Open: the review check has stopped' : 'Always Open: the review check hasn’t run lately',
-    'The Always Open check last ran ' + etTime(r.at) + ' (' + Math.floor(lv.hours) + ' hours ago). Until it runs, new Google reviews aren’t drafted and leads aren’t filed in HQ.',
-    { doThis: 'Open claude.ai, Scheduled tasks, and make sure "Always Open check" is turned on. If it says your usage limit was reached, it starts again on its own when your Claude usage resets.',
-      stats: [{ n: String(Math.floor(lv.hours)), label: 'hours since it ran', tone: 'bad' }] });
-  return { check: lv.level };
+  const h = Math.floor(lv.hours), ago = h >= 48 ? Math.floor(h / 24) + ' days' : h + ' hours';
+  const sent = await fundAlert(env, 'check-run', 'warn', lv.level === 'urgent' ? 'Always Open: HQ has stopped updating itself' : 'Always Open: HQ hasn’t updated itself lately',
+    'The Always Open check last ran ' + etTime(r.at) + ' (' + ago + ' ago). New leads, signups, calls and client messages still reach you right away. They just aren’t being filed in Always Open HQ, and the daily summary isn’t being written.',
+    { doThis: 'Tell Claude: “turn the Always Open check back on.” Or open claude.ai, Scheduled tasks, and turn on “Always Open check”.',
+      stats: [{ n: h >= 48 ? String(Math.floor(h / 24)) : String(h), label: (h >= 48 ? 'days' : 'hours') + ' since it ran', tone: 'bad' }] });
+  return { check: lv.level, alert: sent };
 }
 export async function checkRunLine(env) {
   try { await ensureHeartbeats(env); const r = await env.DB.prepare("SELECT at FROM heartbeats WHERE task = 'check'").first(); if (!r) return 'no run recorded yet'; const lv = checkLevel(r.at, Date.now()); return 'last ran ' + etTime(r.at) + (lv.level === 'ok' ? '' : (lv.level === 'urgent' ? ' (STOPPED)' : ' (late)')); } catch (e) { return 'unknown'; }
