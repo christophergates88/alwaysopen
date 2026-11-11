@@ -200,8 +200,10 @@ async function serve(req, env, ctx) {
       return json(r, r.ok ? 200 : 400);
     }
     if (path === '/ops/hq-code') {
-      // Gates HQ "Happening now": the live code pulse (tools/codepulse_loop.py, every minute) files one row here;
-      // the Gates HQ page reads it through the owner's Cloudflare connection. Key-guarded, one row, size-capped.
+      // Gates HQ "Happening now": a code pulse may file one row here, and the Gates HQ page reads it through the owner's
+      // Cloudflare connection. Key-guarded, one row, size-capped. Nothing files here since Nov 11, 2026: the loop that
+      // did (every minute, around the clock, on this repo's free build minutes) was retired, and the page now draws
+      // from Gates HQ's own paced pulse; a row more than ten minutes old is ignored by the page.
       const k = req.headers.get('x-key') || '';
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       const body = await req.text();
