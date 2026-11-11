@@ -1,5 +1,5 @@
 // Gates HQ answers Christopher's texts: everyday back-and-forth gets a reply in his voice; money, legal, health, "is
-// this a bot", his tell-me list (Katie), strangers and too many replies always go to him with a suggested reply and a
+// this a bot", his tell-me list (his wife), strangers and too many replies always go to him with a suggested reply and a
 // one-tap Send link that can only send that exact text, once. Off and shadow modes send nothing. Claude is faked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +32,7 @@ test('code\'s own reading: money, legal, health and "is this a bot" are caught; 
   assert.deepEqual(T.flagsOf(['Bill said he is coming at 6']).force, []);
   assert.deepEqual(T.flagsOf(['the electric bill came']).force, ['money']);
   assert.deepEqual(T.flagsOf(['my lawyer wants you to sign the contract']).force, ['legal']);
-  assert.deepEqual(T.flagsOf(['Cason has a fever, taking him to urgent care']).force, ['health']);
+  assert.deepEqual(T.flagsOf(['the baby has a fever, taking him to urgent care']).force, ['health']);
   assert.deepEqual(T.flagsOf(['is this a bot lol']).force, ['identity']);
   assert.equal(T.flagsOf(['car accident on 441, call me asap']).urgent, true);
   assert.deepEqual(T.flagsOf(['sounds good see you at 6']), { force: [], urgent: false });
@@ -92,12 +92,12 @@ test('money in their text: the model\'s reply becomes his suggested reply, with 
   assert.match(await (await T.handleApprove(new Request('https://x/hq/t/' + 'f'.repeat(32)), e, 'f'.repeat(32))).text(), /Not found/);
 });
 
-test('Katie (his tell-me list), strangers, "is this a bot" and urgent texts never get an automatic reply', async () => {
+test('his wife (his tell-me list), strangers, "is this a bot" and urgent texts never get an automatic reply', async () => {
   const e = env();
   await setMode(e, 'on');
-  await family(e, [{ name: 'Katie', relation: 'wife', phones: ['+19125151023'], texts: 'tell' }, { name: 'Dad', relation: 'father', phones: ['+14785550111'] }]);
+  await family(e, [{ name: 'Jess', relation: 'wife', phones: ['+14785550177'], texts: 'tell' }, { name: 'Dad', relation: 'father', phones: ['+14785550111'] }]);
   answers = [{ action: 'reply', reply: 'on my way', category: 'logistics', tell: 'x' }];
-  assert.equal((await post(e, [chat({ handle: '+19125151023', name: 'Katie Gates', new: ['where are you'] })])).decisions[0].action, 'escalate');
+  assert.equal((await post(e, [chat({ handle: '+14785550177', name: 'Jess Gates', new: ['where are you'] })])).decisions[0].action, 'escalate');
   answers = [{ action: 'reply', reply: 'yep its me', category: 'identity', tell: 'x' }];
   assert.equal((await post(e, [chat({ new: ['is this really chris?'] })])).decisions[0].action, 'escalate');
   answers = [{ action: 'reply', reply: 'hey who is this', category: 'social', tell: 'x' }];
@@ -143,14 +143,27 @@ test('the Mac can share the people he texts (name and number only), for "Text Mi
 test('people he answers himself get no push of our own unless it\'s urgent; the heads-up stays neutral for the lock screen', async () => {
   const e = env(); seen = [];
   await setMode(e, 'on');
-  await family(e, [{ name: 'Katie', relation: 'wife', phones: ['+19125151023'], texts: 'tell' }]);
-  answers = [{ action: 'escalate', category: 'personal', tell: 'Katie asked you to grab a bath mat.', suggest: 'got it, grabbing one after work' }];
-  const k = (await post(e, [chat({ handle: '+19125151023', name: 'Katie Gates', new: ['Bath mat!!'] })])).decisions[0];
+  await family(e, [{ name: 'Jess', relation: 'wife', phones: ['+14785550177'], texts: 'tell' }]);
+  answers = [{ action: 'escalate', category: 'personal', tell: 'his wife asked you to grab a bath mat.', suggest: 'got it, grabbing one after work' }];
+  const k = (await post(e, [chat({ handle: '+14785550177', name: 'Jess Gates', new: ['Bath mat!!'] })])).decisions[0];
   assert.equal(k.action, 'escalate'); assert.equal(k.quiet, true);
-  answers = [{ action: 'escalate', category: 'urgent', urgent: true, tell: 'Katie needs you to call now.', suggest: '' }];
-  const u = (await post(e, [chat({ handle: '+19125151023', name: 'Katie Gates', new: ['call me asap'] })])).decisions[0];
+  answers = [{ action: 'escalate', category: 'urgent', urgent: true, tell: 'his wife needs you to call now.', suggest: '' }];
+  const u = (await post(e, [chat({ handle: '+14785550177', name: 'Jess Gates', new: ['call me asap'] })])).decisions[0];
   assert.equal(u.quiet, false, 'urgent always reaches him');
   answers = [{ action: 'escalate', category: 'money', tell: 'Josh asked for $40.', suggest: '' }];
   assert.equal((await post(e, [chat({ new: ['venmo me 40'] })])).decisions[0].quiet, false, 'everyone else still gets the push');
   assert.match(seen[0].system[0].text, /lock screen/);
+});
+
+test('an everyday ask from his wife gets an acknowledgment and tells him the to-do; her money question still goes to him', async () => {
+  const e = env(); seen = [];
+  await setMode(e, 'on', { about: 'Christopher, married to Jess.', routine: 'works 9 to 5 from home' });
+  await family(e, [{ name: 'Jess', relation: 'wife', phones: ['+14785550177'], texts: 'reply' }]);
+  answers = [{ action: 'reply', reply: 'Ok will do', category: 'household', tell: 'Told Jess you will take the dogs out.', todo: 'Take the dogs out when you get a sec' }];
+  const d = (await post(e, [chat({ handle: '+14785550177', name: 'Jess', new: ['Can you take the dogs out when you get a sec'] })])).decisions[0];
+  assert.equal(d.action, 'reply'); assert.equal(d.reply, 'Ok will do'); assert.equal(d.todo, 'Take the dogs out when you get a sec');
+  assert.match(seen[0].messages[0].content, /ABOUT HIM: Christopher, married to Jess\./); assert.match(seen[0].messages[0].content, /Usual day: works 9 to 5 from home/);
+  assert.match(seen[0].system[0].text, /EVERYDAY ASKS FROM HIS WIFE OR CLOSE FAMILY/);
+  answers = [{ action: 'reply', reply: 'yep paid it', category: 'household', tell: 'x', todo: '' }];
+  assert.equal((await post(e, [chat({ handle: '+14785550177', name: 'Jess', new: ['did you pay the power bill?'] })])).decisions[0].action, 'escalate', 'money is always his');
 });
