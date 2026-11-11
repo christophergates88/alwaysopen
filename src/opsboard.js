@@ -209,17 +209,39 @@ export function boardText(items, link) {
   return t + '\nTick things off here: ' + link + '\n';
 }
 
-function boardHtml(items, tok, map, drift) {
+// The Outreach master switch (Christopher, Nov 11, 2026: "Where is my button to turn the business to business auto dialer
+// off?"). It is billing_config outreach_enabled, the kill switch every Outreach call checks first; off stops every
+// client's calls at once. Off is one tap; on takes a second tap.
+export async function outreachSwitch(env) {
+  const O = await import('./outreach.js');
+  const on = await O.killSwitchOn(env);
+  const one = async sql => { try { const r = await env.DB.prepare(sql).first(); return (r && +r.n) || 0; } catch (e) { return 0; } };
+  const signed = await one('SELECT COUNT(DISTINCT client_id) AS n FROM outreach_terms');
+  const waiting = await one("SELECT COUNT(*) AS n FROM outreach_lists WHERE status = 'ready'");
+  let list = null; try { list = await (await import('./dnclist.js')).dncListStatus(env); } catch (e) { list = null; }
+  return { on, signed, waiting, list };
+}
+const niceDay = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+export function switchSection(s) {
+  if (!s) return '';
+  const bits = [s.signed + (s.signed === 1 ? ' client has' : ' clients have') + ' signed up', s.waiting + (s.waiting === 1 ? ' number' : ' numbers') + ' waiting'];
+  bits.push(!s.list || !s.list.loaded ? 'Do Not Call list not loaded yet' : s.list.ready ? 'Do Not Call list good until ' + niceDay(s.list.dueBy) : 'Do Not Call list out of date');
+  return '<section><h2>Outreach calls</h2><div class="it sw"><div><b>Max calling businesses: ' + (s.on ? 'ON' : 'OFF') + '</b><span>' + esc(bits.join(' · ')) + '. ' +
+    (s.on ? 'Turning this off stops every Outreach call right away, for every client.' : 'No Outreach call goes out for any client until you turn this back on.') + '</span></div>' +
+    '<button type="button" style="white-space:nowrap" data-osw="' + (s.on ? '0' : '1') + '">' + (s.on ? 'Turn off' : 'Turn on') + '</button></div></section>';
+}
+
+function boardHtml(items, tok, map, drift, sw) {
   const g = groups(items);
   const sec = [...g].map(([name, list]) => '<section><h2>' + esc(name) + '</h2>' + list.map(x => '<div class="it" data-k="' + esc(x.key) + '"><div><b>' + esc(x.title) + '</b><span>' + linkify(esc(x.detail)) + '</span></div><button type="button">Done</button></div>').join('') + '</section>').join('');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>This week</title>' +
     '<style>' + DRIFT_CSS + ':root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--soft:#F5F4F0;--ok:#1E7A4F}@media(prefers-color-scheme:dark){:root{--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--paper:#12151D;--soft:#1A1F2B}}' +
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:640px;margin:0 auto;padding:24px 16px 60px}h1{font-size:26px;margin:0 0 4px}h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:26px 0 8px}p{color:var(--slate);margin:0}' +
     '.it{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-bottom:8px}.it span{display:block;color:var(--slate);font-size:14px}button{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;cursor:pointer}</style></head><body><main><h1>This week</h1><p>What only you can do. Tap Done when it is handled.</p>' +
-    '<p style="margin:0 0 16px"><a href="/ops/numbers?t=' + esc(tok || '') + '" style="color:inherit;font-weight:600">The numbers: revenue, funnel, costs and margin →</a></p>' + (drift || '') +
+    '<p style="margin:0 0 16px"><a href="/ops/numbers?t=' + esc(tok || '') + '" style="color:inherit;font-weight:600">The numbers: revenue, funnel, costs and margin →</a></p>' + switchSection(sw) + (drift || '') +
     (sec || '<section><h2>All clear</h2><p>Nothing is waiting on you.</p></section>') +
     mapSection(map || []) +
-    '<script>var T=' + JSON.stringify(tok || '') + ';document.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;if(b.dataset.map){b.disabled=true;fetch("/ops/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,id:b.dataset.map,show:b.dataset.show==="1"})}).then(function(r){if(r.ok)location.reload();else b.disabled=false});return;}var r=b.closest(".it");b.disabled=true;fetch("/ops/done",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,k:r.dataset.k})}).then(function(x){return x.json()}).then(function(j){if(j.ok)r.remove();else b.disabled=false}).catch(function(){b.disabled=false})});</script></main></body></html>';
+    '<script>var T=' + JSON.stringify(tok || '') + ';document.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;if(b.dataset.osw){if(b.dataset.osw==="1"&&!b.dataset.sure){b.dataset.sure="1";b.textContent="Tap again to turn on";return;}b.disabled=true;fetch("/ops/outreach-switch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,on:b.dataset.osw==="1"})}).then(function(r){if(r.ok)location.reload();else{b.disabled=false;b.textContent="Did not work. Try again"}}).catch(function(){b.disabled=false});return;}if(b.dataset.map){b.disabled=true;fetch("/ops/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,id:b.dataset.map,show:b.dataset.show==="1"})}).then(function(r){if(r.ok)location.reload();else b.disabled=false});return;}var r=b.closest(".it");b.disabled=true;fetch("/ops/done",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:T,k:r.dataset.k})}).then(function(x){return x.json()}).then(function(j){if(j.ok)r.remove();else b.disabled=false}).catch(function(){b.disabled=false})});</script></main></body></html>';
 }
 
 export async function handleOpsBoard(req, env, url) {
@@ -244,6 +266,18 @@ export async function handleOpsBoard(req, env, url) {
     await setShow(env, id, b.show === true ? true : (b.show === false ? false : null));
     return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
+  if (path === '/ops/outreach-switch') {
+    // The Outreach master switch: { t, on: true | false }.
+    let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
+    if (req.method !== 'POST' || !(await allowed(req, env, url, String(b.t || '')))) return new Response('{"ok":false}', { status: 403, headers: { 'content-type': 'application/json' } });
+    if (typeof b.on !== 'boolean') return new Response('{"ok":false}', { status: 400, headers: { 'content-type': 'application/json' } });
+    await env.DB.batch([
+      env.DB.prepare('CREATE TABLE IF NOT EXISTS billing_config (k TEXT PRIMARY KEY, v TEXT)'),
+      env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('outreach_enabled', ?1)").bind(b.on ? '1' : '0'),
+      env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('outreach_switched', ?1)").bind((b.on ? 'on ' : 'off ') + new Date().toISOString())
+    ]);
+    return new Response(JSON.stringify({ ok: true, on: b.on }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  }
   if (!(await allowed(req, env, url))) return new Response('Not found', { status: 404 });
   if (path === '/ops/compliance-pack') {
     try { return new Response(buildPack(new Date().toISOString().slice(0, 10)), { headers: { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="compliance-guard-rules.pdf"', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } }); }
@@ -258,7 +292,8 @@ export async function handleOpsBoard(req, env, url) {
   const items = await boardItems(env);
   let map = []; try { map = await mapAdmin(env); } catch (e) { map = []; }
   let drift = ''; try { drift = driftTable(await driftRows(env)); } catch (e) { drift = ''; }
-  return new Response(boardHtml(items, tok, map, drift), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
+  let sw = null; try { sw = await outreachSwitch(env); } catch (e) { sw = null; }
+  return new Response(boardHtml(items, tok, map, drift, sw), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'set-cookie': cookie } });
 }
 
 // Monday email to MAIL_TO. Once per week.
