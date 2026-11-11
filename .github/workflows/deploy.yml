@@ -13,10 +13,23 @@ jobs:
         with: { node-version: 22 }
       - name: Run the tests
         run: node --test test/*.test.js
+      # The check browser is kept between runs, so most deploys don't download it again.
+      - name: Keep the check browser between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-1.56.0-chromium
       - name: Check the site on phones
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.56.0
-          npx playwright install --with-deps chromium
+          # The browser and the system libraries it needs. Ubuntu's package servers have bad minutes (Nov 11, 2026: ten
+          # minutes of "Temporary failure resolving" failed a deploy that had nothing wrong with it), so this tries up
+          # to three times, a minute apart, and says plainly when the servers are the problem.
+          for i in 1 2 3; do
+            if npx playwright install --with-deps chromium; then break; fi
+            if [ "$i" = 3 ]; then echo "::error::The check browser could not be installed: Ubuntu's package servers did not answer. Nothing is wrong with the site. Run the deploy again."; exit 1; fi
+            echo "Browser install failed (try $i of 3). Waiting a minute."; sleep 60
+          done
           node tools/phonecheck.mjs
           APP_SHOTS=app-shots node tools/appcheck.mjs
           APP_SHOTS=app-shots node tools/wallcheck.mjs
