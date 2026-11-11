@@ -167,3 +167,47 @@ test('an everyday ask from his wife gets an acknowledgment and tells him the to-
   answers = [{ action: 'reply', reply: 'yep paid it', category: 'household', tell: 'x', todo: '' }];
   assert.equal((await post(e, [chat({ handle: '+14785550177', name: 'Jess', new: ['did you pay the power bill?'] })])).decisions[0].action, 'escalate', 'money is always his');
 });
+
+test('a to-do from an answered ask lands on his day; family numbers get the short wait; the Mac checking in is recorded', async () => {
+  const e = env();
+  await setMode(e, 'on');
+  await family(e, [{ name: 'Jess', relation: 'wife', phones: ['+14785550177'], texts: 'reply' }]);
+  answers = [{ action: 'reply', reply: 'Ok will do', category: 'household', tell: 'x', todo: 'Take the dogs out' }];
+  await post(e, [chat({ handle: '+14785550177', name: 'Jess', new: ['Can you take the dogs out'] })]);
+  const p = await e.DB.prepare("SELECT * FROM hq_plans WHERE src = 'ask'").first();
+  assert.equal(p.what, 'Take the dogs out'); assert.equal(p.kind, 'task'); assert.equal(p.who, 'Jess'); assert.match(p.date, /^\d{4}-\d{2}-\d{2}$/);
+  const q = await (await T.handleHqTextQueue(new Request('https://x/ops/hq-text-queue'), e, json)).json();
+  assert.deepEqual(q.fast, ['4785550177']);
+  assert.ok(await e.DB.prepare("SELECT at FROM hq_kv WHERE k = 'mac-seen'").first());
+});
+
+test('what he really sent is kept and shown to the model next time, same person first', async () => {
+  const e = env(); seen = [];
+  await setMode(e, 'on');
+  await T.handleHqTextQueue(new Request('https://x/ops/hq-text-queue', { method: 'POST', body: JSON.stringify({ lessons: [
+    { handle: '+14785550123', name: 'Mike Barnes', heard: 'we still on?', ours: 'Yes, we are still on.', his: 'yessir', kind: 'suggest' },
+    { handle: '+14785550999', name: 'Ryan', heard: 'thanks man', ours: '', his: 'anytime brother', kind: 'left' },
+    { handle: '+1', name: 'Bad', heard: 'x', ours: 'y', his: '', kind: 'reply' }] }) }), e, json);
+  assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM hq_text_lessons').first()).n, 2);
+  answers = [{ action: 'reply', reply: 'yessir', category: 'social', tell: 'x' }];
+  await post(e, [chat()]);
+  const u = seen[0].messages[0].content;
+  assert.match(u, /PAST CORRECTIONS[\s\S]*Mike Barnes wrote “we still on\?”; you suggested “Yes, we are still on\.”; he sent “yessir” instead[\s\S]*Ryan wrote “thanks man”; you left it to him; he answered “anytime brother”/);
+});
+
+test('the Mac going quiet for 10 minutes pushes once in the daytime, and once more when it is back', async () => {
+  const e = env(); const pushes = [];
+  const f0 = globalThis.fetch; globalThis.fetch = async (url, init) => { if (String(url).includes('ntfy')) { pushes.push(init.headers.Title); return new Response('ok'); } return f0(url, init); };
+  e.NTFY_URL = 'https://ntfy.sh/test';
+  await setMode(e, 'on');
+  const noon = Date.parse('2026-11-11T17:00:00Z');
+  assert.equal(await T.macWatch(e, noon), 'never');
+  await e.DB.prepare("INSERT INTO hq_kv (k, at, v) VALUES ('mac-seen', ?1, '{}')").bind(new Date(noon - 3 * 60e3).toISOString()).run();
+  assert.equal(await T.macWatch(e, noon), 'ok');
+  assert.equal(await T.macWatch(e, Date.parse('2026-11-12T04:30:00Z')), 'quiet', 'not at 11:30 PM');
+  assert.equal(await T.macWatch(e, noon + 20 * 60e3), 'down');
+  assert.equal(await T.macWatch(e, noon + 30 * 60e3), 'still-down');
+  await e.DB.prepare("UPDATE hq_kv SET at = ?1 WHERE k = 'mac-seen'").bind(new Date(noon + 39 * 60e3).toISOString()).run();
+  assert.equal(await T.macWatch(e, noon + 40 * 60e3), 'back');
+  assert.equal(pushes.length, 2); assert.match(pushes[0], /Mac is offline/); assert.match(pushes[1], /Mac is back/);
+});

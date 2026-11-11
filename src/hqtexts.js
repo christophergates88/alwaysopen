@@ -45,6 +45,7 @@ export async function ensureHqTexts(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS hq_text_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, handle TEXT, name TEXT, heard TEXT, action TEXT, reply TEXT DEFAULT '', why TEXT DEFAULT '', cat TEXT DEFAULT '', urgent INTEGER DEFAULT 0, sent INTEGER DEFAULT 0, out_id INTEGER DEFAULT 0, mode TEXT DEFAULT '')"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS hq_text_out (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, kind TEXT, handle TEXT, name TEXT, body TEXT, goal TEXT DEFAULT '', status TEXT, token TEXT DEFAULT '', why TEXT DEFAULT '', sent_at TEXT DEFAULT '', err TEXT DEFAULT '', done_at TEXT DEFAULT '', result TEXT DEFAULT '')"),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS hq_text_out_tok ON hq_text_out (token)'),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS hq_text_lessons (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, handle TEXT, name TEXT, heard TEXT, ours TEXT DEFAULT '', his TEXT, kind TEXT)"),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS hq_text_log_h ON hq_text_log (handle, at)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_kv (k TEXT PRIMARY KEY, at TEXT, v TEXT)')
   ]);
@@ -100,6 +101,8 @@ REPLY when it's everyday back-and-forth you can answer from the chat and his sch
 
 EVERYDAY ASKS FROM HIS WIFE OR CLOSE FAMILY: a chore, an errand, the dogs, something to pick up, their son's routine, "what time will you be home", "I'm off tomorrow", a reminder. Always REPLY to these with a short, warm acknowledgment the way he answers them ("Ok will do", "Got it 👍", "Sounds good", "Ok love you"), so nobody is left waiting. Don't promise a specific time unless the chat or his schedule shows it; never say you already did it. Put the thing he now has to do (or needs to know) in "todo", so he is told right away. Money, health, legal, an argument or hurt feelings, or anything serious from them still escalates.
 
+PAST CORRECTIONS (when given) are real cases where Christopher sent something different from what you wrote or suggested, or answered a text you left to him. Learn from them: copy his wording and length, and handle the same kind of text the way he did. A correction from the same person counts most.
+
 HOW TO WRITE A REPLY
 - Sound exactly like Christopher in this chat: match the length, tone, punctuation, capitalization, slang and emoji use of his own past messages ("Me"). Usually short. No greeting or sign-off unless he does that.
 - Never say or hint that you're an assistant, AI or automated. Never make up facts, plans or reasons. Never promise money, favors, or anything his schedule doesn't show. Never share anyone else's information. No links.
@@ -136,6 +139,16 @@ async function askClaude(env, user) {
   try { return m ? JSON.parse(m[0]) : null; } catch (e) { return null; }
 }
 
+// What he actually sent when he didn't use our words (hq_text_lessons, reported by the Mac): same person first.
+export function lessonText(lessons, key) {
+  const all = lessons || [];
+  if (!all.length) return '';
+  const q = t => '“' + String(t || '').replace(/\s+/g, ' ').slice(0, 160) + '”';
+  const pick = all.filter(l => l.handle === key).slice(0, 6).concat(all.filter(l => l.handle !== key).slice(0, 6));
+  return '\n\nPAST CORRECTIONS (newest first):\n' + pick.map(l => `- ${l.name || 'Someone'} wrote ${q(l.heard)}; ` +
+    (l.kind === 'reply' ? `you answered ${q(l.ours)}; he then added ${q(l.his)}` : l.kind === 'suggest' ? `you suggested ${q(l.ours)}; he sent ${q(l.his)} instead` : `you left it to him; he answered ${q(l.his)}`)).join('\n');
+}
+
 // One conversation: what to do about the texts waiting in it. h: { now, ctx: {day, cal, plans, family, settings, job} }.
 export async function decide(env, chat, h) {
   const now = h.now || Date.now();
@@ -162,6 +175,7 @@ export async function decide(env, chat, h) {
     (job ? `\nACTIVE GOAL: Christopher asked you to text ${name} to: ${String(job.goal || job.body || '').slice(0, 400)}\nWork toward it in your replies (same rules); when it's settled, set done true and say in tell how it was settled.\n` : '') +
     `\nRECENT CHAT (oldest first; "Me" is Christopher):\n` + (chat.msgs || []).slice(-24).map(m => `${String(m.at || '').slice(0, 20)} ${m.me ? 'Me' : name.split(' ')[0]}: ${String(m.text || '').replace(/\s+/g, ' ').slice(0, 400)}`).join('\n') +
     `\n\nWAITING FOR AN ANSWER (newest last):\n` + fresh.map(t => '- ' + t.replace(/\s+/g, ' ')).join('\n') +
+    lessonText(h.lessons, key) +
     (hold.length ? `\n\n(Note: do not reply this time; Christopher handles it himself: ${hold.join('; ')}. Choose escalate, or none if nothing needs an answer.)` : '');
   const d = await askClaude(env, user);
   if (!d) { out.action = 'escalate'; out.tell = `${name} texted you and Gates HQ couldn't read it right now.`; out.why = 'the model did not answer'; out.category = 'unsure'; return out; }
@@ -202,13 +216,15 @@ export async function handleHqText(req, env, json) {
   try { plans = ((await env.DB.prepare("SELECT date, t, what, who, status FROM hq_plans WHERE date >= ?1 ORDER BY date, t LIMIT 40").bind(today).all()).results) || []; } catch (e) { plans = []; }
   const dayStart = new Date(now - 24 * 3600e3).toISOString(), hourStart = new Date(now - 3600e3).toISOString();
   const dayN = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM hq_text_log WHERE action = 'reply' AND at >= ?1").bind(dayStart).first()) || {}).n || 0;
+  let lessons = [];
+  try { lessons = ((await env.DB.prepare('SELECT handle, name, heard, ours, his, kind FROM hq_text_lessons ORDER BY id DESC LIMIT 60').all()).results) || []; } catch (e) { lessons = []; }
   const decisions = [];
   for (const chat of (b.chats || []).slice(0, 6)) {
     const handle = String(chat.handle || '').slice(0, 80);
     if (!handle) continue;
     const hourN = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM hq_text_log WHERE action = 'reply' AND handle = ?1 AND at >= ?2").bind(keyOf(handle), hourStart).first()) || {}).n || 0;
     const job = await env.DB.prepare("SELECT * FROM hq_text_out WHERE kind = 'job' AND status = 'sent' AND handle = ?1 AND sent_at >= ?2 ORDER BY id DESC LIMIT 1").bind(keyOf(handle), new Date(now - 3 * 864e5).toISOString()).first();
-    const d = await decide(env, chat, { now, day, cal, plans, family, settings, job, replies: { hour: hourN, day: dayN + decisions.filter(x => x.action === 'reply').length } });
+    const d = await decide(env, chat, { now, day, cal, plans, family, settings, job, lessons, replies: { hour: hourN, day: dayN + decisions.filter(x => x.action === 'reply').length } });
     let approve = '', outId = 0;
     if (d.action === 'escalate' && d.suggest && settings.mode === 'on') {
       const tok = randTok();
@@ -219,6 +235,14 @@ export async function handleHqText(req, env, json) {
     if (d.done && job) await env.DB.prepare("UPDATE hq_text_out SET status = 'done', done_at = ?1, result = ?2 WHERE id = ?3").bind(iso, d.tell.slice(0, 300), job.id).run();
     const lg = await env.DB.prepare('INSERT INTO hq_text_log (at, handle, name, heard, action, reply, why, cat, urgent, out_id, mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)')
       .bind(iso, keyOf(handle), d.name, (chat.new || []).join(' / ').slice(0, 600), d.action, d.reply || d.suggest, (d.tell + (d.why && d.why !== d.category ? ' [' + d.why + ']' : '')).slice(0, 400), d.category, d.urgent ? 1 : 0, outId, settings.mode).run();
+    // Something he now has to do ("walk the dog when you get home"): onto his day as a to-do (the page makes it a task he can tick).
+    if (d.action === 'reply' && d.todo && settings.mode === 'on') {
+      try {
+        await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_plans (key TEXT PRIMARY KEY, date TEXT, t TEXT, end_t TEXT, what TEXT, who TEXT, place TEXT, quote TEXT, status TEXT, src TEXT, at TEXT, made TEXT, kind TEXT, amount REAL, important INTEGER, link TEXT)').run();
+        await env.DB.prepare("INSERT OR IGNORE INTO hq_plans (key, date, t, end_t, what, who, place, quote, status, src, at, made, kind, amount, important) VALUES (?1, ?2, '', '', ?3, ?4, '', ?5, 'new', 'ask', ?6, ?6, 'task', NULL, 1)")
+          .bind('ask-' + ((lg.meta && lg.meta.last_row_id) || now), today, d.todo.slice(0, 80), d.name, (chat.new || []).join(' / ').slice(0, 160), iso).run();
+      } catch (e) { /* the push still tells him */ }
+    }
     decisions.push(Object.assign({}, d, { approve, log: (lg.meta && lg.meta.last_row_id) || 0, job: job ? job.id : 0 }));
   }
   if (Math.random() < 0.05) await env.DB.prepare('DELETE FROM hq_text_log WHERE at < ?1').bind(new Date(now - 90 * 864e5).toISOString()).run().catch(() => {});
@@ -235,7 +259,9 @@ export async function handleHqTextQueue(req, env, json) {
     const lease = new Date(now - 5 * 60e3).toISOString();
     const rows = ((await env.DB.prepare("SELECT id, kind, handle, name, body FROM hq_text_out WHERE (status = 'approved' OR (status = 'sending' AND sent_at < ?1)) AND at >= ?2 ORDER BY id LIMIT 10").bind(lease, new Date(now - LINK_HOURS * 3600e3).toISOString()).all()).results) || [];
     if (rows.length) await env.DB.batch(rows.map(r => env.DB.prepare("UPDATE hq_text_out SET status = 'sending', sent_at = ?1 WHERE id = ?2").bind(iso, r.id)));
-    return json({ ok: true, settings, out: settings.mode === 'off' ? rows.filter(r => r.kind !== 'suggest') : rows });
+    await env.DB.prepare("INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES ('mac-seen', ?1, '{}')").bind(iso).run().catch(() => {});
+    const fast = (await familyList(env)).flatMap(p => (p.phones || []).map(ph10)).filter(Boolean);   // family: answered after 2 minutes, and until midnight
+    return json({ ok: true, settings, fast, out: settings.mode === 'off' ? rows.filter(r => r.kind !== 'suggest') : rows });
   }
   if (req.method !== 'POST') return json({ ok: false }, 404);
   let b = {}; try { b = JSON.parse(await req.text()); } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
@@ -243,6 +269,12 @@ export async function handleHqTextQueue(req, env, json) {
   for (const id of (b.sent || []).slice(0, 20)) st.push(env.DB.prepare("UPDATE hq_text_out SET status = 'sent', sent_at = ?1, err = '' WHERE id = ?2").bind(iso, +id || 0));
   for (const f of (b.failed || []).slice(0, 20)) st.push(env.DB.prepare("UPDATE hq_text_out SET status = 'failed', err = ?1 WHERE id = ?2").bind(String(f.why || '').slice(0, 200), +f.id || 0));
   for (const id of (b.replied || []).slice(0, 20)) st.push(env.DB.prepare('UPDATE hq_text_log SET sent = 1 WHERE id = ?1').bind(+id || 0));
+  // What he really sent when he didn't use our words: kept (newest 300) so the next answers sound more like him.
+  for (const l of (Array.isArray(b.lessons) ? b.lessons : []).slice(0, 20)) {
+    if (!l || !String(l.his || '').trim() || !/^(reply|suggest|left)$/.test(l.kind || '')) continue;
+    st.push(env.DB.prepare('INSERT INTO hq_text_lessons (at, handle, name, heard, ours, his, kind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(iso, keyOf(l.handle), String(l.name || '').slice(0, 60), String(l.heard || '').slice(0, 400), String(l.ours || '').slice(0, 400), String(l.his).slice(0, 400), l.kind));
+  }
+  if (Array.isArray(b.lessons) && b.lessons.length) st.push(env.DB.prepare('DELETE FROM hq_text_lessons WHERE id <= (SELECT MAX(id) FROM hq_text_lessons) - 300'));
   // The people he texts (name and number, from his Mac's contacts), so "Text Mike" on his page knows which Mike.
   if (Array.isArray(b.people)) st.push(env.DB.prepare("INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES ('people', ?1, ?2)").bind(iso, JSON.stringify({ list: b.people.slice(0, 400).map(p => ({ n: String(p.n || '').slice(0, 60), p: String(p.p || '').replace(/\D/g, '').slice(-10), last: String(p.last || '').slice(0, 10) })).filter(p => p.n && p.p.length === 10) })));
   if (st.length) await env.DB.batch(st);
@@ -271,4 +303,31 @@ export async function handleApprove(req, env, token) {
   if (r.status !== 'suggested') return page('Done', `<h1>${r.status === 'sent' ? 'Already sent' : r.status === 'approved' || r.status === 'sending' ? 'On its way' : 'Not sending'}</h1><p>${esc(r.name)}</p>`);
   if (old) return page('Expired', `<h1>This link expired</h1>${sms ? `<p><a href="${sms}">Text ${esc(r.name)} from Messages</a></p>` : ''}`);
   return page('Reply to ' + r.name, `<h1>Reply to ${esc(r.name)}</h1><p>${esc(r.why)}</p><div class="msg">${esc(r.body)}</div><form method="post"><button type="submit">Send it</button></form><p style="margin-top:14px">${sms ? `Want to say something else? <a href="${sms}">Open Messages</a>` : ''}</p>`);
+}
+
+// From the 10-minute cron: his Mac sends every text, so if it hasn't checked in for 10 minutes while answering is on,
+// he gets one push (7 AM to 10 PM), and one more when it's back.
+export async function macWatch(env, now) {
+  await ensureHqTexts(env);
+  now = now || Date.now();
+  if ((await settingsOf(env)).mode !== 'on') return 'off';
+  const seen = await env.DB.prepare("SELECT at FROM hq_kv WHERE k = 'mac-seen'").first();
+  if (!seen) return 'never';
+  const alert = await kv(env, 'mac-alert');
+  const gone = now - Date.parse(seen.at) > 10 * 60e3;
+  const { push } = await import('./push.js');
+  const put = v => env.DB.prepare("INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES ('mac-alert', ?1, ?2)").bind(new Date(now).toISOString(), JSON.stringify(v)).run();
+  if (gone && !(alert && alert.down)) {
+    const h = eastern(now).hour;
+    if (h < 7 || h >= 22) return 'quiet';
+    await put({ down: true });
+    await push(env, { title: 'Your Mac is offline: texts aren\u2019t being answered', body: 'Gates HQ sends your texts through the Mac, and it hasn\u2019t checked in for ' + Math.round((now - Date.parse(seen.at)) / 60e3) + ' minutes. Check that it\u2019s awake and on Wi-Fi. Answer texts yourself until then.', priority: 'high', tags: 'warning' });
+    return 'down';
+  }
+  if (!gone && alert && alert.down) {
+    await put({ down: false });
+    await push(env, { title: 'Your Mac is back: texts are being answered again', body: 'Gates HQ is answering your texts again.', priority: 'default', tags: 'white_check_mark' });
+    return 'back';
+  }
+  return gone ? 'still-down' : 'ok';
 }
