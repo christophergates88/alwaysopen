@@ -22,14 +22,19 @@ jobs:
       - name: Check the site on phones
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.56.0
-          # The browser and the system libraries it needs. Ubuntu's package servers have bad minutes (Nov 11, 2026: ten
-          # minutes of "Temporary failure resolving" failed a deploy that had nothing wrong with it), so this tries up
-          # to three times, a minute apart, and says plainly when the servers are the problem.
-          for i in 1 2 3; do
-            if npx playwright install --with-deps chromium; then break; fi
-            if [ "$i" = 3 ]; then echo "::error::The check browser could not be installed: Ubuntu's package servers did not answer. Nothing is wrong with the site. Run the deploy again."; exit 1; fi
-            echo "Browser install failed (try $i of 3). Waiting a minute."; sleep 60
+          # The browser and the system libraries it needs. Ubuntu's package servers have bad minutes (Nov 11, 2026: half an
+          # hour of "Temporary failure resolving" failed two deploys that had nothing wrong with them). So: two tries of
+          # four minutes each; if the servers still don't answer, the browser alone is fetched and the checks run with
+          # the fonts the machine already has (the only thing the servers add), so a good change still goes live.
+          ok=0
+          for i in 1 2; do
+            if timeout 240 npx playwright install --with-deps chromium; then ok=1; break; fi
+            echo "Browser install with its system libraries failed (try $i of 2)."; [ "$i" = 2 ] || sleep 30
           done
+          if [ "$ok" = 0 ]; then
+            echo "::warning::Ubuntu's package servers did not answer. The checks are running without the browser's extra fonts this time; if a size check fails below, run the deploy again later."
+            npx playwright install chromium
+          fi
           node tools/phonecheck.mjs
           APP_SHOTS=app-shots node tools/appcheck.mjs
           APP_SHOTS=app-shots node tools/wallcheck.mjs
