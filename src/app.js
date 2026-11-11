@@ -931,9 +931,12 @@ async function apiMessage(req, env, ctx, c) {
   // "Got it, Katie will reply by …" so nobody wonders whether it went through (checks.js; once every 4 hours at most).
   try { await (await import('./checks.js')).ackMessage(env, c.client_id, by); } catch (e) { /* the message itself is saved */ }
   const title = (kind === 'hours' ? 'Hours change from ' : 'Message from ') + (c.business || 'a client');
+  // Tapping the push, or the link in the email, opens Always Open HQ with the answer box under their message.
+  let hq = ''; try { hq = await (await import('./opsboard.js')).hqLink(env); } catch (e) { hq = ''; }
   ctx.waitUntil(Promise.all([
-    ntfy(env, title, by + ': ' + text.slice(0, 700), kind === 'hours' ? 'high' : 'default', kind === 'hours' ? 'clock4' : 'speech_balloon'),
-    mail(env, title, [by + ' at ' + (c.business || 'a client') + ' wrote in the Always Open app:', '', text, '', 'Answer from Always Open HQ (Clients, Client app) so it shows in their app.'].join('\r\n'))
+    ntfy(env, title, by + ': ' + text.slice(0, 700), kind === 'hours' ? 'high' : 'default', kind === 'hours' ? 'clock4' : 'speech_balloon', hq || undefined),
+    // the HQ link sits on its own line, ahead of their words, so the email's button is always ours (never a link they typed)
+    mail(env, title, [by + ' at ' + (c.business || 'a client') + ' wrote in the Always Open app:', hq, '', text, '', 'Do: Answer on Always Open HQ. It shows in their app.'].filter((x, i) => i !== 1 || x).join('\r\n'))
   ]));
   return aj({ ok: true, id, at, text });
 }

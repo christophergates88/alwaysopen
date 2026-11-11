@@ -677,7 +677,7 @@ export function leadEmail(f, id, at) {
   if (f.quiet || f.hold) lines.push({ k: 'Audit email', v: f.quiet || f.hold, bad: true });
   else lines.push({ k: 'Audit email', v: 'sent automatically', ok: true });
   return { tone: f.quiet ? 'bad' : 'info', sign: 'NEW LEAD', title: (f.name || 'Someone') + (f.business ? ' from ' + f.business : '') + ' asked for the free audit', who: 'website',
-    doThis: [leadStep(f)], lines, note: 'Reply to this email to answer them directly. It also lands in Always Open HQ, Pipeline.', preheader: leadStep(f) };
+    doThis: [leadStep(f)], lines, note: 'Reply to this email to answer them directly. It is also on Always Open HQ, under Requests.', preheader: leadStep(f) };
 }
 
 async function mail(env, f, id, at) {
@@ -689,7 +689,7 @@ async function mail(env, f, id, at) {
     'Lead ID: ' + (id || '?'), 'Name: ' + f.name, 'Business: ' + f.business, 'Phone: ' + f.phone, 'Email: ' + f.email,
     'Town: ' + f.town, 'Type: ' + f.type, 'Plan: ' + f.plan, 'Language: ' + (f.lang === 'es' ? 'Spanish (they used the Spanish page; answer in Spanish, and their Max line starts in Spanish)' : 'English'), 'Link: ' + f.link, 'Notes: ' + f.notes.replace(/\r?\n/g, ' '), 'OK to text: ' + f.sms_ok, 'Referred by: ' + (f.referredBy || 'none'),
     'Sent at: ' + at, '',
-    'Reply to this email to answer them directly. It also goes into Always Open HQ, Pipeline, at the next Always Open check.'
+    'Reply to this email to answer them directly. It is also on Always Open HQ, under Requests, right away.'
   ].join('\r\n');
   // The plain part stays exactly as it was: the Always Open check reads "Lead ID:", "Name:" lines out of it.
   // The HTML part is the neon page: who it is, the one thing to do, the details in short rows.

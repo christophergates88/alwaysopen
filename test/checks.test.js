@@ -86,6 +86,17 @@ test('client messages: one automatic note, then Christopher after 4 business hou
   assert.match(pings[0], /^Always Open: 1 client message waiting over 4 business hours \| Quillen Plumbing \(Sam\): Can you change our Sunday hours\?/);
   assert.deepEqual(await C.messageTimer(env, t0 + 5 * HR, h), { reminded: 0 }, 'once');
   assert.match(await C.morningChecks(env, Date.parse('2026-10-30T15:00:00Z')), /Unanswered client messages: Quillen Plumbing\./, 'a business day later');
+  assert.match(pings[0], /Answer on Always Open HQ and it shows in their app\.$/, 'no ops key here, so no link: it still says where to answer');
+  // with the ops key the same push opens Always Open HQ on a tap, and an answer typed there ends the wait
+  const env2 = Object.assign({}, env, { LEADS_KEY: 'k-for-tests' }), taps = [], mon = Date.parse('2026-11-02T14:30:00Z');   // 9:30 AM Monday
+  await msg('c1', 'One more thing: closed Friday too.', mon);
+  assert.deepEqual(await C.messageTimer(env2, mon + 5 * HR, { ping: async (t, b, p, click) => taps.push([b, click]) }), { reminded: 1 });
+  assert.match(taps[0][0], /Tap to answer on Always Open HQ\. It shows in their app\.$/);
+  assert.match(taps[0][1], /^https:\/\/alwaysopenoffice\.com\/ops\/hq\?t=[0-9]{8}[0-9a-f]{32}$/);
+  assert.equal(await (await import('../src/opsboard.js')).boardOk(env2, new URL(taps[0][1]).searchParams.get('t'), null), true, 'the link is one the board accepts');
+  await msg('c1', 'And Saturday.', mon + 5.5 * HR);
+  assert.deepEqual(await (await import('../src/opshq.js')).hqReply(env2, 'c1', 'Got all three. Max knows.', mon + 6 * HR), { ok: true });
+  assert.deepEqual(await C.messageTimer(env2, mon + 30 * HR, { ping: async () => { throw new Error('should not ping'); } }), { reminded: 0 }, 'answered on HQ: no reminder');
 });
 
 test('spending: a day three times normal is one alert; a normal day is nothing', async () => {

@@ -1549,7 +1549,7 @@ async function ownLead(env, call, note, outcome, callback, summary) {
   const text = ['New call to the Always Open phone line. The AI assistant took it.', '',
     'Lead ID: ' + (id || call.id), 'Name: ' + f.name, 'Business: ' + f.business, 'Phone: ' + phone, 'Email: ', 'Town: ' + f.town, 'Type: ' + f.type,
     'Plan: ' + f.plan, 'Link: ', 'Notes: ' + f.notes + (texted === 'texted' ? ' Their free audit link was texted to them.' : ''), 'OK to text: ' + (texted === 'texted' ? 'yes (they asked for the audit by text)' : 'no'), 'Referred by: none', 'Sent at: ' + at, '',
-    'Call them back. It also goes into Always Open HQ, Pipeline, at the next Always Open check.'].join('\r\n');
+    'Call them back. It is also on Always Open HQ, under Requests, right away.'].join('\r\n');
   const state = await mailOwner(env, 'Always Open phone lead: ' + oneLine(who).slice(0, 120), text);
   if (id) await env.DB.prepare('UPDATE leads SET mail = ?1 WHERE id = ?2').bind(state || '', id).run().catch(() => {});
 }

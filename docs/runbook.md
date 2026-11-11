@@ -51,8 +51,12 @@ requests; every client; the calls Max took in the last 7 days. It reads the site
 there is nothing to copy and nothing to fall behind. An answer typed there is saved as Katie's (`app_messages`, `dir`
 'out'), shows in the client's app as "Always Open", and buzzes their iPhone on the next ten-minute run. A request's
 buttons (Talking, Won, Lost) set `leads.status`; anything but "new" stops the follow-up emails and the call-back
-reminder for that request. Money stays on /ops/numbers, the week's to-dos on /ops. The older HQ page on claude.ai
-(filled by the scheduled task below) shows the same things later and second-hand; nothing depends on it.
+reminder for that request. Money stays on /ops/numbers, the week's to-dos on /ops. The push and the email for a client
+message carry a fresh link straight to this page. `Open Always Open HQ.command` in GatesHQ opens it from the Mac.
+
+The older HQ page on claude.ai (filled by the scheduled task below) shows messages, requests, clients and calls later
+and second-hand; for those, use this page. It still holds a few tools this page does not: adding a client by hand, the
+approved wording for regulated clients, and the monthly report numbers. So it and its scheduled check stay as they are.
 
 ## The Always Open check (a Claude scheduled task, outside the Worker)
 

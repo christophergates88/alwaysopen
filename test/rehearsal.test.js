@@ -222,6 +222,24 @@ test('a message to the team reaches Christopher by push and email', async () => 
   assert.ok(world.pushes.length > before && world.mail.length > mails);
   assert.ok(world.pushes.at(-1).title.startsWith('Hours change'));
   assert.equal((await site.call(A('/api/message'), { json: { text: '  ' } })).status, 400);
+  // Always Open HQ on the site (Nov 11, 2026): tapping that push opens the page with their message and the answer box,
+  // and what is typed there shows in their app. No copy anywhere in between.
+  const link = world.pushes.at(-1).click;
+  assert.match(link, /^https:\/\/alwaysopenoffice\.com\/ops\/hq\?t=[0-9]{8}[0-9a-f]{32}$/, 'the push opens HQ on a tap');
+  const plainPart = raw => { const m = /Content-Type: text\/plain[^\r\n]*\r\nContent-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+)/.exec(raw); return m ? Buffer.from(m[1].replace(/\s+/g, ''), 'base64').toString('utf8') : raw; };
+  const mailText = plainPart(world.mail.at(-1).raw);
+  assert.ok(mailText.includes('Answer on Always Open HQ. It shows in their app.') && mailText.includes(link), 'the email says where to answer, with the same link: ' + mailText.slice(0, 300));
+  const hq = await site.call(link.replace('https://alwaysopenoffice.com', ''));
+  assert.equal(hq.status, 200);
+  assert.match(hq.text, /<h2>Waiting on a reply \(1\)<\/h2>/);
+  assert.match(hq.text, /Hours change: We are closed Monday for the holiday\./);
+  assert.equal((await site.call('/ops/hq')).status, 404, 'without the link the page is not there');
+  const t = new URL(link).searchParams.get('t');
+  const sent = await site.call('/ops/hq/reply', { json: { t, client: cid, text: 'Done. Max tells callers you are closed Monday.' } });
+  assert.deepEqual(sent.json(), { ok: true });
+  const seen = (await site.call(A('/api/state'))).json().messages;
+  assert.ok(seen.some(m => m.dir === 'out' && m.text === 'Done. Max tells callers you are closed Monday.'), 'the client sees the answer in their app');
+  assert.match((await site.call(link.replace('https://alwaysopenoffice.com', ''))).text, /<h2>Waiting on a reply \(0\)<\/h2>/, 'answered: nobody is waiting');
 });
 
 test('"finished a job" adds the customer once and needs their OK to be contacted', async () => {

@@ -53,9 +53,9 @@ export function businessHours(from, to) {
 const dayName = iso => new Date(iso).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
 
-async function ping(env, h, title, body, priority, tags) {
-  if (h.ping) return h.ping(title, body, priority || 'default');
-  return (await import('./app.js')).opsPing(env, title, body, priority || 'default', tags || 'clipboard');
+async function ping(env, h, title, body, priority, tags, click) {
+  if (h.ping) return h.ping(title, body, priority || 'default', click || '');
+  return (await import('./app.js')).opsPing(env, title, body, priority || 'default', tags || 'clipboard', click || undefined);
 }
 async function pushOwner(env, h, cid, note) {
   if (h.pushClient) return h.pushClient(cid, note);
@@ -189,7 +189,8 @@ export async function messageTimer(env, now, h) {
   }
   if (late.length) {
     const lines = late.slice(0, 4).map(r => (r.business || r.client_id) + ' (' + (r.by || 'owner') + '): ' + String(r.text || '').replace(/\s+/g, ' ').slice(0, 90));
-    await ping(env, h, 'Always Open: ' + plural(late.length, 'client message') + ' waiting over 4 business hours', lines.join('\n') + '\nAnswer in Always Open HQ, Clients, Client app, so it shows in their app.', 'high', 'speech_balloon');
+    let hq = ''; try { hq = await (await import('./opsboard.js')).hqLink(env); } catch (e) { hq = ''; }
+    await ping(env, h, 'Always Open: ' + plural(late.length, 'client message') + ' waiting over 4 business hours', lines.join('\n') + '\n' + (hq ? 'Tap to answer on Always Open HQ. It shows in their app.' : 'Answer on Always Open HQ and it shows in their app.'), 'high', 'speech_balloon', hq);
   }
   return { reminded: late.length };
 }

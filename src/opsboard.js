@@ -34,6 +34,8 @@ export async function boardToken(env, now) {
   return d + await mac(env, 'ops-board-v2:' + d, 16);
 }
 const legacyToken = env => mac(env, 'ops-board-v1', 20);
+// A fresh link to Always Open HQ (opshq.js), for the pushes and emails that say "answer them" or "it is on HQ".
+export async function hqLink(env) { const t = await boardToken(env); return t ? 'https://alwaysopenoffice.com/ops/hq?t=' + t : ''; }
 function cookieOf(req) { const m = /(?:^|;\s*)aob=([0-9]+\.[0-9a-f]{32})/.exec((req && req.headers && req.headers.get('cookie')) || ''); return m ? m[1] : ''; }
 async function cookieOk(env, req) {
   const v = cookieOf(req); if (!v) return false;

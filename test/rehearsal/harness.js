@@ -101,7 +101,7 @@ export function installFetch(world, env) {
     const form = () => new URLSearchParams(body);
 
     // ---- push to Christopher's phone ----
-    if (host === 'ntfy.example.test') { world.pushes.push({ title: (init.headers || {}).Title || (init.headers || {}).title || '', priority: (init.headers || {}).Priority || '', body }); return new Response('ok'); }
+    if (host === 'ntfy.example.test') { world.pushes.push({ title: (init.headers || {}).Title || (init.headers || {}).title || '', priority: (init.headers || {}).Priority || '', click: (init.headers || {}).Click || '', body }); return new Response('ok'); }
 
     // ---- Stripe ----
     if (host === 'api.stripe.com') {
