@@ -401,3 +401,15 @@ either way), and the web wording differs in small places (for example "Gap betwe
    re-run alone if it fails beside the others. The check tools are kept between runs.
 
 4 and 7 are below this list in the iPhone and Stripe notes.
+
+4. **Answering a caller's question in the iPhone app.** Written into the Mac's copy (HomeView.swift TapBox on the live
+   call card; Models.swift LiveTap; the After the call row follows features.callbacks). Backups `.bak-parity2`.
+   NOT compiled yet: the Mac's screen was locked when it was time to build (Nov 12, 8 AM). Run "Compile Always Open app"
+   and read alwaysopen-ios/build-result.txt before installing.
+7. **Card payments.** Nothing to build: the app offers "Take card payments" (stripe.available is true) and the whole
+   path exists (biz.js apiStripe). What is not known is whether Connect is turned on for the Always Open Stripe account;
+   the first owner who taps Connect finds out, and if it is not, the app shows "Coming soon" for a day. The website's
+   What you control list leaves card payments out until that is confirmed.
+
+Found on the way (Nov 12): the ntfy account is a free one, 250 pushes a day, and it reached 0 left on the night of
+Nov 11 (push_meta `account`). That, not a bad token, was the 429. Pushes then wait for the Mac relay or the next day.
