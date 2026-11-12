@@ -367,3 +367,13 @@ one folded row, "What you control".
 - Not on the list on purpose: card payments (the app still says "Coming soon").
 - Known mismatch, left alone: the pricing page sells "Call-backs with a time on them" as Pro, and the list tags it Pro,
   but the app shows that switch on every plan.
+
+## iPhone app checked against the web app, option by option (Nov 11, 2026)
+
+The iPhone app (Mac: GatesHQ/alwaysopen-ios/AlwaysOpen) was missing four things the web app's Max tab has. Added to
+MaxView.swift and Models.swift (backups `.bak-parity`), compiled clean (BUILD SUCCEEDED, 9:50 PM):
+Tell Max, Job description (the six switches and their texts), Calls Max makes (the eight switches), and Shoulder Tap's
+"when may Max text you" setting. They read `line.duties`, `outcalls` and `tap` from the same state the web app uses.
+Not on a phone until "Install Always Open on iPhone" is run, and not seen on a real device yet.
+Still web-only: answering a Shoulder Tap from the live call card and "Take the call" (the owner answers by text
+either way), and the web wording differs in small places (for example "Gap between visits" for "Time between visits").
