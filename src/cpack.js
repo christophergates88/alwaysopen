@@ -3,7 +3,7 @@
 import { guard, CG_RULES, CG_ALL } from './app.js';
 
 const FAKE = { regulated: 1, banned: '' };
-const PASS = [
+export const PASS = [
   ['reply', 'Thank you for the kind words. We are glad our team could help, and we appreciate you taking the time to write.'],
   ['reply', 'Thanks for your feedback. We have shared it with the team and we are always glad to hear from you.'],
   ['post', 'Cold weather is a good time to check the batteries in your smoke alarms. Stop by the office any time with questions.']

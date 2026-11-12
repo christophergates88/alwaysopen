@@ -136,8 +136,31 @@ export async function gather(env, now) {
   await safe(async () => { out.map = await (await import('./map.js')).mapAdmin(env); out.mapHtml = B.mapSection(out.map); });
   await safe(async () => { out.sw = await B.outreachSwitch(env); out.switchHtml = B.switchSection(out.sw); });
   out.linkify = B ? B.linkify : (x => x);
+  // Google posting: on means the site can post an approved reply itself (gbp.js); off means by hand, and why
+  await safe(async () => { const L = await import('./launch.js'); out.googleOn = await L.isOn(env, 'google'); out.googleWhy = ((await L.launchState(env)).google || {}).detail || ''; });
+  await safe(async () => { out.months = await monthRows(env, now); });
+  await safe(async () => { out.rules = await wordingRules(); });
   return out;
 }
+
+// This month so far, for each client: the numbers their monthly page is built from (app.js monthFor).
+export async function monthRows(env, now) {
+  const { monthFor } = await import('./app.js'), { DEMO_ID } = await import('./demo.js'), list = [];
+  for (const c of await rows(env, 'SELECT * FROM app_clients WHERE active = 1 AND client_id != ?1 ORDER BY business', DEMO_ID)) {
+    try {
+      const m = await monthFor(env, c, 'now', now), a = m.a || {}, n = x => +(x || 0);
+      list.push({ business: c.business || c.client_id, label: m.label, calls: n(a.calls && a.calls.n), after: n(a.calls && a.calls.after), reviews: n(a.reviews && a.reviews.n), replies: n(m.stats && m.stats.replies), posts: n(m.stats && m.stats.posts) });
+    } catch (e) { list.push({ business: c.business || c.client_id, failed: true }); }
+  }
+  return list;
+}
+// What a reply or post may not say: every client's rules, the extra ones for insurance, medical and legal offices, and
+// wording that passes them. Read from the live rules (app.js, cpack.js), so this list is never out of date.
+export async function wordingRules() {
+  const A = await import('./app.js'), P = await import('./cpack.js');
+  return { all: A.CG_ALL.map(r => r.why), strict: A.CG_RULES.map(r => r.why).filter(w => !A.CG_ALL.some(r => r.why === w)), pass: (P.PASS || []).map(x => x[1]) };
+}
+
 
 const CSS = ':root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--soft:#F5F4F0;--ok:#1E7A4F;--warn:#9A5B00;--hot:#B3261E}' +
   '@media(prefers-color-scheme:dark){:root{--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--paper:#12151D;--soft:#1A1F2B;--ok:#5CC9A4;--warn:#F2C46B;--hot:#FF8A80}}' +
@@ -154,7 +177,7 @@ const CSS = ':root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--s
   '.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tag{font-size:13px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--paper)}.tag.ok{color:var(--ok)}.tag.warn{color:var(--warn)}.tag.hot{color:var(--hot)}' +
   '.th{display:grid;gap:6px;margin:10px 0}.m{max-width:88%;padding:8px 11px;border-radius:14px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--line)}.m.out{justify-self:end;background:transparent}.m small{display:block;color:var(--slate);font-size:12px;margin-top:2px}' +
   '.words{margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);white-space:pre-wrap;overflow-wrap:anywhere;-webkit-user-select:all;user-select:all}' +
-  'input.note{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px;min-height:44px}textarea{width:100%;min-height:84px;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px}' +
+  'input.note{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px;min-height:44px}select.note{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px}textarea{width:100%;min-height:84px;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px}' +
   '.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}button,a.btn{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;text-align:center}button.go,a.btn.go{background:var(--ink);color:var(--paper);border-color:var(--ink)}button[disabled]{opacity:.5}' +
   '.said{font-size:14px;color:var(--slate)}.none{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--slate)}' +
   // the look-up rows at the bottom: closed until tapped
@@ -213,15 +236,17 @@ function callHtml(k, now) {
 }
 
 // One approved reply or post waiting to go on Google: what was said, the approved words, and the two taps.
-function postHtml(it, now) {
+function postHtml(it, now, apiOn) {
   const st = Math.max(0, Math.min(5, Math.round(+it.stars || 0)));
   const head = it.kind === 'post' ? 'A post for their Google profile' : (st ? '★'.repeat(st) + '☆'.repeat(5 - st) + ' from ' + esc(it.title || 'a customer') : 'Review from ' + esc(it.title || 'a customer'));
   return '<div class="it"><b>' + esc(it.business) + '</b><span class="sub">' + head + '</span>' +
     (it.kind !== 'post' && it.review ? '<span class="sub">“' + esc(String(it.review).slice(0, 400)) + (String(it.review).length > 400 ? '…' : '') + '”</span>' : '') +
     '<span class="sub">Approved' + (it.by ? ' by ' + esc(it.by) : '') + (it.approvedAt ? ', ' + esc(ago(it.approvedAt, now)) + ' ago' : '') + '. ' + (it.kind === 'post' ? 'The post:' : 'The reply:') + '</span>' +
     '<div class="words">' + esc(it.words) + '</div>' +
-    '<div class="acts"><a class="btn go" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-copy="' + esc(it.words) + '">Copy and open Google</a><button type="button" data-posted="' + esc(it.id) + '">Posted</button><span class="said" role="status"></span></div>' +
-    '<span class="sub">' + (it.kind === 'post' ? 'On Google, tap Add update, paste, and post.' : 'On Google, find this review, tap Reply, paste, and post.') + ' Then tap Posted here.</span></div>';
+    (apiOn ? '<div class="acts"><button type="button" class="go" data-postapi="' + esc(it.id) + '">Post it for me</button><span class="said" role="status"></span></div>' +
+      '<details class="more"><summary>Or post it by hand</summary><div class="acts"><a class="btn" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-copy="' + esc(it.words) + '">Copy and open Google</a><button type="button" data-posted="' + esc(it.id) + '">Posted</button><span class="said" role="status"></span></div></details></div>'
+    : '<div class="acts"><a class="btn go" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-copy="' + esc(it.words) + '">Copy and open Google</a><button type="button" data-posted="' + esc(it.id) + '">Posted</button><span class="said" role="status"></span></div>' +
+      '<span class="sub">' + (it.kind === 'post' ? 'On Google, tap Add update, paste, and post.' : 'On Google, find this review, tap Reply, paste, and post.') + ' Then tap Posted here.</span></div>');
 }
 function todoHtml(items, linkify) {
   const g = new Map(); for (const it of items) { if (!g.has(it.group)) g.set(it.group, []); g.get(it.group).push(it); }
@@ -243,7 +268,7 @@ function hqClient(T) {
   document.addEventListener('click', function (e) {
     var a = e.target.closest('a[data-copy]');
     if (a) {   // the link itself opens Google in a new tab; this puts the approved words on the clipboard first
-      var said0 = a.closest('.it').querySelector('.said'), hold = 'Press and hold the words above to copy them.';
+      var said0 = a.closest('.acts').querySelector('.said'), hold = 'Press and hold the words above to copy them.';
       try { navigator.clipboard.writeText(a.getAttribute('data-copy')).then(function () { said0.textContent = 'Copied. Paste it on Google, then tap Posted.'; }, function () { said0.textContent = hold; }); } catch (x) { said0.textContent = hold; }
       return;
     }
@@ -266,6 +291,25 @@ function hqClient(T) {
       var n = row.querySelector('input.note'); if (n) note = n.value;
       b.disabled = true;
       send('/ops/hq/lead', { id: +b.dataset.lead, status: b.dataset.s, note: note }).then(function (j) { if (j.ok) again('requests'); else { b.disabled = false; b.textContent = 'Did not save. Try again'; } }).catch(function () { b.disabled = false; });
+      return;
+    }
+    if (b.dataset.postapi) {   // the site posts it on Google itself
+      var ps = b.parentNode.querySelector('.said');
+      b.disabled = true; ps.textContent = 'Posting on Google…';
+      send('/ops/hq/post', { id: b.dataset.postapi }).then(function (j) { if (j.ok) { ps.textContent = j.result === 'already' ? 'Google already had a reply there. Cleared.' : 'Posted on Google.'; setTimeout(function () { again('google'); }, 900); } else { b.disabled = false; ps.textContent = j.error || 'Did not post. Try again, or post it by hand.'; } }).catch(function () { b.disabled = false; ps.textContent = 'No connection. Try again.'; });
+      return;
+    }
+    if (b.dataset.addclient) {
+      var f = b.closest('.in'), val = function (k) { var x = f.querySelector('[data-f="' + k + '"]'); return x ? (x.type === 'checkbox' ? x.checked : x.value) : ''; }, as = f.querySelector('.said');
+      if (!String(val('business')).trim()) { as.textContent = 'Add the business name.'; return; }
+      b.disabled = true; as.textContent = 'Adding…';
+      send('/ops/hq/client', { business: val('business'), owner: val('owner'), phone: val('phone'), email: val('email'), town: val('town'), type: val('type'), plan: val('plan'), line: val('line') }).then(function (j) {
+        if (!j.ok) { b.disabled = false; as.textContent = j.error || 'Did not add. Try again.'; return; }
+        var box = f.querySelector('[data-made]'); box.hidden = false; box.querySelector('b').textContent = j.business + ' is added.';
+        var ln = box.querySelector('a'); ln.href = j.link; ln.textContent = j.link; ln.setAttribute('data-copy', j.link);
+        box.querySelector('.sub').textContent = 'This is their private app link. Send it to them. ' + (j.line ? 'Max’s number is being set up and shows in their app when it is ready.' : 'No phone number was bought. They can tap Set up Max in their app.');
+        as.textContent = 'Added.'; f.querySelectorAll('input[data-f]').forEach(function (x) { if (x.type === 'checkbox') x.checked = false; else x.value = ''; }); b.disabled = false;
+      }).catch(function () { b.disabled = false; as.textContent = 'No connection. Try again.'; });
       return;
     }
     if (b.dataset.posted) {
@@ -331,7 +375,8 @@ export function hqHtml(s, tok) {
     '<ul class="tally">' + T.map(x => '<li>' + (x.n ? '<a class="t" href="#' + x.id + '"><span class="n">' + x.n + '</span><span>' + esc(x.label) + '</span><span class="go">Show</span></a>'
       : '<span class="t"><span class="n" aria-hidden="true">✓</span><span>' + esc(x.label) + ': none</span></span>') + '</li>').join('') + '</ul>' +
     sec('reply', 'Reply to clients', s.waiting.length, waiting) +
-    sec('google', 'Post on Google', post.length, post.map(it => postHtml(it, now)).join('')) +
+    sec('google', 'Post on Google', post.length, post.map(it => postHtml(it, now, !!s.googleOn)).join('') +
+      (s.googleOn ? '' : '<p style="font-size:14px">These are posted by hand because Google has not let us post for clients yet. The day it does, this list posts itself and each row gets a Post it for me button.</p>')) +
     (s.held ? '<p style="margin:6px 0 0;font-size:14px">' + s.held + (s.held === 1 ? ' edited reply from a regulated client is' : ' edited replies from regulated clients are') + ' held for a compliance look first, so ' + (s.held === 1 ? 'it is' : 'they are') + ' not in the list yet.</p>' : '') +
     sec('requests', 'Requests to call back', open.length, open.map(l => leadHtml(l, now)).join('')) +
     sec('todo', 'To do this week', todo.length, todoHtml(todo, linkify)) +
@@ -345,8 +390,52 @@ export function hqHtml(s, tok) {
     look('stand', 'How things stand', infoHtml(info)) +
     look('drift', 'Who is drifting', s.drift ? '<div class="bd">' + s.drift + '</div>' : '') +
     look('switches', 'Switches: Outreach calls and the map', (s.switchHtml || s.mapHtml) ? '<div class="bd">' + (s.switchHtml || '') + (s.mapHtml || '') + '</div>' : '') +
+    look('months', 'This month for each client', (s.months || []).length ? s.months.map(m => '<span class="kv"><b>' + esc(m.business) + '</b>' + (m.failed ? 'Could not read this month.' : esc(m.label + ' so far: ' + m.calls + (m.calls === 1 ? ' call' : ' calls') + ' (' + m.after + ' after hours), ' + m.reviews + (m.reviews === 1 ? ' review' : ' reviews') + ', ' + m.replies + (m.replies === 1 ? ' reply' : ' replies') + ', ' + m.posts + (m.posts === 1 ? ' post' : ' posts') + '.')) + '</span>').join('') : '') +
+    look('wording', 'Wording rules, and the extra ones for regulated offices', s.rules ? '<p class="grp">Every client: a reply or post is stopped if it</p>' + s.rules.all.map(w => '<span class="kv">' + esc(w) + '</span>').join('') +
+      '<p class="grp">Insurance, medical and legal offices, also</p>' + s.rules.strict.map(w => '<span class="kv">' + esc(w) + '</span>').join('') +
+      (s.rules.pass.length ? '<p class="grp">Wording that passes</p>' + s.rules.pass.map(w => '<div class="words">' + esc(w) + '</div>').join('') : '') +
+      '<p style="font-size:14px;margin-top:8px">A regulated office’s reply that the owner edited waits for your look before it can post.</p><div class="acts"><a class="btn" href="/ops/compliance-pack?t=' + esc(tok) + '" target="_blank" rel="noopener">Open the one-page rule sheet</a></div>' : '') +
+    look('add', 'Add a client by hand', addClientHtml()) +
     '<a class="look" href="/ops/numbers?t=' + esc(tok) + '">The numbers: revenue, costs and margin</a>' +
     '<script>(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');</script></main></body></html>';
+}
+
+// For someone who paid outside the website's checkout (a Stripe Payment Link, a check): the website makes a client on
+// its own only from its own checkout. This makes their app; a phone number is bought only if the box is ticked.
+function addClientHtml() {
+  const inp = (k, label, type, ph) => '<label style="display:block;margin-top:8px;font-size:14px;color:var(--slate)">' + label + '<input class="note" style="margin-top:4px" type="' + (type || 'text') + '" data-f="' + k + '" maxlength="120"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' autocomplete="off"></label>';
+  const pick = (k, label, opts) => '<label style="display:block;margin-top:8px;font-size:14px;color:var(--slate)">' + label + '<select class="note" style="margin-top:4px" data-f="' + k + '">' + opts.map(o => '<option>' + esc(o) + '</option>').join('') + '</select></label>';
+  return '<p style="font-size:14px">For someone who paid you outside the website (a Stripe Payment Link, a check). A signup through the website is added on its own.</p>' +
+    inp('business', 'Business name') + inp('owner', 'Owner’s name') + inp('phone', 'Owner’s cell', 'tel') + inp('email', 'Email', 'email') + inp('town', 'Town and state', 'text', 'Eatonton, GA') +
+    pick('type', 'Kind of business', HAND_TYPES) + pick('plan', 'Plan', HAND_PLANS) +
+    '<label style="display:flex;gap:10px;align-items:center;margin-top:12px;min-height:44px"><input type="checkbox" data-f="line" style="width:22px;height:22px"> <span>Buy Max a phone number for them now (Twilio charges for the number)</span></label>' +
+    '<div class="acts"><button type="button" class="go" data-addclient="1">Add this client</button><span class="said" role="status"></span></div>' +
+    '<div class="it" data-made hidden style="margin-top:10px"><b></b><a class="sub" href="#" target="_blank" rel="noopener" style="display:block;min-height:44px;padding-top:10px"></a><span class="sub"></span></div>';
+}
+const HAND_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
+const HAND_PLANS = ['Starter', 'Growth', 'Pro'];
+export async function hqAddClient(env, b) {
+  const r = await (await import('./billing.js')).createByHand(env, b || {});
+  return r.ok ? r : Object.assign(r, { code: 400 });
+}
+// "Post it for me": the site posts one approved reply or post on Google (gbp.js), for the ones approved before Google
+// let us post. The same claim as an owner's approval, so a double tap or the by-hand button never posts it twice.
+export async function hqPost(env, id) {
+  const it = await env.DB.prepare("SELECT * FROM app_items WHERE id = ?1 AND status = 'approved'").bind(String(id || '').slice(0, 120)).first().catch(() => null);
+  if (!it) return { ok: false, error: 'That one is not waiting any more.', code: 404 };
+  const c = await env.DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(it.client_id).first().catch(() => null);
+  if (!c) return { ok: false, error: 'That client is not on the site.', code: 404 };
+  let r = '';
+  try { r = await (await import('./gbp.js')).publishItem(env, c, it, String(it.decided_text || it.text || '')); } catch (e) { r = 'failed:' + String((e && e.message) || e).slice(0, 120); }
+  if (r === 'posted' || r === 'already') return { ok: true, result: r };
+  const why = r === 'off' ? 'Google has not let us post for clients yet. Post this one by hand.'
+    : r === 'busy' ? 'It is being posted right now. Check again in a minute.'
+    : r === 'skipped:no location' ? 'This business is not matched to its Google profile yet. Post this one by hand.'
+    : r === 'skipped:regulated edit' ? 'This reply was edited, so it waits for a compliance look first.'
+    : r === 'failed:no connection' ? 'There is no Google connection for this business. Post this one by hand.'
+    : r === 'failed:not found' ? 'Google does not show this review any more. Post it by hand, or tap Posted if there is nothing to answer.'
+    : 'Google did not take it (' + String(r).replace(/^(failed|skipped):/, '').slice(0, 120) + '). Post this one by hand.';
+  return { ok: false, error: why };
 }
 
 // Katie's answer into a client's app.
@@ -377,10 +466,10 @@ export async function hqLead(env, leadId, status, note) {
 // allowed(req, env, url, tok): the ops board's own check (key, dated link or cookie).
 export async function handleHq(req, env, url, h) {
   const path = url.pathname;
-  if (path === '/ops/hq/reply' || path === '/ops/hq/lead') {
+  if (path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/hq/post' || path === '/ops/hq/client') {
     let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
     if (req.method !== 'POST' || !(await h.allowed(req, env, url, String(b.t || '')))) return J({ ok: false }, 403);
-    const r = path === '/ops/hq/reply' ? await hqReply(env, b.client, b.text) : await hqLead(env, b.id, String(b.status || ''), b.note);
+    const r = path === '/ops/hq/reply' ? await hqReply(env, b.client, b.text) : path === '/ops/hq/post' ? await hqPost(env, b.id) : path === '/ops/hq/client' ? await hqAddClient(env, b) : await hqLead(env, b.id, String(b.status || ''), b.note);
     const code = r.code || 200; delete r.code;
     return J(r, code);
   }

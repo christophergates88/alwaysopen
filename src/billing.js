@@ -116,6 +116,31 @@ export async function createFromSession(env, s, h) {
   return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
 }
 
+// A client added by hand from Always Open HQ (opshq.js): someone who paid outside the website's checkout, by a Stripe
+// Payment Link or a check. The website only makes a client on its own from its own checkout, so until Nov 11, 2026 these
+// had to be typed into the database. No Stripe subscription is attached, so the nightly paying-and-served check leaves
+// them alone and their plan changes only when it is changed here. A phone number is bought only when asked for
+// (o.line): otherwise the owner taps "Set up Max" in their app. Returns the private app link, to send to the owner.
+export async function createByHand(env, o) {
+  await ensureBilling(env);
+  const one = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const business = one(o.business, 80), owner = one(o.owner, 60), email = one(o.email, 120), phone = one(o.phone, 24), town = one(o.town, 60);
+  const type = TYPES.includes(o.type) ? o.type : 'Other', plan = Object.hasOwn(PLANS, String(o.plan)) ? String(o.plan) : '';
+  if (business.length < 2) return { ok: false, error: 'Add the business name.' };
+  if (!plan) return { ok: false, error: 'Pick a plan.' };
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'That email does not look right.' };
+  const dup = await env.DB.prepare("SELECT client_id, business FROM billing WHERE lower(business) = lower(?1) AND COALESCE(status, '') != 'canceled'").bind(business).first().catch(() => null);
+  if (dup) return { ok: false, error: (dup.business || business) + ' is already a client.' };
+  const cid = 'c-' + rnd(10, 'abcdefghjkmnpqrstuvwxyz23456789'), code = rnd(32), ref = slug(business) + '-' + rnd(4, 'abcdefghjkmnpqrstuvwxyz23456789');
+  const now = new Date().toISOString(), reg = REGULATED.indexOf(type) > -1 ? 1 : 0, line = o.line === true && !reg;
+  await env.DB.prepare("INSERT INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated, hq_synced) VALUES (?1, ?2, '', '', ?3, 0, 'active', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, 1)")
+    .bind(cid, 'hand:' + cid, plan, business, owner, email, phone, town, type, code, ref, now).run();
+  await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
+    .bind(cid, await sha256hex(code), ref, business, owner.split(' ')[0], reg, phone, plan, now, line ? 'calls' : '').run();
+  if (line) { try { await queueLine(env, cid); } catch (e) { /* the owner can still tap Set up Max */ } }
+  return { ok: true, clientId: cid, business, plan, line, regulated: !!reg, link: 'https://alwaysopenoffice.com/app/' + code };
+}
+
 // ---------- pages ----------
 function page(title, inner, status) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · Always Open</title><meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="/favicon.svg">

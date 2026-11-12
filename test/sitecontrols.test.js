@@ -26,7 +26,8 @@ test('every page carries the list once, folded on phones, right before the plans
     assert.ok(band(k).includes('data-fold="' + YOURS_FOLD + '"'), k + ' folds it on phones');
     assert.match(s.slice(s.indexOf('<!-- yours:end -->'), s.indexOf('<!-- yours:end -->') + 140), /<section\b[^>]*\bid="(pricing|plans)"/, k + ': the plans come next');
     const es = JSON.parse(s.match(/<script type="application\/json" id="ao-es">([\s\S]*?)<\/script>/)[1]).filter(e => /^#yours\b/.test(e.s));
-    assert.equal(es.length, 6, k + ' has its Spanish');
+    assert.equal(es.length, OFFICE_PAGES.includes(k) ? 6 : 7, k + ' has its Spanish');
+    assert.equal(band(k).includes('href="/demo"'), !OFFICE_PAGES.includes(k), k + ': the sample app is offered on the trade pages only');
     assert.ok(es.some(e => e.h.includes('Usted pone las reglas')), k);
     const en = copyFor(k).en.groups, sp = copyFor(k).es.groups;
     assert.deepEqual(sp.map(g => g[1].length), en.map(g => g[1].length), k + ': Spanish has every line English has');
@@ -62,6 +63,7 @@ test('the plan tags match what the app gives each plan', () => {
   const f = t => features({ tier: t, regulated: 0, feats: '' });
   const tag = (re) => copyFor('index').en.groups.flatMap(g => g[1]).filter(l => re.test(l));
   assert.ok(tag(/hangs up before/)[0].startsWith('Pro: ') && f('Pro').textback && !f('Growth').textback);
+  assert.ok(tag(/Promise a call-back time/)[0].startsWith('Pro: ') && f('Pro').callbacks && !f('Growth').callbacks, 'call-back times are Pro on the site and in the app');
   assert.ok(tag(/check-in call/)[0].startsWith('Pro: ') && f('Pro').checkins && !f('Growth').checkins);
   assert.ok(tag(/Send a photo/)[0].startsWith('Growth: ') && f('Growth').photos && !f('Starter').photos);
   assert.ok(tag(/Finished a job/)[0].startsWith('Growth: ') && f('Growth').jobs && !f('Starter').jobs);
@@ -81,4 +83,15 @@ test('plain words: no “AI”, no owner’s name', () => {
     const c = copyFor(k)[lang], all = [c.eyebrow, c.h, c.lead, c.fold, c.foot, words(k, lang)].join(' ');
     assert.doesNotMatch(all, /\bAI\b|\bIA\b|artificial|Christopher|Gates/);
   }
+});
+
+test('Try the sample app opens the sample account, where nothing can be sent', async () => {
+  const H = await import('./rehearsal/harness.js');
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  const site = H.makeClient((await import('../src/index.js')).default, env);
+  const r = await site.call('/demo');
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('location'), (await import('../src/demo.js')).DEMO_LINK);
+  assert.match(fs.readFileSync('.github/workflows/deploy.yml', 'utf8'), new RegExp((await import('../src/demo.js')).DEMO_LINK.replace(/\//g, '\\/')), 'the same address the deploy check opens');
 });

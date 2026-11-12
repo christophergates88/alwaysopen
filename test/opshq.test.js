@@ -187,3 +187,53 @@ test('one page: Google replies with Copy and Posted, the week\'s to-dos with Don
   const js = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
   assert.doesNotThrow(() => new Function(js)); assert.doesNotMatch(js, /\b(alert|confirm|prompt)\(/);
 });
+
+// ---------- Nov 11, 2026 (evening): the last jobs of the old claude.ai page, and "Post it for me" ----------
+test('add a client by hand: an app is made, the link comes back once, and no phone number is bought unless asked', async () => {
+  const H2 = await import('./rehearsal/harness.js');
+  const world2 = new H2.World(), DB = H2.makeDB(), env = H2.makeEnv(world2, DB);
+  H2.installFetch(world2, env);
+  const Bl = await import('../src/billing.js');
+  assert.equal((await Q.hqAddClient(env, { business: '', plan: 'Growth' })).ok, false);
+  assert.equal((await Q.hqAddClient(env, { business: 'Lake Docks', plan: 'Gold' })).error, 'Pick a plan.');
+  const r = await Q.hqAddClient(env, { business: 'Lake Docks & Lifts', owner: 'Sam Reed', phone: '(478) 555-0144', email: 'sam@lakedocks.example', town: 'Eatonton, GA', type: 'Dock, marine or outdoor', plan: 'Growth', line: false });
+  assert.equal(r.ok, true); assert.match(r.link, /^https:\/\/alwaysopenoffice\.com\/app\/[A-Za-z0-9]{32}$/);
+  const c = await DB.prepare('SELECT * FROM app_clients WHERE client_id = ?1').bind(r.clientId).first();
+  assert.equal(c.business, 'Lake Docks & Lifts'); assert.equal(c.tier, 'Growth'); assert.equal(c.owner_first, 'Sam'); assert.equal(+c.active, 1); assert.equal(c.feats, '', 'no line asked for, so Set up Max stays the owner\'s tap');
+  const b = await DB.prepare('SELECT * FROM billing WHERE client_id = ?1').bind(r.clientId).first();
+  assert.equal(b.sub, '', 'no Stripe subscription, so the nightly paying check leaves them alone'); assert.equal(b.session_id, 'hand:' + r.clientId); assert.equal(+b.hq_synced, 1);
+  // the link opens their app
+  const worker = (await import('../src/index.js')).default, site = H2.makeClient(worker, env);
+  const page = await site.call(r.link.replace('https://alwaysopenoffice.com', ''));
+  assert.equal(page.status, 200); assert.match(page.text, /Lake Docks &amp; Lifts|Lake Docks/);
+  assert.equal((await Q.hqAddClient(env, { business: 'lake docks & lifts', plan: 'Pro' })).error, 'Lake Docks & Lifts is already a client.');
+  // a regulated office never gets a number bought here, even if the box is ticked
+  const reg = await Q.hqAddClient(env, { business: 'Reed Insurance', plan: 'Starter', type: 'Insurance agency', line: true });
+  assert.equal(reg.line, false); assert.equal(reg.regulated, true);
+  void Bl;
+});
+
+test('Post it for me: shown only once Google lets the site post, and it says plainly when Google will not take one', async () => {
+  const { env, DB } = await world();
+  await DB.prepare("INSERT INTO app_items (id, client_id, kind, status, created) VALUES ('g:1', 'sinclair', 'reply', 'approved', ?1)").bind(iso(NOW - H)).run();
+  assert.equal((await Q.hqPost(env, 'nope')).code, 404);
+  const off = await Q.hqPost(env, 'g:1');
+  assert.equal(off.ok, false); assert.match(off.error, /Google has not let us post for clients yet/);
+  const it = { id: 'g:1', business: 'Sinclair Plumbing', kind: 'reply', title: 'Priya', review: 'Great work', stars: 5, words: 'Thank you, Priya!', approvedAt: iso(NOW - H), by: 'Dana', link: 'https://search.google.com/local/reviews?placeid=abcdefghijkl' };
+  const base = { now: NOW, waiting: [], leads: [], clients: [], calls: [], tests: 0, post: [it] };
+  const byHand = Q.hqHtml(Object.assign({}, base, { googleOn: false }), 'tok');
+  assert.doesNotMatch(byHand, /data-postapi=/); assert.match(byHand, /posted by hand because Google has not let us post/); assert.match(byHand, /Copy and open Google/);
+  const auto = Q.hqHtml(Object.assign({}, base, { googleOn: true }), 'tok');
+  assert.match(auto, /<button type="button" class="go" data-postapi="g:1">Post it for me<\/button>/); assert.match(auto, /Or post it by hand/); assert.match(auto, /data-posted="g:1"/);
+});
+
+test('the old page\'s look-ups are on this one: this month per client, the wording rules, and the add form', async () => {
+  const rules = await Q.wordingRules();
+  assert.ok(rules.all.length >= 2 && rules.strict.length >= 4 && rules.pass.length >= 2);
+  assert.ok(rules.strict.includes('Confirms they are a client'));
+  const html = Q.hqHtml({ now: NOW, waiting: [], leads: [], clients: [], calls: [], tests: 0, rules, months: [{ business: 'Sinclair <Plumbing>', label: 'November 2026', calls: 12, after: 5, reviews: 1, replies: 1, posts: 2 }] }, 'tok');
+  assert.match(html, /id="look-months"/); assert.match(html, /Sinclair &lt;Plumbing&gt;/); assert.match(html, /November 2026 so far: 12 calls \(5 after hours\), 1 review, 1 reply, 2 posts\./);
+  assert.match(html, /id="look-wording"/); assert.match(html, /Confirms they are a client/); assert.match(html, /\/ops\/compliance-pack\?t=tok/);
+  assert.match(html, /id="look-add"/); assert.match(html, /data-addclient="1"/); assert.match(html, /Twilio charges for the number/);
+  assert.doesNotMatch(html, /\bAI\b/);
+});

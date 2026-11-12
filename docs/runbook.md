@@ -377,3 +377,27 @@ Tell Max, Job description (the six switches and their texts), Calls Max makes (t
 Not on a phone until "Install Always Open on iPhone" is run, and not seen on a real device yet.
 Still web-only: answering a Shoulder Tap from the live call card and "Take the call" (the owner answers by text
 either way), and the web wording differs in small places (for example "Gap between visits" for "Time between visits").
+
+## Eight upgrades, Nov 11, 2026 (evening)
+
+1. **Google replies.** Posting through Google has been built since October (gbp.js) and turns itself on the hour Google
+   approves API access (asked Oct 28; `launch` table, state `waiting`). From then on an approved reply posts with no
+   tap. New: for the ones approved before that hour, each row on HQ gets **Post it for me** (`/ops/hq/post`, hqPost in
+   opshq.js), with the by-hand buttons folded under it. Until Google approves, HQ says why they are by hand.
+2. **Phone alerts.** The health check kept saying the ntfy token was refused after a new one was saved, because it only
+   cleared on a topic reservation (a paid ntfy feature). It now clears when ntfy answers for the account by name, and
+   keeps what the account has left today in `push_meta` (`account`). A 429 from ntfy can be its limit on failed sign-ins
+   from Cloudflare's shared addresses, so a 429 alone proves nothing about the token.
+3. **The old claude.ai page.** Its last three jobs are on HQ under Look things up: **This month for each client**,
+   **Wording rules, and the extra ones for regulated offices** (read from the live rules), and **Add a client by hand**
+   (`/ops/hq/client`, createByHand in billing.js: for someone who paid by Payment Link or check; no Stripe subscription
+   is attached; a phone number is bought only if the box is ticked, never for a regulated office).
+5. **Sample app on the website.** `/demo` opens the sample account (demo.js DEMO_LINK). Every POST from it is refused,
+   so nothing can be sent or changed. "Try the sample app" is in the What you control band on the home and trade pages.
+6. **Call-back times are Pro**, as the pricing page says (features().callbacks; callbacks.js promiseAllowed). On Starter
+   and Growth the switch is locked and Max takes the message. A line with no client account and a regulated office's
+   line are unchanged. To give it to one client: add `callbacks` to their `feats`.
+8. **Deploys.** Notes-only pushes (docs/, .md) no longer deploy. The three browser checks run side by side, each
+   re-run alone if it fails beside the others. The check tools are kept between runs.
+
+4 and 7 are below this list in the iPhone and Stripe notes.

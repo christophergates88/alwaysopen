@@ -126,3 +126,19 @@ test('a paid ntfy account: the token goes with every push; a token ntfy turns do
   assert.deepEqual(await P.push(envFor(), { title: 'No token' }, { fetch: async (u, i) => { seen.push(i.headers.Authorization || 'none'); return new Response(''); } }), 'sent');
   assert.equal(seen.pop(), 'none', 'no token set: exactly as before');
 });
+
+test('a refused token that ntfy now accepts is cleared by the hourly check, and what the account has left is kept', async () => {
+  const H2 = await import('./rehearsal/harness.js');
+  const DB = H2.makeDB(), env = { DB, NTFY_URL: 'https://ntfy.sh/my-topic', NTFY_TOKEN: 'tk_x' }, now = Date.parse('2026-11-12T03:00:00Z');
+  await P.ensurePush(env);
+  await DB.prepare("INSERT OR REPLACE INTO push_meta (k, at, v) VALUES ('token', ?1, 'refused 401')").bind(new Date(now - 3600e3).toISOString()).run();
+  const answer = body => ({ fetch: async () => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }) });
+  // nobody signed in: still refused
+  let h = await P.pushHealth(env, now, answer({ username: '*', role: 'anonymous' }));
+  assert.equal(h.ok, false); assert.match(h.why, /turned down the account token/);
+  // the account answers with its own name: the token works
+  h = await P.pushHealth(env, now, answer({ username: 'chris', role: 'user', stats: { messages_remaining: 212 }, limits: { messages: 250 } }));
+  assert.equal(h.ok, true);
+  assert.equal((await DB.prepare("SELECT v FROM push_meta WHERE k = 'token'").first()).v, 'ok');
+  assert.equal((await DB.prepare("SELECT v FROM push_meta WHERE k = 'account'").first()).v, 'free account: 212 of 250 pushes left today');
+});

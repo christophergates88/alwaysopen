@@ -5,7 +5,8 @@
 // real control in the client app (src/apppage.js, src/bizpage.js, src/duties.js, src/outcalls.js), in the app's own
 // words. test/sitecontrols.test.js fails when the app drops or renames one, so the site can't promise a switch that
 // is gone. Insurance and dental get the shorter list: on those lines Max takes a message, and booking, calls out and
-// customer texts are off (app.js features()).
+// customer texts are off (app.js features()). "Try the sample app" opens the sample account (/demo, src/demo.js):
+// a made-up plumber's app where nothing can be sent or changed. Not on the office pages: the sample shows booking.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -72,7 +73,7 @@ const FULL = {
         'Text Katie. A person on our team answers.'
       ]]
     ],
-    foot: 'The plans below show what comes with each one.', go: 'Get started'
+    foot: 'The plans below show what comes with each one.', go: 'Get started', demo: 'Try the sample app'
   },
   es: {
     eyebrow: 'Usted manda', h: 'Usted pone las reglas. Max las sigue en la siguiente llamada.',
@@ -134,7 +135,7 @@ const FULL = {
         'Escríbale a Katie. Le contesta una persona de nuestro equipo.'
       ]]
     ],
-    foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar'
+    foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar', demo: 'Pruebe la aplicación de muestra'
   }
 };
 
@@ -167,7 +168,7 @@ const OFFICE = {
         'Text Katie. A person on our team answers.'
       ]]
     ],
-    foot: 'The plans below show what comes with each one.', go: 'Get started'
+    foot: 'The plans below show what comes with each one.', go: 'Get started', demo: 'Try the sample app'
   },
   es: {
     eyebrow: 'Usted manda', h: 'Usted pone las reglas. Max las sigue en la siguiente llamada.',
@@ -196,7 +197,7 @@ const OFFICE = {
         'Escríbale a Katie. Le contesta una persona de nuestro equipo.'
       ]]
     ],
-    foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar'
+    foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar', demo: 'Pruebe la aplicación de muestra'
   }
 };
 
@@ -230,7 +231,7 @@ export function section(key) {
   <div class="inner">
     <div class="head"><p class="eyebrow">${esc(c.eyebrow)}</p><h2 id="yours-h">${esc(c.h)}</h2><p class="lead">${esc(c.lead)}</p></div>
     <div class="yg">${c.groups.map(groupHtml).join('')}</div>
-    <div class="yfoot"><p>${esc(c.foot)}</p><a class="btn primary" href="${go}">${esc(c.go)}</a></div>
+    <div class="yfoot"><p>${esc(c.foot)}</p><a class="btn primary" href="${go}">${esc(c.go)}</a>${OFFICE_PAGES.includes(key) ? '' : '<a class="btn line ydemo" href="/demo" rel="nofollow">' + esc(c.demo) + '</a>'}</div>
   </div>
 </section>
 <!-- yours:end -->
@@ -241,8 +242,8 @@ export function spanish(key) {
   const c = copyFor(key).es;
   return [
     { s: '#yours .eyebrow', h: esc(c.eyebrow) }, { s: '#yours-h', h: esc(c.h) }, { s: '#yours .lead', h: esc(c.lead) },
-    { s: '#yours .yg', h: c.groups.map(groupHtml).join('') }, { s: '#yours .yfoot p', h: esc(c.foot) }, { s: '#yours .yfoot a', h: esc(c.go) }
-  ];
+    { s: '#yours .yg', h: c.groups.map(groupHtml).join('') }, { s: '#yours .yfoot p', h: esc(c.foot) }, { s: '#yours .yfoot a.primary', h: esc(c.go) }
+  ].concat(OFFICE_PAGES.includes(key) ? [] : [{ s: '#yours .ydemo', h: esc(c.demo) }]);
 }
 
 if (import.meta.url === 'file://' + process.argv[1]) {

@@ -437,7 +437,7 @@ function livePoll(){clearTimeout(LIVET);if(!hasMax())return;var ms=(S.live&&S.li
 function greet(){var h=new Date().getHours();return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');}
 function row(go,icon,title,sub){return '<button class="row" type="button" data-go="'+go+'">'+icon+'<div><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+ICON.chev+'</button>';}
 function qt(a,icon,title,sub){return '<button class="qt" type="button" data-a="'+a+'">'+icon+'<b>'+esc(title)+'</b><span>'+esc(sub)+'</span></button>';}
-function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional.'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'</div>';}
+function sampleBar(){if(!S||!S.sample)return '';return '<div class="sample" role="note"><b>Sample data.</b> Everything on this screen is made up so you can see the app working. Names and numbers are fictional. <a href="https://alwaysopenoffice.com/#contact">Get this for your business</a>'+(TAB==='home'&&S.sampleWeekly?'<br>Sample weekly note: '+esc(S.sampleWeekly):'')+'</div>';}
 var FL=null,FLASKED=false;
 function flCard(){
   if(!S.firstLookDue)return '';
@@ -1264,9 +1264,9 @@ function bookCard(L){
 function afterCard(L){
   var A=S.after;
   var sw=function(k,title,sub){return '<div class="sw"><div><b>'+title+'</b><span>'+sub+'</span></div><button class="switch" type="button" role="switch" aria-checked="'+(A[k]?'true':'false')+'" data-a="after-'+k+'" aria-label="'+title+'"><i></i></button></div>';};
-  var on=[];if(A.promise)on.push('a call-back time is promised');if(S.features.textback&&A.textback)on.push('a text after a missed call');if(S.features.checkins&&A.checkins)on.push('a check-in after a job');
+  var on=[];if(S.features.callbacks&&A.promise)on.push('a call-back time is promised');if(S.features.textback&&A.textback)on.push('a text after a missed call');if(S.features.checkins&&A.checkins)on.push('a check-in after a job');
   return foldH('after','<h2>After the call</h2><div class="card">'+
-    sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.')+
+    (S.features.callbacks?sw('promise','Promise a call-back time',esc(L.name)+' tells callers when you will call back, inside your hours. If the time passes, '+esc(L.name)+' calls them to set a new one.'):'<div class="sw"><div><b>Promise a call-back time</b><span>'+esc(L.name)+' names a set time inside your hours, and calls them to set a new one if it passes. Comes with Pro.</span></div><span class="chip">Pro</span></div>')+
     (S.features.textback?sw('textback','Text after a missed call','One text to anyone who hangs up before leaving a message.'):'')+
     (S.features.checkins?sw('checkins','Check in after a job',esc(L.name)+' calls a customer a few days after a finished job to ask if the work held up, only if they said OK when you logged the job.'):'')+
     (A.canText||!S.features.textback?'':'<p class="fine"><span class="chip">Waiting on texting approval</span> Texts start once your texting registration is approved. <a href="'+BASE+'/texting">Check it</a></p>')+'</div>',on.length?'On: '+on.join(', ')+'.':'All off.')+outCard(L)+outreachCard();

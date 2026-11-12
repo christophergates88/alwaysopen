@@ -177,10 +177,21 @@ function busyFromLine(line, tz) {
   return null;
 }
 export function callbacksOff(line) { try { return JSON.parse(line.owner_set || '{}').callbacksOff === true; } catch (e) { return false; } }
+// Call-backs with a time on them come with Pro (the pricing page; app.js features()). A line with no client account
+// (Always Open's own line, a test line) and a regulated office's line keep what they had: only a business on Starter
+// or Growth goes without the promised time, and Max takes the message for a call back instead.
+export async function promiseAllowed(env, line) {
+  if (!line || !line.client_id) return true;
+  try {
+    const c = await env.DB.prepare('SELECT tier, feats, regulated FROM app_clients WHERE client_id = ?1').bind(line.client_id).first();
+    if (!c || +c.regulated) return true;
+    return !!(await import('./app.js')).features(c).callbacks;
+  } catch (e) { return true; }
+}
 
 // What Max is told for this call: the time to offer and how to say the owner is busy.
 export async function slotForLine(env, line) {
-  if (!line || callbacksOff(line)) return null;
+  if (!line || callbacksOff(line) || !(await promiseAllowed(env, line))) return null;
   const tz = await tzFor(env, line.client_id);
   const busy = busyFromLine(line, tz);
   // Inside the business's own hours (what the owner set for booking, or read from their hours).
@@ -204,7 +215,7 @@ export function dueFromNote(tz, text, fallback) {
 
 // From the end of a call: the caller asked to be called back.
 export async function createCallback(env, line, call, note, slot) {
-  if (!line || callbacksOff(line) || !note || note.callbackWanted !== true) return null;
+  if (!line || callbacksOff(line) || !note || note.callbackWanted !== true || !(await promiseAllowed(env, line))) return null;
   const phone = E164.test(note.callback || '') ? note.callback : (E164.test(call.caller || '') ? call.caller : '');
   if (!phone) return null;
   await ensureCallbacks(env);

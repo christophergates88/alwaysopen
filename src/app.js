@@ -643,7 +643,7 @@ async function afterState(env, cid, line) {
   const { senderFor, TEXTING_ON, textingReady } = await import('./sms.js');
   let canText = false;
   try { canText = !!(TEXTING_ON && textingReady(env) && await senderFor(env, cid)); } catch (e) { canText = false; }
-  return { promise: o.callbacksOff !== true, textback: o.textback !== false, checkins: await checkinsOn(env, cid), canText };
+  return { promise: o.callbacksOff !== true && await (await import('./callbacks.js')).promiseAllowed(env, line), textback: o.textback !== false, checkins: await checkinsOn(env, cid), canText };
 }
 function lineOut(raw, c) {
   if (!raw) return null;
@@ -1458,6 +1458,8 @@ export function features(c) {
     invoices: pro || has('followups'), past: (pro || has('followups')) && !reg,
     // the three-day check-in and hand-offs are on the Pro card of the pricing page (Nov 10: the app gave them to Growth and Starter)
     checkins: (pro || has('checkins')) && !reg, handoffs: (pro || has('handoffs')) && !reg,
+    // call-backs with a time on them are on the Pro card too (Nov 11: the app gave the switch to every plan)
+    callbacks: (pro || has('callbacks')) && !reg,
     // Outreach calls to businesses: Pro only, never a regulated client (outreach.js outreachAllowed is the same rule)
     outreach: (pro || has('outreach')) && !reg, tier: c.tier || '' };
 }

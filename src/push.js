@@ -167,7 +167,14 @@ export async function pushHealth(env, now, h) {
       const j = r.ok ? await r.json().catch(() => ({})) : null;
       const topic = String(env.NTFY_URL).replace(/^https?:\/\/[^/]+\//, '').split(/[/?#]/)[0];
       // the topic reserved by this account is one it can always write to
-      const mayWrite = !!(j && Array.isArray(j.reservations) && j.reservations.some(g => g && g.topic === topic));
+      const reserved = !!(j && Array.isArray(j.reservations) && j.reservations.some(g => g && g.topic === topic));
+      // On ntfy.sh a topic nobody has reserved can be written by any signed-in account, so an account that answers
+      // with its own name (not the anonymous "*") is a token that works. A self-hosted server with locked topics
+      // still needs the reservation. What the account has left today is kept, so a 429 can be told from a bad token.
+      const named = !!(j && typeof j.username === 'string' && j.username && j.username !== '*' && j.role !== 'anonymous');
+      const mayWrite = reserved || (named && /^https:\/\/ntfy\.sh\//.test(String(env.NTFY_URL)));
+      if (j && j.stats && j.limits) await note(env, 'account', (j.tier && j.tier.name ? j.tier.name : 'free') + ' account: ' + (+j.stats.messages_remaining || 0) + ' of ' + (+j.limits.messages || 0) + ' pushes left today', now);
+      else if (r && !r.ok) await note(env, 'account', 'ntfy answered ' + r.status + ' when asked about the account', now);
       if (mayWrite) { await note(env, 'token', 'ok', now); tk.v = 'ok'; }
     } catch (e) { /* still refused, as far as we know */ }
   }

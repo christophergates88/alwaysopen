@@ -1,6 +1,9 @@
 name: Deploy
 on:
-  push: { branches: [main] }
+  # A push that only changes notes (docs/, any .md) changes nothing on the live site, so it does not deploy.
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 # Two quick pushes never race: the second waits, so one job can't roll back the other's deploy.
 concurrency: { group: deploy, cancel-in-progress: false }
@@ -19,6 +22,12 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-1.56.0-chromium
+      # The check tools (Playwright's package, wrangler) are kept between runs too, so they are not downloaded each time.
+      - name: Keep the check tools between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-playwright-1.56.0-wrangler-4
       - name: Check the site on phones
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.56.0
@@ -36,9 +45,18 @@ jobs:
             done
             [ "$ok" = 1 ] || { echo "::error::The check browser could not be started, and Ubuntu's package servers did not answer. Run the deploy again later."; exit 1; }
           fi
-          node tools/phonecheck.mjs
-          APP_SHOTS=app-shots node tools/appcheck.mjs
-          APP_SHOTS=app-shots node tools/wallcheck.mjs
+          # The three checks run side by side (Nov 11, 2026: one after another took two and a half minutes). Each keeps
+          # its own log, printed in order. One that fails beside the others is run again alone before it counts, so a
+          # busy machine can't fail a good deploy and a real problem still stops it.
+          node tools/phonecheck.mjs > phone.log 2>&1 & p1=$!
+          APP_SHOTS=app-shots node tools/appcheck.mjs > app.log 2>&1 & p2=$!
+          APP_SHOTS=app-shots node tools/wallcheck.mjs > wall.log 2>&1 & p3=$!
+          r1=0; r2=0; r3=0
+          wait $p1 || r1=1; wait $p2 || r2=1; wait $p3 || r3=1
+          echo "--- phone check"; cat phone.log; echo "--- app check"; cat app.log; echo "--- wall check"; cat wall.log
+          if [ $r1 = 1 ]; then echo "--- phone check again, alone"; node tools/phonecheck.mjs; fi
+          if [ $r2 = 1 ]; then echo "--- app check again, alone"; APP_SHOTS=app-shots node tools/appcheck.mjs; fi
+          if [ $r3 = 1 ]; then echo "--- wall check again, alone"; APP_SHOTS=app-shots node tools/wallcheck.mjs; fi
       - name: Print the map screenshots (read from the log)
         if: always()
         run: bash tools/printshots.sh

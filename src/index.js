@@ -81,7 +81,7 @@ async function serve(req, env, ctx) {
       let h; try { h = await healthStatus(env, Date.now(), url.searchParams.get('core') === '1' ? true : (url.searchParams.get('all') === '1' ? false : 'monitor')); } catch (e) { h = { ok: false, checks: [{ name: 'health', ok: false }] }; }
       return new Response(h.ok ? 'ok' : 'not ok: ' + h.checks.filter(c => !c.ok).map(c => c.name).join(', '), { status: h.ok ? 200 : 503, headers: { 'cache-control': 'no-store' } });
     }
-    if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack' || path === '/ops/numbers' || path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/outreach-switch') return handleOpsBoard(req, env, url);
+    if (path === '/ops' || path === '/ops/done' || path === '/ops/map' || path === '/ops/compliance-pack' || path === '/ops/numbers' || path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/hq/post' || path === '/ops/hq/client' || path === '/ops/outreach-switch') return handleOpsBoard(req, env, url);
     if (path === '/api/map') return handleMapApi(req, env, url, ctx);
     if (path === '/ops/twilio-setup') {
       // Points every Always Open number's "A message comes in" at our webhook and adds it to the Messaging Service, so replies and STOP reach us.
@@ -437,6 +437,8 @@ async function serve(req, env, ctx) {
     if (path === '/ops/post') return (await import('./postqueue.js')).handlePostQueue(req, env, url);
     if (path === '/ops/hear-max') { const { boardOk } = await import('./opsboard.js'); return (await import('./hearmax.js')).armPage(env, req, url, await boardOk(env, url.searchParams.get('t') || '')); }
     // anyone can stop Outreach calls to their number from the website (outreach.js stopPage)
+    // The sample account, for a visitor who wants to tap through the app before signing up.
+    if (path === '/demo') return new Response(null, { status: 302, headers: { location: (await import('./demo.js')).DEMO_LINK, 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
     if (path === '/stop-calls') return withSiteHeaders(await (await import('./outreach.js')).stopPage(env, req, url), url);
     if (path === '/ops/dnc-list') {
       // Our copy of the National Do Not Call Registry (dnclist.js): the Mac's monthly loader sends it here (POST, one step

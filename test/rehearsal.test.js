@@ -581,7 +581,16 @@ test('Max books a visit with no calendar connected: the owner gets a job with th
 test('after the call: one card with three switches, check-ins on by default for a plumber, and an on-the-way text from the job card', async () => {
   let st = (await site.call(A('/api/state'))).json();
   // Nov 10: the three-day check-in is a Pro feature (the pricing page's Pro card); this client is on Growth
-  assert.deepEqual(st.after, { promise: true, textback: true, checkins: false, canText: true }, 'a Growth plumber starts with call-backs and text-back on');
+  // Nov 11: call-backs with a time on them are a Pro feature too (the pricing page's Pro card); on Growth the switch is
+  // locked and Max is not given a time to promise. The rest of this test runs with the feature granted to this client.
+  assert.deepEqual(st.after, { promise: false, textback: true, checkins: false, canText: true }, 'a Growth plumber: text-back on, no promised call-back time');
+  assert.equal(st.features.callbacks, false);
+  const c0 = await startCall('+14785550170'); await openRoom(c0.sid, '+14785550170');
+  assert.equal(wsOf(c0.sid).store.get('s').line.cbSlot, undefined, 'Growth: Max has no time to promise');
+  await hook('after', { CallSid: c0.sid, SessionDuration: '3', SessionStatus: 'ended' }); await site.settle();
+  await DB.prepare("UPDATE app_clients SET feats = feats || ',callbacks' WHERE client_id = ?1").bind(cid).run();
+  st = (await site.call(A('/api/state'))).json();
+  assert.deepEqual(st.after, { promise: true, textback: true, checkins: false, canText: true }, 'with call-backs granted, the switch starts on');
   const off = await site.call(A('/api/line'), { json: { after: { promise: false, checkins: false }, by: 'Dana' } });
   assert.equal(off.status, 200, off.text);
   st = (await site.call(A('/api/state'))).json();

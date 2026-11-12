@@ -19,6 +19,9 @@ export const SAMPLE_LINE_FACTS = {
   "notes": "Licensed and insured. Mike has been a plumber for 20 years."
  };
 export const isDemo = id => id === DEMO_ID;
+// The sample account's own app link, for the website's "Try the sample app" (/demo). It is not a secret: every POST
+// from the sample account is refused (app.js), and the deploy check has always opened this address.
+export const DEMO_LINK = '/app/LZbZROIqlA85xuGEgarAuKRRO3IuO1En';
 
 const H = 3600e3, D = 24 * H;
 const ph = n => '+1404555' + String(100 + n).padStart(4, '0').slice(-4); // +1404555 01xx
