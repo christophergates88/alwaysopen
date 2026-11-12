@@ -404,8 +404,8 @@ either way), and the web wording differs in small places (for example "Gap betwe
 
 4. **Answering a caller's question in the iPhone app.** Written into the Mac's copy (HomeView.swift TapBox on the live
    call card; Models.swift LiveTap; the After the call row follows features.callbacks). Backups `.bak-parity2`.
-   NOT compiled yet: the Mac's screen was locked when it was time to build (Nov 12, 8 AM). Run "Compile Always Open app"
-   and read alwaysopen-ios/build-result.txt before installing.
+   Compiled clean Nov 12, 9:02 AM (BUILD SUCCEEDED). Not on a phone until "Install Always Open on iPhone" is run,
+   and not tried on a real live call yet.
 7. **Card payments.** Nothing to build: the app offers "Take card payments" (stripe.available is true) and the whole
    path exists (biz.js apiStripe). What is not known is whether Connect is turned on for the Always Open Stripe account;
    the first owner who taps Connect finds out, and if it is not, the app shows "Coming soon" for a day. The website's
