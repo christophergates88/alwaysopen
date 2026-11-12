@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { PAGES, FOLDS } from './phone-data.mjs';
 import { ES_HOME, ES_DOES, esDoesFor, esTrade, esFront, ES_LINE, NAV_ES } from './phone-es.mjs';
 import { TAP_FOLD } from './sitetap.mjs';
+import { YOURS_FOLD } from './sitecontrols.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
@@ -727,6 +728,8 @@ function foldAttrs(s, folds) {
   if (s.includes('id="clock"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { clock: 'Every call on one dial, and the hours that came back to you.' });
   // The Shoulder Tap band (sitetap.mjs) sits right after this block's front; open on the home page, folded on the rest.
   if (s.includes('id="tap"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { tap: TAP_FOLD });
+  // What you control (sitecontrols.mjs) sits right before the plans; folded on phones on every page.
+  if (s.includes('id="yours"')) folds = Object.assign({}, folds, { yours: YOURS_FOLD });
   for (const [id, sum] of Object.entries(folds)) {
     const re = new RegExp('(<(?:section|div)\\b[^>]*\\bid="' + id + '"[^>]*)>');
     if (!re.test(s)) throw new Error('no section ' + id);

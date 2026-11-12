@@ -351,3 +351,19 @@ published), Stripe (nothing to renew), ntfy (paid plan), Lob (mailed letters: pa
 
 Email alerts go to `MAIL_TO` in `wrangler.toml`. Add a second address there if someone else should get them, and
 give them this file.
+
+## What you control, on the website (Nov 11, 2026)
+
+Every page of the site (home, the eight trade pages, dental, insurance) has a band right before the plans called
+"You set the rules. Max follows them on the next call." It lists every switch an owner gets in the app. On phones it is
+one folded row, "What you control".
+
+- The words live in `tools/sitecontrols.mjs`. Change them there, then run `node tools/sitecontrols.mjs` and
+  `node tools/phonecheck.mjs`. Never edit the band in the HTML by hand; the test compares it to the tool.
+- `test/sitecontrols.test.js` ties the list to the app: add a switch to Max's job description or to the calls Max
+  makes and the build fails until the site has a line for it; drop a control from the app and it fails too.
+- Dental and insurance get a shorter list (no booking, no calls to customers, no customer texts), because the app
+  turns those off for regulated offices.
+- Not on the list on purpose: card payments (the app still says "Coming soon").
+- Known mismatch, left alone: the pricing page sells "Call-backs with a time on them" as Pro, and the list tags it Pro,
+  but the app shows that switch on every plan.
