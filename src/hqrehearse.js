@@ -2,7 +2,7 @@
 // nothing is saved: POST /ops/hq-rehearse (Mac key) runs sample texts through the text brain (hqtexts.decide) and
 // plays whole phone calls between the call brain (hqcalls.systemFor) and Claude acting as the other side (a front
 // desk, a phone menu, voicemail, a wrong number, his dad). Run by hand from GitHub Actions ("Gates HQ rehearsal").
-import { systemFor, convoFor, tagsOf, claude, sumUp, eastern } from './hqcalls.js';
+import { systemFor, convoFor, tagsOf, claude, sumUp, eastern, endsWithGoodbye } from './hqcalls.js';
 import { decide, settingsOf } from './hqtexts.js';
 
 const today = () => eastern().date;
@@ -62,12 +62,12 @@ async function playCall(env, c) {
     if (tg.dtmf) { s.msgs.push({ r: 'a', t: '[pressed ' + tg.dtmf + ']' }); transcript.push('ASSISTANT: [presses ' + tg.dtmf + ']'); }
     if (tg.wait) transcript.push('ASSISTANT: [waits]');
     if (tg.optout) transcript.push('ASSISTANT: [opt-out]');
-    if (tg.end) { ended = true; transcript.push('ASSISTANT: [hangs up]'); }
+    if (tg.end || endsWithGoodbye(words)) { ended = true; transcript.push('ASSISTANT: [hangs up]'); }   // as the live call does
   }
   const firstA = s.msgs.find(m => m.r === 'a' && !m.t.startsWith('[pressed'));
   const res = await sumUp(env, Object.assign({ business: s.business, name: s.name, relation: s.relation }, s), s.msgs);
   const all = s.msgs.filter(m => m.r === 'a').map(m => m.t).join(' ');
-  return { tag: c.tag, ended, opener: firstA ? firstA.t : '', checks: { saysAutomated: /automated assistant/i.test(all), saysRecorded: /recorded/i.test(all), noCardTalk: !/\b(card number|credit card|social security)\b/i.test(all) }, result: res, transcript };
+  return { tag: c.tag, ended, opener: firstA ? firstA.t : '', checks: { saysAutomated: /automated assistant/i.test(all), saysRecorded: /recorded/i.test(all), noCardTalk: !/\b(card number|credit card|social security)\b/i.test(all), oneGoodbye: (all.match(/\bgood-?bye\b|\bbye\b/gi) || []).length <= 1 }, result: res, transcript };
 }
 
 export async function rehearseHq(env, what) {
