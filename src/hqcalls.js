@@ -45,6 +45,19 @@ const spoken = e => { const d = ph10(e); return d ? d.slice(0, 3).split('').join
 const speakMs = t => { const w = String(t || '').split(/\s+/).filter(Boolean).length; return Math.min(30000, Math.max(900, Math.round(w / 2.6 * 1000))); };
 const url = (env, kind, id) => SITE + '/voice/' + kind + '/' + env.VOICE_KEY + '?id=' + id;
 
+// ---------- goodbyes: said once, and the call ends ----------
+// Nov 13 2026: a call to his dad ended in five goodbyes. Each "Goodbye." his dad said back reached the room before the
+// hang-up, cancelled it, and got another goodbye. Now a reply that ends in a goodbye hangs up (with or without [END]),
+// and what people say back to a goodbye ("bye", "thanks", "you too", "love you", "see ya") is noted, never answered.
+export const SEE_YA = /^\W*((ok(ay)?|alright|all right|yeah|yep|yup|yes|sure|great|perfect|sounds good|will do|mhm+|uh-?huh|you too|thanks|thank you( so much| very much)?|thank ya|(i )?love you( too)?|bye( bye| now)?|bye-bye|good-?bye|see (ya|you)( later| soon)?|later|talk (to you )?(later|soon)|(good ?)?night|have a (good|great|nice) (one|day|night|evening)|take care|drive safe|be safe|appreciate (it|you|that))[\s.,!]*)+$/i;
+export function endsWithGoodbye(t) {
+  const x = String(t || '').replace(/\[[^\]]*\]/g, '').trim();
+  if (!x || /\?\s*$/.test(x) || /\(cut off\)\s*$/.test(x)) return false;
+  const last = x.split(/(?<=[.!?])\s+/).filter(Boolean).pop() || '';
+  return /\b(good-?bye|bye(-bye| now)?|take care|talk (to you )?soon|see (ya|you) (later|soon)|have a (good|great|nice) (night|one|day|evening))\b/i.test(last);
+}
+const lastIdx = (msgs, r) => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].r === r) return i; return -1; };
+
 export function eastern(now) {
   const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now || Date.now()));
   const g = k => (f.find(x => x.type === k) || {}).value || '';
@@ -287,11 +300,12 @@ On the call:
 - Say what he asked you to say and get the answers he wants. Never make up anything he didn't say. Anything you can't answer: Christopher will get back to them.
 - Money, health, legal matters or anything personal beyond his message: say Christopher will call them about that himself.
 - Repeat back any plan you agree on (day, time, place) before you say goodbye.
+- Say goodbye once, at the very end, then [END]. If they say bye first, say a short bye back, then [END].
 - Voicemail (a greeting asking to leave a message): leave a short message with what he wanted, then [END].
 - Someone else answers: ask for ${first}; if they're not there, leave the message with them or say Christopher will call back.
 - They don't want calls like this: apologize, say you'll tell him, goodbye, [OPTOUT][END].
 - If the words you hear look garbled, ask them to say it again.
-- When it's done, say goodbye and [END].
+- When it's done, say goodbye once and [END]. The call hangs up after your goodbye: don't answer their bye.
 
 ${TAGS}`;
   }
@@ -312,7 +326,7 @@ On the call:
 - They ask not to get automated calls: apologize, say you'll make sure of it, goodbye, [OPTOUT][END].
 - The goal can't be done: get the best next step (hours, a name, a better number, what he should do) and end politely.
 - If the words you hear look garbled, ask them to say it again.
-- When it's done: before your goodbye, give the callback number${cb ? ' (' + cb + ')' : ''} if they might need to reach him, then thank them, say goodbye, [END].
+- When it's done: before your goodbye, give the callback number${cb ? ' (' + cb + ')' : ''} if they might need to reach him, then thank them, say goodbye once, [END]. The call hangs up after your goodbye: don't answer their bye.
 
 ${TAGS}`;
 }
@@ -420,6 +434,14 @@ export class HqCallRoom extends DurableObject {
   }
   async onHeard(s, text) {
     if (!text.trim()) return;
+    const ia = lastIdx(s.msgs, 'a'), iu = lastIdx(s.msgs, 'u');
+    if ((s.endAt || (ia > iu && endsWithGoodbye(s.msgs[ia].t))) && SEE_YA.test(text.trim())) {
+      if (this.live) this.drop();
+      s.msgs.push({ r: 'u', t: text }); s.lastAt = Date.now();
+      if (!s.endAt) s.endAt = Date.now() + 400;
+      await this.keep(s); await this.tick(500);
+      return;
+    }
     if (this.live) this.drop();
     s.heard = true; s.nudged = 0; s.lastAt = Date.now();
     s.msgs.push({ r: 'u', t: text }); s.turn++;
@@ -460,7 +482,7 @@ export class HqCallRoom extends DurableObject {
     if (tg.dtmf) { this.out({ type: 'sendDigits', digits: tg.dtmf }); c.msgs.push({ r: 'a', t: '[pressed ' + tg.dtmf + ']' }); c.spoke = true; }
     if (tg.wait) c.hold = c.hold || Date.now(); else if (spokenText) c.hold = 0;
     if (tg.optout) c.optout = true;
-    if (tg.end || L.sp.flags.end) c.endAt = Date.now() + speakMs(spokenText) + 900;
+    if (tg.end || L.sp.flags.end || endsWithGoodbye(spokenText)) c.endAt = Date.now() + speakMs(spokenText) + 900;
     c.lastAt = Date.now() + speakMs(spokenText);
     if (first) c.firstDone = true;
     await this.keep(c);

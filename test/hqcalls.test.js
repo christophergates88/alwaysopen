@@ -191,6 +191,48 @@ test('a phone menu gets a key press, a hold gets a wait, and the goodbye hangs u
   assert.equal(pushes.length, 1); assert.match(pushes[0].title, /Call to Take 5 Milledgeville: done/); assert.match(pushes[0].body, /Added to your day/);
 });
 
+test('a goodbye is said once: their bye back is noted, never answered, and the call hangs up', async () => {
+  reset(); const e = env();
+  const R = await liveRoom(e);
+  claude = ['Great, Saturday at 9:30 then. Thanks so much, goodbye.[END]'];
+  await R.room.webSocketMessage(R.ws, JSON.stringify({ type: 'prompt', voicePrompt: 'We can do 9:30 Saturday.', last: true }));
+  assert.ok((await R.room.load()).endAt > 0);
+  // what happened on the call to his dad: every "Goodbye." got another goodbye
+  for (const bye of ['Goodbye.', 'Okay, bye.', 'Thank you, you too.']) {
+    await R.room.webSocketMessage(R.ws, JSON.stringify({ type: 'interrupt', utteranceUntilInterrupt: 'Thanks so much, goodbye.' }));
+    await R.room.webSocketMessage(R.ws, JSON.stringify({ type: 'prompt', voicePrompt: bye, last: true }));
+  }
+  assert.equal(claudeSeen.length, 1, 'their bye is never answered');
+  assert.equal((said(R).match(/goodbye/gi) || []).length, 1, 'one goodbye');
+  const s = await R.room.load();
+  assert.ok(s.endAt > 0, 'the hang-up stands');
+  assert.equal(s.msgs.at(-1).t, 'Thank you, you too.');
+  s.endAt = 1; await R.room.keep(s);
+  await R.room.alarm();
+  assert.ok(R.ws.sent.some(m => m.type === 'end'), 'hangs up');
+});
+
+test('a goodbye without [END] still hangs up; a real question over the goodbye gets its answer', async () => {
+  reset(); const e = env();
+  const R = await liveRoom(e);
+  claude = ['Perfect, see you Saturday. Bye!'];
+  await R.room.webSocketMessage(R.ws, JSON.stringify({ type: 'prompt', voicePrompt: 'You are all set for Saturday.', last: true }));
+  assert.ok((await R.room.load()).endAt > 0, 'a reply ending in a goodbye hangs up, tag or not');
+  claude = ['Nine thirty. Goodbye.[END]'];
+  await R.room.webSocketMessage(R.ws, JSON.stringify({ type: 'prompt', voicePrompt: 'Wait, what time was that again?', last: true }));
+  assert.equal(claudeSeen.length, 2, 'a question is answered');
+  assert.match(said(R), /Nine thirty/);
+  assert.ok((await R.room.load()).endAt > 0);
+  // and a question in the middle of a call is never taken for a goodbye
+  assert.equal(HC.endsWithGoodbye('Do you want me to tell him goodbye?'), false);
+  assert.equal(HC.endsWithGoodbye('Take care, and drive (cut off)'), false);
+  assert.equal(HC.endsWithGoodbye('I’ll let Christopher know. Take care, Dad, and drive safe. Goodbye.'), true);
+  assert.equal(HC.SEE_YA.test('Love you too, bye!'), true);
+  assert.equal(HC.SEE_YA.test('No, not tonight, it is too cold.'), false);
+  const sys = HC.systemFor({ kind: 'family', name: 'Dad', relation: 'father' });
+  assert.match(sys, /Say goodbye once/);
+});
+
 test('their words overtake a reply still being written; "don\'t call" is kept for good', async () => {
   reset(); const e = env();
   const R = await liveRoom(e);
