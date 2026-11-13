@@ -50,6 +50,22 @@ async function haiku(env, user, sys) {
   try { return JSON.parse(m[0]); } catch (e) { return { plans: [], items: [] }; }
 }
 
+// Topics Christopher muted (hq_kv 'mute' = {names: [...]}, private; no names live in this public code): mail about them
+// makes no plan, no task and no push, and saved plans about them aren't handed to the Mac for reminders.
+export async function muteList(env) {
+  try { const r = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'mute'").first(); const v = JSON.parse((r && r.v) || '{}'); return (v.names || []).map(x => String(x).trim()).filter(Boolean); }
+  catch (e) { return []; }
+}
+// A muted name matches as written ("Capital One") or in bank capitals ("CAPITAL ONE"), as a whole word, so the verb
+// "affirm" in a sentence doesn't count.
+export function isMuted(names, ...texts) {
+  const esc = (x) => String(x).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return (names || []).some(n => {
+    const rx = new RegExp('\\b(?:' + esc(n) + '|' + esc(String(n).toUpperCase()) + ')\\b');
+    return texts.some(t => rx.test(String(t || '')));
+  });
+}
+
 async function ensure(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_plans (key TEXT PRIMARY KEY, date TEXT, t TEXT, end_t TEXT, what TEXT, who TEXT, place TEXT, quote TEXT, status TEXT, src TEXT, at TEXT, made TEXT)').run();
   const have = new Set(((await env.DB.prepare('PRAGMA table_info(hq_plans)').all()).results || []).map(c => c.name));
@@ -62,9 +78,12 @@ async function handleMail(env, b, json, today) {
   const user = `Today: ${b.now || ''} (${b.weekday || ''})\n\n` + mails.map((m, i) => `=== Email ${i + 1}\nFrom: ${String(m.from).slice(0, 120)}\nDate: ${m.date}\nSubject: ${String(m.subject).slice(0, 200)}\n\n${String(m.text).slice(0, 2500)}`).join('\n\n');
   const out = await haiku(env, user, MAILSYS);
   if (!out) return json({ ok: false, error: 'ai' }, 502);
-  const now = new Date().toISOString(), changes = [];
+  const now = new Date().toISOString(), changes = [], mute = await muteList(env);
   for (const p of (out.items || []).slice(0, 20)) {
     if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(p.date || '') || p.date < today) continue;
+    const exact = mails.find(m => m.subject && p.quote && String(m.text).includes(String(p.quote).slice(0, 20)));
+    const from = exact || (mails.length === 1 ? mails[0] : null);
+    if (isMuted(mute, p.who, p.what, from && from.from, from && from.subject)) continue;   // a topic he muted
     const t = /^\d{2}:\d{2}$/.test(p.t || '') ? p.t : '';
     const key = 'm-' + String(p.key || (p.what + '-' + p.date)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 58);
     const old = await env.DB.prepare('SELECT key, date, t FROM hq_plans WHERE key = ?1').bind(key).first();
@@ -83,7 +102,8 @@ export async function handleHqPlans(req, env, json) {
   await ensure(env);
   const today = new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10);
   if (req.method === 'GET') {
-    const plans = ((await env.DB.prepare("SELECT * FROM hq_plans WHERE date >= ?1 ORDER BY date, t").bind(today).all()).results) || [];
+    const mute = await muteList(env);
+    const plans = (((await env.DB.prepare("SELECT * FROM hq_plans WHERE date >= ?1 ORDER BY date, t").bind(today).all()).results) || []).filter(p => !isMuted(mute, p.who, p.what));
     const w = await env.DB.prepare('SELECT json FROM hq_widget WHERE id = 1').first().catch(() => null);
     let wj = {}; try { wj = JSON.parse((w && w.json) || '{}'); } catch (e) {}
     try { const kv = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'day'").first(); if (kv && kv.v) wj = Object.assign(wj, JSON.parse(kv.v)); } catch (e) {}
