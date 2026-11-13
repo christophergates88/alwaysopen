@@ -52,6 +52,8 @@ import { tryRefresh as gbpRefresh } from './gbp.js';
 export { CallRoom };
 // Gates HQ's calls for Christopher keep each call in an HqCallRoom (hqcalls.js).
 export { HqCallRoom } from './hqcalls.js';
+// Gates HQ's private brain reaches Claude through this entrypoint (a service binding, never the internet): hqclaude.js.
+export { HqClaude } from './hqclaude.js';
 
 const MAX_BODY = 12000;          // bytes
 const MIN_FILL_MS = 3000;        // faster than this is a bot
