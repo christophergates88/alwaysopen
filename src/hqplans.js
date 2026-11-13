@@ -109,7 +109,7 @@ export async function handleHqPlans(req, env, json) {
     try { const kv = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'day'").first(); if (kv && kv.v) wj = Object.assign(wj, JSON.parse(kv.v)); } catch (e) {}
     let where = [];
     try { where = ((await env.DB.prepare("SELECT at, kind, lat, lon, place, until FROM hq_where WHERE at >= ?1 OR kind = 'place' ORDER BY at").bind(new Date(Date.now() - 36 * 3600e3).toISOString()).all()).results) || []; } catch (e) {}
-    return json({ ok: true, plans, routine: wj.routine || null, day: wj.day || null, dayDate: wj.dayDate || null, where });
+    return json({ ok: true, plans, routine: wj.routine || null, day: wj.day || null, dayDate: wj.dayDate || null, where, mute });   // mute: the Mac keeps a copy for its own pushes
   }
   if (req.method !== 'POST') return json({ ok: false }, 404);
   const body = await req.text();
@@ -124,9 +124,10 @@ export async function handleHqPlans(req, env, json) {
       `\nNEW ${m.at} ${m.me ? 'Me' : m.who}: ${String(m.text).slice(0, 400)}`).join('\n\n');
   const out = await haiku(env, user);
   if (!out) return json({ ok: false, error: 'ai' }, 502);
-  const now = new Date().toISOString(), changes = [];
+  const now = new Date().toISOString(), changes = [], mute = await muteList(env);
   for (const p of (out.plans || []).slice(0, 10)) {
     if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(p.date || '') || p.date < today) continue;
+    if (isMuted(mute, p.who, p.what, p.quote)) continue;   // a topic he muted
     const t = /^\d{2}:\d{2}$/.test(p.t || '') ? p.t : '', end = /^\d{2}:\d{2}$/.test(p.end || '') ? p.end : '';
     const key = String(p.key || (p.what + '-' + p.date)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 60);
     const old = await env.DB.prepare('SELECT * FROM hq_plans WHERE key = ?1').bind(key).first();

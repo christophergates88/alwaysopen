@@ -28,8 +28,10 @@ test('saved plans about a muted topic are not handed to the Mac', async () => {
     await env.DB.prepare("INSERT INTO hq_plans (key, date, t, what, who, status, src, at, made, kind) VALUES (?1, ?2, '', ?3, ?4, 'new', 'email', ?5, ?5, 'bill')").bind(key, day(5), what, who, new Date().toISOString()).run();
   let r = await (await handleHqPlans(new Request('https://x/ops/hq-plans', { method: 'GET' }), env, json)).json();
   assert.equal(r.plans.length, 3, 'nothing muted yet');
+  assert.deepEqual(r.mute, []);
   await env.DB.prepare("INSERT INTO hq_kv (k, at, v) VALUES ('mute', ?1, ?2)").bind(new Date().toISOString(), JSON.stringify({ names: ['Zeta'] })).run();
   assert.deepEqual(await muteList(env), ['Zeta']);
   r = await (await handleHqPlans(new Request('https://x/ops/hq-plans', { method: 'GET' }), env, json)).json();
   assert.deepEqual(r.plans.map(p => p.key).sort(), ['m2', 'm3']);
+  assert.deepEqual(r.mute, ['Zeta'], 'the Mac gets the list too, for its own pushes');
 });
