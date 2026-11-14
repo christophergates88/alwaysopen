@@ -25,8 +25,9 @@ export async function handleHqSense(req, env, json) {
   // small rows the Mac keeps for the page (bottles bought by day, from the bank) and for Gates HQ 2 (money, Nov 14 2026: the
   // checking balance from the bank and the bills and paychecks that repeat, hourly; the brain dates them from today). A
   // money row too long to keep whole is not kept at all, so the brain never reads half of one.
+  // 'cams' (Nov 14 2026): the home cameras, on the Wi-Fi or not, for Gates HQ 2's Home screen.
   for (const [k, v] of Object.entries(b.kv || {})) {
-    if (!/^(bottles|money)$/.test(k)) continue;
+    if (!/^(bottles|money|cams)$/.test(k)) continue;
     const s = JSON.stringify(v);
     if (k === 'money' && s.length > 60000) continue;
     stmts.push(env.DB.prepare('INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES (?1, ?2, ?3)').bind(k, now, s.slice(0, 20000 + (k === 'money' ? 40000 : 0))));

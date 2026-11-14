@@ -28,3 +28,11 @@ test('the money row is kept whole from the Mac, and only from the Mac', async ()
   await site.call('/ops/hq-sense', { json: { kv: { money: big } }, headers: { 'x-key': env.LEADS_KEY } });
   assert.equal(JSON.parse((await row('money')).v).balance, 1234.56);
 });
+
+test('the camera row (cams) is kept from the Mac for Gates HQ 2\'s Home screen', async () => {
+  const cams = { at: '2026-11-14T17:00:00-05:00', cams: [{ id: 'bb:01', name: 'Front porch', online: true }] };
+  await site.call('/ops/hq-sense', { json: { kv: { cams } } });
+  assert.equal(await row('cams'), null, 'not without the Mac key');
+  await site.call('/ops/hq-sense', { json: { kv: { cams } }, headers: { 'x-key': env.LEADS_KEY } });
+  assert.deepEqual(JSON.parse((await row('cams')).v), cams);
+});
