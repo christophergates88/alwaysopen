@@ -237,18 +237,3 @@ test('the old page\'s look-ups are on this one: this month per client, the wordi
   assert.match(html, /id="look-add"/); assert.match(html, /data-addclient="1"/); assert.match(html, /Twilio charges for the number/);
   assert.doesNotMatch(html, /\bAI\b/);
 });
-
-test('make a proposal: the form is on the page, the route needs the key, and one link with the words to send comes back', async () => {
-  const O = await import('../src/opshq.js');
-  const html = O.hqHtml({ now: Date.now(), leads: [{ id: 3, at: new Date().toISOString(), business: 'Sinclair Plumbing', origin: 'hq proposal', status: 'talking', grade: 'D' }], clients: [], waiting: [], calls: [] }, 'tok');
-  assert.match(html, /Make a proposal for a business/); assert.match(html, /data-proposal="1"/); assert.match(html, /Send it once\./);
-  assert.match(html, /You sent them a proposal/);
-  const url = new URL('https://alwaysopenoffice.com/ops/hq/proposal');
-  const made = [];
-  const h = ok => ({ allowed: async () => ok, makeProposal: async (env, b) => { made.push(b); return { ok: true, business: 'Sinclair Plumbing', grade: 'D', link: 'https://alwaysopenoffice.com/your-audit/abcdefghjkmnpqrs', text: 'words', emailed: '' }; } });
-  const post = b => new Request(url, { method: 'POST', body: JSON.stringify(b) });
-  assert.equal((await O.handleHq(post({ business: 'Sinclair Plumbing' }), {}, url, h(false))).status, 403);
-  assert.equal(made.length, 0);
-  const r = await (await O.handleHq(post({ business: 'Sinclair Plumbing', town: 'Eatonton, GA', t: 'tok' }), {}, url, h(true))).json();
-  assert.equal(r.link, 'https://alwaysopenoffice.com/your-audit/abcdefghjkmnpqrs'); assert.equal(made[0].town, 'Eatonton, GA');
-});

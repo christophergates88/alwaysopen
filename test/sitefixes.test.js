@@ -56,9 +56,9 @@ test('what they typed stays out of the subject and is quoted plainly, without li
   assert.match(m.text, /We looked on Google for “WIN A FREE IPHONE at, call now” and couldn’t find an exact match/);
   assert.doesNotMatch(m.text + m.html, /evil\.example|900-555/);
   const f = L.followMail({ name: 'Free', business: 'WIN A FREE IPHONE', plan: 'Growth', grade: 'D' }, 1, 'https://x/stop', { BUSINESS_ADDRESS: 'x' }, null);
-  assert.equal(f.subject, 'Your free audit: still here when you’re ready', 'no "Re:" (it is not a reply) and no typed text');
+  assert.equal(f.subject, 'Your free audit: the quickest win', 'no "Re:" (it is not a reply) and no typed text');
   assert.doesNotMatch(f.subject + f.text, /IPHONE/);
-  assert.equal(L.followMail({ lang: 'es' }, 1, 'https://x/stop', {}, null).subject, 'Su auditoría gratis: sigue aquí');
+  assert.equal(L.followMail({ lang: 'es' }, 2, 'https://x/stop', {}, null).subject, 'Última nota sobre su auditoría');
 });
 
 test('no follow-ups until the address clicks through our email; a click in the first two minutes is a mail scanner', async () => {
@@ -75,17 +75,17 @@ test('no follow-ups until the address clicks through our email; a click in the f
   let r = await s.client.call(link.replace('https://alwaysopenoffice.com', ''));
   assert.equal(r.status, 302); assert.equal(r.location, 'https://alwaysopenoffice.com/start?plan=Growth');
   assert.equal((await s.DB.prepare('SELECT engaged FROM leads WHERE id = ?1').bind(row.id).first()).engaged || '', '');
-  // the reminder is due (day 3, a weekday at 10 AM Eastern), but nobody has shown the address is real
+  // the follow-up is due (day 2, a weekday at 10 AM Eastern), but nobody has shown the address is real
   const t0 = Date.parse('2026-10-26T14:00:00Z');
   await s.DB.prepare('UPDATE leads SET audit_at = ?1 WHERE id = ?2').bind(new Date(t0).toISOString(), row.id).run();
   const sent = []; const h = { send: async (to, m) => { sent.push({ to, subject: m.subject }); return 'sent'; } };
-  assert.deepEqual(await L.followCron(s.env, t0 + 3 * 864e5, h), { sent: 0, stopped: 0 });
+  assert.deepEqual(await L.followCron(s.env, t0 + 2 * 864e5, h), { sent: 0, stopped: 0 });
   // a person clicks later: now it counts, and the follow-up goes
   r = await s.client.call(link.replace('https://alwaysopenoffice.com', ''));
   assert.equal(r.status, 302);
   assert.ok((await s.DB.prepare('SELECT engaged FROM leads WHERE id = ?1').bind(row.id).first()).engaged);
-  assert.deepEqual(await L.followCron(s.env, t0 + 3 * 864e5, h), { sent: 1, stopped: 0 });
-  assert.equal(sent[0].subject, 'Your free audit: still here when you’re ready');
+  assert.deepEqual(await L.followCron(s.env, t0 + 2 * 864e5, h), { sent: 1, stopped: 0 });
+  assert.equal(sent[0].subject, 'Your free audit: the quickest win');
   // a forged click link changes nothing and goes home
   r = await s.client.call('/lead/go?i=' + row.id + '&to=start&k=' + '0'.repeat(24));
   assert.equal(r.location, 'https://alwaysopenoffice.com/');

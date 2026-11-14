@@ -3,15 +3,9 @@
 // would do for a business like theirs, a sample monthly page, and how to start. Christopher still gets the push and the
 // email about the lead; this just means nobody waits two days for the first answer.
 //
-// One proposal, sent once (Nov 13 2026; Scott: "present a proposal, do it one time, not 'just one more thing'"). The
-// audit email is the whole proposal: what we found, what we would do, what it costs, the promise, how to start. It
-// also lives on one page per business (/your-audit/<token>), which is the one link Christopher sends by hand
-// (makeProposal, from Always Open HQ).
-//
-// Then one reminder if they don't sign up, three days later, weekday business hours Eastern, with nothing new in it:
-// it points back at the same proposal. Only to an address that has shown it is real: someone clicked a link in our
-// email (a reply marks the lead from Gmail and ends it anyway). There used to be two follow-ups (day 2, day 6), each
-// with a new pitch. Anyone can type any address into the form, so a stranger's address gets the one audit at most.
+// Then two short follow-ups if they don't sign up: day 2 and day 6, weekday business hours Eastern, and only to an
+// address that has shown it is real: someone clicked a link in our email (a reply marks the lead from Gmail and ends the
+// follow-ups anyway). Anyone can type any address into the form, so a stranger's address gets the one audit at most.
 // They stop the moment the person signs up, replies (the Always Open check marks that from Gmail), taps the stop link, or
 // Christopher marks the lead handled. Every email carries the stop link and the business's postal address.
 //
@@ -23,7 +17,6 @@
 // leads.top, leads.fixes), plus Google's place ID, which may be stored.
 import { runAudit } from './audit.js';
 import { pitchFor, topThree } from './letter.js';
-import { PLANS as PRICES, dollars } from './facts.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const MAX = '(706) 460-2226';
@@ -35,7 +28,7 @@ const SAME_ADDRESS_DAYS = 30;            // one audit email per address per 30 d
 const NET_PER_DAY = 3;                   // audit emails a day for requests from one network (a /24, or a /48 for IPv6)
 const POSTS_PER_HOUR = 6;                // posts to the audit pages from one sender
 const ENGAGED_AFTER = 2 * 60e3;          // a click within two minutes of sending is a mail scanner, not a person
-const FU1_AFTER = 3 * 24 * 3600e3 - 2 * 3600e3, FU_STALE = 21 * 24 * 3600e3;   // the one reminder: three days on
+const FU1_AFTER = 44 * 3600e3, FU2_AFTER = 5.8 * 24 * 3600e3, FU_GAP = 3 * 24 * 3600e3, FU_STALE = 21 * 24 * 3600e3;
 const SEND_HOURS = [9, 18];              // Eastern, Monday to Friday, for follow-ups
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -188,10 +181,9 @@ async function noteSend(env, email, net, id, kind, now) {
   await env.DB.prepare('DELETE FROM audit_sends WHERE at < ?1').bind(iso(now - 40 * DAY)).run().catch(() => {});
 }
 
-function footer(env, stop, es, hand) {
+function footer(env, stop, es) {
   const addr = one(env.BUSINESS_ADDRESS || '');
-  const why = hand ? (es ? 'Recibe este correo porque pidió una propuesta de Always Open.' : 'You’re getting this because you asked Always Open for a proposal.')
-    : es ? 'Recibe este correo porque pidió una auditoría gratis en alwaysopenoffice.com.' : 'You’re getting this because you asked for a free audit at alwaysopenoffice.com.';
+  const why = es ? 'Recibe este correo porque pidió una auditoría gratis en alwaysopenoffice.com.' : 'You’re getting this because you asked for a free audit at alwaysopenoffice.com.';
   const who = 'Always Open, a service of Lake Country Foam Party, LLC' + (addr ? ', ' + addr : '') + '.';
   const out = es ? 'No quiero más correos' : 'Don’t email me again';
   return {
@@ -232,12 +224,7 @@ export function auditMail(lead, a, stop, env, via, go) {
   go = go || {};
   const es = lead.lang === 'es', b = a.business || {}, first = firstName(lead.name), name = one(b.name) || plain(lead.business) || (es ? 'su negocio' : 'your business');
   const fixes = topThree(a), pitch = pitchFor(b.name, b.type || lead.type);
-  const hand = via === 'hq' || via === 'hqpage';
-  const ft = footer(env || {}, stop, es, hand), gc = GC[a.grade] || '#FF6A5E', start = startLink(lead.plan);
-  // what it costs: every plan by the day, the one they picked marked
-  const picked = planOf(lead.plan);
-  const costs = Object.keys(PRICES).map(k => k + (k === picked ? (es ? ' (el que eligió)' : ' (the one you picked)') : '') + ': ' + (es ? 'unos $' + PRICES[k].perDay + ' al día (' + dollars(PRICES[k].cents) + ' al mes)' : 'about $' + PRICES[k].perDay + ' a day (' + dollars(PRICES[k].cents) + ' a month)'));
-  const pageLink = go.pageLink || '';
+  const ft = footer(env || {}, stop, es), gc = GC[a.grade] || '#FF6A5E', start = startLink(lead.plan);
   const own = b.reviews ? (es ? b.rating.toFixed(1) + ' estrellas de ' + b.reviews + ' reseñas en Google hoy' : b.rating.toFixed(1) + ' stars from ' + b.reviews + (b.reviews === 1 ? ' review' : ' reviews') + ' on Google today')
     : (es ? 'todavía sin reseñas en Google' : 'no Google reviews yet');
   const areas = (a.areas || []).map(x => ({ label: es ? (AREA_ES[x.label] || x.label) : x.label, grade: x.grade }));
@@ -247,26 +234,22 @@ export function auditMail(lead, a, stop, env, via, go) {
   const subject = es ? 'Su auditoría gratis: ' + (gname ? gname + ' saca una ' : 'una ') + a.grade : 'Your free audit: ' + (gname ? gname + ' gets a ' : 'a ') + a.grade;
   const T = es ? {
     hi: first ? 'Hola, ' + first + ':' : 'Hola:',
-    costH: 'Lo que cuesta', costNote: 'Max contesta sus llamadas en todos los planes.',
-    all: 'Eso es todo, en un solo lugar: lo que encontramos, lo que haríamos, lo que cuesta y cómo empezar.', stays: ' Se queda aquí: ',
-    intro: hand ? 'Aquí está la propuesta para ' + name + '. Lo buscamos en Google ahora mismo y lo comparamos con los negocios como el suyo con más movimiento cerca de usted.' : via === 'letter' ? 'Aquí está su auditoría completa. Buscamos ' + name + ' en Google ahora mismo y la comparamos con los negocios como el suyo con más movimiento cerca de usted.' : 'Aquí está la auditoría gratis que pidió. Buscamos ' + name + ' en Google hace un minuto y la comparamos con los negocios como el suyo con más movimiento cerca de usted.',
+    intro: via === 'letter' ? 'Aquí está su auditoría completa. Buscamos ' + name + ' en Google ahora mismo y la comparamos con los negocios como el suyo con más movimiento cerca de usted.' : 'Aquí está la auditoría gratis que pidió. Buscamos ' + name + ' en Google hace un minuto y la comparamos con los negocios como el suyo con más movimiento cerca de usted.',
     gradeLab: 'cómo lo ven quienes buscan en Google', fixH: 'Lo primero que arreglaríamos', none: 'No hay nada importante que arreglar, y eso es raro.',
     fine: 'Ya está bien: ', doH: 'Lo que haríamos por ' + name, approve: ' Usted aprueba todo desde su teléfono; nada sale a su nombre sin que usted lo apruebe o lo active.',
     page: 'El día 2 de cada mes recibe una página que muestra lo que hicimos y cuánto valió. Vea un ejemplo:', start: 'Empezar mi primer mes',
     promise: 'Pruébelo un mes. Si no vale la pena, no lo paga. Sin contrato y sin cargo de instalación.',
     max: '¿Quiere oír cómo se contestarían sus llamadas? Llame a Max, nuestra línea, al ' + MAX + ', a cualquier hora.',
-    q: via === 'hqpage' ? '¿Preguntas? Llame a Max al ' + MAX + ' a cualquier hora, o escriba a hello@alwaysopenoffice.com. Katie contesta, normalmente el mismo día hábil.' : via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Katie le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Katie contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. Katie contesta, normalmente el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
+    q: via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Katie le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Katie contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. Katie contesta, normalmente el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
   } : {
     hi: first ? 'Hi ' + first + ',' : 'Hi,',
-    costH: 'What it costs', costNote: 'Max answers your calls on every plan.',
-    all: 'That’s everything, in one place: what we found, what we’d do, what it costs and how to start.', stays: ' It stays here: ',
-    intro: hand ? 'Here’s the proposal for ' + name + '. We looked it up on Google just now and compared it with the busiest nearby businesses like yours.' : via === 'letter' ? 'Here’s your full audit. We looked up ' + name + ' on Google just now and compared it with the busiest nearby businesses like yours.' : 'Here’s the free audit you asked for. We looked up ' + name + ' on Google a minute ago and compared it with the busiest nearby businesses like yours.',
+    intro: via === 'letter' ? 'Here’s your full audit. We looked up ' + name + ' on Google just now and compared it with the busiest nearby businesses like yours.' : 'Here’s the free audit you asked for. We looked up ' + name + ' on Google a minute ago and compared it with the busiest nearby businesses like yours.',
     gradeLab: 'how you look to people searching Google', fixH: fixes.length === 1 ? 'The first thing we’d fix' : fixes.length === 2 ? 'The two things we’d fix first' : 'The three things we’d fix first', none: 'There’s nothing major to fix, which is rare.',
     fine: 'Already good: ', doH: 'What we’d do for ' + name, approve: ' You approve everything from your phone; nothing goes out in your name until you approve it or turn it on.',
     page: 'On the 2nd of every month you’d get one page showing what we did and what it was worth. Here’s a sample:', start: 'Start my first month',
     promise: 'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee.',
     max: 'Want to hear how your calls would be answered? Call Max, our phone line, at ' + MAX + ', any hour.',
-    q: via === 'hqpage' ? 'Questions? Call Max at ' + MAX + ' any hour, or email hello@alwaysopenoffice.com. Katie answers, usually the same business day.' : via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Katie calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Katie answers, usually the same business day.' : 'Questions? Just reply to this email. Katie answers, usually the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
+    q: via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Katie calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Katie answers, usually the same business day.' : 'Questions? Just reply to this email. Katie answers, usually the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
   };
   const pitchText = es ? 'Contestamos cada reseña con un borrador para su visto bueno, mantenemos su perfil de Google al día y contestamos cada llamada a su nombre, de día y de noche, con Max, nuestra línea telefónica. Después de cada trabajo llamamos para ver si todo quedó bien, damos seguimiento a cotizaciones y facturas, y llenamos los días libres con sus propios clientes.' : pitch.text;
   const inner = (
@@ -280,18 +263,14 @@ export function auditMail(lead, a, stop, env, via, go) {
     ((a.fine || []).length && !es ? '<p style="margin:8px 0 0;color:#5CC9A4;font-size:14px">' + esc(T.fine + a.fine.slice(0, 4).join('; ') + '.') + '</p>' : '') +
     '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:24px 0 8px;color:#fff;' + NEON_TXT('#5CC9A4') + '">' + esc(T.doH) + '</h2><p style="margin:0">' + esc(pitchText + T.approve) + '</p>' +
     '<p style="margin:12px 0 0">' + esc(T.page) + ' <a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#FF6A5E">' + SITE.replace('https://', '') + '/sample-report</a></p>' +
-    '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:24px 0 8px;color:#fff;' + NEON_TXT('#FF6A5E') + '">' + esc(T.costH) + '</h2>' +
-    '<p style="margin:0">' + costs.map(c => esc(c)).join('<br>') + '</p><p style="margin:8px 0 0;color:#A3ACBF;font-size:14px">' + esc(T.costNote) + '</p>' +
     btn(go.start || start, T.start) + '<p style="margin:0 0 14px;font-weight:600">' + esc(T.promise) + '</p>' +
-    '<p style="margin:0 0 14px">' + esc(T.max) + '</p><p style="margin:0 0 14px">' + esc(T.q) + '</p>' +
-    '<p style="margin:0">' + esc(T.all) + (pageLink ? esc(T.stays) + '<a href="' + esc(go.page || pageLink) + '" style="color:#FF6A5E">' + esc(pageLink.replace('https://', '')) + '</a>' : '') + '</p><p style="margin:16px 0 0">Always Open</p>' +
+    '<p style="margin:0 0 14px">' + esc(T.max) + '</p><p style="margin:0">' + esc(T.q) + '</p><p style="margin:16px 0 0">Always Open</p>' +
     '<p style="margin:18px 0 0;font-size:12px;color:#7A8396">' + esc(T.src) + '</p>');
   const html = shell(inner + ft.html);
   const text = [T.hi, '', T.intro, '', name + ': ' + a.grade + ' (' + a.score + (es ? ' de 100' : ' of 100') + '), ' + T.gradeLab + '.',
     areas.map(x => x.label + ' ' + x.grade).join(' · '), own, '', T.fixH + ':',
     ...(items.length ? items.map((f, i) => (i + 1) + '. ' + f.title + '. ' + (f.saw ? f.saw + ' ' : '') + f.fix) : [T.none]), '',
-    T.doH + ': ' + pitchText + T.approve, '', T.page + ' ' + SITE + '/sample-report', '', T.costH + ':', ...costs, T.costNote, '', T.start + ': ' + start, T.promise, '', T.max, '', T.q, '',
-    T.all + (pageLink ? T.stays + pageLink : ''), '', 'Always Open', '', T.src].join('\n') + ft.text;
+    T.doH + ': ' + pitchText + T.approve, '', T.page + ' ' + SITE + '/sample-report', '', T.start + ': ' + start, T.promise, '', T.max, '', T.q, '', 'Always Open', '', T.src].join('\n') + ft.text;
   return { subject, html, text, inner };
 }
 
@@ -341,36 +320,29 @@ export function copyMail(lead, link, stop, env, go) {
   return { subject, html, text: lines.join('\n\n') + ft.text };
 }
 
-// The one reminder. Nothing new in it: it points back at the same proposal (their own page when they have one). Nothing
-// typed into the form is repeated, and the subject never pretends to be a reply. (n and top are kept for old callers.)
+// The two follow-ups. n: 1 or 2. top: the first fix from the audit, when there was one. Nothing typed into the form is
+// repeated in them, and the subject never pretends to be a reply.
 export function followMail(lead, n, stop, env, top, go) {
   go = go || {};
   const es = lead.lang === 'es', first = firstName(lead.name);
-  const ft = footer(env || {}, stop, es), start = startLink(lead.plan);
-  const page = /^[A-Za-z0-9]{16}$/.test(lead.token || '') ? SITE + '/your-audit/' + lead.token : '';
-  const link = page || start, href = page ? (go.page || page) : (go.start || start);
-  const subject = es ? 'Su auditoría gratis: sigue aquí' : 'Your free audit: still here when you’re ready';
-  const lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:',
-    'Un solo recordatorio, y es el único que le mandamos: su auditoría y nuestra propuesta siguen aquí: ' + link,
-    'Todo está en esa página: lo que encontramos, lo que haríamos, lo que cuesta y cómo empezar. No cambió nada.',
-    '¿Preguntas? Responda a este correo. Katie contesta, normalmente el mismo día hábil.', 'Always Open']
-    : [first ? 'Hi ' + first + ',' : 'Hi,',
-    'One reminder, and it’s the only one we’ll send: your audit and our proposal are still here: ' + link,
-    'Everything is on that one page: what we found, what we’d do, what it costs and how to start. Nothing has changed.',
-    'Questions? Just reply to this email. Katie answers, usually the same business day.', 'Always Open'];
-  const linkify = l => esc(l).replace(esc(link), '<a href="' + esc(href) + '" style="color:#FF6A5E">' + esc(link.replace('https://', '')) + '</a>');
+  const ft = footer(env || {}, stop, es), start = startLink(lead.plan), g = /^[A-F]$/.test(lead.grade || '') ? ' ' + lead.grade : '';
+  let subject, lines;
+  if (n === 1) {
+    subject = es ? 'Su auditoría gratis: lo más rápido de arreglar' : 'Your free audit: the quickest win';
+    lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', '¿Pudo ver la auditoría? Lo más rápido que mejoraría su negocio' + (top && ES[top.title] ? ': ' + ES[top.title][1].charAt(0).toLowerCase() + ES[top.title][1].slice(1) : ' es contestar cada reseña y cada llamada.') + ' Es lo que hacemos la primera semana.',
+      'Empezar: ' + start, 'O responda con una pregunta; Katie contesta, normalmente el mismo día hábil.', 'Always Open']
+      : [first ? 'Hi ' + first + ',' : 'Hi,', 'Did you get a chance to look at the audit? The quickest win for your business' + (top && top.fix ? ': ' + top.fix.charAt(0).toLowerCase() + top.fix.slice(1) : ' is a reply to every review and an answer to every call.') + ' That’s the kind of thing we start on in week one.',
+      'Start your first month: ' + start, 'Or reply with a question. Katie answers, usually the same business day.', 'Always Open'];
+  } else {
+    subject = es ? 'Última nota sobre su auditoría' : 'Last note on your audit';
+    lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', 'Última nota de nuestra parte. Si las reseñas, las llamadas y los seguimientos se le acumulan, nosotros nos encargamos, y el día 2 de cada mes recibe una página con lo que hicimos y cuánto valió.',
+      'Pruébelo un mes. Si no vale la pena, no lo paga: ' + start, 'O llame a Max al ' + MAX + ' para oír cómo se contestarían sus llamadas. De cualquier forma, la auditoría' + g + ' es suya.', 'Always Open']
+      : [first ? 'Hi ' + first + ',' : 'Hi,', 'Last note from us. If reviews, calls and follow-ups are piling up, we take them off your plate, and on the 2nd of every month you get one page showing what we did and what it was worth.',
+      'Try it for a month. If it’s not worth it, you don’t pay for it: ' + start, 'Or call Max at ' + MAX + ' to hear how your calls would be answered. Either way, the audit is yours to keep.', 'Always Open'];
+  }
+  const linkify = l => esc(l).replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#FF6A5E">' + esc(start.replace('https://', '')) + '</a>');
   const html = shell(lines.map(l => '<p style="margin:0 0 14px">' + linkify(l) + '</p>').join('') + ft.html);
   return { subject, html, text: lines.join('\n\n') + ft.text };
-}
-
-// Every proposal has its own page: the lead's private link, made once.
-export async function pageToken(env, id) {
-  const r = await env.DB.prepare('SELECT token FROM leads WHERE id = ?1').bind(id).first().catch(() => null);
-  if (r && /^[A-Za-z0-9]{16}$/.test(r.token || '')) return r.token;
-  const t = tok();
-  await env.DB.prepare("UPDATE leads SET token = ?1 WHERE id = ?2 AND (token IS NULL OR token = '')").bind(t, id).run();
-  const again = await env.DB.prepare('SELECT token FROM leads WHERE id = ?1').bind(id).first().catch(() => null);
-  return (again && again.token) || t;
 }
 
 // Send through the site's mail service. Returns 'sent' or why not.
@@ -431,7 +403,7 @@ export async function sendAudit(env, lead, id, h) {
     return 'limited';
   }
   const stop = await stopLink(env, id);
-  const go = { start: await goLink(env, id, 'start'), sample: await goLink(env, id, 'sample'), page: await goLink(env, id, 'audit'), pageLink: SITE + '/your-audit/' + (await pageToken(env, id)) };
+  const go = { start: await goLink(env, id, 'start'), sample: await goLink(env, id, 'sample') };
   let a = null, err = '';
   if (one(lead.business).length >= 2) {
     try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { err = one((e && e.message) || e).slice(0, 120); }
@@ -522,7 +494,7 @@ function eastern(now) {
   return { wd: p.weekday, hour: +p.hour };
 }
 
-// Every 10 minutes: the one reminder, for whoever it is due. h: {send, run, now} for tests.
+// Every 10 minutes: the follow-ups that are due. h: {send, run, now} for tests.
 export async function followCron(env, now, h) {
   now = now || Date.now();
   h = h || {};
@@ -531,23 +503,24 @@ export async function followCron(env, now, h) {
   if (e.wd === 'Sat' || e.wd === 'Sun' || e.hour < SEND_HOURS[0] || e.hour >= SEND_HOURS[1]) return { quiet: true };
   if (!one(env.BUSINESS_ADDRESS)) return { held: 'no postal address set' };
   // Only addresses that clicked through our email: anyone can type a stranger's address into the form.
-  const rows = ((await env.DB.prepare("SELECT * FROM leads WHERE status = 'new' AND audit IN ('sent', 'missed') AND (stop IS NULL OR stop = '') AND (fu1_at IS NULL OR fu1_at = '') AND engaged IS NOT NULL AND engaged != '' AND audit_at > ?1 ORDER BY id LIMIT 40")
+  const rows = ((await env.DB.prepare("SELECT * FROM leads WHERE status = 'new' AND audit IN ('sent', 'missed') AND (stop IS NULL OR stop = '') AND (fu2_at IS NULL OR fu2_at = '') AND engaged IS NOT NULL AND engaged != '' AND audit_at > ?1 ORDER BY id LIMIT 40")
     .bind(iso(now - FU_STALE)).all()).results) || [];
   let sent = 0, stopped = 0;
   for (const r of rows) {
-    const auditAt = Date.parse(r.audit_at || r.at);
-    if (now - auditAt < FU1_AFTER) continue;
+    const auditAt = Date.parse(r.audit_at || r.at), fu1 = r.fu1_at ? Date.parse(r.fu1_at) : 0;
+    const n = !fu1 ? (now - auditAt >= FU1_AFTER ? 1 : 0) : (now - auditAt >= FU2_AFTER && now - fu1 >= FU_GAP ? 2 : 0);
+    if (!n) continue;
     if (!validEmail(r.email)) continue;
     if (await suppressed(env, r.email)) { await env.DB.prepare("UPDATE leads SET stop = 'unsubscribed', stop_at = ?1 WHERE id = ?2").bind(iso(now), r.id).run(); stopped++; continue; }
     // Signed up already (same email, or same business name)? Then they're a client, not a lead.
     const won = await env.DB.prepare("SELECT 1 AS x FROM billing WHERE lower(email) = ?1 OR (?2 != '' AND lower(business) = ?2) LIMIT 1").bind(one(r.email).toLowerCase(), one(r.business).toLowerCase()).first().catch(() => null);
     if (won) { await env.DB.prepare("UPDATE leads SET stop = 'signed up', stop_at = ?1 WHERE id = ?2").bind(iso(now), r.id).run(); stopped++; continue; }
     const stop = await stopLink(env, r.id);
-    r.token = await pageToken(env, r.id);
-    const m = followMail(r, 1, stop, env, null, { start: await goLink(env, r.id, 'start'), page: await goLink(env, r.id, 'audit') });
+    let top = null; try { top = r.top ? JSON.parse(r.top) : null; } catch (e) { top = null; }
+    const m = followMail(r, n, stop, env, top, { start: await goLink(env, r.id, 'start') });
     const s = await send(env, one(r.email).toLowerCase(), m, h);
     if (s !== 'sent') continue;
-    await env.DB.prepare('UPDATE leads SET fu1_at = ?1 WHERE id = ?2').bind(iso(now), r.id).run();
+    await env.DB.prepare('UPDATE leads SET ' + (n === 1 ? 'fu1_at' : 'fu2_at') + ' = ?1 WHERE id = ?2').bind(iso(now), r.id).run();
     sent++;
   }
   return { sent, stopped };
@@ -563,8 +536,8 @@ const tok = () => { const b = new Uint8Array(16); crypto.getRandomValues(b); ret
 export function auditText(lead, link) {
   const biz = plain(lead.business) || (lead.lang === 'es' ? 'su negocio' : 'your business');   // the caller's words, with no numbers or links
   return lead.lang === 'es'
-    ? 'Always Open: aquí está la auditoría gratis de ' + biz + ' que pidió en la llamada: ' + link + ' Todo está en esa página. Responda STOP para no recibir más.'
-    : 'Always Open: here’s the free audit for ' + biz + ' you asked for on the call: ' + link + ' Everything is on that one page. Reply STOP to opt out.';
+    ? 'Always Open: aquí está la auditoría gratis de ' + biz + ' que pidió en la llamada: ' + link + ' Katie le da seguimiento. Responda STOP para no recibir más.'
+    : 'Always Open: here’s the free audit for ' + biz + ' you asked for on the call: ' + link + ' Katie will follow up. Reply STOP to opt out.';
 }
 // Called after the call, from the call note. h: {sendText} for tests. Returns 'texted' or why not.
 export async function textAudit(env, id, to, lead, h) {
@@ -596,25 +569,6 @@ async function senderHash(req, env) {
   return [...new Uint8Array(d)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// The proposal from what we keep (our grade and our words for the fixes), for when Google's numbers can't be looked up
-// fresh (the page was opened more than MAX_VIEWS times, or Google is down): still the whole proposal, never a stub.
-export function keptInner(lead, es) {
-  let fixes = []; try { fixes = JSON.parse(lead.fixes || '[]'); } catch (e) { fixes = []; }
-  fixes = fixes.filter(f => f && f.title).slice(0, 3).map(f => es && ES[f.title] ? { title: ES[f.title][0], fix: ES[f.title][1] } : f);
-  const name = plain(lead.business) || (es ? 'su negocio' : 'your business'), g = /^[A-F]$/.test(lead.grade || '') ? lead.grade : '', gc = GC[g] || '#FF6A5E';
-  const picked = planOf(lead.plan), start = startLink(lead.plan), h2 = (t, c) => '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:22px 0 8px;color:#fff;' + NEON_TXT(c) + '">' + esc(t) + '</h2>';
-  const costs = Object.keys(PRICES).map(k => k + (k === picked ? (es ? ' (el que eligió)' : ' (the one you picked)') : '') + ': ' + (es ? 'unos $' + PRICES[k].perDay + ' al día (' + dollars(PRICES[k].cents) + ' al mes)' : 'about $' + PRICES[k].perDay + ' a day (' + dollars(PRICES[k].cents) + ' a month)'));
-  const pitch = es ? 'Contestamos cada reseña con un borrador para su visto bueno, mantenemos su perfil de Google al día y contestamos cada llamada a su nombre, de día y de noche, con Max, nuestra línea telefónica.' : pitchFor(name, lead.type).text;
-  return '<div style="border:2px solid ' + gc + ';border-radius:14px;padding:14px 18px;margin:0 0 14px;background:#171C27"><p style="margin:0;font-size:13px;color:#A3ACBF">' + esc(name) + ' · ' + (es ? 'cómo lo ven quienes buscan en Google' : 'how you look to people searching Google') + '</p>' +
-    '<p style="margin:4px 0 0;font:400 48px/1 \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#fff;' + NEON_TXT(gc) + '">' + esc(g) + '</p></div>' +
-    (fixes.length ? h2(es ? 'Lo primero que arreglaríamos' : fixes.length === 1 ? 'The first thing we’d fix' : 'What we’d fix first', '#FF6A5E') + '<ol style="margin:0;padding-left:22px">' + fixes.map(f => '<li style="margin:0 0 10px"><b>' + esc(f.title) + '.</b><br><span style="color:#5CC9A4;font-weight:600">' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '') +
-    h2((es ? 'Lo que haríamos por ' : 'What we’d do for ') + name, '#5CC9A4') + '<p style="margin:0">' + esc(pitch + (es ? ' Usted aprueba todo desde su teléfono.' : ' You approve everything from your phone; nothing goes out in your name until you approve it or turn it on.')) + '</p>' +
-    '<p style="margin:12px 0 0">' + (es ? 'El día 2 de cada mes recibe una página con lo que hicimos y cuánto valió. Un ejemplo: ' : 'On the 2nd of every month you’d get one page showing what we did and what it was worth. Here’s a sample: ') + '<a href="' + SITE + '/sample-report" style="color:#FF6A5E">' + SITE.replace('https://', '') + '/sample-report</a></p>' +
-    h2(es ? 'Lo que cuesta' : 'What it costs', '#FF6A5E') + '<p style="margin:0">' + costs.map(c => esc(c)).join('<br>') + '</p><p style="margin:8px 0 0;color:#A3ACBF;font-size:14px">' + (es ? 'Sin contrato y sin cargo de instalación. Max contesta sus llamadas en todos los planes.' : 'No contract and no setup fee. Max answers your calls on every plan.') + '</p>' +
-    btn(start, es ? 'Empezar mi primer mes' : 'Start my first month') + '<p style="margin:0 0 14px;font-weight:600">' + (es ? 'Pruébelo un mes. Si no vale la pena, no lo paga.' : 'Try it for a month. If it’s not worth it, you don’t pay for it.') + '</p>' +
-    '<p style="margin:0">' + (es ? '¿Preguntas, o quiere oír cómo se contestarían sus llamadas? Llame a Max al ' : 'Questions, or want to hear how your calls would be answered? Call Max at ') + MAX + (es ? ', a cualquier hora.' : ', any hour.') + '</p>';
-}
-
 // GET /your-audit/<token>: the audit, looked up now. POST /your-audit/<token> {email}: email a copy, or {phone}: call me.
 export async function handleAuditPage(req, env, url, h) {
   h = h || {};
@@ -624,7 +578,7 @@ export async function handleAuditPage(req, env, url, h) {
   const lead = await env.DB.prepare('SELECT * FROM leads WHERE token = ?1').bind(t).first().catch(() => null);
   if (!lead) return pageShell('Not found', '<p>That link has expired. Call (706) 460-2226 and Max will help.</p>');
   const es = lead.lang === 'es';
-  const letter = /^letter /.test(lead.origin || ''), hq = /^hq /.test(lead.origin || '');
+  const letter = /^letter /.test(lead.origin || '');
   if (req.method === 'POST') {
     // Limits: a few posts an hour from one sender, one emailed copy and one call-me push per link a day, and the copy
     // is built from what we keep, so a post never looks anything up on Google.
@@ -690,47 +644,12 @@ export async function handleAuditPage(req, env, url, h) {
     // Kept for the emailed copy: our grade and our words for the fixes, and Google's place ID (never Google's details).
     const f0 = a.findings && a.findings[0];
     await env.DB.prepare('UPDATE leads SET grade = ?1, fixes = ?2, top = ?3, place_id = ?4 WHERE id = ?5').bind(lead.grade || a.grade, ourFixes(a), f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '', String((a.business && a.business.id) || lead.place_id || ''), lead.id).run().catch(() => {});
-    const m = auditMail(lead, a, '', env, letter ? 'letter' : hq ? 'hqpage' : 'page');
-    return pageShell((es ? 'Propuesta: ' : 'Proposal: ') + one(a.business.name), '<div class="card">' + m.inner + '</div>' + copyBox, es);
+    const m = auditMail(lead, a, '', env, letter ? 'letter' : 'page');
+    return pageShell((es ? 'Auditoría: ' : 'Audit: ') + one(a.business.name), '<div class="card">' + m.inner + '</div>' + copyBox, es);
   }
-  if (lead.grade) return pageShell(es ? 'Su propuesta' : 'Your proposal', '<div class="card">' + keptInner(lead, es) + '</div>' + copyBox, es);
+  if (views >= MAX_VIEWS && lead.grade) {
+    return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(one(lead.business)) + (es ? ' sacó una ' : ' got a ') + '<b>' + esc(lead.grade) + '</b>' + (es ? ' en su auditoría.' : ' on its audit.') + '</p><p style="margin:0">' + (es ? 'Pida una copia por correo y se la mandamos con todo el detalle.' : 'Ask for a copy by email and we’ll send it with every detail.') + '</p></div>' + copyBox, es);
+  }
   if (h.ping && lead.audit === 'texted') { await h.ping('Audit needs a hand: ' + one(lead.business), 'A caller asked for their audit by text and Google had no match for "' + one(lead.business) + (lead.town ? ', ' + one(lead.town) : '') + '". Call them back.'); await env.DB.prepare("UPDATE leads SET audit = 'missed' WHERE id = ?1").bind(lead.id).run(); }
   return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(es ? 'Buscamos ' + (one(lead.business) || 'su negocio') + ' en Google y no encontramos una coincidencia exacta. Responda a nuestro mensaje con el nombre como aparece en Google, y Katie le manda la auditoría hoy.' : 'We looked for ' + (one(lead.business) || 'your business') + ' on Google and couldn’t find an exact match. ' + (letter ? 'Call (706) 460-2226 and tell Max the name as it shows on Google, and Katie will send your audit today.' : 'Reply to our text with the name as it shows on Google, and Katie will send your audit today.')) + '</p><p style="margin:0">' + esc(es ? 'Mientras tanto, así se ve la página de cada mes: ' : 'Meanwhile, here’s the one page you’d get every month: ') + '<a style="color:#FF6A5E" href="/sample-report">alwaysopenoffice.com/sample-report</a></p></div>' + copyBox, es);
-}
-
-// ---------- a proposal Christopher sends by hand (Always Open HQ, "Make a proposal") ----------
-// One business in, one link out: the whole proposal on its own page, to send once. With an email address it is also
-// emailed, once, under the same limits as any audit email. It is saved as a request he is already talking to, so it
-// never gets the automatic reminder: the follow-up is his. h: {run, send, now} for tests.
-export async function makeProposal(env, b, h) {
-  h = h || {}; b = b || {};
-  await ensureLeadMail(env);
-  const now = h.now || Date.now(), at = iso(now);
-  const business = one(b.business).slice(0, 120), town = one(b.town).slice(0, 80), name = one(b.name).slice(0, 80), email = one(b.email).toLowerCase().slice(0, 120);
-  const plan = planOf(b.plan), lang = b.lang === 'es' ? 'es' : '';
-  if (business.length < 2) return { ok: false, error: 'Add the business name.', code: 400 };
-  if (email && !validEmail(email)) return { ok: false, error: 'That email doesn’t look right.', code: 400 };
-  let a = null;
-  try { a = await (h.run || runAudit)(env, business, town); } catch (e) { return { ok: false, error: 'Google could not be reached just now. Try again in a minute.' }; }
-  const lead = { name, email, business, town, plan, lang, type: one(b.type).slice(0, 60) };
-  if (!a || !a.found || !(await sameBiz(lead, a))) return { ok: false, error: 'Google had no exact match for “' + business + (town ? ', ' + town : '') + '”' + (a && a.found && a.business && a.business.name ? ' (its closest was ' + one(a.business.name).slice(0, 60) + ')' : '') + '. Type the name the way Google shows it, with the town.' };
-  const t = tok(), f0 = a.findings && a.findings[0], link = SITE + '/your-audit/' + t, gname = one(a.business.name) || business;
-  // asked for twice in a few minutes (a double tap): the same proposal, never two
-  const same = await env.DB.prepare("SELECT id, token FROM leads WHERE origin = 'hq proposal' AND lower(business) = ?1 AND lower(COALESCE(town, '')) = ?2 AND at > ?3 ORDER BY id DESC LIMIT 1").bind(business.toLowerCase(), town.toLowerCase(), iso(now - 10 * 60e3)).first().catch(() => null);
-  const words = l => 'Here’s the Always Open proposal for ' + gname + ': what we found, what we’d do, what it costs and how to start, all on one page. ' + l;
-  if (same && same.token) return { ok: true, business: gname, grade: a.grade, link: SITE + '/your-audit/' + same.token, text: words(SITE + '/your-audit/' + same.token), emailed: '', again: true };
-  const id = (await env.DB.prepare("INSERT INTO leads (at, name, email, phone, business, town, type, plan, notes, origin, status, lang, token, grade, top, fixes, place_id, email_key) VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, '', 'hq proposal', 'talking', ?8, ?9, ?10, ?11, ?12, ?13, ?14)")
-    .bind(at, name, email, business, town, lead.type, plan, lang, t, a.grade, f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '', ourFixes(a), String((a.business && a.business.id) || ''), email ? emailKey(email) : '').run()).meta.last_row_id;
-  let emailed = '';
-  if (email) {
-    const hold = !one(env.BUSINESS_ADDRESS || '') ? 'no postal address set' : await auditHold(env, email, '', id, now);
-    if (hold) emailed = hold === 'stopped' ? 'Not emailed: that address asked us not to email it.' : hold === 'repeat' ? 'Not emailed: that address got an audit from us in the last 30 days. Send them the link yourself.' : 'Not emailed (' + hold + '). Send them the link yourself.';
-    else {
-      const m = auditMail(lead, a, await stopLink(env, id), env, 'hq', { start: await goLink(env, id, 'start'), sample: await goLink(env, id, 'sample'), page: await goLink(env, id, 'audit'), pageLink: link });
-      const r = await send(env, email, m, h);
-      if (r === 'sent') { await env.DB.prepare("UPDATE leads SET audit = 'sent', audit_at = ?1 WHERE id = ?2").bind(at, id).run(); await noteSend(env, email, '', id, 'audit', now); emailed = 'Emailed to ' + email + '.'; }
-      else emailed = 'The email did not send (' + r + '). Send them the link yourself.';
-    }
-  }
-  return { ok: true, id, business: gname, grade: a.grade, link, text: words(link), emailed };
 }
