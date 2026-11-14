@@ -195,7 +195,7 @@ def build():
 
 DAY_BLOCK = '''<div class="aday" id="aday" data-label="A day with Always Open" aria-labelledby="aday-h">
         <h2 class="aday-h" id="aday-h">A day with Always Open</h2>
-        <div class="aday-box"><iframe class="aday-f" src="''' + DAY + '''" title="A day with Always Open: a 2:47 AM call, a storm warning, a review, follow-ups, open days filled and the month on one page" loading="lazy"></iframe></div>
+        <div class="aday-box"><iframe class="aday-f" src="''' + DAY + '''" title="A day with Always Open: a 2:47 AM call, a storm warning, a review, follow-ups, open days filled and the month on one page"></iframe></div>
         <p class="aday-sub">Everything that runs behind your business, in one day. <a href="''' + DAY + '''">Open it full screen</a></p>
       </div>'''
 
