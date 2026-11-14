@@ -22,8 +22,15 @@ export async function handleHqSense(req, env, json) {
   if (body.length > 200000) return json({ ok: false, error: 'too big' }, 413);
   let b; try { b = JSON.parse(body); } catch (e) { return json({ ok: false, error: 'not json' }, 400); }
   const now = new Date().toISOString(), stmts = [];
-  // small rows the Mac keeps for the page (bottles bought by day, from the bank)
-  for (const [k, v] of Object.entries(b.kv || {})) if (/^(bottles)$/.test(k)) stmts.push(env.DB.prepare('INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES (?1, ?2, ?3)').bind(k, now, JSON.stringify(v).slice(0, 20000)));
+  // small rows the Mac keeps for the page (bottles bought by day, from the bank) and for Gates HQ 2 (money, Nov 14 2026: the
+  // checking balance from the bank and the bills and paychecks that repeat, hourly; the brain dates them from today). A
+  // money row too long to keep whole is not kept at all, so the brain never reads half of one.
+  for (const [k, v] of Object.entries(b.kv || {})) {
+    if (!/^(bottles|money)$/.test(k)) continue;
+    const s = JSON.stringify(v);
+    if (k === 'money' && s.length > 60000) continue;
+    stmts.push(env.DB.prepare('INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES (?1, ?2, ?3)').bind(k, now, s.slice(0, 20000 + (k === 'money' ? 40000 : 0))));
+  }
   if (b.snap) stmts.push(env.DB.prepare("INSERT OR REPLACE INTO hq_kv (k, at, v) VALUES ('sense', ?1, ?2)").bind(now, JSON.stringify(b.snap).slice(0, 60000)));
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
   for (const r of (b.minutes || []).slice(0, 400)) {
