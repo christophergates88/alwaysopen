@@ -275,12 +275,22 @@ export const PAGES = {
 
 // Each folded section on a phone: a one-line summary under its heading.
 export const FOLDS = {
+  // The home page (Nov 14, 2026): after the hero (with A day with Always Open), the month, what you control, the plans
+  // and the Start form, everything else sits under one bar, Questions and details, one topic at a time.
   index: {
+    more: 'Each part in detail, how we work, and answers to what owners ask first.',
+    faq: 'Contracts, the app, what we need to start, and what if it doesn’t bring in business.',
+    does: 'Everything Always Open runs for you, on one screen.',
+    go: 'Real screens. Tap a card and watch it work.',
     try: 'Our own line. Call it and test him.',
-    day: 'What happens at 2 AM, 7 AM and 4:45 PM while you work.',
+    audit: 'What the free audit covers, with a sample report.',
     only: 'Tap to open all seven.',
     what: 'Reviews, your Google profile, posts and follow-ups, in detail.',
-    audit: 'What the free audit covers, with a sample report.'
+    'map-feature': 'Every member on one map, nearest first. Nobody pays to be on it.',
+    industries: 'A page for your kind of business.',
+    compare: 'Software you run, or a team that runs it.',
+    rules: 'Three rules we don’t bend.',
+    regulated: 'Insurance agencies and other businesses that can’t share a client list.'
   },
   trade: {
     calls: 'How calls, follow-ups and reviews work for a business like yours.',

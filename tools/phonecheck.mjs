@@ -1,7 +1,8 @@
 // Phone check for the public site: loads the pages at phone width and fails when something a phone visitor would trip
 // over comes back. Run from the repo root: node tools/phonecheck.mjs  (add --shots DIR to save screenshots)
 // Fails when: a page scrolls sideways, a tap target is smaller than 44 x 44, body text is under 15 px, the home page is
-// taller than 18,100 px (raised from 18,000 on Nov 11 for the folded What you control row, 78 px; raised from 16,800 on Nov 10 for the Shoulder Tap band, about 1,220 px, open on the home page and folded on the trade pages; the deploy machine measures about 600 px more than a Mac, 17,814 at 375 wide that day) (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
+// taller than 9,000 px (Nov 14, 2026: the home page is about 7,500 px since everything after the Start form folds into
+// Questions and details; it was 18,100 px, raised from 18,000 on Nov 11 for the folded What you control row, 78 px; raised from 16,800 on Nov 10 for the Shoulder Tap band, about 1,220 px, open on the home page and folded on the trade pages; the deploy machine measures about 600 px more than a Mac, 17,814 at 375 wide that day) (the trade pages 9,600; raised Nov 4 when the sections below pricing stopped folding; the feature wall added about 650 px to each on Nov 4) with its sections folded (What we do added 800 px, Max’s clock about 1,100 (Nov 4, open on the home page, folded on the trade pages), the monthly report in the hero about 650 and the map's own section about 850, all on purpose; the build machine's fonts set about 3% taller than a Mac's) (industry pages 7,700), the grade check is not on the first three screens (the monthly report leads the hero),
 // a playable card does not play, a folded section does not open, or the Spanish switch misses a spot or overflows.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -44,7 +45,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
 
-const PAGES = [['/', 18100], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
+const PAGES = [['/', 9000], ['/plumbing', 9600], ['/hvac', 9600], ['/builders', 9600], ['/auto-repair', 9600], ['/marine', 9600], ['/marinas', 9600], ['/salons', 9600], ['/restaurants', 9600], ['/dental', 9600], ['/insurance', 8400]];
 const WIDTHS = [375, 390, 430];
 
 const browser = await chromium.launch();
@@ -136,15 +137,18 @@ for (const w of WIDTHS) {
         const bad = [];
         document.querySelectorAll('[data-fold]').forEach(s => {
           const b = s.querySelector(':scope > .ao-foldbar'); if (!b) { bad.push(s.id + ' has no bar'); return; }
+          // a fold inside a fold (the home page's Questions and details): its outer folds open first, and close after
+          const outer = []; for (let o = s.parentElement && s.parentElement.closest('[data-fold]'); o; o = o.parentElement && o.parentElement.closest('[data-fold]')) if (!o.classList.contains('ao-open')) { o.querySelector(':scope > .ao-foldbar').click(); outer.push(o); }
           const h0 = s.getBoundingClientRect().height; b.click(); const h1 = s.getBoundingClientRect().height;
           if (!(h1 > h0 + 50) || b.getAttribute('aria-expanded') !== 'true') bad.push(s.id + ' did not open');
           b.click(); if (s.classList.contains('ao-open')) bad.push(s.id + ' did not close');
+          outer.reverse().forEach(o => o.querySelector(':scope > .ao-foldbar').click());
         });
         return bad;
       });
       folds.forEach(x => problems.push(name + ': fold ' + x));
       // The audit form's instant check answers on the page.
-      if (await page.$('#check')) { await page.evaluate(() => { const s = document.getElementById('audit'); const b = s && s.querySelector(':scope > .ao-foldbar'); if (b && !s.classList.contains('ao-open')) b.click(); });
+      if (await page.$('#check')) { await page.evaluate(() => { for (let f = document.getElementById('check').closest('[data-fold]'); f; f = f.parentElement && f.parentElement.closest('[data-fold]')) { const b = f.querySelector(':scope > .ao-foldbar'); if (b && !f.classList.contains('ao-open')) b.click(); } });
         await page.waitForTimeout(200); await page.fill('#c-q', 'Sample Plumbing'); await page.fill('#c-town', 'Eatonton, GA');
       const sb = page.locator('#check button[type=submit]'); await sb.scrollIntoViewIfNeeded(); const bb = await sb.boundingBox(); await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);   // a real tap: a locator click in touch mode taps the pre-scroll spot
       await page.waitForFunction(() => { const o = document.getElementById('check-out'); return !!(o && o.querySelector('.check-score, #check-go')); }, null, { timeout: 4000 }).catch(() => problems.push(name + ': the instant check did not answer')); }
@@ -152,6 +156,7 @@ for (const w of WIDTHS) {
       if (await page.$('#tap')) {
         const tap = await page.evaluate(async () => {
           const bad = [], s = document.getElementById('tap'), bar = s.querySelector(':scope > .ao-foldbar');
+          const outer = []; for (let o = s.parentElement && s.parentElement.closest('[data-fold]'); o; o = o.parentElement && o.parentElement.closest('[data-fold]')) if (!o.classList.contains('ao-open')) { o.querySelector(':scope > .ao-foldbar').click(); outer.push(o); }
           if (bar && !s.classList.contains('ao-open')) bar.click();
           const ph = s.querySelector('.tapphone'); ph.scrollIntoView({ block: 'center' });
           const t0 = Date.now();
@@ -161,6 +166,7 @@ for (const w of WIDTHS) {
           const btn = document.querySelector('[data-lang-t]');
           if (btn) { btn.click(); if (ph.querySelector('[data-i="5"]').textContent === en) bad.push('the call stayed English'); if (!/hombro/.test(document.getElementById('tap-h').textContent)) bad.push('the headline stayed English'); btn.click(); if (ph.querySelector('[data-i="5"]').textContent !== en) bad.push('English did not come back'); try { localStorage.removeItem('ao_lang'); } catch (e) {} }
           if (bar && s.classList.contains('ao-open')) bar.click();
+          outer.reverse().forEach(o => o.querySelector(':scope > .ao-foldbar').click());
           return bad;
         });
         tap.forEach(x => problems.push(name + ': Shoulder Tap ' + x));

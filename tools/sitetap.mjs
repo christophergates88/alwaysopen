@@ -3,8 +3,8 @@
 // tools/phone.mjs (which rewrites each page's Spanish block): node tools/sitetap.mjs
 // The band is self-contained (its own <style> and <script>): a made-up call plays out next to the owner's own phone, so
 // a visitor watches the question go out and the answer come back. Each trade page gets a question its callers ask.
-// It is open on the home page and folded on the trade pages (tools/phone.mjs keeps the fold line; the phone check holds
-// the heights). Not on the insurance and dental pages: on those lines Max takes a message and the office calls back.
+// It is folded on every page (on the home page, since Nov 14 2026, under Questions and details; tools/phone.mjs keeps the
+// fold line; the phone check holds the heights). Not on the insurance and dental pages: on those lines Max takes a message and the office calls back.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -138,7 +138,7 @@ function section(key) {
   const data = { t: STEPS.map(s => s[2]), en: { lines: L, aria: c.aria(L), lcall: c.lcall, lyou: c.lyou }, es: { lines: Les, aria: COPY.es.aria(Les), lcall: COPY.es.lcall, lyou: COPY.es.lyou } };
   const go = key === 'index' ? '/#contact' : '/?from=' + key + '#contact';
   return `<!-- tap:start -->
-<section class="tapband band" id="tap" data-label="Shoulder Tap" data-fold-title="Shoulder Tap"${key === 'index' ? '' : ' data-fold="' + esc(c.fold) + '"'} aria-labelledby="tap-h">
+<section class="tapband band" id="tap" data-label="Shoulder Tap" data-fold-title="Shoulder Tap" data-fold="${esc(c.fold)}" aria-labelledby="tap-h">
   <style>${css}</style>
   <div class="inner">
     <div class="head"><p class="eyebrow">${esc(c.eyebrow)}</p><h2 id="tap-h">${esc(c.h)}</h2></div>

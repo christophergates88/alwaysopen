@@ -4,7 +4,8 @@
 //     site put the page in a frame.
 //   SITE_CSP: the public website's pages (index.js withSiteHeaders). It names everything those pages load: our own files,
 //     Google Fonts, Cloudflare's visitor counter (Web Analytics, which Cloudflare adds to each page), and for the map
-//     MapLibre from cdnjs with OpenFreeMap tiles. Anything else a page tries to load is
+//     MapLibre from cdnjs with OpenFreeMap tiles, and frames from this site only (the home page shows the day piece,
+//     /day, beside its headline; Nov 14, 2026). Anything else a page tries to load is
 //     refused by the browser, so a stray script can't call out. The pages' scripts and styles are written into the page,
 //     so 'unsafe-inline' stays. tools/phonecheck.mjs serves the pages with this same policy and fails on any refusal, so a
 //     page that starts loading from somewhere new is caught before it goes live.
@@ -18,19 +19,9 @@ export const SITE_CSP = [
   "img-src 'self' data: blob: https://tiles.openfreemap.org",
   "media-src 'self' blob: data:",
   "connect-src 'self' https://tiles.openfreemap.org https://cloudflareinsights.com",
-  "worker-src blob:", "child-src blob:", "manifest-src 'self'",
+  "worker-src blob:", "child-src blob:", "frame-src 'self'", "manifest-src 'self'",
   "base-uri 'self'", "object-src 'none'", "frame-ancestors 'self'"
 ].join('; ');
-// The draft home page (public/draft/, Nov 13 2026: Christopher's "Do all", a draft to look at before anything changes)
-// shows the day piece in a frame from this same site, which the site policy refuses (frames fall back to child-src). Only
-// the draft's pages get that one extra line, and they are never indexed. The live pages keep SITE_CSP exactly.
-export const DRAFT_CSP = SITE_CSP + "; frame-src 'self'";
-export const isDraft = pathname => /^\/draft(\/|$)/.test(pathname);
-export function draftPolicy(res) {
-  const sets = [['x-robots-tag', 'noindex, nofollow']];
-  if (isHtml(res)) sets.push(['content-security-policy', DRAFT_CSP]);
-  return put(res, sets);
-}
 // Pages with no policy of their own. One that already refuses every frame (x-frame-options: DENY) keeps refusing them.
 export const BASE_CSP = "base-uri 'self'; object-src 'none'; frame-ancestors 'self'";
 export const BASE_CSP_NOFRAME = "base-uri 'self'; object-src 'none'; frame-ancestors 'none'";

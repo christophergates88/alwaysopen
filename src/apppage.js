@@ -314,8 +314,6 @@ button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-co
 .switch[disabled]{opacity:.45;cursor:default}
 .form label{display:grid;gap:6px;font-weight:600;font-size:15px}
 .form textarea{min-height:110px}
-.pvbar{margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(242,196,107,.45);background:var(--warn-soft);color:var(--ink);font-size:15px;line-height:1.4}
-.pvbar a{color:var(--warn);font-weight:600;white-space:nowrap}
 .dtl{list-style:none;margin:0 0 14px;padding:2px 0 0;position:relative}
 .dtl:before{content:"";position:absolute;left:79px;top:14px;bottom:14px;width:2px;background:var(--line)}
 .dtl li{display:grid;grid-template-columns:66px 1fr;gap:26px;padding:7px 0;position:relative}
@@ -599,34 +597,9 @@ function needCards(){
   if(leads)out.push('<div class="card"><b>'+leads+(leads===1?' new request':' new requests')+' from your booking page</b><div class="acts"><button class="btn line" type="button" data-a="go-leads">See who</button></div></div>');
   return out;
 }
-function todayNums(){
-  var t=new Date().toDateString(),cs=(S.calls||[]).filter(function(c){return c.at&&new Date(c.at).toDateString()===t;});
-  var after=cs.filter(function(c){return isAfter(new Date(c.at));}).length,bk=cs.filter(function(c){return c.outcome==='booked';}).length;
-  var cell=function(n,l){return '<div><b>'+n+'</b><span>'+l+'</span></div>';};
-  return '<div class="tstrip big3" aria-label="Today so far">'+cell(cs.length,cs.length===1?'call today':'calls today')+cell(after,'after hours')+cell(bk,'booked')+'</div>';
-}
-function vToday(){
-  if(PREVIEW)return vTodayDay();
-  var first=(S.me&&S.me.name)||S.client.first||'';
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
-  var need=needCards();
-  h+='<h2>Needs you</h2>';
-  if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
-  else{h+=(NEEDALL?need:need.slice(0,5)).join('');if(need.length>5)h+='<div class="acts"><button class="btn line" type="button" data-a="need-more">'+(NEEDALL?'Show fewer':(need.length-5)+' more')+'</button></div>';}
-  if(S.line)h+='<h2>Today so far</h2>'+todayNums();
-  h+=clockCard();
-  if(!isTech())h+=monthNowCard();
-  var f=S.features||{};
-  h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
-    (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+'</div>';
-  h+=flCard();
-  return h;
-}
-/* ---------- Preview of the new Today (Nov 13, 2026; Christopher's "Do all", a draft to look at first) ----------
-   Only with ?preview=day on the app's address; without it Today is exactly as before. Needs you stays on top, then today as
-   a timeline of what Always Open handled, then the month. The sample account shows the same day as the website's day piece
-   (public/draft/day.html). */
-var PREVIEW=/[?&]preview=day(&|$)/.test(location.search);
+/* ---------- Today (Nov 14, 2026; Christopher OK'd the draft: "Make it all live") ----------
+   Needs you stays on top, then today as a timeline of what Always Open handled, then the month (Max's clock and the month
+   so far). The sample account shows the same day as the website's day piece (public/day.html). */
 var DAY_SAMPLE=[
   ['2:47 AM','you','Call answered','Water coming up through the basement floor drain. Max had you on the line within a minute. Booked for 8 AM.','Brought to you'],
   ['4:10 AM','','Storm Desk','Flash flood warning for your county. Your storm-day Google post was written before the rain.','Posted after your OK'],
@@ -672,11 +645,9 @@ function dayTimeline(){
   if(!r.length)return '<h2>Today, handled</h2><div class="empty slim">'+ICON.clock+'<b>Nothing yet today.</b><span>'+esc((S.line&&S.line.name)||'Max')+' is on the clock. The first call, reply or follow-up lands here.</span></div>';
   return '<h2>Today, handled</h2>'+dayList(r,true);
 }
-function vTodayDay(){
+function vToday(){
   var first=(S.me&&S.me.name)||S.client.first||'';
-  var back=location.pathname+location.search.replace(/[?&]preview=day/,'').replace(/^&/,'?');
-  var h='<div class="pvbar" role="note"><b>Preview of the new Today.</b> What needs you, then today as a timeline, then your month. <a href="'+esc(back)+'">Back to the current Today</a></div>';
-  h+='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
   var need=needCards();
   h+='<h2>Needs you</h2>';
   if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';

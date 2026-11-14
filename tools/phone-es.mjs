@@ -9,7 +9,7 @@ import * as F from '../src/facts.js';
 const PROMISE = 'Pruébelo un mes. Si no vale la pena, no lo paga.';
 export const ES_LINE = { en: 'Max answers in English and Spanish. Your callers pick.', es: 'Max contesta en inglés y en español. Quien llama elige.' };
 
-const NAV = { 'What we do': 'Qué hacemos', 'Call Max': 'Llame a Max', 'Your business': 'Su negocio', 'A day with us': 'Un día con nosotros', 'Only here': 'Solo aquí', 'Map': 'Mapa', 'Pricing': 'Precios', 'Add-ons': 'Extras',
+const NAV = { 'A day': 'Un día', 'What it’s worth': 'Lo que vale', 'What we do': 'Qué hacemos', 'Call Max': 'Llame a Max', 'Your business': 'Su negocio', 'A day with us': 'Un día con nosotros', 'Only here': 'Solo aquí', 'Map': 'Mapa', 'Pricing': 'Precios', 'Add-ons': 'Extras',
   'Questions': 'Preguntas', 'Free audit': 'Auditoría gratis', 'Calls': 'Llamadas', 'Estimates': 'Presupuestos', 'Quotes': 'Cotizaciones', 'Finished jobs': 'Trabajos terminados',
   'Finished repairs': 'Reparaciones terminadas', 'Appointments': 'Citas', 'After a visit': 'Después de la visita', 'Catering': 'Banquetes', 'Reviews and posts': 'Reseñas y publicaciones',
   'After hours': 'Fuera de horario', 'Reviews': 'Reseñas', 'The math': 'Las cuentas', 'Plans': 'Planes', 'Compliance Guard': 'Compliance Guard', 'Rate-Shock Radar': 'Rate-Shock Radar' };
@@ -52,7 +52,12 @@ export const ES_HOME = [
   { s: '#heroCall span', h: 'Llame a Max. Lo retamos.' },
   { s: 'header.hero .promise > span', h: PROMISE },
   { s: 'header.hero p.fine', h: 'Sin cargo de instalación · Mes a mes · Inglés y español' },
-  { s: 'header.hero .onlylink', h: 'Todo lo que hacemos, en una pantalla <span aria-hidden="true">&darr;</span>' },
+  // A day with Always Open, beside the headline (the piece itself is in English), the month, and the one bar for the rest
+  { s: '#aday-h', h: 'Un día con Always Open' },
+  { s: '#aday .aday-sub', h: 'Todo lo que trabaja detrás de su negocio, en un día (la animación está en inglés). <a href="/day">Verlo en pantalla completa</a>' },
+  { s: '#clock .head .eyebrow', h: 'Lo que valió' },
+  { s: '#more > .ao-foldbar .ao-ft', h: 'Preguntas y detalles' },
+  { s: '#more > .ao-foldbar .ao-fs', h: 'Cada parte en detalle, cómo trabajamos y respuestas a lo que los dueños preguntan primero.' },
   { s: '#only .head .eyebrow', h: 'Solo aquí' },
   { s: '#only .head h2', h: 'Siete cosas que nadie más hace.' },
   { s: '#only .head > p:not(.eyebrow)', h: 'Contestar reseñas y llamadas es lo mínimo. Estas son las partes que construimos porque los negocios pequeños seguían perdiendo los mismos trabajos de la misma manera.' },

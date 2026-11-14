@@ -64,12 +64,14 @@ function front(key, p, keep) {
   const heading = p.heading || ('What nobody else does for ' + p.plural + '. Tap to try it.');
   const sub = p.sub || 'Each card plays out a call, a text or a post, start to finish. Tap a choice and watch what happens.';
   const home = key === 'index';
-  return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it" aria-labelledby="aos-h">\n' + (keep.wall ? keep.wall.replace(/\n*$/, '\n\n') : '') +
+  // The home page (Nov 14, 2026): the cards sit under "Questions and details", with a short title on their bar, and Max's
+  // clock is in the main flow right under the hero (its own <!-- clock:start --> block), so the front carries only the cards.
+  return '<!--ao:front-->\n<section class="aos band" id="go" data-label="Try it"' + (home ? ' data-fold-title="Try each part"' : '') + ' aria-labelledby="aos-h">\n' + (keep.wall ? keep.wall.replace(/\n*$/, '\n\n') : '') +
     '<div class="aos-head"><h2 id="aos-h">' + esc(heading) + '</h2><p>' + esc(sub) + '</p>' +
       (home ? '<div class="aos-pick" role="group" aria-label="Your kind of business"><span>Show it for a</span>' + TRADES.map(([k, l]) => '<button type="button" data-pick="' + k + '" aria-pressed="' + (k === 'plumbing' ? 'true' : 'false') + '">' + esc(l) + '</button>').join('') + '</div>' : '') + '</div>\n' +
     (home ? TRADES.map(([k]) => set(k, PAGES[k], k === 'plumbing')).join('\n') : set(key, p, true)) + '\n' +
     '<p class="aos-sample">Examples. On your line, Max answers with your business name.</p>\n' +
-    '</section>\n' + (keep.clock ? '\n' + keep.clock.replace(/\n*$/, '\n\n') : '') + '<!--/ao:front-->';
+    '</section>\n' + (keep.clock && !home ? '\n' + keep.clock.replace(/\n*$/, '\n\n') : '') + '<!--/ao:front-->';
 }
 
 // ---------- the styles, shown only on phones ----------
@@ -460,7 +462,8 @@ const JS = `(function () {
   });
   function openFor(id) {
     var el = id && d.getElementById(id); if (!el) return null;
-    var f = el.closest('[data-fold]'); if (f && !f.classList.contains('ao-open')) setFold(f, true);
+    // a fold inside a fold (the home page's Questions and details) opens all the way down
+    for (var f = el.closest('[data-fold]'); f; f = f.parentElement && f.parentElement.closest('[data-fold]')) if (!f.classList.contains('ao-open')) setFold(f, true);
     return el;
   }
   d.addEventListener('click', function (e) {
@@ -726,8 +729,8 @@ function foldAttrs(s, folds) {
   s = s.replace(/ data-fold="[^"]*"/g, '');
   // Max's clock band (siteclock.mjs) is on the pages that have it; it keeps its own one-line summary.
   if (s.includes('id="clock"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { clock: 'Every call on one dial, and the hours that came back to you.' });
-  // The Shoulder Tap band (sitetap.mjs) sits right after this block's front; open on the home page, folded on the rest.
-  if (s.includes('id="tap"') && folds !== FOLDS.index) folds = Object.assign({}, folds, { tap: TAP_FOLD });
+  // The Shoulder Tap band (sitetap.mjs): folded on every page (on the home page it sits under Questions and details).
+  if (s.includes('id="tap"')) folds = Object.assign({}, folds, { tap: TAP_FOLD });
   // What you control (sitecontrols.mjs) sits right before the plans; folded on phones on every page.
   if (s.includes('id="yours"')) folds = Object.assign({}, folds, { yours: YOURS_FOLD });
   for (const [id, sum] of Object.entries(folds)) {

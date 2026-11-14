@@ -75,6 +75,9 @@ const errors = [];
 const sitePage = await ctx.newPage(); sitePage.on('pageerror', e => errors.push('site: ' + e));
 await sitePage.goto(BASE + '/', { waitUntil: 'load' });
 await sitePage.waitForTimeout(800);
+// on the home page the wall sits in Try each part, under Questions and details (Nov 14, 2026): open the folds around it
+await sitePage.evaluate(() => { for (let f = document.getElementById('wall').closest('[data-fold]'); f; f = f.parentElement && f.parentElement.closest('[data-fold]')) { const b = f.querySelector(':scope > .ao-foldbar'); if (b && !f.classList.contains('ao-open')) b.click(); } });
+await sitePage.waitForTimeout(200);
 const frames = await sitePage.$$eval('#wall [data-w]', els => els.map(e => ({ id: e.getAttribute('data-w'), text: e.innerText })));
 if (frames.length !== 6) problems.push('the wall has ' + frames.length + ' frames, not 6');
 for (const f of frames) {

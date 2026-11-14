@@ -63,7 +63,12 @@ const section = `<!-- clock:start -->
 for (const f of ['public/index.html', 'public/plumbing.html', 'public/hvac.html', 'public/builders.html', 'public/auto-repair.html', 'public/marine.html', 'public/marinas.html', 'public/insurance.html']) {
   let s = readFileSync(f, 'utf8');
   // "Get yours" opens the free-audit form with this page's kind of business picked (?from=plumbing)
-  const key = f.replace(/^public\/|\.html$/g, ''), sec = key === 'index' ? section : section.replace('href="/#contact">Get yours', 'href="/?from=' + key + '#contact">Get yours');
+  // On the home page the dial comes right after A day with Always Open (Nov 14, 2026): what that day was worth, and it carries
+  // the "An example report." caption the hero's sample report used to.
+  const key = f.replace(/^public\/|\.html$/g, ''), sec = key === 'index'
+    ? section.replace('data-label="On the clock"', 'data-label="What it was worth"').replace('<p class="eyebrow">On the clock</p>', '<p class="eyebrow">What it was worth</p>')
+      .replace('<p class="clockcap">Mike’s Plumbing, October. A made-up business; the dial is drawn the same way from yours.</p>', '<p class="clockcap">An example report. Mike’s Plumbing in October, a made-up business; the dial is drawn the same way from yours.</p>')
+    : section.replace('href="/#contact">Get yours', 'href="/?from=' + key + '#contact">Get yours');
   if (s.includes('<!-- clock:start -->')) s = s.replace(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->\n?/, sec);
   else {
     // right after "Tap to try it" (its grade check has to stay on the first three phone screens, tools/phonecheck.mjs);

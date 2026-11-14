@@ -1084,7 +1084,8 @@ footer span,footer a,footer .entity{font-size:15px}
   });
   function openFor(id) {
     var el = id && d.getElementById(id); if (!el) return null;
-    var f = el.closest('[data-fold]'); if (f && !f.classList.contains('ao-open')) setFold(f, true);
+    // a fold inside a fold (the home page's Questions and details) opens all the way down
+    for (var f = el.closest('[data-fold]'); f; f = f.parentElement && f.parentElement.closest('[data-fold]')) if (!f.classList.contains('ao-open')) setFold(f, true);
     return el;
   }
   d.addEventListener('click', function (e) {

@@ -43,24 +43,17 @@ test('the public pages get the full policy; it names every place they load from 
   for (const d of ["default-src 'self'", "object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'"]) assert.ok(HD.SITE_CSP.includes(d), d);
 });
 
-test('the draft home page may frame its own day piece and stays out of search; the live pages keep the site policy exactly', async () => {
-  for (const p of ['/draft/index', '/draft/day']) {
+test('the home page may frame the day piece from this site, and nothing else', async () => {
+  assert.ok(HD.SITE_CSP.includes("frame-src 'self'"));
+  assert.doesNotMatch(HD.SITE_CSP, /frame-src[^;]*https?:/, 'no outside frames');
+  for (const p of ['/', '/day']) {
     const r = await site.call(p);
     assert.equal(r.status, 200, p);
-    assert.equal(r.headers.get('content-security-policy'), HD.DRAFT_CSP, p);
-    assert.match(r.headers.get('x-robots-tag') || '', /noindex/, p);
-  }
-  assert.equal(HD.DRAFT_CSP, HD.SITE_CSP + "; frame-src 'self'");
-  for (const p of ['/', '/plumbing', '/sample-report']) {
-    const r = await site.call(p);
     assert.equal(r.headers.get('content-security-policy'), HD.SITE_CSP, p);
     assert.equal(r.headers.get('x-robots-tag'), null, p);
   }
-  // the draft is linked from nowhere and on no sitemap
-  const xml = fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
-  assert.doesNotMatch(xml, /\/draft/);
-  for (const f of fs.readdirSync(new URL('../public/', import.meta.url)).filter(x => /\.html$/.test(x))) assert.doesNotMatch(fs.readFileSync(new URL('../public/' + f, import.meta.url), 'utf8'), /href="\/draft/, f + ' links to the draft');
-  for (const f of ['index.html', 'day.html']) assert.match(fs.readFileSync(new URL('../public/draft/' + f, import.meta.url), 'utf8'), /<meta name="robots" content="noindex, nofollow">/, f);
+  // the page it frames is this site's own
+  assert.match(fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8'), /<iframe class="aday-f" src="\/day"/);
 });
 
 test('the app keeps its own stricter policy, and a page that refuses every frame keeps refusing them', async () => {
