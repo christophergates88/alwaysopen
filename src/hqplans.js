@@ -2,7 +2,8 @@
 // mention a time, with a little of the chat around them. Claude Haiku pulls out plans Christopher is part of (what,
 // day, time, who, where) and whether a plan changed or was called off. Plans live in D1 hq_plans; his Gates HQ page
 // shows them on "Your day" and the Mac pushes them to his phone. Mac key only (x-key = LEADS_KEY).
-// GET gives the Mac what it needs for pushes: upcoming plans, today's routine from the widget row, and where he is.
+// GET gives the Mac what it needs for pushes: upcoming plans, today's routine from the widget row, the page's own list
+// for each day, what he moved or took off a day from Gates HQ 2's Ask, and where he is.
 
 const SYS = `You read text messages for Christopher Gates (central Georgia, US Eastern time) and keep his schedule.
 You get new messages (from him = "Me", or from someone) with recent chat context, today's date and time, and his
@@ -107,9 +108,12 @@ export async function handleHqPlans(req, env, json) {
     const w = await env.DB.prepare('SELECT json FROM hq_widget WHERE id = 1').first().catch(() => null);
     let wj = {}; try { wj = JSON.parse((w && w.json) || '{}'); } catch (e) {}
     try { const kv = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'day'").first(); if (kv && kv.v) wj = Object.assign(wj, JSON.parse(kv.v)); } catch (e) {}
+    // what he moved or took off a day from Gates HQ 2's Ask (hq_kv 'dayedits'): the Mac applies it to its pushes
+    let dayedits = {}; try { const kv = await env.DB.prepare("SELECT v FROM hq_kv WHERE k = 'dayedits'").first(); if (kv && kv.v) dayedits = JSON.parse(kv.v) || {}; } catch (e) {}
+    const days = wj.days && typeof wj.days === 'object' ? wj.days : null;   // the page's own list for each of the next days (the Mac uses today's)
     let where = [];
     try { where = ((await env.DB.prepare("SELECT at, kind, lat, lon, place, until FROM hq_where WHERE at >= ?1 OR kind = 'place' ORDER BY at").bind(new Date(Date.now() - 36 * 3600e3).toISOString()).all()).results) || []; } catch (e) {}
-    return json({ ok: true, plans, routine: wj.routine || null, day: wj.day || null, dayDate: wj.dayDate || null, where, mute });   // mute: the Mac keeps a copy for its own pushes
+    return json({ ok: true, plans, routine: wj.routine || null, day: wj.day || null, dayDate: wj.dayDate || null, days, dayedits, where, mute });   // mute: the Mac keeps a copy for its own pushes
   }
   if (req.method !== 'POST') return json({ ok: false }, 404);
   const body = await req.text();

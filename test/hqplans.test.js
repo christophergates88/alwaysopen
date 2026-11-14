@@ -35,3 +35,18 @@ test('saved plans about a muted topic are not handed to the Mac', async () => {
   assert.deepEqual(r.plans.map(p => p.key).sort(), ['m2', 'm3']);
   assert.deepEqual(r.mute, ['Zeta'], 'the Mac gets the list too, for its own pushes');
 });
+
+test('the Mac gets the page\'s list for each day and what he moved or took off a day from Ask, for its pushes', async () => {
+  const env = { DB: makeDB() };
+  await handleHqPlans(new Request('https://x/ops/hq-plans', { method: 'GET' }), env, json);
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS hq_kv (k TEXT PRIMARY KEY, at TEXT, v TEXT)').run();
+  let r = await (await handleHqPlans(new Request('https://x/ops/hq-plans', { method: 'GET' }), env, json)).json();
+  assert.deepEqual([r.days, r.dayedits], [null, {}], 'nothing saved yet');
+  const lists = { [day(0)]: [{ id: 'work', t: '09:00', what: 'Work' }] }, edits = { [day(0)]: { skip: ['id:wash'], move: { 'id:work': { t: '09:30' } } } };
+  await env.DB.prepare("INSERT INTO hq_kv (k, at, v) VALUES ('day', ?1, ?2)").bind(new Date().toISOString(), JSON.stringify({ dayDate: day(0), day: [], days: lists, routine: { days: [1], items: [] } })).run();
+  await env.DB.prepare("INSERT INTO hq_kv (k, at, v) VALUES ('dayedits', ?1, ?2)").bind(new Date().toISOString(), JSON.stringify(edits)).run();
+  r = await (await handleHqPlans(new Request('https://x/ops/hq-plans', { method: 'GET' }), env, json)).json();
+  assert.deepEqual(r.days, lists);
+  assert.deepEqual(r.dayedits, edits);
+  assert.deepEqual(r.routine, { days: [1], items: [] });
+});
