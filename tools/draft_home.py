@@ -218,6 +218,17 @@ DAY_CSS = '''<style id="draft-css">
 #more>section{margin:0}
 .js #more [data-fold]:not(.ao-open){padding-top:0!important;padding-bottom:0!important}
 .js #more [data-fold].ao-open{padding-top:0!important}
+/* on a wide screen the topics stay open as they are today, but the whole group still folds into one bar */
+@media (min-width:761px){
+.js #more:not(.ao-open)>:not(.ao-foldbar){display:none!important}
+#more>.ao-foldbar{display:flex;align-items:center;gap:18px;width:100%;max-width:1120px;min-height:100px;margin:0 auto;padding:28px 0;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+#more>.ao-foldbar .ao-ft{display:block;font:800 1.7rem/1.15 var(--display);font-stretch:92%}
+#more>.ao-foldbar .ao-fs{display:block;margin-top:6px;font-size:17px;line-height:1.45;color:var(--slate)}
+#more>.ao-foldbar svg{flex:none;margin-left:auto;width:28px;height:28px;color:var(--sign);transition:transform .2s}
+#more.ao-open>.ao-foldbar svg{transform:rotate(180deg)}
+#more>.ao-foldbar:focus-visible{outline:3px solid var(--sign);outline-offset:4px}
+.js #more:not(.ao-open){padding-bottom:12px}
+}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap" media="print" onload="this.media='all'">'''
 
