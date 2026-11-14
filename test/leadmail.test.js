@@ -1,5 +1,6 @@
-// Speed to lead: the free audit goes out by email within a minute of the request, then two follow-ups at most, and
-// every one of them stops the moment the person signs up, replies, or taps the stop link.
+// Speed to lead: the free audit goes out by email within a minute of the request, and it is the whole proposal, sent
+// once. Then one reminder at most, with nothing new in it, and never one after the person signs up, replies, or taps
+// the stop link.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
@@ -38,6 +39,16 @@ test('the audit email: the grade, the three fixes, a sample page, how to start, 
     assert.doesNotMatch(t, /\bAI\b/);
   }
   assert.match(m.text, /4\.3 stars from 31 reviews on Google today/);
+  // one proposal: what it costs is in it (the plan they picked marked), and it says that this is everything
+  const p = L.auditMail(LEAD, AUDIT, 'https://x/stop', ENV, '', { pageLink: 'https://alwaysopenoffice.com/your-audit/abcdefghjkmnpqrs' });
+  for (const t of [p.text, p.html]) {
+    assert.match(t, /What it costs/);
+    assert.match(t, /Starter: about \$5 a day \(\$149 a month\)/);
+    assert.match(t, /Growth \(the one you picked\): about \$10 a day \(\$299 a month\)/);
+    assert.match(t, /Pro: about \$16 a day \(\$499 a month\)/);
+    assert.match(t, /That’s everything, in one place: what we found, what we’d do, what it costs and how to start\./);
+    assert.match(t, /alwaysopenoffice\.com\/your-audit\/abcdefghjkmnpqrs/);
+  }
 });
 
 test('in Spanish when they wrote in Spanish', () => {
@@ -102,7 +113,7 @@ test('audit retries: a failed send, or a request whose audit never started, goes
   assert.equal((await L.auditRetryCron(env, now + 10 * 60e3, h)).tried, 1, 'only the fresh one, now old enough');
 });
 
-test('follow-ups: day 2 and day 6, weekday business hours, and they stop on signup or the stop link', async () => {
+test('one reminder, three days on, with nothing new in it; weekday business hours; never after a signup or the stop link', async () => {
   const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
   await L.ensureLeadMail(env);
   const t0 = Date.parse('2026-10-26T14:00:00Z');   // Monday 10 AM Eastern
@@ -111,9 +122,9 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
     .bind(new Date(t0).toISOString(), email, business, JSON.stringify({ title: 'No hours on Google', fix: 'We add hours, holiday hours and closures, and keep them current.' })).run()).meta.last_row_id;
   const a = await add('dana@example.com', 'Sinclair Plumbing'), b = await add('sam@example.com', 'Oak Electric'), c = await add('lee@example.com', 'Lee Lawn');
   const sent = []; const h = { send: async (to, m) => { sent.push({ to, subject: m.subject, text: m.text }); return 'sent'; } };
-  assert.deepEqual(await L.followCron(env, t0 + 24 * 3600e3, h), { sent: 0, stopped: 0 }, 'not before day 2');
-  assert.deepEqual(await L.followCron(env, Date.parse('2026-10-29T02:00:00Z'), h), { quiet: true }, '10 PM Eastern: quiet');
-  assert.deepEqual(await L.followCron({ DB, LEADS_KEY: 'k' }, t0 + 2 * 864e5, h), { held: 'no postal address set' });
+  assert.deepEqual(await L.followCron(env, t0 + 2 * 864e5, h), { sent: 0, stopped: 0 }, 'not before day 3');
+  assert.deepEqual(await L.followCron(env, Date.parse('2026-10-30T02:00:00Z'), h), { quiet: true }, '10 PM Eastern: quiet');
+  assert.deepEqual(await L.followCron({ DB, LEADS_KEY: 'k' }, t0 + 3 * 864e5, h), { held: 'no postal address set' });
   // Lee signs up; Sam taps the stop link
   await DB.prepare("INSERT INTO billing (client_id, session_id, business, email, status, created) VALUES ('lee', 's1', 'Lee Lawn', 'LEE@example.com', 'active', ?1)").bind(new Date().toISOString()).run();
   const stop = new URL(await L.stopLink(env, b));
@@ -123,20 +134,53 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
   assert.match(await page.text(), /No more emails/);
   const bad = new URL('https://alwaysopenoffice.com/lead/stop?i=' + a + '&k=0000');
   assert.match(await (await L.handleStop(new Request(bad), env, bad)).text(), /didn’t work/);
-  let r = await L.followCron(env, t0 + 2 * 864e5, h);   // Wednesday 10 AM
+  let r = await L.followCron(env, t0 + 3 * 864e5, h);   // Thursday 10 AM
   assert.deepEqual(r, { sent: 1, stopped: 1 });
-  assert.equal(sent[0].to, 'dana@example.com'); assert.equal(sent[0].subject, 'Your free audit: the quickest win', 'no "Re:" and nothing typed into the form');
-  assert.match(sent[0].text, /The quickest win for your business: we add hours, holiday hours and closures, and keep them current\./);
+  assert.equal(sent[0].to, 'dana@example.com'); assert.equal(sent[0].subject, 'Your free audit: still here when you’re ready', 'no "Re:" and nothing typed into the form');
+  assert.match(sent[0].text, /One reminder, and it’s the only one we’ll send: your audit and our proposal are still here: https:\/\/alwaysopenoffice\.com\/your-audit\/[A-Za-z0-9]{16}/);
+  assert.match(sent[0].text, /Nothing has changed\./);
+  assert.doesNotMatch(sent[0].text, /quickest win|Last note|Sinclair/, 'no new pitch, and nothing typed into the form');
   assert.match(sent[0].text, /lead\/stop\?i=/); assert.match(sent[0].text, /103 W Sumter St/);
-  assert.deepEqual(await L.followCron(env, t0 + 3 * 864e5, h), { sent: 0, stopped: 0 }, 'not twice');
-  r = await L.followCron(env, t0 + 6 * 864e5, h);   // the next Sunday: quiet
-  assert.deepEqual(r, { quiet: true });
-  r = await L.followCron(env, t0 + 7 * 864e5, h);   // Monday
-  assert.deepEqual(r, { sent: 1, stopped: 0 });
-  assert.equal(sent[1].subject, 'Last note on your audit');
-  assert.deepEqual(await L.followCron(env, t0 + 9 * 864e5, h), { sent: 0, stopped: 0 }, 'two follow-ups, never a third');
+  // its link opens their own proposal page
+  const tokenOf = (await DB.prepare('SELECT token FROM leads WHERE id = ?1').bind(a).first()).token;
+  assert.match(sent[0].text, new RegExp('/your-audit/' + tokenOf));
+  for (const d of [4, 7, 9, 14]) assert.deepEqual(await L.followCron(env, t0 + d * 864e5, h), { sent: 0, stopped: 0 }, 'one reminder, never a second (day ' + d + ')');
+  assert.equal(sent.length, 1);
   const rows = (await DB.prepare('SELECT email, stop FROM leads ORDER BY id').all()).results.map(x => [x.email, x.stop || '']);
   assert.deepEqual(rows, [['dana@example.com', ''], ['sam@example.com', 'unsubscribed'], ['lee@example.com', 'signed up']]);
+});
+
+test('a proposal made by hand: one page, one link, emailed once if there is an address, and never the automatic reminder', async () => {
+  const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
+  await L.ensureLeadMail(env);
+  const t0 = Date.parse('2026-10-26T14:00:00Z');
+  const sent = []; const h = { run: async () => AUDIT, send: async (to, m) => { sent.push({ to, subject: m.subject, text: m.text }); return 'sent'; }, now: t0 };
+  assert.equal((await L.makeProposal(env, { business: '' }, h)).ok, false);
+  assert.match((await L.makeProposal(env, { business: 'Nobody Here LLC', town: 'Gray, GA' }, Object.assign({}, h, { run: async () => ({ found: false }) }))).error, /no exact match for “Nobody Here LLC, Gray, GA”/);
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM leads').first()).n, 0, 'no match, nothing saved');
+  const r = await L.makeProposal(env, { business: 'Sinclair Plumbing', town: 'Eatonton, GA', name: 'Dana', email: 'Dana@Example.com' }, h);
+  assert.equal(r.ok, true); assert.equal(r.grade, 'D'); assert.equal(r.emailed, 'Emailed to dana@example.com.');
+  assert.match(r.link, /^https:\/\/alwaysopenoffice\.com\/your-audit\/[A-Za-z0-9]{16}$/);
+  assert.equal(r.text, 'Here’s the Always Open proposal for Sinclair Plumbing: what we found, what we’d do, what it costs and how to start, all on one page. ' + r.link);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /Here’s the proposal for Sinclair Plumbing\./);
+  assert.match(sent[0].text, /What it costs/); assert.ok(sent[0].text.includes(r.link));
+  assert.match(sent[0].text, /because you asked Always Open for a proposal/);
+  // a double tap is the same proposal, and nothing is emailed twice
+  const again = await L.makeProposal(env, { business: 'Sinclair Plumbing', town: 'Eatonton, GA', email: 'dana@example.com' }, Object.assign({}, h, { now: t0 + 60e3 }));
+  assert.equal(again.link, r.link); assert.equal(sent.length, 1);
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM leads').first()).n, 1);
+  // the page is the whole proposal, and stays whole after the fresh look-ups are used up
+  const url = new URL(r.link);
+  let html = await (await L.handleAuditPage(new Request(url), env, url, { run: async () => AUDIT })).text();
+  assert.match(html, /<title>Proposal: Sinclair Plumbing<\/title>/); assert.match(html, /What it costs/); assert.match(html, /Call Max at \(706\) 460-2226 any hour/);
+  await DB.prepare("UPDATE leads SET views = '9' WHERE id = ?1").bind(r.id).run();
+  html = await (await L.handleAuditPage(new Request(url), env, url, { run: async () => { throw new Error('must not look up'); } })).text();
+  for (const w of [/Sinclair Plumbing/, /What we’d fix first/, /Fewer reviews than nearby competitors/, /What it costs/, /about \$5 a day/, /Start my first month/, /If it’s not worth it, you don’t pay for it/]) assert.match(html, w);
+  // it is his to follow up: clicked or not, the automatic reminder never goes
+  await DB.prepare('UPDATE leads SET engaged = ?1 WHERE id = ?2').bind(new Date(t0).toISOString(), r.id).run();
+  assert.deepEqual(await L.followCron(env, t0 + 3 * 864e5, h), { sent: 0, stopped: 0 });
+  assert.equal(sent.length, 1);
 });
 
 test('the website form: the audit email goes out on its own, and the page says so', async () => {
@@ -185,6 +229,7 @@ test('a caller who says yes gets one text with a private link; the page shows th
   assert.equal(texts[0].clientId, 'always-open'); assert.equal(texts[0].kind, 'reply'); assert.equal(texts[0].to, '+14785550101');
   const m = /https:\/\/alwaysopenoffice\.com\/your-audit\/([A-Za-z0-9]{16}) /.exec(texts[0].body);
   assert.ok(m, texts[0].body); assert.match(texts[0].body, /Reply STOP to opt out\.$/);
+  assert.match(texts[0].body, /Everything is on that one page\./); assert.doesNotMatch(texts[0].body, /follow up/);
   const url = new URL('https://alwaysopenoffice.com/your-audit/' + m[1]);
   const sent = [], pings = [];
   const h = { run: async () => AUDIT, send: async (to, mm) => { sent.push({ to, subject: mm.subject }); return 'sent'; }, ping: async t => pings.push(t) };

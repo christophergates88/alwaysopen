@@ -199,7 +199,7 @@ function threadHtml(thread, now) {
 }
 function leadHtml(l, now) {
   const who = String(l.business || l.name || '').trim() || (/^phone /.test(l.origin || '') ? 'Caller' : 'Someone');
-  const src = /^phone /.test(l.origin || '') ? 'Called the sales line' : (/^letter/.test(l.origin || '') ? 'Asked for a call from their letter' : 'Filled in the form');
+  const src = /^phone /.test(l.origin || '') ? 'Called the sales line' : /^letter/.test(l.origin || '') ? 'Asked for a call from their letter' : /^hq /.test(l.origin || '') ? 'You sent them a proposal' : 'Filled in the form';
   const bits = [l.name && l.business ? l.name : '', l.type, l.town, l.plan ? l.plan + ' plan' : '', l.grade ? 'grade ' + l.grade : ''].filter(Boolean).map(esc);
   const contact = [tel(l.phone), l.email ? '<a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a>' : ''].filter(Boolean).join(' &nbsp; ');
   const tags = '<span class="tag' + (l.status === 'won' ? ' ok' : l.status === 'talking' ? ' warn' : '') + '">' + esc(l.test ? 'Test call' : ({ new: 'New', letter: 'New', talking: 'Talking', won: 'Won', lost: 'Lost' }[l.status] || l.status)) + '</span>';
@@ -312,6 +312,27 @@ function hqClient(T) {
       }).catch(function () { b.disabled = false; as.textContent = 'No connection. Try again.'; });
       return;
     }
+    if (b.dataset.proposal) {
+      var pf = b.closest('.in'), pv = function (k) { var x = pf.querySelector('[data-p="' + k + '"]'); return x ? x.value : ''; }, ps2 = b.parentNode.querySelector('.said');
+      if (!String(pv('business')).trim()) { ps2.textContent = 'Add the business name.'; return; }
+      b.disabled = true; ps2.textContent = 'Looking them up on Google…';
+      send('/ops/hq/proposal', { business: pv('business'), town: pv('town'), name: pv('name'), email: pv('email') }).then(function (j) {
+        b.disabled = false;
+        if (!j.ok) { ps2.textContent = j.error || 'Did not work. Try again.'; return; }
+        var bx = pf.querySelector('[data-pmade]'); bx.hidden = false;
+        bx.querySelector('b').textContent = j.business + ': grade ' + j.grade + '. The proposal is ready.';
+        var ln = bx.querySelector('a'); ln.href = j.link; ln.textContent = j.link;
+        bx.querySelector('[data-ptext]').textContent = j.text; bx.querySelector('[data-pnote]').textContent = j.emailed || '';
+        ps2.textContent = j.again ? 'You made this one a few minutes ago. Same link.' : 'Ready.';
+      }).catch(function () { b.disabled = false; ps2.textContent = 'No connection. Try again.'; });
+      return;
+    }
+    if (b.dataset.pshare || b.dataset.pcopy) {
+      var px = b.closest('[data-pmade]'), ptx = px.querySelector('[data-ptext]').textContent, psaid = b.parentNode.querySelector('.said');
+      var copy = function () { try { navigator.clipboard.writeText(ptx).then(function () { psaid.textContent = 'Copied. Paste it into a text or an email, once.'; }, function () { psaid.textContent = 'Press and hold the words above to copy them.'; }); } catch (x) { psaid.textContent = 'Press and hold the words above to copy them.'; } };
+      if (b.dataset.pshare && navigator.share) { navigator.share({ text: ptx }).catch(function () { /* he closed the share sheet */ }); } else copy();
+      return;
+    }
     if (b.dataset.posted) {
       b.disabled = true; b.textContent = 'Saving…';
       fetch('/ops/post?t=' + encodeURIComponent(T), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: b.dataset.posted }) }).then(function (r) { return r.json(); })
@@ -395,6 +416,7 @@ export function hqHtml(s, tok) {
       '<p class="grp">Insurance, medical and legal offices, also</p>' + s.rules.strict.map(w => '<span class="kv">' + esc(w) + '</span>').join('') +
       (s.rules.pass.length ? '<p class="grp">Wording that passes</p>' + s.rules.pass.map(w => '<div class="words">' + esc(w) + '</div>').join('') : '') +
       '<p style="font-size:14px;margin-top:8px">A regulated office’s reply that the owner edited waits for your look before it can post.</p><div class="acts"><a class="btn" href="/ops/compliance-pack?t=' + esc(tok) + '" target="_blank" rel="noopener">Open the one-page rule sheet</a></div>' : '') +
+    look('proposal', 'Make a proposal for a business', proposalHtml()) +
     look('add', 'Add a client by hand', addClientHtml()) +
     '<a class="look" href="/ops/numbers?t=' + esc(tok) + '">The numbers: revenue, costs and margin</a>' +
     '<script>(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');</script></main></body></html>';
@@ -411,6 +433,15 @@ function addClientHtml() {
     '<label style="display:flex;gap:10px;align-items:center;margin-top:12px;min-height:44px"><input type="checkbox" data-f="line" style="width:22px;height:22px"> <span>Buy Max a phone number for them now (Twilio charges for the number)</span></label>' +
     '<div class="acts"><button type="button" class="go" data-addclient="1">Add this client</button><span class="said" role="status"></span></div>' +
     '<div class="it" data-made hidden style="margin-top:10px"><b></b><a class="sub" href="#" target="_blank" rel="noopener" style="display:block;min-height:44px;padding-top:10px"></a><span class="sub"></span></div>';
+}
+// One proposal, sent once (Nov 13 2026): a business in, its one page out, with the words to send it. leadmail.js.
+function proposalHtml() {
+  const inp = (k, label, type, ph) => '<label style="display:block;margin-top:8px;font-size:14px;color:var(--slate)">' + label + '<input class="note" style="margin-top:4px" type="' + (type || 'text') + '" data-p="' + k + '" maxlength="120"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' autocomplete="off"></label>';
+  return '<p style="font-size:14px">For a business you are talking to. You get one link with the whole proposal on it: what we found, what we would do, what it costs and how to start. Send it once. No reminder emails go out for these; the follow-up is yours.</p>' +
+    inp('business', 'Business name, as Google shows it') + inp('town', 'Town and state', 'text', 'Eatonton, GA') + inp('name', 'Their first name (optional)') + inp('email', 'Their email (optional: we email it too)', 'email') +
+    '<div class="acts"><button type="button" class="go" data-proposal="1">Make the proposal</button><span class="said" role="status"></span></div>' +
+    '<div class="it" data-pmade hidden style="margin-top:10px"><b></b><a class="sub" href="#" target="_blank" rel="noopener" style="display:block;min-height:44px;padding-top:10px"></a><div class="words" data-ptext></div><span class="sub" data-pnote></span>' +
+    '<div class="acts"><button type="button" class="go" data-pshare="1">Send it</button><button type="button" data-pcopy="1">Copy the words</button><span class="said" role="status"></span></div></div>';
 }
 const HAND_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
 const HAND_PLANS = ['Starter', 'Growth', 'Pro'];
@@ -466,6 +497,13 @@ export async function hqLead(env, leadId, status, note) {
 // allowed(req, env, url, tok): the ops board's own check (key, dated link or cookie).
 export async function handleHq(req, env, url, h) {
   const path = url.pathname;
+  if (path === '/ops/hq/proposal') {
+    let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
+    if (req.method !== 'POST' || !(await h.allowed(req, env, url, String(b.t || '')))) return J({ ok: false }, 403);
+    const r = await (h.makeProposal || (await import('./leadmail.js')).makeProposal)(env, b);
+    const code = r.code || 200; delete r.code;
+    return J(r, code);
+  }
   if (path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/hq/post' || path === '/ops/hq/client') {
     let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
     if (req.method !== 'POST' || !(await h.allowed(req, env, url, String(b.t || '')))) return J({ ok: false }, 403);

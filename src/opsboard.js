@@ -236,7 +236,7 @@ export function switchSection(s) {
 export async function handleOpsBoard(req, env, url) {
   const path = url.pathname;
   // The page: /ops and /ops/hq are both Always Open HQ (opshq.js), the one page with everything that needs him on it.
-  if (path === '/ops' || path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/hq/post' || path === '/ops/hq/client') return (await import('./opshq.js')).handleHq(req, env, url, { allowed, boardToken, boardCookie });
+  if (path === '/ops' || path === '/ops/hq' || path === '/ops/hq/reply' || path === '/ops/hq/lead' || path === '/ops/hq/post' || path === '/ops/hq/client' || path === '/ops/hq/proposal') return (await import('./opshq.js')).handleHq(req, env, url, { allowed, boardToken, boardCookie });
   if (path === '/ops/done') {
     let b = {}; try { b = await req.json(); } catch (e) { /* bad body */ }
     if (req.method !== 'POST' || !(await allowed(req, env, url, String(b.t || '')))) return new Response('{"ok":false}', { status: 403, headers: { 'content-type': 'application/json' } });
