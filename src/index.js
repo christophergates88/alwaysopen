@@ -44,7 +44,7 @@ import { connectionsCron } from './connections.js';
 import { socialCron } from './social.js';
 import { photoPostCron } from './posts.js';
 import { boardToken } from './opsboard.js';
-import { harden, sitePolicy } from './headers.js';
+import { harden, sitePolicy, isDraft, draftPolicy } from './headers.js';
 import { tryRefresh as gcalRefresh } from './gcal.js';
 import { tryRefresh as gbpRefresh } from './gbp.js';
 
@@ -539,6 +539,8 @@ function withSiteHeaders(res, url) {
   if (/^\/(social\/[\w-]+\.(jpg|png)|icon-512\.png|og\d?\.(png|jpg))$/.test(url.pathname)) out.headers.set('access-control-allow-origin', '*');
   // Keep search engines off the temporary workers.dev address; the real domain is indexed.
   if (url.hostname.endsWith('.workers.dev')) out.headers.set('x-robots-tag', 'noindex');
+  // the draft home page (public/draft/) frames its day piece and stays out of search (headers.js draftPolicy)
+  if (isDraft(url.pathname)) return draftPolicy(out);
   return out;
 }
 

@@ -1130,6 +1130,8 @@ async function clockState(env, c, tech, x) {
   const m = await K.clockFor(env, c.client_id, w.start, w.end, { tz: w.tz, mtd: true, name: w.name, reasons: !tech, worth: tech ? 0 : x.worth, live: x.live });
   const month = new Date(Date.parse(w.start)).toLocaleDateString('en-US', { month: 'long', timeZone: w.tz });
   return { month, name: m.name, onMin: m.onMin, backMin: m.backMin, calls: m.calls, alone: m.alone, toYou: m.toYou, after: m.after, byKind: m.byKind, n: m.n, worth: m.worth, liveMin: m.live == null ? -1 : m.live,
+    // the business's own date and time zone, so the Today timeline (apppage.js preview) can pick out today's events
+    today: m.nowDay, tz: w.tz,
     lines: K.clockLines(m), explained: K.backExplained(m), one: m.one ? m.one.text : '', oneMin: m.one ? m.one.m : -1, nowMin: m.nowMin,
     svg: K.clockSVG(m, { id: 'app', size: 280, live: true, anim: true }),
     // every tick for the iPhone app's own dial: minute of day, kind, brought to you, after hours

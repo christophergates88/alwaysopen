@@ -314,6 +314,23 @@ button.sign{font:inherit;background:none;cursor:pointer;-webkit-tap-highlight-co
 .switch[disabled]{opacity:.45;cursor:default}
 .form label{display:grid;gap:6px;font-weight:600;font-size:15px}
 .form textarea{min-height:110px}
+.pvbar{margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(242,196,107,.45);background:var(--warn-soft);color:var(--ink);font-size:15px;line-height:1.4}
+.pvbar a{color:var(--warn);font-weight:600;white-space:nowrap}
+.dtl{list-style:none;margin:0 0 14px;padding:2px 0 0;position:relative}
+.dtl:before{content:"";position:absolute;left:79px;top:14px;bottom:14px;width:2px;background:var(--line)}
+.dtl li{display:grid;grid-template-columns:66px 1fr;gap:26px;padding:7px 0;position:relative}
+.dtl li:before{content:"";position:absolute;left:74px;top:13px;width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px rgba(92,201,164,.6)}
+.dtl li.you:before{background:var(--sign);box-shadow:0 0 10px rgba(255,90,77,.75)}
+.dtl li.wait:before{background:var(--warn);box-shadow:0 0 10px rgba(242,196,107,.6)}
+.dtl li.now:before{background:var(--paper);border:2px solid var(--ok);box-shadow:0 0 0 4px rgba(92,201,164,.18)}
+.dtl time{font:500 14px/1.35 var(--mono);color:var(--slate);text-align:right;padding-top:1px;white-space:nowrap}
+.dtl li>div{display:grid;gap:3px;min-width:0}
+.dtl b{font-weight:700;line-height:1.3}
+.dtl span{color:var(--slate);font-size:15px;line-height:1.4}
+.dtl em{justify-self:start;margin-top:2px;font:600 13px/1.2 var(--body);font-style:normal;border-radius:99px;padding:3px 10px;background:var(--ok-soft);color:var(--ok)}
+.dtl em.r{background:var(--sign-soft);color:#FFB3AC}
+.dtl em.w{background:var(--warn-soft);color:var(--warn)}
+.dtl-note{margin:-4px 0 10px}
 .sample{margin:0 0 12px;padding:9px 12px;border-radius:12px;border:1px dashed var(--line);background:var(--soft,transparent);font-size:15px;color:var(--slate)}.sample b{color:var(--ink)}.vers{margin-top:10px;display:grid;gap:10px}.ver{border:1px dashed var(--line);border-radius:12px;padding:10px}.ver .btn{margin-top:8px}
 select{width:100%;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;font-size:16px;color:var(--ink)}
 .form details summary{cursor:pointer;font-weight:600;color:var(--slate);min-height:44px;display:flex;align-items:center}
@@ -589,6 +606,7 @@ function todayNums(){
   return '<div class="tstrip big3" aria-label="Today so far">'+cell(cs.length,cs.length===1?'call today':'calls today')+cell(after,'after hours')+cell(bk,'booked')+'</div>';
 }
 function vToday(){
+  if(PREVIEW)return vTodayDay();
   var first=(S.me&&S.me.name)||S.client.first||'';
   var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
   var need=needCards();
@@ -598,6 +616,73 @@ function vToday(){
   if(S.line)h+='<h2>Today so far</h2>'+todayNums();
   h+=clockCard();
   if(!isTech())h+=monthNowCard();
+  var f=S.features||{};
+  h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
+    (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+'</div>';
+  h+=flCard();
+  return h;
+}
+/* ---------- Preview of the new Today (Nov 13, 2026; Christopher's "Do all", a draft to look at first) ----------
+   Only with ?preview=day on the app's address; without it Today is exactly as before. Needs you stays on top, then today as
+   a timeline of what Always Open handled, then the month. The sample account shows the same day as the website's day piece
+   (public/draft/day.html). */
+var PREVIEW=/[?&]preview=day(&|$)/.test(location.search);
+var DAY_SAMPLE=[
+  ['2:47 AM','you','Call answered','Water coming up through the basement floor drain. Max had you on the line within a minute. Booked for 8 AM.','Brought to you'],
+  ['4:10 AM','','Storm Desk','Flash flood warning for your county. Your storm-day Google post was written before the rain.','Posted after your OK'],
+  ['7:15 AM','','Review answered','A 5-star review: Showed up on time. Fixed it right. Replied in your voice, checked word for word before it went out.','Handled'],
+  ['8:15 AM','','Call-backs on time','Everyone else from the night got the call-back Max promised them.','Handled'],
+  ['9:02 AM','','Quote followed up','Dana R. had gone quiet on Tuesday’s quote. A text checked in. She said Thursday works.','Booked'],
+  ['10:30 AM','','Competitor watch','You’re #2 of 6 nearby. 7 more 5-star reviews to be #1.','Checked'],
+  ['12:10 PM','','Three-day check-in','Sam said the job held up. A review request went out.','Handled'],
+  ['2:00 PM','','Fill my week','Thursday was wide open. Past customers who are due got an offer; the first yes is booked.','Booked'],
+  ['4:45 PM','','Invoice reminder','The invoice from the 20th got a reminder with a pay link.','Sent'],
+  ['11:20 PM','wait','Quote request','A request came in from your website after hours. The details are waiting for you.','Waiting for you']
+];
+var DAY_KIND={call:'Call answered',checkin:'Check-in call',followup:'Follow-up sent',reply:'Review answered',post:'Post made',textback:'Missed-call text sent'};
+function capFirst(t){t=String(t||'');return t.charAt(0).toUpperCase()+t.slice(1);}
+function lday(iso){var d=new Date(iso);if(isNaN(d))return null;
+  try{var o={};new Intl.DateTimeFormat('en-US',{timeZone:(S.clock&&S.clock.tz)||undefined,year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',hour12:false}).formatToParts(d).forEach(function(p){o[p.type]=p.value;});
+    var h=(+o.hour)%24,mi=+o.minute;return {day:o.year+'-'+o.month+'-'+o.day,m:h*60+mi,time:(((h+11)%12)+1)+':'+(mi<10?'0':'')+mi+' '+(h<12?'AM':'PM')};}catch(e){return null;}}
+function dayRows(){
+  var K=S.clock||{},today=K.today||'',rows=[];
+  if(!today){var t=lday(new Date().toISOString());today=t?t.day:'';}
+  (K.events||[]).forEach(function(e){if(e.day!==today)return;
+    rows.push({m:+e.m||0,cls:e.you?'you':'',time:e.time,title:DAY_KIND[e.kind]||capFirst(e.label),sub:e.reason?capFirst(e.reason):'',tag:e.you?'Brought to you':(e.booked?'Booked':'Handled')});});
+  ((S.storm&&S.storm.active)||[]).forEach(function(a){var l=lday(a.at);if(!l||l.day!==today)return;
+    rows.push({m:l.m,cls:a.status==='approved'?'':'wait',time:l.time,title:'Storm Desk',sub:capFirst(a.line||'A weather warning for your area.')+' Your Google post is written.',tag:a.status==='approved'?'Posted after your OK':'Waiting for your OK'});});
+  (S.leads||[]).forEach(function(r){var l=lday(r.at);if(!l||l.day!==today)return;
+    rows.push({m:l.m,cls:r.status==='new'?'wait':'',time:l.time,title:'Request from your booking page',sub:[r.name,r.need].filter(Boolean).join(': '),tag:r.status==='new'?'Waiting for you':'Handled'});});
+  rows.sort(function(a,b){return a.m-b.m;});
+  return rows;
+}
+function dayList(rows,now){
+  return '<ol class="dtl">'+rows.map(function(r){return '<li class="'+esc(r.cls||'')+'"><time>'+esc(r.time)+'</time><div><b>'+esc(r.title)+'</b>'+(r.sub?'<span>'+esc(r.sub)+'</span>':'')+
+    (r.tag?'<em class="'+(r.cls==='you'?'r':r.cls==='wait'?'w':'')+'">'+esc(r.tag)+'</em>':'')+'</div></li>';}).join('')+
+    (now?'<li class="now"><time>Now</time><div><b>'+esc((S.line&&S.line.name)||'Max')+' is on the clock</b><span>Anything new lands here as it happens.</span></div></li>':'')+'</ol>';
+}
+function dayTimeline(){
+  if(S.sample){
+    var rows=DAY_SAMPLE.map(function(x){return {time:x[0],cls:x[1],title:x[2],sub:x[3],tag:x[4]};});
+    // the sample's storm post may still be waiting on this screen: the timeline says the same
+    if(((S.storm&&S.storm.active)||[]).some(function(a){return a.status!=='approved';}))rows[1]={time:'4:10 AM',cls:'wait',title:'Storm Desk',sub:'Flash flood warning for your county. Your storm-day Google post is written and waiting above.',tag:'Waiting for your OK'};
+    return '<h2>A day, handled</h2><p class="note dtl-note">The same day as on the website: every call, reply, post and follow-up, at the minute it happened.</p>'+dayList(rows,false);
+  }
+  var r=dayRows();
+  if(!r.length)return '<h2>Today, handled</h2><div class="empty slim">'+ICON.clock+'<b>Nothing yet today.</b><span>'+esc((S.line&&S.line.name)||'Max')+' is on the clock. The first call, reply or follow-up lands here.</span></div>';
+  return '<h2>Today, handled</h2>'+dayList(r,true);
+}
+function vTodayDay(){
+  var first=(S.me&&S.me.name)||S.client.first||'';
+  var back=location.pathname+location.search.replace(/[?&]preview=day/,'').replace(/^&/,'?');
+  var h='<div class="pvbar" role="note"><b>Preview of the new Today.</b> What needs you, then today as a timeline, then your month. <a href="'+esc(back)+'">Back to the current Today</a></div>';
+  h+='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
+  var need=needCards();
+  h+='<h2>Needs you</h2>';
+  if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
+  else{h+=(NEEDALL?need:need.slice(0,5)).join('');if(need.length>5)h+='<div class="acts"><button class="btn line" type="button" data-a="need-more">'+(NEEDALL?'Show fewer':(need.length-5)+' more')+'</button></div>';}
+  h+=dayTimeline();
+  if(S.clock||(!isTech()&&S.monthNow))h+='<h2>Your month</h2>'+clockCard()+(isTech()?'':monthNowCard());
   var f=S.features||{};
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+'</div>';

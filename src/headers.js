@@ -21,6 +21,16 @@ export const SITE_CSP = [
   "worker-src blob:", "child-src blob:", "manifest-src 'self'",
   "base-uri 'self'", "object-src 'none'", "frame-ancestors 'self'"
 ].join('; ');
+// The draft home page (public/draft/, Nov 13 2026: Christopher's "Do all", a draft to look at before anything changes)
+// shows the day piece in a frame from this same site, which the site policy refuses (frames fall back to child-src). Only
+// the draft's pages get that one extra line, and they are never indexed. The live pages keep SITE_CSP exactly.
+export const DRAFT_CSP = SITE_CSP + "; frame-src 'self'";
+export const isDraft = pathname => /^\/draft(\/|$)/.test(pathname);
+export function draftPolicy(res) {
+  const sets = [['x-robots-tag', 'noindex, nofollow']];
+  if (isHtml(res)) sets.push(['content-security-policy', DRAFT_CSP]);
+  return put(res, sets);
+}
 // Pages with no policy of their own. One that already refuses every frame (x-frame-options: DENY) keeps refusing them.
 export const BASE_CSP = "base-uri 'self'; object-src 'none'; frame-ancestors 'self'";
 export const BASE_CSP_NOFRAME = "base-uri 'self'; object-src 'none'; frame-ancestors 'none'";
