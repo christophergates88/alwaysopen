@@ -85,13 +85,19 @@ test('it shows who is waiting, open requests, clients and real calls, straight f
   assert.match(html, /<h2>Requests to call back \(3\)<\/h2>/);
   assert.match(html, /<b>Lakeside Dental<\/b><span class="sub">Asked for a call from their letter/); assert.match(html, /grade D/);
   assert.match(html, /<b>Moss Roofing<\/b>/); assert.match(html, /Asked what the Growth plan costs/);
-  assert.match(html, /<summary>Requests already closed \(1\)<\/summary>/);
-  assert.match(html, /<summary>Clients \(2\)<\/summary>/);
+  // Nov 15, 2026: nothing is folded. Every request is a row in one table (a closed one can be moved from its row),
+  // and every client is a row in another.
+  assert.match(html, /<h3>Every request <span class="ct">3 open, 1 closed<\/span><\/h3>/);
+  assert.match(html, /<span class="tag">Test call<\/span><\/td><td><div class="acts"><button type="button" data-lead="\d+" data-s="talking">Talking<\/button>/, 'the closed one has its buttons in its row');
+  assert.match(html, /<a href="#requests">Its card is above<\/a>/, 'an open one is moved from its card, so there is one place to tap');
+  assert.match(html, /<h3>Clients <span class="ct">2<\/span><\/h3>/);
+  assert.doesNotMatch(html, /<summary>(Clients|Calls|Requests|How things stand|Who is drifting)/, 'the facts are open, not behind a tap');
   assert.match(html, /Oak &amp; Iron &lt;Builders&gt;/);
   assert.match(html, /1 waiting on their OK, oldest 2 days/);
   assert.match(html, /Max answering/); assert.match(html, /Max off/);
   assert.match(html, /Your own line and the demo/);
-  assert.match(html, /Calls Max took this week \(2\)/); assert.match(html, /Tom Reyes/); assert.match(html, /Urgent/);
+  assert.match(html, /<h3>Calls Max took this week <span class="ct">2<\/span><\/h3>/); assert.match(html, /Tom Reyes/); assert.match(html, /Urgent/);
+  assert.match(html, /<td>Always Open sales line<\/td>/, 'the sales line reads as a name, not an id');
   assert.match(html, /1 test call is not shown/);
   assert.match(html, /href="\/ops\/numbers\?t=TOK"/);
   assert.doesNotMatch(html, /prompt\(|alert\(|confirm\(/, 'no pop-up boxes');
@@ -173,7 +179,7 @@ test('one page: Google replies with Copy and Posted, the week\'s to-dos with Don
   assert.ok(s.off.length >= 1 && s.off.every(x => x.title && x.what && x.doThis), 'each thing that is off says what happened and what to do');
   assert.match(html, /<section id="off"><h2>Things that are off \(\d+\)<\/h2>/); assert.match(html, /<b>Do this:<\/b>/);
   assert.ok(!s.info.some(x => /^(err:|google:)/.test(x.key)) && s.info.some(x => x.key.startsWith('sys:')), 'status lines sit under How things stand');
-  assert.match(html, /<summary>How things stand<\/summary>/); assert.match(html, /<summary>Switches: Outreach calls and the map<\/summary>/); assert.match(html, /Max calling businesses: OFF/);
+  assert.match(html, /<h3>How things stand<\/h3>/); assert.match(html, /<h3>Switches: Outreach calls and the map<\/h3>/); assert.match(html, /Max calling businesses: OFF/);
   // Posted takes it off the list; Done takes the to-do off
   const t = await B.boardToken(env), PQ = await import('../src/postqueue.js');
   const pu = new URL('https://alwaysopenoffice.com/ops/post?t=' + t);
@@ -232,7 +238,7 @@ test('the old page\'s look-ups are on this one: this month per client, the wordi
   assert.ok(rules.all.length >= 2 && rules.strict.length >= 4 && rules.pass.length >= 2);
   assert.ok(rules.strict.includes('Confirms they are a client'));
   const html = Q.hqHtml({ now: NOW, waiting: [], leads: [], clients: [], calls: [], tests: 0, rules, months: [{ business: 'Sinclair <Plumbing>', label: 'November 2026', calls: 12, after: 5, reviews: 1, replies: 1, posts: 2 }] }, 'tok');
-  assert.match(html, /id="look-months"/); assert.match(html, /Sinclair &lt;Plumbing&gt;/); assert.match(html, /November 2026 so far: 12 calls \(5 after hours\), 1 review, 1 reply, 2 posts\./);
+  assert.match(html, /id="look-months"/); assert.match(html, /<td>Sinclair &lt;Plumbing&gt;<small>November 2026 so far<\/small><\/td><td class="r">12<\/td><td class="r">5<\/td><td class="r">1<\/td><td class="r">1<\/td><td class="r">2<\/td>/, 'this month is a table: calls, after hours, reviews, replies, posts');
   assert.match(html, /id="look-wording"/); assert.match(html, /Confirms they are a client/); assert.match(html, /\/ops\/compliance-pack\?t=tok/);
   assert.match(html, /id="look-add"/); assert.match(html, /data-addclient="1"/); assert.match(html, /Twilio charges for the number/);
   assert.doesNotMatch(html, /\bAI\b/);

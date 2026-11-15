@@ -1,12 +1,15 @@
-// Always Open HQ: the one page (Nov 11, 2026). Everything that can need Christopher is in one list at the top, each
-// with its button right there, and a tally that always shows every kind with its count, so a zero is a checked zero:
-//   clients waiting on a reply (answer box) · replies and posts approved for Google (Copy and open Google, Posted) ·
-//   requests to call back · this week's to-dos (Done) · things that are off (in plain words, with what to do).
-// Below it, folded: clients, calls, closed requests, how things stand, who is drifting, the switches, and the numbers.
+// Always Open HQ: the one page (Nov 11, 2026), made analytical (Nov 15, 2026).
+// Nov 11: there used to be a to-do board (/ops), this page, a Google posting page (/ops/post) and an older page on
+// claude.ai, and he said "there's too many small places something could be". So /ops and /ops/hq became this one page.
+// Nov 15: that page was a short list with everything else folded shut, and he said it was "NOT like I want. I need it
+// more analytical so I can see everything". So nothing is folded now. Top to bottom, all of it open:
+//   the figures (a row of tiles, each one a link to its part of the page)
+//   what needs him: clients waiting on a reply (answer box) · replies and posts approved for Google (Copy and open
+//     Google, Posted) · requests to call back · this week's to-dos (Done) · things that are off, with what to do.
+//     A tally always shows all five kinds with their counts, so a zero is a checked zero.
+//   the system · the money · sales · Max's calls · clients · texts · the work in the pipes (hqdash.js draws these)
+//   controls: the switches, the add-a-client form and the wording rules (the only folds left: they are forms, not facts)
 // It reads the site's own tables each time it opens, so nothing is copied and nothing can fall behind.
-// Why one page: there used to be a to-do board (/ops), this page, a Google posting page (/ops/post) and an older page
-// on claude.ai, and he said "there's too many small places something could be". /ops and /ops/hq are now this page,
-// and /ops/post sends you to its Google part.
 //   GET  /ops, /ops/hq    the page (ops key in x-key, the dated link, or the cookie of a device that opened it before)
 //   POST /ops/hq/reply    { t, client, text }: Chris's answer, into the client's app (app_messages, dir 'out')
 //   POST /ops/hq/lead     { t, id, status, note }: where a request stands (new, talking, won, lost)
@@ -14,6 +17,7 @@
 // A reply shows in the client's app as "Always Open" and buzzes their iPhone on the next ten-minute run (app.js appCron).
 import { AUTO_BY, INTERNAL } from './checks.js';
 import { PROMISES } from './facts.js';
+import * as D from './hqdash.js';
 const SUPPORT_NAME = PROMISES.support;   // Chris: the name on every answer
 
 const DAY = 864e5;
@@ -69,6 +73,8 @@ export async function hqState(env, now) {
     rows(env, 'SELECT COUNT(*) AS n FROM app_calls WHERE test = 1 AND at > ?1', iso(now - 7 * DAY)),
     gather(env, now)
   ]);
+  // the analytical half: on its own, so the page still opens with its buttons if a number cannot be read
+  let dash = null; try { dash = await D.dashState(env, now); } catch (e) { dash = null; }
   const by = (list, k) => { const m = new Map(); for (const r of list) m.set(r[k], r); return m; };
   const L = by(lines, 'client_id'), B = by(bills, 'client_id'), C7 = by(calls7, 'client_id'), P = by(pending, 'client_id'), LI = by(lastIn, 'client_id'), LS = by(lastSeen, 'client_id');
   const name = new Map(clients.map(c => [c.client_id, c.business || c.client_id]));
@@ -81,7 +87,7 @@ export async function hqState(env, now) {
     threads.set(id, t.reverse());
   }
   return Object.assign({
-    now,
+    now, dash,
     waiting: waitIds.map(id => ({ client: id, business: name.get(id) || id, since: since.get(id), internal: INTERNAL.has(id), thread: threads.get(id) || [] })),
     leads: leads.map(l => Object.assign({}, l, { test: +l.call_test === 1 })),
     clients: clients.map(c => ({
@@ -128,8 +134,8 @@ export async function gather(env, now) {
   });
   // a client going quiet enough to call: a to-do for the week
   await safe(async () => {
-    const D = await import('./drift.js'), dr = await D.driftRows(env, now);
-    out.drift = D.driftTable(dr); out.driftCss = D.DRIFT_CSS;
+    const Dr = await import('./drift.js'), dr = await Dr.driftRows(env, now);
+    out.drift = Dr.driftTable(dr); out.driftCss = Dr.DRIFT_CSS; out.driftRows = dr;
     const done = new Set((await rows(env, "SELECT k FROM ops_done WHERE k LIKE 'drift:%'")).map(r => r.k)), wk = weekOf(now);
     for (const r of dr) if (r.level === 'call' && !done.has('drift:' + r.client_id + ':' + wk)) out.todo.unshift({ key: 'drift:' + r.client_id + ':' + wk, group: 'Clients going quiet: call them', title: r.business, detail: (r.reasons || []).join('; ') + '.' });
   });
@@ -162,31 +168,31 @@ export async function wordingRules() {
 }
 
 
-const CSS = ':root{--ink:#171B26;--slate:#586075;--line:#DCDAD3;--paper:#fff;--soft:#F5F4F0;--ok:#1E7A4F;--warn:#9A5B00;--hot:#B3261E}' +
-  '@media(prefers-color-scheme:dark){:root{--ink:#EEF0F4;--slate:#9AA3B5;--line:#2B3243;--paper:#12151D;--soft:#1A1F2B;--ok:#5CC9A4;--warn:#F2C46B;--hot:#FF8A80}}' +
-  '*{box-sizing:border-box}html{scroll-padding-top:12px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:680px;margin:0 auto;padding:24px 16px 72px}' +
-  'h1{font-size:26px;margin:0 0 2px}h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:30px 0 8px}p{margin:0;color:var(--slate)}a{color:inherit}' +
-  '.big{font-size:22px;font-weight:700;color:var(--ink);margin:10px 0 2px}.big.clear{color:var(--ok)}' +
+// The cards and buttons for the things that need him. Ink, surfaces and the grid come from hqdash.js (DASH_CSS).
+const CSS = '.big{font-size:22px;font-weight:700;color:var(--ink);margin:0 0 2px}.big.clear{color:var(--ok)}.lead{color:var(--slate);font-size:14px}' +
   // the tally: every kind of thing that can need him, always all five, each with its count
-  '.tally{list-style:none;margin:14px 0 0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}.tally li+li{border-top:1px solid var(--line)}' +
-  '.tally .t{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 14px;text-decoration:none;color:var(--slate)}.tally a.t{color:var(--ink);font-weight:600;background:var(--soft)}' +
+  '.tally{list-style:none;margin:12px 0 0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))}.tally li{border-bottom:1px solid var(--line);margin-bottom:-1px}' +
+  '.tally .t{display:flex;align-items:center;gap:12px;min-height:50px;padding:8px 14px;text-decoration:none;color:var(--slate);height:100%}.tally a.t{color:var(--ink);font-weight:600;background:var(--soft)}' +
   '.tally .n{flex:none;min-width:34px;height:34px;padding:0 8px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ok);border:1px solid var(--line)}' +
   '.tally a.t .n{background:var(--ink);color:var(--paper);border-color:var(--ink)}.tally .go{margin-left:auto;color:var(--slate);font-weight:400;font-size:14px;white-space:nowrap}' +
-  '.it{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-bottom:10px}.it b{font-size:17px}.it>b,.it>div>b{display:block}.it .sub{display:block;color:var(--slate);font-size:14px;margin-top:2px;overflow-wrap:anywhere}.it .sub b{font-size:14px;color:var(--ink)}' +
-  '.it.row{display:flex;gap:12px;align-items:center;justify-content:space-between}.it.row>div{min-width:0}.grp{font-weight:600;color:var(--ink);margin:14px 0 6px;font-size:15px}' +
-  '.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tag{font-size:13px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--paper)}.tag.ok{color:var(--ok)}.tag.warn{color:var(--warn)}.tag.hot{color:var(--hot)}' +
-  '.th{display:grid;gap:6px;margin:10px 0}.m{max-width:88%;padding:8px 11px;border-radius:14px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--line)}.m.out{justify-self:end;background:transparent}.m small{display:block;color:var(--slate);font-size:12px;margin-top:2px}' +
-  '.words{margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);white-space:pre-wrap;overflow-wrap:anywhere;-webkit-user-select:all;user-select:all}' +
+  '.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr));gap:10px;align-items:start}.cards>.grp,.cards>p{grid-column:1/-1}' +
+  '.it{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);min-width:0}.it b{font-size:16px}.it>b,.it>div>b{display:block}.it .sub{display:block;color:var(--slate);font-size:14px;margin-top:2px;overflow-wrap:anywhere}.it .sub b{font-size:14px;color:var(--ink)}' +
+  '.it.row{display:flex;gap:12px;align-items:center;justify-content:space-between}.it.row>div{min-width:0}.grp{font-weight:600;color:var(--ink);margin:8px 0 0;font-size:14.5px}' +
+  '.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tag{font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--paper);white-space:nowrap;display:inline-block}.tag.ok{color:var(--ok)}.tag.warn{color:var(--warn)}.tag.hot{color:var(--hot)}' +
+  '.th{display:grid;gap:6px;margin:10px 0}.m{max-width:88%;padding:8px 11px;border-radius:14px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);border:1px solid var(--line)}.m.out{justify-self:end;background:transparent}.m small{display:block;color:var(--slate);font-size:12px;margin-top:2px}' +
+  '.words{margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);white-space:pre-wrap;overflow-wrap:anywhere;-webkit-user-select:all;user-select:all}' +
   'input.note{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px;min-height:44px}select.note{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px}textarea{width:100%;min-height:84px;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:8px}' +
   '.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}button,a.btn{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;text-align:center}button.go,a.btn.go{background:var(--ink);color:var(--paper);border-color:var(--ink)}button[disabled]{opacity:.5}' +
+  // in a table row the buttons are small, so a row stays a row
+  '.tb .acts{margin:0;gap:4px;flex-wrap:nowrap}.tb button{min-height:32px;padding:4px 9px;font-size:12.5px;border-radius:8px}.tb input.note{min-height:36px;padding:6px 8px;font-size:13px;min-width:150px}' +
   '.said{font-size:14px;color:var(--slate)}.none{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--slate)}' +
-  // the look-up rows at the bottom: closed until tapped
-  'details.look{border:1px solid var(--line);border-radius:12px;margin-bottom:8px}details.look>summary{cursor:pointer;font-weight:600;min-height:52px;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;list-style:none}details.look>summary::-webkit-details-marker{display:none}details.look>summary::after{content:"+";color:var(--slate);font-weight:400;font-size:20px}details.look[open]>summary::after{content:"–"}details.look>.in{padding:4px 12px 12px}' +
-  'details.more{margin-top:8px}details.more>summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}' +
-  'a.look{display:flex;align-items:center;justify-content:space-between;min-height:52px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;font-weight:600;text-decoration:none;margin-bottom:8px}a.look::after{content:"›";color:var(--slate);font-size:20px}' +
+  // the few folds left: forms and reference, in Controls
+  'details.look{border:1px solid var(--line);border-radius:12px;margin-top:8px;background:var(--paper)}details.look>summary{cursor:pointer;font-weight:600;min-height:48px;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;list-style:none}details.look>summary::-webkit-details-marker{display:none}details.look>summary::after{content:"+";color:var(--slate);font-weight:400;font-size:20px}details.look[open]>summary::after{content:"–"}details.look>.in{padding:4px 14px 14px}' +
+  'details.more{margin-top:6px}details.more>summary{cursor:pointer;font-weight:600;min-height:36px;display:flex;align-items:center;font-size:13.5px}.tb details.more{margin:0}' +
+  'a.look{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;font-weight:600;text-decoration:none;margin-top:8px;background:var(--paper)}a.look::after{content:"›";color:var(--slate);font-size:20px}' +
   '.kv{display:block;padding:8px 0;border-top:1px solid var(--line);font-size:14px;color:var(--slate);overflow-wrap:anywhere}.kv:first-child{border-top:0}.kv b{display:block;color:var(--ink);font-size:15px}' +
   // the switches come ready-made from the board (opsboard.js switchSection, mapSection)
-  '.bd h2{margin:10px 0 8px}.bd .it{display:flex;gap:12px;align-items:center;justify-content:space-between}.bd .it span{display:block;color:var(--slate);font-size:14px}' +
+  '.dr0 h2{display:none}.bd section{margin:0}.bd h2{margin:10px 0 8px}.bd .it{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px;background:var(--soft)}.bd .it span{display:block;color:var(--slate);font-size:14px}' +
   ':focus-visible{outline:2px solid var(--ink);outline-offset:2px}';
 
 function msgBox(id, label) {
@@ -210,29 +216,39 @@ function leadHtml(l, now) {
     (l.reason ? '<span class="sub">Note: ' + esc(l.reason) + '</span>' : '') +
     '<div class="tags">' + tags + '</div><div class="acts">' + btn('talking', 'Talking') + btn('won', 'Won') + btn('lost', 'Lost') + (l.status === 'new' || l.status === 'letter' ? '' : btn('new', 'Back to new')) + '</div></div>';
 }
-function clientHtml(c, now) {
-  const b = c.bill, ln = c.line;
-  const tags = [];
-  if (c.internal) tags.push('<span class="tag">' + (c.id === 'always-open' ? 'Your own line' : 'Demo') + '</span>');
-  if (c.tier) tags.push('<span class="tag">' + esc(c.tier) + '</span>');
-  if (b && b.status && b.status !== 'active') tags.push('<span class="tag warn">Billing: ' + esc(b.status) + '</span>');
-  if (!c.active) tags.push('<span class="tag hot">Turned off</span>');
-  if (ln) tags.push('<span class="tag ' + (+ln.on_air ? 'ok' : 'warn') + '">Max ' + (+ln.on_air ? 'answering' : 'off') + '</span>');
-  if (c.pending) tags.push('<span class="tag warn">' + c.pending + ' waiting on their OK' + (c.pendingSince ? ', oldest ' + esc(ago(c.pendingSince, now)) : '') + '</span>');
-  const mid = iso => when(iso, now).replace(/^(Today|Yesterday)/, m => m.toLowerCase());   // inside a sentence
-  const facts = [ln ? 'Line ' + phone(ln.number) : 'No line yet', c.calls7 + (c.calls7 === 1 ? ' call' : ' calls') + ' this week' + (c.lastCall ? ', the last ' + mid(c.lastCall) : ''),
-    c.lastSeen ? 'Opened the iPhone app ' + mid(c.lastSeen) : '', c.lastMessage ? 'Last wrote ' + mid(c.lastMessage) : '', b && b.created ? 'Client since ' + new Date(b.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: ET }) : ''].filter(Boolean);
-  const reach = [b && b.owner ? esc(b.owner) : (c.first ? esc(c.first) : ''), tel((b && b.phone) || ''), b && b.email ? '<a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a>' : '', b && b.town ? esc(b.town) : ''].filter(Boolean).join(' &nbsp; ');
-  return '<div class="it"><b>' + esc(c.business) + '</b><span class="sub">' + esc(facts.join('. ')) + '.</span>' + (reach ? '<span class="sub">' + reach + '</span>' : '') +
-    (tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '') +
-    (c.id === 'always-open' ? '' : '<details class="more"><summary>Write to them</summary>' + msgBox(c.id, 'Shows in their app as Always Open, and buzzes their iPhone.') + '</details>') + '</div>';
+// One client, one row: who they are, what they pay, whether Max is on, and how busy the last week and month were.
+// x: { calls30, minutes30, texts30, drift } for this client, from the dashboard's 30-day counts.
+function clientRow(c, now, x) {
+  const b = c.bill, ln = c.line, mid = iso => when(iso, now).replace(/^(Today|Yesterday)/, m => m.toLowerCase());
+  const who = [b && b.owner ? esc(b.owner) : (c.first ? esc(c.first) : ''), tel((b && b.phone) || ''), b && b.email ? '<a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a>' : '', b && b.town ? esc(b.town) : ''].filter(Boolean).join(' · ');
+  const since = b && b.created ? 'Client since ' + new Date(b.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: ET }) : '';
+  const kind = c.internal ? ' <span class="tag">' + (c.id === 'always-open' ? 'Your own line' : 'Demo') + '</span>' : '';
+  const bill = !c.active ? '<span class="tag hot">Turned off</span>' : (b && b.status ? (b.status === 'active' ? D.st('ok', 'Paying') : '<span class="tag warn">Billing: ' + esc(b.status) + '</span>') : '<span class="mu">no billing</span>');
+  const max = ln ? '<span class="tag ' + (+ln.on_air ? 'ok' : 'warn') + '">Max ' + (+ln.on_air ? 'answering' : 'off') + '</span><small>' + esc(phone(ln.number)) + '</small>' : '<span class="mu">No line yet</span>';
+  const dr = x.drift ? (x.drift.level === 'ok' ? D.st('ok', 'Steady') : D.st(x.drift.level === 'call' ? 'bad' : 'warn', x.drift.level === 'call' ? 'Call them' : 'Watch') + '<small>' + esc((x.drift.reasons || []).join('; ')) + '</small>') : '<span class="mu">–</span>';
+  const cells = ['<b>' + esc(c.business) + '</b>' + kind + (who ? '<small>' + who + '</small>' : '') + (since ? '<small>' + esc(since) + '</small>' : '') +
+    (c.id === 'always-open' ? '' : '<details class="more"><summary>Write to them</summary><div class="it">' + msgBox(c.id, 'Shows in their app as Always Open, and buzzes their iPhone.') + '</div></details>'),
+    esc(c.tier || '–'), bill, max, D.num(c.calls7) + (c.lastCall ? '<small>last ' + esc(mid(c.lastCall)) + '</small>' : ''), D.num(x.calls30), D.num(x.minutes30), D.num(x.texts30),
+    c.pending ? '<span class="tag warn">' + c.pending + ' waiting on their OK' + (c.pendingSince ? ', oldest ' + esc(ago(c.pendingSince, now)) : '') + '</span>' : '0',
+    c.lastSeen ? esc(mid(c.lastSeen)) : '<span class="mu">never</span>', c.lastMessage ? esc(mid(c.lastMessage)) : '<span class="mu">never</span>', dr];
+  return cells;
 }
-function callHtml(k, now) {
+function callRow(k, now) {
   const who = String(k.caller_name || '').trim() || phone(k.caller) || 'Unknown caller';
   const tags = [(k.urgency === 'urgent' ? '<span class="tag hot">Urgent</span>' : ''), (k.outcome === 'hangup' ? '<span class="tag warn">Hung up</span>' : k.outcome === 'transferred' ? '<span class="tag ok">Put through</span>' : ''),
-    (k.status === 'handled' ? '<span class="tag ok">Handled</span>' : '<span class="tag">Not marked handled</span>')].filter(Boolean).join('');
-  return '<div class="it"><b>' + esc(k.business) + '</b><span class="sub">' + esc(when(k.at, now)) + ', ' + esc(who) + (+k.seconds ? ', ' + Math.max(1, Math.round(k.seconds / 60)) + ' min' : '') + '</span>' +
-    (k.summary || k.reason ? '<span class="sub">' + esc(String(k.summary || k.reason).slice(0, 320)) + '</span>' : '') + '<div class="tags">' + tags + '</div></div>';
+    (k.status === 'handled' ? '<span class="tag ok">Handled</span>' : '<span class="tag">Not marked handled</span>')].filter(Boolean).join(' ');
+  return [esc(when(k.at, now)), esc(k.client_id === 'always-open' ? 'Always Open sales line' : k.business), esc(who), +k.seconds ? Math.max(1, Math.round(k.seconds / 60)) + ' min' : '–', esc(String(k.summary || k.reason || '').slice(0, 320)), tags];
+}
+// Every request, open or closed, one row each. A closed one can be moved from its row; an open one has its card above.
+function leadRow(l, now) {
+  const who = String(l.business || l.name || '').trim() || (/^phone /.test(l.origin || '') ? 'Caller' : 'Someone');
+  const src = /^phone /.test(l.origin || '') ? 'Sales line' : (/^letter/.test(l.origin || '') ? 'Letter' : 'Form');
+  const open = !l.test && (l.status === 'new' || l.status === 'letter' || l.status === 'talking');
+  const label = l.test ? 'Test call' : ({ new: 'New', letter: 'New', talking: 'Talking', won: 'Won', lost: 'Lost' }[l.status] || l.status);
+  const btn = (s, t) => (l.status === s ? '' : '<button type="button" data-lead="' + l.id + '" data-s="' + s + '">' + t + '</button>');
+  return [esc(when(l.at, now)), '<b>' + esc(who) + '</b>' + (l.name && l.business ? '<small>' + esc(l.name) + '</small>' : ''), src, esc([l.type, l.town].filter(Boolean).join(', ')), esc(l.plan || '–'), esc(l.grade || '–'),
+    '<span class="tag' + (l.status === 'won' ? ' ok' : l.status === 'talking' ? ' warn' : '') + '">' + esc(label) + '</span>' + (l.reason ? '<small>Note: ' + esc(l.reason) + '</small>' : ''),
+    open ? '<a href="#requests">Its card is above</a>' : '<div class="acts">' + btn('talking', 'Talking') + btn('won', 'Won') + btn('lost', 'Lost') + btn('new', 'Back to new') + '</div>'];
 }
 
 // One approved reply or post waiting to go on Google: what was said, the approved words, and the two taps.
@@ -256,11 +272,6 @@ function offHtml(list) {
   return list.map(x => '<div class="it"><b>' + esc(x.title) + '</b><span class="sub">' + esc(x.what) + '</span>' + (x.detail ? '<span class="sub">What the check said: ' + esc(x.detail) + '</span>' : '') +
     '<span class="sub"><b>Do this:</b> ' + esc(x.doThis) + '</span>' + (x.key ? '<div class="acts"><button type="button" data-done="' + esc(x.key) + '" data-at="off">Seen it</button></div>' : '') + '</div>').join('');
 }
-function infoHtml(list) {
-  const g = new Map(); for (const it of list) { if (!g.has(it.group)) g.set(it.group, []); g.get(it.group).push(it); }
-  return [...g].map(([name, rows]) => '<p class="grp">' + esc(name) + '</p>' + rows.map(x => '<span class="kv"><b>' + esc(x.title) + '</b>' + esc(x.detail) + '</span>').join('')).join('');
-}
-
 // What runs in the page. It stands alone (it is sent as text), so it uses nothing from this file.
 function hqClient(T) {
   function send(u, b) { b.t = T; return fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); }); }
@@ -273,7 +284,7 @@ function hqClient(T) {
       return;
     }
     var b = e.target.closest('button'); if (!b) return;
-    var row = b.closest('.it');
+    var row = b.closest('.it') || b.closest('td');   // a card, or a table cell
     if (b.dataset.send) {
       var id = b.dataset.send, box = row.querySelector('textarea[data-for="' + id + '"]'), said = row.querySelector('[data-said]'), tx = (box.value || '').trim();
       if (!tx) { said.textContent = 'Type your message first.'; box.focus(); return; }
@@ -356,48 +367,104 @@ export function tally(s) {
   ];
 }
 
+// The row of figures at the top. Each is a link to the part of the page that explains it. d is the dashboard (it can
+// be missing: the page still opens with the things that need him).
+function tiles(s, d, T, total, open) {
+  const t = [], N = d && d.numbers, tot = d && d.tot, prev = d && d.prev;
+  t.push(D.tile(String(total), 'Needs you', T.filter(x => x.n).map(x => x.n + ' ' + ({ reply: 'to answer', google: 'for Google', requests: 'to call back', todo: 'to do', off: 'off' }[x.id])).join(' · '), { to: 'needs', state: total ? ['warn', 'Waiting on you'] : ['ok', 'All clear'] }));
+  if (d && d.health) {
+    const c = d.health.checks || [], bad = c.filter(x => !x.ok).length, cr = d.cron || [], crBad = cr.filter(r => !+r.ok).length;
+    t.push(D.tile((c.length - bad) + ' of ' + c.length, 'Checks passing', D.num(cr.length - crBad) + ' of ' + D.num(cr.length) + ' jobs ran clean' + (d.health.cronAge != null ? ', last run ' + Math.round(d.health.cronAge / 60000) + ' min ago' : ''), { to: 'system', state: bad || crBad ? ['bad', (bad + crBad) + ' failing'] : ['ok', 'All running'] }));
+  }
+  if (N) {
+    t.push(D.tile(D.num(N.mrr.clients), 'Paying clients', Object.keys(N.mrr.byPlan || {}).map(k => N.mrr.byPlan[k].n + ' ' + k).join(' · ') || 'none yet', { to: 'clients' }));
+    t.push(D.tile(D.usd(N.mrr.cents / 100), 'Revenue a month', 'costs ' + D.usd(N.monthlyCost) + ', margin ' + D.usd(N.margin), { to: 'money' }));
+  }
+  if (d && d.twilio) {
+    const w = d.twilio, left = w.daysLeft;
+    t.push(D.tile(D.usd(w.balance), 'Twilio balance', 'about ' + D.usd(w.perDay) + ' a day', { to: 'money', state: left == null ? ['ok', 'Barely moving'] : left < 7 ? ['bad', Math.round(left) + ' days left'] : left < 21 ? ['warn', Math.round(left) + ' days left'] : ['ok', Math.round(left) + ' days left'] }));
+  }
+  if (d && d.week) t.push(D.tile(D.num(d.week.real), 'Real calls, 7 days', D.num(d.week.prevReal) + ' the week before · ' + D.num(d.week.test) + ' test calls', { to: 'calls' }));
+  if (d && d.grades && d.grades.calls) t.push(D.tile(d.grades.human >= 0 ? d.grades.human + ' / 10' : '–', 'Max sounded human', 'first word in ' + (d.grades.firstWordMs ? (d.grades.firstWordMs / 1000).toFixed(1) + ' s' : '–') + ' · ' + D.num(d.grades.calls) + ' calls graded', { to: 'calls' }));
+  t.push(D.tile(D.num(open.length), 'Open requests', tot ? D.num(tot.leads) + ' came in 30 days (' + D.num(prev.leads) + ' before)' : '', { to: 'sales' }));
+  if (tot) {
+    t.push(D.tile(D.num(tot.audits), 'Free audits, 30 days', D.num(prev.audits) + ' the 30 days before', { to: 'sales' }));
+    const L = (d.letters || []).find(r => r.status === 'sent');
+    t.push(D.tile(D.num(L ? L.n : 0), 'Letters mailed', L && +L.n ? D.num(L.opened) + ' opened (' + D.pct(+L.opened, +L.n) + ')' : 'none mailed yet', { to: 'sales' }));
+    t.push(D.tile(D.num(tot.texts), 'Texts, 30 days', D.num(prev.texts) + ' the 30 days before', { to: 'texts' }));
+    const er = (d.errorsR || []).reduce((a, r) => a + +r.n, 0);
+    t.push(D.tile(D.num(er), 'Crashes, 7 days', '', { to: 'system', state: er ? ['bad', 'Look below'] : ['ok', 'None'] }));
+  }
+  return '<div class="kps">' + t.join('') + '</div>';
+}
+
 export function hqHtml(s, tok) {
-  const now = s.now, linkify = s.linkify || (x => x);
+  const now = s.now, linkify = s.linkify || (x => x), d = s.dash || null;
   const open = s.leads.filter(l => !l.test && (l.status === 'new' || l.status === 'letter' || l.status === 'talking'));
   const closed = s.leads.filter(l => l.test || !(l.status === 'new' || l.status === 'letter' || l.status === 'talking'));
   const real = s.clients.filter(c => !c.internal), own = s.clients.filter(c => c.internal);
   const post = s.post || [], todo = s.todo || [], off = s.off || [], info = s.info || [];
   const T = tally(s), total = T.reduce((a, x) => a + x.n, 0);
+  const calls = s.calls.filter(k => k.client_id !== 'demo-plumbing'), samples = s.calls.length - calls.length;
   const asOf = new Date(now).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: ET });
-  const sec = (id, title, n, body) => (n ? '<section id="' + id + '"><h2>' + esc(title) + ' (' + n + ')</h2>' + body + '</section>' : '');
+  const sec = (id, title, n, body) => (n ? '<section id="' + id + '"><h2>' + esc(title) + ' (' + n + ')</h2><div class="cards">' + body + '</div></section>' : '');
   const look = (id, title, body) => (body ? '<details class="look" id="look-' + id + '"><summary>' + esc(title) + '</summary><div class="in">' + body + '</div></details>' : '');
+  const part = (id, title, note, body) => '<h2 id="' + id + '">' + esc(title) + (note ? ' <small>' + esc(note) + '</small>' : '') + '</h2><div class="grid">' + body + '</div>';
   const waiting = s.waiting.map(w => '<div class="it"><b>' + esc(w.business) + '</b><span class="sub">Waiting ' + esc(ago(w.since, now)) + (w.internal ? ' (your own test account)' : '') + '</span>' + threadHtml(w.thread, now) + msgBox(w.client, 'Your answer') + '</div>').join('');
+  // each client's last 30 days, from the dashboard's counts
+  const m30 = {}; for (const r of (d && d.callWho) || []) m30[r.client_id] = r;
+  const t30 = {}; for (const r of (d && d.textsC) || []) t30[r.client_id] = +r.n || 0;
+  const drift = {}; for (const r of s.driftRows || []) drift[r.client_id] = r;
+  const cx = c => ({ calls30: (m30[c.id] || {}).n || 0, minutes30: (m30[c.id] || {}).minutes || 0, texts30: t30[c.id] || 0, drift: drift[c.id] || null });
+  const bad = d && d.health ? (d.health.checks || []).filter(c => !c.ok).length + (d.cron || []).filter(r => !+r.ok).length : 0;
+  const chip = (id, name, n) => '<a href="#' + id + '">' + esc(name) + (n ? ' <b>' + n + '</b>' : '') + '</a>';
+  const clientHead = ['Business', 'Plan', 'Billing', 'Max', ['Calls, 7 days', 'r'], ['Calls, 30', 'r'], ['Minutes, 30', 'r'], ['Texts, 30', 'r'], 'Waiting on them', 'Opened the app', 'Last wrote', 'Drifting?'];
+  const infoRows = info.map(x => [esc(x.group || ''), '<b>' + esc(x.title) + '</b>', esc(x.detail)]);
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">' +
-    '<title>' + (total ? '(' + total + ') ' : '') + 'Always Open HQ</title><style>' + CSS + (s.driftCss || '') + '</style></head><body><main>' +
-    '<h1>Always Open HQ</h1>' +
+    '<title>' + (total ? '(' + total + ') ' : '') + 'Always Open HQ</title><style>' + D.DASH_CSS + CSS + (s.driftCss || '') + '</style></head><body><main id="top">' +
+    '<div class="top"><div class="r1"><h1>Always Open HQ</h1><span class="asof">' + esc(asOf) + ' ET · <a href="/ops/hq?t=' + esc(tok) + '">Check again</a></span></div>' +
+    '<nav class="jump" aria-label="Parts of this page">' + chip('needs', 'Needs you', total) + chip('system', 'System', bad) + chip('money', 'Money') + chip('sales', 'Sales') + chip('calls', 'Calls') + chip('clients', 'Clients') + chip('texts', 'Texts') + chip('work', 'Work') + chip('look', 'Controls') + '</nav></div>' +
+    tiles(s, d, T, total, open) +
+    // ---- what needs him: the buttons live here
+    '<h2 id="needs">Needs you</h2>' +
     '<p class="big' + (total ? '' : ' clear') + '">' + (total ? total + (total === 1 ? ' thing needs you' : ' things need you') : 'Nothing needs you right now') + '</p>' +
-    '<p>Everything that can need you is in this list, and nowhere else. As of ' + esc(asOf) + ' Eastern. <a href="/ops/hq?t=' + esc(tok) + '">Check again</a></p>' +
+    '<p class="lead">Everything that can need you is in this list, and nowhere else. The rest of the page is for looking.</p>' +
     '<ul class="tally">' + T.map(x => '<li>' + (x.n ? '<a class="t" href="#' + x.id + '"><span class="n">' + x.n + '</span><span>' + esc(x.label) + '</span><span class="go">Show</span></a>'
       : '<span class="t"><span class="n" aria-hidden="true">✓</span><span>' + esc(x.label) + ': none</span></span>') + '</li>').join('') + '</ul>' +
     sec('reply', 'Reply to clients', s.waiting.length, waiting) +
     sec('google', 'Post on Google', post.length, post.map(it => postHtml(it, now, !!s.googleOn)).join('') +
-      (s.googleOn ? '' : '<p style="font-size:14px">These are posted by hand because Google has not let us post for clients yet. The day it does, this list posts itself and each row gets a Post it for me button.</p>')) +
-    (s.held ? '<p style="margin:6px 0 0;font-size:14px">' + s.held + (s.held === 1 ? ' edited reply from a regulated client is' : ' edited replies from regulated clients are') + ' held for a compliance look first, so ' + (s.held === 1 ? 'it is' : 'they are') + ' not in the list yet.</p>' : '') +
+      (s.googleOn ? '' : '<p style="font-size:14px;color:var(--slate)">These are posted by hand because Google has not let us post for clients yet. The day it does, this list posts itself and each row gets a Post it for me button.</p>')) +
+    (s.held ? '<p style="margin:6px 0 0;font-size:14px;color:var(--slate)">' + s.held + (s.held === 1 ? ' edited reply from a regulated client is' : ' edited replies from regulated clients are') + ' held for a compliance look first, so ' + (s.held === 1 ? 'it is' : 'they are') + ' not in the list yet.</p>' : '') +
     sec('requests', 'Requests to call back', open.length, open.map(l => leadHtml(l, now)).join('')) +
     sec('todo', 'To do this week', todo.length, todoHtml(todo, linkify)) +
     sec('off', 'Things that are off', off.length, offHtml(off)) +
-    '<h2 id="look">Look things up</h2>' +
-    look('clients', 'Clients (' + real.length + ')', (real.map(c => clientHtml(c, now)).join('') || '<p class="none">No clients yet. A signup shows here the moment Stripe confirms it.</p>') +
-      (own.length ? '<details class="more"><summary>Your own line and the demo</summary>' + own.map(c => clientHtml(c, now)).join('') + '</details>' : '')) +
-    look('calls', 'Calls Max took this week (' + s.calls.length + ')', (s.calls.map(k => callHtml(k, now)).join('') || '<p class="none">No calls from real callers this week.</p>') +
-      (s.tests ? '<p style="margin-top:6px;font-size:14px">' + s.tests + ' test ' + (s.tests === 1 ? 'call is' : 'calls are') + ' not shown (the 4 AM check and calls from your own numbers).</p>' : '')) +
-    look('closed', 'Requests already closed (' + closed.length + ')', closed.map(l => leadHtml(l, now)).join('')) +
-    look('stand', 'How things stand', infoHtml(info)) +
-    look('drift', 'Who is drifting', s.drift ? '<div class="bd">' + s.drift + '</div>' : '') +
-    look('switches', 'Switches: Outreach calls and the map', (s.switchHtml || s.mapHtml) ? '<div class="bd">' + (s.switchHtml || '') + (s.mapHtml || '') + '</div>' : '') +
-    look('months', 'This month for each client', (s.months || []).length ? s.months.map(m => '<span class="kv"><b>' + esc(m.business) + '</b>' + (m.failed ? 'Could not read this month.' : esc(m.label + ' so far: ' + m.calls + (m.calls === 1 ? ' call' : ' calls') + ' (' + m.after + ' after hours), ' + m.reviews + (m.reviews === 1 ? ' review' : ' reviews') + ', ' + m.replies + (m.replies === 1 ? ' reply' : ' replies') + ', ' + m.posts + (m.posts === 1 ? ' post' : ' posts') + '.')) + '</span>').join('') : '') +
+    // ---- everything else, open
+    (d ? part('system', 'System', 'is every part running', D.systemPanels(d)) + part('money', 'Money', 'what comes in, what goes out', D.moneyPanels(d)) : '') +
+    part('sales', 'Sales', 'from first touch to client', (d ? D.salesPanels(d) : '') +
+      D.panel('Every request', D.table(['When', 'Who', 'Came from', 'Business', 'Plan', 'Grade', 'Stands', 'Move it'], s.leads.map(l => leadRow(l, now)), 'No requests yet. One shows here the moment the form, the sales line or a letter brings it in.'),
+        { n: open.length + ' open, ' + closed.length + ' closed', sub: 'The last 120 days, newest first. Closed means won, lost or a test call.' })) +
+    part('calls', 'Calls', 'what Max took and how it went', (d ? D.callPanels(d) : '') +
+      D.panel('Calls Max took this week', D.table(['When', 'For', 'Caller', ['Length', 'r'], 'What it was about', 'Marks'], calls.map(k => callRow(k, now)), 'No calls from real callers this week.') +
+        (s.tests ? '<p class="ps">' + s.tests + ' test ' + (s.tests === 1 ? 'call is' : 'calls are') + ' not shown (the 4 AM check and calls from your own numbers).</p>' : '') +
+        (samples ? '<p class="ps">' + samples + (samples === 1 ? ' call' : ' calls') + ' made up for the sample business ' + (samples === 1 ? 'is' : 'are') + ' not shown either.</p>' : ''), { n: calls.length, sub: 'Real callers only, newest first.' })) +
+    part('clients', 'Clients', 'who pays, who is busy, who is going quiet',
+      D.panel('Clients', D.table(clientHead, real.concat(own).map(c => clientRow(c, now, cx(c))), 'No clients yet. A signup shows here the moment Stripe confirms it.') +
+        (real.length ? '' : (own.length ? '<p class="ps">No clients yet. A signup shows here the moment Stripe confirms it.</p>' : '')), { n: real.length, sub: own.length ? 'Your own line and the demo are in the table too, marked, and never counted as clients.' : '' }) +
+      D.panel('This month for each client', D.table(['Business', ['Calls', 'r'], ['After hours', 'r'], ['Reviews', 'r'], ['Replies', 'r'], ['Posts', 'r']], (s.months || []).map(m => (m.failed ? [esc(m.business), 'Could not read this month.', '', '', '', ''] : [esc(m.business) + '<small>' + esc(m.label) + ' so far</small>', D.num(m.calls), D.num(m.after), D.num(m.reviews), D.num(m.replies), D.num(m.posts)])), 'No client has a month yet.'),
+        { w: 6, id: 'look-months', sub: 'The numbers each client’s monthly page is built from.' }) +
+      D.panel('Who is drifting', s.drift ? '<div class="bd dr0">' + s.drift + '</div>' : '<p class="nil">No paying client to watch yet.</p>', { w: 6, id: 'look-drift', sub: 'A client who stops using it is a client about to cancel.' })) +
+    (d ? part('texts', 'Texts', 'what went out and what was stopped', D.textPanels(d)) + part('work', 'Work', 'reviews, posts and what is queued', D.workPanels(d) +
+      D.panel('How things stand', D.table(['About', 'What', 'Detail'], infoRows, 'Nothing to report.'), { id: 'look-stand' })) : (infoRows.length ? part('work', 'Work', '', D.panel('How things stand', D.table(['About', 'What', 'Detail'], infoRows), { id: 'look-stand' })) : '')) +
+    // ---- controls: switches and forms
+    '<h2 id="look">Controls <small>switches and forms</small></h2>' +
+    ((s.switchHtml || s.mapHtml) ? '<div class="grid"><div class="pn" id="look-switches"><h3>Switches: Outreach calls and the map</h3><div class="bd">' + (s.switchHtml || '') + (s.mapHtml || '') + '</div></div></div>' : '') +
     look('wording', 'Wording rules, and the extra ones for regulated offices', s.rules ? '<p class="grp">Every client: a reply or post is stopped if it</p>' + s.rules.all.map(w => '<span class="kv">' + esc(w) + '</span>').join('') +
       '<p class="grp">Insurance, medical and legal offices, also</p>' + s.rules.strict.map(w => '<span class="kv">' + esc(w) + '</span>').join('') +
       (s.rules.pass.length ? '<p class="grp">Wording that passes</p>' + s.rules.pass.map(w => '<div class="words">' + esc(w) + '</div>').join('') : '') +
       '<p style="font-size:14px;margin-top:8px">A regulated office’s reply that the owner edited waits for your look before it can post.</p><div class="acts"><a class="btn" href="/ops/compliance-pack?t=' + esc(tok) + '" target="_blank" rel="noopener">Open the one-page rule sheet</a></div>' : '') +
     look('add', 'Add a client by hand', addClientHtml()) +
-    '<a class="look" href="/ops/numbers?t=' + esc(tok) + '">The numbers: revenue, costs and margin</a>' +
-    '<script>(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');</script></main></body></html>';
+    '<a class="look" href="/ops/numbers?t=' + esc(tok) + '">The numbers on their own page: revenue, costs and margin</a>' +
+    '<script>(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');(' + D.dashClient.toString() + ')();</script></main></body></html>';
 }
 
 // For someone who paid outside the website's checkout (a Stripe Payment Link, a check): the website makes a client on

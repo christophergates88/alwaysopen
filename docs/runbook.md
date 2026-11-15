@@ -47,12 +47,20 @@ Worker; `public/sitemap.xml` lists the public pages (add a new page there; the t
 ## Always Open HQ: the one page (src/opshq.js, at /ops and /ops/hq)
 
 Everything that can need Christopher is on this page and nowhere else (Nov 11, 2026: "there's too many small places
-something could be"). The top says how many things need him, then a tally that always shows all five kinds with a
-count, so a zero is a checked zero: clients waiting on a reply (answer box), replies and posts approved for Google
-(Copy and open Google, then Posted), requests to call back (Talking, Won, Lost), this week's to-dos (Done), and things
-that are off (failing checks, a low Twilio balance, crashed pages, each in plain words with what to do). Folded below:
-clients, calls, closed requests, how things stand, who is drifting, the switches (Outreach, the map), and a link to
-the numbers. It reads the site's own tables each time it opens. An answer typed there is saved as Chris's and shows
+something could be"), and since Nov 15, 2026 nothing on it is folded ("I need it more analytical so I can see
+everything"). Top to bottom: a row of figures, each a link to its part of the page; what needs him, with a tally that
+always shows all five kinds with a count, so a zero is a checked zero: clients waiting on a reply (answer box), replies
+and posts approved for Google (Copy and open Google, then Posted), requests to call back (Talking, Won, Lost), this
+week's to-dos (Done), and things that are off (failing checks, a low Twilio balance, crashed pages, each in plain
+words with what to do); then the system (every check, every background job, the 4 AM test call, the backup, crashes,
+alarms, phone lines, approvals and renewals), the money (Twilio's balance by day, revenue, cost, margin, the funnel by
+month), sales (letters to audits to requests to won, per day, by source, the follow-up emails, every request as a
+row), calls (per day real against test, by day and time, how they ended, how Max sounded, by line, this week's),
+clients (one row each with 7- and 30-day use and drift), texts, and the work in the pipes. The numbers and charts are
+in `src/hqdash.js` (dashState reads, shape buckets hours into Eastern days, the rest draws); test calls, spam and
+the sample business are kept out of every "real" count. Only forms fold: the wording rules, the add-a-client form
+and "Write to them" in a client's row. The page reads itself again every five minutes unless something is being typed.
+It reads the site's own tables each time it opens. An answer typed there is saved as Chris's and shows
 in the client's app as "Always Open". The old to-do board (/ops) is this page; the old Google posting page (/ops/post)
 sends you to its Google part; every push and the Monday email open it. `Open Always Open HQ.command` opens it from the
 Mac. A new kind of thing that needs him goes into this page's list (gather() in opshq.js, or boardItems() in
