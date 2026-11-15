@@ -1,6 +1,7 @@
 // Max's minutes: counted per business per calendar month from the calls Max took, shown in the app, and billed past the
 // plan's 300 (600 with the extra-minutes add-on) at 25 cents a minute, the way the pricing page says.
-//   - at 80 percent the owner gets one push, at 100 percent one more; Max keeps answering either way
+//   - at 80 percent the owner gets one push, at 100 percent one more; Max keeps answering either way.
+//     Christopher gets an alert at both marks too, so a heavy line is seen before it goes over
 //   - on the 2nd of the month, the overage from last month goes on the business's next Stripe invoice, once
 //   - a daily safety cap (120 minutes or 80 calls in one day on one line) switches that line to a short message and
 //     tells Christopher: that is a robocall storm or abuse, not a busy day
@@ -89,9 +90,12 @@ export async function minutesCron(env, now, h) {
     if (m.pct >= 100 && await mark('full')) {
       out.full++;
       await push(c.client_id, { title: 'Max has used your ' + m.included + ' minutes this month', body: 'He keeps answering. Minutes past that are 25¢ each on your next invoice. Add 300 more a month in the app if this is your normal.' });
+      await alert('minutes-full', c.client_id, (c.business || c.client_id) + ' has used all ' + m.included + ' of Max\'s minutes this month (' + m.used + ' so far). Minutes past that are billed to them at 25¢ each on the 2nd.');
     } else if (m.pct >= 80 && await mark('warn')) {
       out.warned++;
       await push(c.client_id, { title: 'Max has used ' + m.used + ' of your ' + m.included + ' minutes', body: 'That is ' + m.pct + '% with ' + Math.max(1, Math.ceil((Date.parse(monthRange(key).to) - now) / DAY)) + ' days left in the month. Past ' + m.included + ', minutes are 25¢ each.' });
+      // Christopher hears it too, before the client goes over (Nov 15, 2026): one heavy line is a cost to watch.
+      await alert('minutes-near', c.client_id, (c.business || c.client_id) + ' has used ' + m.used + ' of ' + m.included + ' Max minutes (' + m.pct + '%) with ' + Math.max(1, Math.ceil((Date.parse(monthRange(key).to) - now) / DAY)) + ' days left in the month.');
     }
   }
   // The 2nd of the month: last month's overage, once, on the next invoice.

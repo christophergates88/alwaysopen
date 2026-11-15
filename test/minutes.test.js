@@ -31,13 +31,18 @@ test('minutes round up per call like a phone bill, skip test and limited calls, 
 test('one push at 80 percent, one more at 100, never twice, and Max keeps answering', async () => {
   const db = await setup(); const env = { DB: db };
   const pushes = [];
-  const h = { push: async (cid, n) => { pushes.push(cid + ': ' + n.title); return 1; } };
+  const alerts = [];
+  const h = { push: async (cid, n) => { pushes.push(cid + ': ' + n.title); return 1; }, alert: async (type, who, detail) => { alerts.push(type + ' ' + who + ': ' + detail); } };
   await seed(db, 'c1', 24, 600, 3);   // 240 minutes = 80%
   await minutesCron(env, Date.parse(OCT(10)), h); await minutesCron(env, Date.parse(OCT(10, 13)), h);
   assert.deepEqual(pushes, ['c1: Max has used 240 of your 300 minutes']);
   await seed(db, 'c1', 7, 600, 12);   // 310 minutes
   await minutesCron(env, Date.parse(OCT(15)), h); await minutesCron(env, Date.parse(OCT(16)), h);
   assert.deepEqual(pushes.slice(1), ['c1: Max has used your 300 minutes this month']);
+  // Christopher is told at both marks, once each
+  assert.equal(alerts.length, 2);
+  assert.match(alerts[0], /^minutes-near c1: .*240 of 300 Max minutes \(80%\)/);
+  assert.match(alerts[1], /^minutes-full c1: .*all 300 of Max's minutes/);
   const m = await meterFor(env, 'c1', Date.parse(OCT(16)));
   assert.deepEqual([m.over, m.overCents], [10, 250]);
   assert.match(meterText(m), /10 past the 300 in your plan \(\$2\.50 at 25¢ a minute\)/);
