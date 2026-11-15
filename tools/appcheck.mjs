@@ -41,7 +41,7 @@ try {
 // a call Max took, with one line he held back (Brief 3): the owner sees it in plain words under the reply
 try {
   const cid = (await DB.prepare('SELECT client_id FROM billing WHERE code = ?1').bind(code).first()).client_id;
-  const tr = JSON.stringify([{ w: 'ai', t: 'Sinclair Plumbing, this is Max. I\'m S.I., and this call may be recorded. What can I do for you?' }, { w: 'caller', t: 'water is pouring out of my water heater onto the floor' },
+  const tr = JSON.stringify([{ w: 'ai', t: 'Sinclair Plumbing, this is Max. I\'m an automated assistant, and this call may be recorded. What can I do for you?' }, { w: 'caller', t: 'water is pouring out of my water heater onto the floor' },
     { w: 'ai', t: 'Oh no, okay. Shut the cold water valve on top of the tank, only if you can reach it dry. Can you get to it?' }, { w: 'held', t: 'asking for their details in the middle of a safety step' },
     { w: 'caller', t: 'yeah it\'s off now' }, { w: 'ai', t: 'Good. Dana gets an urgent alert now. What\'s your name?' }, { w: 'caller', t: 'Tom Reyes, this number' }, { w: 'ai', t: 'Thanks, Tom. Dana will call you back on this number. Take care.' }]);
   await DB.prepare("UPDATE app_clients SET feats = 'calls' WHERE client_id = ?1").bind(cid).run();
@@ -228,20 +228,20 @@ for (const tab of ['today', 'customers', 'money', 'max']) {
     await page.unroute(/\/api\/map\?/);
   }
 }
-// Text Katie: one sheet from any screen
-{ const k = await page.$('header [data-a="katie"]');
-  if (!k) problems.push('no Text Katie button');
+// Text Chris: one sheet from any screen
+{ const k = await page.$('header [data-a="askus"]');
+  if (!k) problems.push('no Text Chris button');
   else { await k.click(); await page.waitForTimeout(300);
     const ok = await page.evaluate(() => !!document.querySelector('.sheet #msg') && document.querySelectorAll('.sheet').length === 1);
-    if (!ok) problems.push('Text Katie did not open the message box');
-    if (shots) await page.screenshot({ path: path.join(shots, 'app-katie.png') });
+    if (!ok) problems.push('Text Chris did not open the message box');
+    if (shots) await page.screenshot({ path: path.join(shots, 'app-askus.png') });
     await page.click('.sheet [data-close]'); await page.waitForTimeout(200); }
 }
 // two taps or fewer for the tasks owners do most (Brief 4, Part 4): [task, tab, selector that must be on that screen]
 for (const [task, tab, sel] of [['see a call', 'today', '.call'], ['call back', 'today', '.call a[href^="tel:"]'], ['post a review reply', 'today', '[data-a="approve"]'],
   ['see the map', 'customers', '#map .mapbox'], ['turn the map on', 'customers', '[data-a="map-show"]'], ['see the month\'s worth', 'money', 'h1'],
   ['hear Max', 'max', 'a[href^="tel:"]'], ['close for today', 'today', '[data-a="closed"]'], ['turn Max off', 'max', '[data-a="line-toggle"]'],
-  ['text Katie', 'today', 'header [data-a="katie"]'], ['see what Max knows', 'max', '#lo']]) {
+  ['text Chris', 'today', 'header [data-a="askus"]'], ['see what Max knows', 'max', '#lo']]) {
   await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(250);
   const el = await page.$(sel);
   if (!el) { problems.push('two taps: "' + task + '" is not on ' + tab); continue; }

@@ -4,7 +4,7 @@
 //               by push to the app, or by email when they have no app. "Every review answered" depends on that tap.
 //   setup       New clients whose line has had no real call: forwarding probably isn't on, so they get nothing for
 //               their money. Nudges with the exact steps on day 2 and day 5; Christopher hears on day 7.
-//   messages    Owner messages to us. An instant "got it, Katie will reply by …", a push to Christopher after 4 business
+//   messages    Owner messages to us. An instant "got it, Chris will reply by …", a push to Christopher after 4 business
 //               hours with no answer, and the 7 AM push after one business day.
 //   spend       Today's Claude use, minutes and texts against a normal day; 3x normal is an alert. (The hard ceiling on
 //               texts lives in sms.js, where every text goes through.)
@@ -139,7 +139,7 @@ export async function setupNudges(env, now, h) {
       let via = (await pushOwner(env, h, l.client_id, { aps: { alert: { title, body }, sound: 'default' }, screen: 'home' })) ? 'push' : '';
       if (o && o.email && o.code) {
         const hi = firstName(o) ? 'Hi ' + firstName(o) + ',\n\n' : '';
-        const sent = await mailOwner(env, h, o.email, title, hi + body.replace('The steps for your carrier are in the app under Your first hour.', 'The steps for your carrier: ' + SITE + '/app/' + o.code + '/help/forwarding') + '\n\nIf you already forwarded them, call Max’s line once from another phone and let it ring through, so we know it’s working. Questions? Reply to this email and Katie will help.\n\nAlways Open\n' + (env.BUSINESS_ADDRESS || ''));
+        const sent = await mailOwner(env, h, o.email, title, hi + body.replace('The steps for your carrier are in the app under Your first hour.', 'The steps for your carrier: ' + SITE + '/app/' + o.code + '/help/forwarding') + '\n\nIf you already forwarded them, call Max’s line once from another phone and let it ring through, so we know it’s working. Questions? Reply to this email and Chris will help.\n\nAlways Open\n' + (env.BUSINESS_ADDRESS || ''));
         if (sent === 'sent') via = via ? via + ' and email' : 'email';
       }
       out.push({ client: l.client_id, step: want, via: via || 'none' });
@@ -150,15 +150,15 @@ export async function setupNudges(env, now, h) {
 }
 
 // ---------- owner messages to us ----------
-// Right after an owner writes (app.js): one automatic note saying when Katie will answer. At most one every 4 hours.
+// Right after an owner writes (app.js): one automatic note saying when Chris will answer. At most one every 4 hours.
 export function replyBy(now) {
   const e = eastern(now);
-  if (!/Sat|Sun/.test(e.wd) && e.hour >= 9 && e.hour < 15) return 'Katie will reply within a few hours.';
+  if (!/Sat|Sun/.test(e.wd) && e.hour >= 9 && e.hour < 15) return 'Chris will reply within a few hours.';
   // The next business morning.
   let t = now + H;
   for (let i = 0; i < 96; i++, t += H) { const x = eastern(t); if (!/Sat|Sun/.test(x.wd) && x.hour === 10) break; }
   const e2 = eastern(t), when = e2.day === eastern(now + DAY).day ? 'tomorrow' : new Date(t).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
-  return 'Katie will reply by 10 AM ' + when + '.';
+  return 'Chris will reply by 10 AM ' + when + '.';
 }
 export async function ackMessage(env, cid, by, now) {
   now = now || Date.now();
@@ -304,7 +304,7 @@ export async function mailRecords(env, now, h) {
 }
 
 // ---------- the 10-minute run ----------
-// Sales call-backs we promised. Max tells a caller on Always Open's own line that Katie will call, and a mailed letter's
+// Sales call-backs we promised. Max tells a caller on Always Open's own line that Chris will call, and a mailed letter's
 // "Call me" box says the same. Once a lead has waited about an hour and a half of business time, one high push names it.
 const CALLBACK_AFTER = 1.5;   // business hours
 // The audit page's "Call me" box (leadmail.js) records when they asked.
@@ -332,7 +332,7 @@ export async function salesCallbacks(env, now, h) {
     }
     const who = String(r.business || r.name || 'A caller').trim();
     await ping(env, h, 'Always Open: call ' + who + ' back',
-      (phoneCall ? 'Max told them Katie would call. ' : 'They asked for a call from their mailed letter. ') + r.phone + [r.plan ? r.plan + ' plan' : '', r.town, r.grade ? 'grade ' + r.grade : ''].filter(Boolean).map(x => ' · ' + x).join('') +
+      (phoneCall ? 'Max told them Chris would call. ' : 'They asked for a call from their mailed letter. ') + r.phone + [r.plan ? r.plan + ' plan' : '', r.town, r.grade ? 'grade ' + r.grade : ''].filter(Boolean).map(x => ' · ' + x).join('') +
       ' · ' + (phoneCall ? 'called ' : 'asked ') + dayName(r.at) + '. If it’s done, ignore this.', 'high', 'telephone_receiver');
     await setMark(env, 'callback:' + r.id, 'told', now);
     told.push(who);

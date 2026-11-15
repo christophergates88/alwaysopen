@@ -52,7 +52,7 @@ count, so a zero is a checked zero: clients waiting on a reply (answer box), rep
 (Copy and open Google, then Posted), requests to call back (Talking, Won, Lost), this week's to-dos (Done), and things
 that are off (failing checks, a low Twilio balance, crashed pages, each in plain words with what to do). Folded below:
 clients, calls, closed requests, how things stand, who is drifting, the switches (Outreach, the map), and a link to
-the numbers. It reads the site's own tables each time it opens. An answer typed there is saved as Katie's and shows
+the numbers. It reads the site's own tables each time it opens. An answer typed there is saved as Chris's and shows
 in the client's app as "Always Open". The old to-do board (/ops) is this page; the old Google posting page (/ops/post)
 sends you to its Google part; every push and the Monday email open it. `Open Always Open HQ.command` opens it from the
 Mac. A new kind of thing that needs him goes into this page's list (gather() in opshq.js, or boardItems() in
@@ -161,7 +161,7 @@ Every 10 minutes, each at its own pace, with the open items in the 7 AM push:
 - **Drafts waiting on an owner**: reminders at 1 day and 3 days (a review under 4 stars after 6 hours), by push, or by
   email to owners who signed up online and have no app. Clients with drafts older than 3 days are in the 7 AM push.
 - **New clients never set up**: a line with no real call gets the forwarding steps on day 2 and day 5; you hear on day 7.
-- **Client messages**: an automatic "Got it, Katie will reply by …", a push to you after 4 business hours unanswered,
+- **Client messages**: an automatic "Got it, Chris will reply by …", a push to you after 4 business hours unanswered,
   the 7 AM push after a business day. Answer in HQ so it shows in their app (an answer is any reply that isn't the
   automatic one).
 - **Spending**: Claude use on calls, minutes and texts in the last 24 hours against a normal day; 3x is `spend:<kind>`.
@@ -172,7 +172,7 @@ Every 10 minutes, each at its own pace, with the open items in the 7 AM push:
   client's history).
 - **Delivery**: texts carriers stopped delivering (`text-delivery`, error 30007 is filtering) and the domain's SPF and
   DMARC records (`mail-records`).
-- **Sales call-backs we promised**: a real caller on Always Open's own line (Max tells them Katie will call), or a
+- **Sales call-backs we promised**: a real caller on Always Open's own line (Max tells them Chris will call), or a
   mailed letter's "Call me", gets one high push about 90 business minutes later, on weekdays 9 AM to 7 PM, with the
   number. Test calls from your own phone never count.
 

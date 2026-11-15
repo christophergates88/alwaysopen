@@ -146,7 +146,7 @@ test('the client’s app opens with their private link and not without it', asyn
   // This month so far leads the Home card, and the month opens as one page (insights.js, monthpage.js).
   assert.equal(typeof S.state.monthNow.calls, 'number'); assert.equal(S.state.monthNow.page, '/month/now');
   const mp = await site.call('/app/' + code + '/month/now');
-  assert.equal(mp.status, 200); assert.match(mp.text, /<h1>Sinclair Plumbing<\/h1>/); assert.match(mp.text, /One thing for next month/); assert.match(mp.text, /Katie answers/);
+  assert.equal(mp.status, 200); assert.match(mp.text, /<h1>Sinclair Plumbing<\/h1>/); assert.match(mp.text, /One thing for next month/); assert.match(mp.text, /Chris answers/);
   assert.equal((await site.call('/app/' + code + '/month/2026-13')).status, 404);
   const sample = await site.call('/sample-report');
   assert.equal(sample.status, 200); assert.match(sample.text, /Mike’s Plumbing/); assert.match(sample.text, /Three-day check-ins/);
@@ -216,9 +216,9 @@ test('a message to the team reaches Christopher by push and email', async () => 
   const r = await site.call(A('/api/message'), { json: { text: 'We are closed Monday for the holiday.', kind: 'hours' } });
   assert.equal(r.status, 200, r.text);
   const rows = await all('SELECT dir, by, text FROM app_messages WHERE client_id = ?1 ORDER BY id', cid);
-  assert.deepEqual(rows.map(m => m.dir), ['in', 'out'], 'their message, then the automatic note saying when Katie answers');
+  assert.deepEqual(rows.map(m => m.dir), ['in', 'out'], 'their message, then the automatic note saying when Chris answers');
   assert.equal(rows[1].by, 'Always Open (automatic)');
-  assert.match(rows[1].text, /^Got it\. Katie will reply (within a few hours|by 10 AM [A-Za-z]+)\.$/);
+  assert.match(rows[1].text, /^Got it\. Chris will reply (within a few hours|by 10 AM [A-Za-z]+)\.$/);
   assert.ok(world.pushes.length > before && world.mail.length > mails);
   assert.ok(world.pushes.at(-1).title.startsWith('Hours change'));
   assert.equal((await site.call(A('/api/message'), { json: { text: '  ' } })).status, 400);
@@ -481,7 +481,7 @@ test('Max calls the owner, asks about the business, and what he heard waits for 
   const id = /[?&]i=(\d+)/.exec(out.Url)[1];
   const sid = out.sid;
   const tw = await hook('iv', { CallSid: sid, From: lineNumber, To: '+14785550101', AnsweredBy: 'human' }, 'i=' + id);
-  assert.match(tw.text, /<ConversationRelay/); assert.match(tw.text, /few quick questions/); assert.match(tw.text, /S\.I\./, 'Max still says he is not a person');
+  assert.match(tw.text, /<ConversationRelay/); assert.match(tw.text, /few quick questions/); assert.match(tw.text, /automated assistant/, 'Max still says he is not a person');
   world.aiNote = b => /phone interview/.test(JSON.stringify(b.system || '')) ? {
     services: 'Plumbing repairs and water heaters. We don’t do septic.', area: 'Eatonton, Madison and Greensboro, about 30 miles out.', prices: '$89 service call, waived if we do the work.',
     urgent: 'Water leaking now, or no water at all.', next: 'Dana calls back within the hour.', booking: 'Max books open times; jobs take about two hours.', intake: '', website: '', address: '',
@@ -684,7 +684,7 @@ test('repeat callers: Dana is greeted as a question, a visit coming up comes fir
   await hook('after', { CallSid: l.sid, SessionDuration: '20', SessionStatus: 'ended' }); await site.settle();
 });
 
-test('the owner picks a voice, names the assistant and records a greeting; Max still says he is an S.I. right after it', async () => {
+test('the owner picks a voice, names the assistant and records a greeting; Max still says he is an automated assistant right after it', async () => {
   let st = (await site.call(A('/api/state'))).json();
   assert.equal(st.line.voice, 'calm'); assert.deepEqual(st.line.voices.map(v => v.key), ['calm', 'warm']);
   let r = await startCall('+14785550191');
@@ -706,7 +706,7 @@ test('the owner picks a voice, names the assistant and records a greeting; Max s
   r = await startCall('+14785550192');
   assert.match(r.r.text, /^[\s\S]*<Play>https:\/\/alwaysopenoffice\.com\/a\/[A-Za-z0-9]{32}<\/Play><Connect/, 'the owner’s recording plays first');
   assert.match(r.r.text, /voice="XrExE9yKIg1WjnnlVkGX/);
-  assert.match(r.r.text, /welcomeGreeting="I&apos;m S\.I\., and this call may be recorded\./);
+  assert.match(r.r.text, /welcomeGreeting="I&apos;m an automated assistant, and this call may be recorded\./);
   await openRoom(r.sid, '+14785550192');
   world.aiScript = ['This is Rosie. What can I do for you?'];
   await say(r.sid, 'Hi, who is this?');

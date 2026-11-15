@@ -217,7 +217,7 @@ async function welcome(env, url, h) {
   if (s.status === 'complete' && s.payment_status && !/^(paid|no_payment_required)$/.test(s.payment_status)) return page('Welcome', '<h1>Your payment is on its way.</h1><p class="sub">Your bank is still clearing it. As soon as it lands we set everything up and email your private app link. Questions? Email hello@alwaysopenoffice.com.</p>', 202);
   if (s.status !== 'complete') return page('Welcome', '<h1>Payment not finished.</h1><p class="sub">Nothing was charged. <a href="/start">Start again</a>.</p>', 402);
   const b = await createFromSession(env, s, h);
-  if (!b) return page('Welcome', '<h1>Thank you.</h1><p class="sub">Your payment went through. Katie will be in touch today to set everything up. Questions? Email hello@alwaysopenoffice.com or call (706) 460-2226.</p>');
+  if (!b) return page('Welcome', '<h1>Thank you.</h1><p class="sub">Your payment went through. Chris will be in touch today to set everything up. Questions? Email hello@alwaysopenoffice.com or call (706) 460-2226.</p>');
   const link = SITE + '/app/' + b.code;
   // Max's number, bought just now (or a moment ago by the webhook). Wait a few seconds for it, never longer.
   let line = null;

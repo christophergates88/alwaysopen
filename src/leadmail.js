@@ -240,7 +240,7 @@ export function auditMail(lead, a, stop, env, via, go) {
     page: 'El día 2 de cada mes recibe una página que muestra lo que hicimos y cuánto valió. Vea un ejemplo:', start: 'Empezar mi primer mes',
     promise: 'Pruébelo un mes. Si no vale la pena, no lo paga. Sin contrato y sin cargo de instalación.',
     max: '¿Quiere oír cómo se contestarían sus llamadas? Llame a Max, nuestra línea, al ' + MAX + ', a cualquier hora.',
-    q: via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Katie le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Katie contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. Katie contesta, normalmente el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
+    q: via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Chris le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Chris contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. Chris contesta, normalmente el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
   } : {
     hi: first ? 'Hi ' + first + ',' : 'Hi,',
     intro: via === 'letter' ? 'Here’s your full audit. We looked up ' + name + ' on Google just now and compared it with the busiest nearby businesses like yours.' : 'Here’s the free audit you asked for. We looked up ' + name + ' on Google a minute ago and compared it with the busiest nearby businesses like yours.',
@@ -249,7 +249,7 @@ export function auditMail(lead, a, stop, env, via, go) {
     page: 'On the 2nd of every month you’d get one page showing what we did and what it was worth. Here’s a sample:', start: 'Start my first month',
     promise: 'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee.',
     max: 'Want to hear how your calls would be answered? Call Max, our phone line, at ' + MAX + ', any hour.',
-    q: via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Katie calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Katie answers, usually the same business day.' : 'Questions? Just reply to this email. Katie answers, usually the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
+    q: via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Chris calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Chris answers, usually the same business day.' : 'Questions? Just reply to this email. Chris answers, usually the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
   };
   const pitchText = es ? 'Contestamos cada reseña con un borrador para su visto bueno, mantenemos su perfil de Google al día y contestamos cada llamada a su nombre, de día y de noche, con Max, nuestra línea telefónica. Después de cada trabajo llamamos para ver si todo quedó bien, damos seguimiento a cotizaciones y facturas, y llenamos los días libres con sus propios clientes.' : pitch.text;
   const inner = (
@@ -283,11 +283,11 @@ export function missMail(lead, stop, env, go) {
   const ft = footer(env || {}, stop, es), start = startLink(lead.plan);
   const subject = es ? 'Su auditoría gratis: una pregunta rápida' : 'Your free audit: one quick question';
   const lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:',
-    (asked ? 'Buscamos ' + asked + ' en Google' : 'Buscamos su negocio en Google') + ' y no encontramos una coincidencia exacta. Responda a este correo con el nombre como aparece en Google, o con el enlace a su perfil, y le mandamos la auditoría de inmediato. Si no, Katie la busca a mano y se la manda en un día hábil.',
+    (asked ? 'Buscamos ' + asked + ' en Google' : 'Buscamos su negocio en Google') + ' y no encontramos una coincidencia exacta. Responda a este correo con el nombre como aparece en Google, o con el enlace a su perfil, y le mandamos la auditoría de inmediato. Si no, Chris la busca a mano y se la manda en un día hábil.',
     'Mientras tanto, así se ve la página que recibe cada mes: ' + SITE + '/sample-report',
     '¿Quiere oír cómo se contestarían sus llamadas? Llame a Max, nuestra línea, al ' + MAX + '.', 'Always Open']
     : [first ? 'Hi ' + first + ',' : 'Hi,',
-    (asked ? 'We looked on Google for ' + asked : 'We looked for your business on Google') + ' and couldn’t find an exact match. Reply with the name as it shows on Google, or a link to your profile, and your audit comes right back. Otherwise Katie will look it up by hand and send it within one business day.',
+    (asked ? 'We looked on Google for ' + asked : 'We looked for your business on Google') + ' and couldn’t find an exact match. Reply with the name as it shows on Google, or a link to your profile, and your audit comes right back. Otherwise Chris will look it up by hand and send it within one business day.',
     'In the meantime, here’s the one page you’d get every month: ' + SITE + '/sample-report',
     'Want to hear how your calls would be answered? Call Max, our phone line, at ' + MAX + '.', 'Always Open'];
   const html = shell(lines.slice(0, -1).map(l => '<p style="margin:0 0 14px">' + esc(l).replace(SITE + '/sample-report', '<a href="' + esc(go.sample || SITE + '/sample-report') + '" style="color:#FF6A5E">' + SITE.replace('https://', '') + '/sample-report</a>') + '</p>').join('') +
@@ -309,12 +309,12 @@ export function copyMail(lead, link, stop, env, go) {
     ...(fixes.length ? ['Lo primero que arreglaríamos:', ...fixes.map((f, i) => (i + 1) + '. ' + f.title + '. ' + f.fix)] : []),
     'La auditoría completa, consultada de nuevo cada vez que la abre: ' + link,
     'Pruébelo un mes. Si no vale la pena, no lo paga. Sin contrato y sin cargo de instalación: ' + start,
-    '¿Preguntas? Responda a este correo, o llame a Max al ' + MAX + ' a cualquier hora. Katie contesta, normalmente el mismo día hábil.', 'Always Open']
+    '¿Preguntas? Responda a este correo, o llame a Max al ' + MAX + ' a cualquier hora. Chris contesta, normalmente el mismo día hábil.', 'Always Open']
     : ['Hi,', 'Here’s the copy you asked for.' + (g ? ' Your business got a ' + g + ' for how it looks to people searching Google.' : ''),
     ...(fixes.length ? [(fixes.length === 1 ? 'The first thing we’d fix:' : 'What we’d fix first:'), ...fixes.map((f, i) => (i + 1) + '. ' + f.title + '. ' + f.fix)] : []),
     'Your full audit, looked up fresh each time you open it: ' + link,
     'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee: ' + start,
-    'Questions? Reply to this email, or call Max at ' + MAX + ' any hour. Katie answers, usually the same business day.', 'Always Open'];
+    'Questions? Reply to this email, or call Max at ' + MAX + ' any hour. Chris answers, usually the same business day.', 'Always Open'];
   const linkify = l => esc(l).replace(esc(link), '<a href="' + esc(go.audit || link) + '" style="color:#FF6A5E">' + esc(link.replace('https://', '')) + '</a>').replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#FF6A5E">' + esc(start.replace('https://', '')) + '</a>');
   const html = shell(lines.map(l => '<p style="margin:0 0 14px">' + linkify(l) + '</p>').join('') + ft.html);
   return { subject, html, text: lines.join('\n\n') + ft.text };
@@ -330,9 +330,9 @@ export function followMail(lead, n, stop, env, top, go) {
   if (n === 1) {
     subject = es ? 'Su auditoría gratis: lo más rápido de arreglar' : 'Your free audit: the quickest win';
     lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', '¿Pudo ver la auditoría? Lo más rápido que mejoraría su negocio' + (top && ES[top.title] ? ': ' + ES[top.title][1].charAt(0).toLowerCase() + ES[top.title][1].slice(1) : ' es contestar cada reseña y cada llamada.') + ' Es lo que hacemos la primera semana.',
-      'Empezar: ' + start, 'O responda con una pregunta; Katie contesta, normalmente el mismo día hábil.', 'Always Open']
+      'Empezar: ' + start, 'O responda con una pregunta; Chris contesta, normalmente el mismo día hábil.', 'Always Open']
       : [first ? 'Hi ' + first + ',' : 'Hi,', 'Did you get a chance to look at the audit? The quickest win for your business' + (top && top.fix ? ': ' + top.fix.charAt(0).toLowerCase() + top.fix.slice(1) : ' is a reply to every review and an answer to every call.') + ' That’s the kind of thing we start on in week one.',
-      'Start your first month: ' + start, 'Or reply with a question. Katie answers, usually the same business day.', 'Always Open'];
+      'Start your first month: ' + start, 'Or reply with a question. Chris answers, usually the same business day.', 'Always Open'];
   } else {
     subject = es ? 'Última nota sobre su auditoría' : 'Last note on your audit';
     lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', 'Última nota de nuestra parte. Si las reseñas, las llamadas y los seguimientos se le acumulan, nosotros nos encargamos, y el día 2 de cada mes recibe una página con lo que hicimos y cuánto valió.',
@@ -408,7 +408,7 @@ export async function sendAudit(env, lead, id, h) {
   if (one(lead.business).length >= 2) {
     try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { err = one((e && e.message) || e).slice(0, 120); }
     // Google's top hit has to be this business, or the email grades someone else as theirs (Nov 10). No match: the
-    // "Katie will send it" email, and Christopher hears.
+    // "Chris will send it" email, and Christopher hears.
     if (a && a.found && !(await sameBiz(lead, a))) { err = 'Google’s top match was ' + one(a.business && a.business.name).slice(0, 60); a = { found: false }; }
   }
   const found = a && a.found;
@@ -426,7 +426,7 @@ export async function sendAudit(env, lead, id, h) {
   const f0 = found && a.findings && a.findings[0];
   await mark(found ? 'sent' : 'missed', found ? a.grade : '', f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '', found ? ourFixes(a) : '', found ? String(a.business.id || '') : '');
   await env.DB.prepare('DELETE FROM audit_sends WHERE at < ?1').bind(iso(now - 40 * DAY)).run().catch(() => {});
-  if (!found && h.ping) await h.ping('Audit needs a hand: ' + (plain(lead.business) || 'a request'), (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + plain(lead.business) + (lead.town ? ', ' + plain(lead.town) : '') + '". ') + 'They got an email saying Katie will send it within one business day.');
+  if (!found && h.ping) await h.ping('Audit needs a hand: ' + (plain(lead.business) || 'a request'), (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + plain(lead.business) + (lead.town ? ', ' + plain(lead.town) : '') + '". ') + 'They got an email saying Chris will send it within one business day.');
   return found ? 'sent' : 'missed';
 }
 
@@ -536,8 +536,8 @@ const tok = () => { const b = new Uint8Array(16); crypto.getRandomValues(b); ret
 export function auditText(lead, link) {
   const biz = plain(lead.business) || (lead.lang === 'es' ? 'su negocio' : 'your business');   // the caller's words, with no numbers or links
   return lead.lang === 'es'
-    ? 'Always Open: aquí está la auditoría gratis de ' + biz + ' que pidió en la llamada: ' + link + ' Katie le da seguimiento. Responda STOP para no recibir más.'
-    : 'Always Open: here’s the free audit for ' + biz + ' you asked for on the call: ' + link + ' Katie will follow up. Reply STOP to opt out.';
+    ? 'Always Open: aquí está la auditoría gratis de ' + biz + ' que pidió en la llamada: ' + link + ' Chris le da seguimiento. Responda STOP para no recibir más.'
+    : 'Always Open: here’s the free audit for ' + biz + ' you asked for on the call: ' + link + ' Chris will follow up. Reply STOP to opt out.';
 }
 // Called after the call, from the call note. h: {sendText} for tests. Returns 'texted' or why not.
 export async function textAudit(env, id, to, lead, h) {
@@ -593,7 +593,7 @@ export async function handleAuditPage(req, env, url, h) {
     await env.DB.prepare('INSERT INTO audit_posts (ip, at, kind) VALUES (?1, ?2, ?3)').bind(ip, iso(now), phone && !email ? 'call' : 'copy').run();
     await env.DB.prepare('DELETE FROM audit_posts WHERE at < ?1').bind(iso(now - 2 * DAY)).run().catch(() => {});
     if (phone && !email) {
-      // "Have Katie call me" (the mailed letter's page): the number goes to Christopher at once, at high priority, once a day.
+      // "Have Chris call me" (the mailed letter's page): the number goes to Christopher at once, at high priority, once a day.
       const d = phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
       if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(d)) return pageShell(es ? 'Revise el número' : 'Check the number', '<p>' + (es ? 'Ese número no parece correcto. ' : 'That number doesn’t look right. ') + '<a style="color:#FF8C82" href="/your-audit/' + t + '">' + (es ? 'Volver' : 'Go back') + '</a></p>', es);
       const shown = '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
@@ -604,16 +604,16 @@ export async function handleAuditPage(req, env, url, h) {
         try { await (await import('./checks.js')).markCallMe(env, lead.id, now); } catch (e) { /* the push below still goes */ }
         if (h.ping) { try { await h.ping('Always Open: ' + one(lead.business) + ' wants a call', one(lead.business) + (lead.town ? ' in ' + one(lead.town) : '') + ' asked for a call at ' + shown + (letter ? ' from their mailed letter' : ' from their audit page') + (lead.grade ? ' (grade ' + lead.grade + ')' : '') + '. Call while it’s fresh.'); } catch (e) { /* the number is saved on the lead */ } }
       }
-      return say(es ? 'Listo' : 'Done', es ? 'Listo. Katie le llama al ' + shown + ', normalmente el mismo día hábil.' : 'Done. Katie will call ' + shown + ', usually the same business day.', true);
+      return say(es ? 'Listo' : 'Done', es ? 'Listo. Chris le llama al ' + shown + ', normalmente el mismo día hábil.' : 'Done. Chris will call ' + shown + ', usually the same business day.', true);
     }
     if (!validEmail(email)) return pageShell(es ? 'Revise el correo' : 'Check the email', '<p>' + (es ? 'Ese correo no parece correcto. ' : 'That email doesn’t look right. ') + '<a style="color:#FF8C82" href="/your-audit/' + t + '">' + (es ? 'Volver' : 'Go back') + '</a></p>', es);
-    if (lead.copy_at && now - Date.parse(lead.copy_at) < DAY) return say(es ? 'Ya se mandó' : 'Already sent', es ? 'Hoy ya mandamos una copia de esta auditoría. Si no le llegó, llame al (706) 460-2226 y Katie le ayuda.' : 'A copy of this audit already went out today. If it didn’t arrive, call (706) 460-2226 and Katie will help.');
+    if (lead.copy_at && now - Date.parse(lead.copy_at) < DAY) return say(es ? 'Ya se mandó' : 'Already sent', es ? 'Hoy ya mandamos una copia de esta auditoría. Si no le llegó, llame al (706) 460-2226 y Chris le ayuda.' : 'A copy of this audit already went out today. If it didn’t arrive, call (706) 460-2226 and Chris will help.');
     const hold = await auditHold(env, email, '', lead.id, now);
-    if (hold === 'stopped') return say(es ? 'No enviado' : 'Not sent', es ? 'Ese correo nos pidió no escribirle, así que no lo haremos. Llame al (706) 460-2226 y Katie le ayuda.' : 'That address asked us not to email it, so we won’t. Call (706) 460-2226 and Katie will help.');
-    if (hold === 'repeat') return say(es ? 'Ya se mandó' : 'Already sent', es ? 'Ese correo ya recibió esta auditoría hace poco. Revise su bandeja, o llame al (706) 460-2226 y Katie le ayuda.' : 'That address already got this audit recently. Check its inbox, or call (706) 460-2226 and Katie will help.');
+    if (hold === 'stopped') return say(es ? 'No enviado' : 'Not sent', es ? 'Ese correo nos pidió no escribirle, así que no lo haremos. Llame al (706) 460-2226 y Chris le ayuda.' : 'That address asked us not to email it, so we won’t. Call (706) 460-2226 and Chris will help.');
+    if (hold === 'repeat') return say(es ? 'Ya se mandó' : 'Already sent', es ? 'Ese correo ya recibió esta auditoría hace poco. Revise su bandeja, o llame al (706) 460-2226 y Chris le ayuda.' : 'That address already got this audit recently. Check its inbox, or call (706) 460-2226 and Chris will help.');
     if (hold) {
       if (h.ping) await h.ping('Audit copy waiting: ' + one(lead.business), 'Someone asked for a copy at ' + email + ', and the day’s audit emails are used up. Send it by hand.');
-      return say(es ? 'Enviado' : 'Sent', es ? 'No se pudo enviar ahora. Katie se la manda hoy.' : 'It didn’t send just now. Katie will send it today.');
+      return say(es ? 'Enviado' : 'Sent', es ? 'No se pudo enviar ahora. Chris se la manda hoy.' : 'It didn’t send just now. Chris will send it today.');
     }
     // Marked first, so two quick taps never send two copies. The first address asked for becomes the lead's own.
     await env.DB.prepare('UPDATE leads SET copy_at = ?1 WHERE id = ?2').bind(iso(now), lead.id).run();
@@ -624,7 +624,7 @@ export async function handleAuditPage(req, env, url, h) {
     const r = await send(env, email, m, h);
     if (r !== 'sent') {
       if (h.ping) await h.ping('Audit copy did not send: ' + one(lead.business), 'Someone asked for a copy at ' + email + ' and it failed (' + r + '). Send it by hand.');
-      return say(es ? 'Enviado' : 'Sent', es ? 'No se pudo enviar ahora. Katie se la manda hoy.' : 'It didn’t send just now. Katie will send it today.');
+      return say(es ? 'Enviado' : 'Sent', es ? 'No se pudo enviar ahora. Chris se la manda hoy.' : 'It didn’t send just now. Chris will send it today.');
     }
     await noteSend(env, email, '', lead.id, 'copy', now);
     // For a caller's audit, the copy is the audit email: the follow-ups can start once its address clicks through.
@@ -635,7 +635,7 @@ export async function handleAuditPage(req, env, url, h) {
   await env.DB.prepare('UPDATE leads SET views = ?1 WHERE id = ?2').bind(String(views + 1), lead.id).run();
   // A mailed letter's QR code, opened for the first time: Christopher hears at once (mail.js).
   if (!views && /^letter /.test(lead.origin || '')) { try { await (await import('./mail.js')).letterOpened(env, lead, h.letterPing ? { ping: h.letterPing } : null); } catch (e) { /* the page still shows */ } }
-  const callBox = letter ? '<div class="copy"><b>' + (es ? '¿Quiere que Katie le llame?' : 'Want Katie to call you?') + '</b><form method="post"><input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="(478) 555-0100" aria-label="' + (es ? 'Su número' : 'Your phone number') + '"><button type="submit">' + (es ? 'Llámenme' : 'Call me') + '</button></form><p class="note">' + (es ? 'O llame a Max a cualquier hora: ' : 'Or call Max any hour: ') + '<a style="color:#FF8C82" href="tel:+17064602226">(706) 460-2226</a></p></div>' : '';
+  const callBox = letter ? '<div class="copy"><b>' + (es ? '¿Quiere que Chris le llame?' : 'Want Chris to call you?') + '</b><form method="post"><input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="(478) 555-0100" aria-label="' + (es ? 'Su número' : 'Your phone number') + '"><button type="submit">' + (es ? 'Llámenme' : 'Call me') + '</button></form><p class="note">' + (es ? 'O llame a Max a cualquier hora: ' : 'Or call Max any hour: ') + '<a style="color:#FF8C82" href="tel:+17064602226">(706) 460-2226</a></p></div>' : '';
   const copyBox = callBox + '<div class="copy"><b>' + (es ? '¿Se la mandamos por correo?' : 'Want a copy by email?') + '</b><form method="post"><input type="email" name="email" required autocomplete="email" placeholder="' + (es ? 'su@correo.com' : 'you@yourbusiness.com') + '" aria-label="Email"><button type="submit">' + (es ? 'Mandármela' : 'Email it to me') + '</button></form></div>';
   let a = null;
   if (views < MAX_VIEWS) { try { a = await (h.run || runAudit)(env, one(lead.business), one(lead.town)); } catch (e) { a = null; } }
@@ -651,5 +651,5 @@ export async function handleAuditPage(req, env, url, h) {
     return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(one(lead.business)) + (es ? ' sacó una ' : ' got a ') + '<b>' + esc(lead.grade) + '</b>' + (es ? ' en su auditoría.' : ' on its audit.') + '</p><p style="margin:0">' + (es ? 'Pida una copia por correo y se la mandamos con todo el detalle.' : 'Ask for a copy by email and we’ll send it with every detail.') + '</p></div>' + copyBox, es);
   }
   if (h.ping && lead.audit === 'texted') { await h.ping('Audit needs a hand: ' + one(lead.business), 'A caller asked for their audit by text and Google had no match for "' + one(lead.business) + (lead.town ? ', ' + one(lead.town) : '') + '". Call them back.'); await env.DB.prepare("UPDATE leads SET audit = 'missed' WHERE id = ?1").bind(lead.id).run(); }
-  return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(es ? 'Buscamos ' + (one(lead.business) || 'su negocio') + ' en Google y no encontramos una coincidencia exacta. Responda a nuestro mensaje con el nombre como aparece en Google, y Katie le manda la auditoría hoy.' : 'We looked for ' + (one(lead.business) || 'your business') + ' on Google and couldn’t find an exact match. ' + (letter ? 'Call (706) 460-2226 and tell Max the name as it shows on Google, and Katie will send your audit today.' : 'Reply to our text with the name as it shows on Google, and Katie will send your audit today.')) + '</p><p style="margin:0">' + esc(es ? 'Mientras tanto, así se ve la página de cada mes: ' : 'Meanwhile, here’s the one page you’d get every month: ') + '<a style="color:#FF6A5E" href="/sample-report">alwaysopenoffice.com/sample-report</a></p></div>' + copyBox, es);
+  return pageShell(es ? 'Su auditoría' : 'Your audit', '<div class="card"><p style="margin:0 0 10px">' + esc(es ? 'Buscamos ' + (one(lead.business) || 'su negocio') + ' en Google y no encontramos una coincidencia exacta. Responda a nuestro mensaje con el nombre como aparece en Google, y Chris le manda la auditoría hoy.' : 'We looked for ' + (one(lead.business) || 'your business') + ' on Google and couldn’t find an exact match. ' + (letter ? 'Call (706) 460-2226 and tell Max the name as it shows on Google, and Chris will send your audit today.' : 'Reply to our text with the name as it shows on Google, and Chris will send your audit today.')) + '</p><p style="margin:0">' + esc(es ? 'Mientras tanto, así se ve la página de cada mes: ' : 'Meanwhile, here’s the one page you’d get every month: ') + '<a style="color:#FF6A5E" href="/sample-report">alwaysopenoffice.com/sample-report</a></p></div>' + copyBox, es);
 }

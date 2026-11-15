@@ -8,13 +8,13 @@
 // on claude.ai, and he said "there's too many small places something could be". /ops and /ops/hq are now this page,
 // and /ops/post sends you to its Google part.
 //   GET  /ops, /ops/hq    the page (ops key in x-key, the dated link, or the cookie of a device that opened it before)
-//   POST /ops/hq/reply    { t, client, text }: Katie's answer, into the client's app (app_messages, dir 'out')
+//   POST /ops/hq/reply    { t, client, text }: Chris's answer, into the client's app (app_messages, dir 'out')
 //   POST /ops/hq/lead     { t, id, status, note }: where a request stands (new, talking, won, lost)
 //   (Posted, Done and the switches use the addresses they always had: /ops/post, /ops/done, /ops/outreach-switch, /ops/map.)
 // A reply shows in the client's app as "Always Open" and buzzes their iPhone on the next ten-minute run (app.js appCron).
 import { AUTO_BY, INTERNAL } from './checks.js';
 import { PROMISES } from './facts.js';
-const SUPPORT_NAME = PROMISES.support;   // Katie: the name on every answer
+const SUPPORT_NAME = PROMISES.support;   // Chris: the name on every answer
 
 const DAY = 864e5;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -438,7 +438,7 @@ export async function hqPost(env, id) {
   return { ok: false, error: why };
 }
 
-// Katie's answer into a client's app.
+// Chris's answer into a client's app.
 export async function hqReply(env, clientId, text, now) {
   const id = String(clientId || '').slice(0, 80), tx = String(text || '').replace(/\r\n?/g, '\n').trim();
   if (!tx) return { ok: false, error: 'Type your message first.', code: 400 };

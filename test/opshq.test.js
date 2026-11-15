@@ -31,9 +31,9 @@ async function world() {
   await run("INSERT INTO billing (client_id, plan, status, created, email, owner, phone, town) VALUES ('sinclair', 'Growth', 'active', '2026-10-20T15:00:00Z', 'dana@sinclairplumbing.example', 'Dana Sinclair', '4785550142', 'Eatonton, GA')");
   // Dana wrote yesterday; the automatic "got it" answered, a person has not. Lee wrote and was answered.
   await run("INSERT INTO app_messages (client_id, at, by, text, dir, notified) VALUES ('sinclair', ?1, 'Dana', 'Can Max say we do <b>tankless</b> installs?', 'in', 1)", iso(NOW - 20 * H));
-  await run("INSERT INTO app_messages (client_id, at, by, text, dir, hq_synced) VALUES ('sinclair', ?1, ?2, 'Got it, Dana. Katie will reply by 10 AM tomorrow.', 'out', 1)", iso(NOW - 20 * H + 1000), AUTO_BY);
+  await run("INSERT INTO app_messages (client_id, at, by, text, dir, hq_synced) VALUES ('sinclair', ?1, ?2, 'Got it, Dana. Chris will reply by 10 AM tomorrow.', 'out', 1)", iso(NOW - 20 * H + 1000), AUTO_BY);
   await run("INSERT INTO app_messages (client_id, at, by, text, dir, notified) VALUES ('oak', ?1, 'Lee', 'Thanks for the setup', 'in', 1)", iso(NOW - 30 * H));
-  await run("INSERT INTO app_messages (client_id, at, by, text, dir, hq_synced, notified) VALUES ('oak', ?1, 'Katie', 'Any time, Lee.', 'out', 1, 1)", iso(NOW - 29 * H));
+  await run("INSERT INTO app_messages (client_id, at, by, text, dir, hq_synced, notified) VALUES ('oak', ?1, 'Chris', 'Any time, Lee.', 'out', 1, 1)", iso(NOW - 29 * H));
   await run("INSERT INTO app_calls (id, client_id, at, caller, caller_name, summary, urgency, outcome, status, seconds, test) VALUES ('CA1', 'sinclair', ?1, '+14785550199', 'Tom Reyes', 'Water heater leaking onto the floor.', 'urgent', 'live', 'new', 95, 0), ('CA2', 'always-open', ?2, '+14785550100', '', '4 AM check', '', 'live', 'handled', 20, 1), ('CA3', 'always-open', ?3, '+14705550123', '', 'Asked what the Growth plan costs and wants a call back.', '', 'live', 'new', 120, 0)", iso(NOW - 3 * H), iso(NOW - 8 * H), iso(NOW - 26 * H));
   await run("INSERT INTO app_items (id, client_id, kind, status, created) VALUES ('i1', 'sinclair', 'reply', 'pending', ?1)", iso(NOW - 50 * H));
   await run("INSERT INTO leads (at, name, email, phone, business, town, type, plan, origin, status) VALUES (?1, 'Pat Moss', 'pat@mossroofing.example', '4785550177', 'Moss Roofing', 'Milledgeville, GA', 'Contractor or trade', 'Growth', 'https://alwaysopenoffice.com', 'new'), (?2, '', '', '+14705550123', '', '', 'insurance agency', 'Starter', 'phone CA3', 'new'), (?3, '', '', '+14785550100', '', '', '', '', 'phone CA2', 'new'), (?4, 'Bot', 'x@spam.example', '', 'Cheap SEO', '', '', '', 'https://alwaysopenoffice.com', 'spam'), (?5, '', '', '', 'Mailed Co', '', '', '', 'letter 12', 'letter')", iso(NOW - 2 * H), iso(NOW - 26 * H), iso(NOW - 8 * H), iso(NOW - 5 * H), iso(NOW - 40 * H));
@@ -81,7 +81,7 @@ test('it shows who is waiting, open requests, clients and real calls, straight f
   assert.match(html, /Can Max say we do &lt;b&gt;tankless&lt;\/b&gt; installs\?/, 'what a client typed is shown as text, never as markup');
   assert.doesNotMatch(html, /<b>tankless<\/b>/);
   assert.match(html, /Waiting 20 hr/);
-  assert.match(html, /data-send="sinclair">Send as Katie</);
+  assert.match(html, /data-send="sinclair">Send as Chris</);
   assert.match(html, /<h2>Requests to call back \(3\)<\/h2>/);
   assert.match(html, /<b>Lakeside Dental<\/b><span class="sub">Asked for a call from their letter/); assert.match(html, /grade D/);
   assert.match(html, /<b>Moss Roofing<\/b>/); assert.match(html, /Asked what the Growth plan costs/);
@@ -98,20 +98,20 @@ test('it shows who is waiting, open requests, clients and real calls, straight f
   assert.doesNotMatch(html, /\bAI\b/);
 });
 
-test('an answer typed here lands in the client app as Katie, once, and clears the wait', async () => {
+test('an answer typed here lands in the client app as Chris, once, and clears the wait', async () => {
   const { env, DB } = await world();
   const t = await B.boardToken(env);
   assert.equal((await post(env, '/ops/hq/reply', { t: 'forged', client: 'sinclair', text: 'hi' })).status, 403, 'no board link: nothing is sent');
   assert.equal((await post(env, '/ops/hq/reply', { t, client: 'sinclair', text: '   ' })).status, 400);
   assert.equal((await post(env, '/ops/hq/reply', { t, client: 'nobody', text: 'hi' })).status, 404);
   assert.equal((await post(env, '/ops/hq/reply', { t, client: 'sinclair', text: 'x'.repeat(1001) })).status, 400);
-  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE dir = 'out' AND by = 'Katie' AND client_id = 'sinclair'").first()).n, 0);
+  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE dir = 'out' AND by = 'Chris' AND client_id = 'sinclair'").first()).n, 0);
   const ok = await post(env, '/ops/hq/reply', { t, client: 'sinclair', text: ' Yes. I added tankless installs to what Max knows. ' });
   assert.deepEqual(await ok.json(), { ok: true });
   const row = await DB.prepare("SELECT by, text, dir, notified FROM app_messages WHERE client_id = 'sinclair' ORDER BY id DESC LIMIT 1").first();
-  assert.deepEqual({ ...row }, { by: 'Katie', text: 'Yes. I added tankless installs to what Max knows.', dir: 'out', notified: 0 }, 'not yet notified, so the ten-minute run buzzes their iPhone');
+  assert.deepEqual({ ...row }, { by: 'Chris', text: 'Yes. I added tankless installs to what Max knows.', dir: 'out', notified: 0 }, 'not yet notified, so the ten-minute run buzzes their iPhone');
   assert.equal((await (await post(env, '/ops/hq/reply', { t, client: 'sinclair', text: 'Yes. I added tankless installs to what Max knows.' })).json()).again, true, 'a double tap is one message');
-  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE dir = 'out' AND by = 'Katie' AND client_id = 'sinclair'").first()).n, 1);
+  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE dir = 'out' AND by = 'Chris' AND client_id = 'sinclair'").first()).n, 1);
   assert.equal((await Q.hqState(env)).waiting.length, 0, 'answered: nobody is waiting');
   // the client app shows it: the app reads this same table
   const seen = (await DB.prepare("SELECT text, dir FROM app_messages WHERE client_id = 'sinclair' ORDER BY id DESC LIMIT 40").all()).results;

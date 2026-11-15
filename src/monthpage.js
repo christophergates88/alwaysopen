@@ -10,7 +10,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const money = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-export const SUPPORT_NAME = 'Katie';
+export const SUPPORT_NAME = 'Chris';
 
 function delta(v, label) {
   if (v == null || !isFinite(v) || v === 0) return '';

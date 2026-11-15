@@ -20,7 +20,7 @@ export function appHtml({ base, business }) {
     '<style>' + CSS + '</style></head><body>' +
     '<header class="top"><div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#E5372B"/><path d="M44.7 19.3A18 18 0 1 0 50 32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#fff"/></svg>' +
     '<div><span class="kick">Always Open</span><b id="biz">' + biz + '</b></div></div>' +
-    '<div class="topr"><button class="btn line katie" type="button" data-a="katie">Text Katie</button><button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>' +
+    '<div class="topr"><button class="btn line askus" type="button" data-a="askus">Text Chris</button><button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>' +
     '<div class="offline" id="offline" hidden>No connection. Showing what we had.</div>' +
     '<main id="view" tabindex="-1"><div class="loading"><span></span><span></span><span></span></div></main>' +
     '<nav class="tabs" aria-label="Sections">' +
@@ -238,7 +238,7 @@ a.btn{color:inherit}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .scrim{position:fixed;inset:0;z-index:8;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center}
 .scrim[hidden]{display:none}
-.topr{display:flex;gap:8px;align-items:center}.katie{min-height:48px;padding:8px 12px;font-size:16px;white-space:nowrap}#refresh{width:48px;height:48px}
+.topr{display:flex;gap:8px;align-items:center}.askus{min-height:48px;padding:8px 12px;font-size:16px;white-space:nowrap}#refresh{width:48px;height:48px}
 .call.example{opacity:.6;border-style:dashed}.big3 b{font-size:2rem}
 #view p:not(.fine):not(.note):not(.sample){font-size:17px}#view .said p{font-size:17px}#view small{font-size:13px}#view span{font-size:max(15px,1em)}
 #view .btn,#view input,#view select,#view button.chip{min-height:48px}#view button.chip{font-size:15px;padding-left:14px;padding-right:14px}#view .chip{font-size:15px}.big3 span{font-size:16px}
@@ -677,8 +677,8 @@ function vMoney(){
   h+=metaBlock()+guardCard();
   return h;
 }
-function katieSheet(){
-  sheet('<div class="maptop"><h2>Text Katie</h2><button class="btn line close48" type="button" data-close="1">Close</button></div>'+vAsk().replace('<h1>Ask us</h1>',''));
+function askSheet(){
+  sheet('<div class="maptop"><h2>Text Chris</h2><button class="btn line close48" type="button" data-close="1">Close</button></div>'+vAsk().replace('<h1>Ask us</h1>',''));
   var th=$('#scrim .thread');if(th&&th.lastElementChild)th.lastElementChild.scrollIntoView({block:'nearest'});
 }
 function vHome(){
@@ -1031,7 +1031,7 @@ function heroCard(){
     var on=L.onAir;
     if(on&&SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back to '+esc(L.name))+'<div class="hero-t">'+signBack(L)+'</div></div>';
     return '<div class="hero'+(on?'':' off')+'">'+signBtn(on,on?'Today\\u2019s calls':(L.paused?'Line paused':'Turn '+esc(L.name)+' on'))+'<div class="hero-t"><b>'+(on?'Your office is open':(L.paused?'Calls are paused':'Calls are off'))+'</b><span>'+officeLine()+'</span><span class="sm">'+esc(L.name)+' \\u00b7 '+esc(L.numberText)+(on?' \\u00b7 day and night':' \\u00b7 '+esc(offText(L)))+'</span><div class="acts">'+
-      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-a="katie">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+''+(isTech()?'':'<button class="btn ghost sm" type="button" data-tab="max">Settings</button>')+'</div></div></div>';
+      (on?'<a class="btn line sm" href="tel:'+esc(L.number)+'">Call '+esc(L.name)+'</a>':(L.paused?'<button class="btn line sm" type="button" data-a="askus">Ask us</button>':'<button class="btn red sm" type="button" data-a="line-on">Turn on</button>'))+''+(isTech()?'':'<button class="btn ghost sm" type="button" data-tab="max">Settings</button>')+'</div></div></div>';
   }
   if(SIGN_FLIP)return '<div class="hero">'+signBtn(true,'Back')+'<div class="hero-t">'+signBack(null)+'</div></div>';
   return '<div class="hero">'+signBtn(true,'This month so far')+'<div class="hero-t"><b>Your office is open</b><span>'+officeLine()+(f.calls||S.client.regulated?'':' Max, your phone line, comes with your plan.')+'</span>'+
@@ -1569,7 +1569,7 @@ function refer(){
 /* ---------- Ask us ---------- */
 function vAsk(){
   var f=S.features||{},reg=S.client.regulated;
-  var h='<h1>Ask us</h1><p class="lede">Goes straight to Katie. She answers the same business day, usually.</p>';
+  var h='<h1>Ask us</h1><p class="lede">Goes straight to Chris. He answers the same business day, usually.</p>';
   var ms=S.messages||[];
   h+=ms.length?'<div class="thread">'+ms.map(function(m){return '<div class="msg '+m.dir+'">'+esc(m.text)+'<small>'+(m.dir==='out'?'Always Open':esc(m.by||'You'))+' \\u00b7 '+esc(when(m.at))+'</small></div>';}).join('')+'</div>':'<p class="note" style="margin:14px 2px">Questions, changes, anything. We answer here.</p>';
   h+='<div class="compose"><label class="lbl" for="msg" style="margin:0">Message</label><textarea id="msg" maxlength="1000" placeholder="Type your message"></textarea>'+(reg?'<p class="fine">Please don\\u2019t include client names, policy or account numbers, or claim details.</p>':'')+'<div class="acts"><button class="btn red" type="button" data-a="send">Send</button></div></div>';
@@ -1630,7 +1630,7 @@ document.addEventListener('click',function(e){
   if(t.dataset.tab){TAB=t.dataset.tab;try{history.replaceState(null,'','#'+TAB);}catch(x){}render();window.scrollTo(0,0);return;}
   var a=t.dataset.a,id=t.dataset.id;
   if(a==='map-open'){mapOpen();return;}
-  if(a==='katie'){katieSheet();return;}
+  if(a==='askus'){askSheet();return;}
   if(a==='need-more'){NEEDALL=!NEEDALL;render();return;}
   if(a==='map-show'){var on=t.getAttribute('aria-checked')!=='true';t.disabled=true;post('map',{show:on}).then(function(res){t.disabled=false;if(res.j.ok){S.map=res.j.map;toast(on?'You are on the map.':'You are off the map.');render();}else toast(res.j.error||'Could not save.');}).catch(function(){t.disabled=false;toast('No connection. Try again.');});return;}
   if(a==='approve')decide(id,'approve','');

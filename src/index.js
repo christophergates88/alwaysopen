@@ -643,17 +643,17 @@ async function lead(req, env, ctx, url) {
   }
   const first = (f.name || '').split(/\s+/)[0];
   if (!reason && hold === 'stopped') {   // they asked us to stop: no email, and the page does not promise one (Nov 10)
-    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Ese correo nos pidió no escribirle, así que no le mandaremos nada por correo. Si dejó un teléfono, Katie le llama en un día hábil.');
-    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'That email address asked us not to email it, so we won’t. If you left a phone number, Katie will call within one business day.');
+    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Ese correo nos pidió no escribirle, así que no le mandaremos nada por correo. Si dejó un teléfono, Chris le llama en un día hábil.');
+    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'That email address asked us not to email it, so we won’t. If you left a phone number, Chris will call within one business day.');
   }
   if (!reason && (timing || hold)) {
-    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Su solicitud nos llegó. Katie le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
-    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'Your request reached us. Katie follows up within one business day. You can close this tab.');
+    if (es) return reply(wantsJson, 200, true, 'Recibido' + (first ? ', ' + first : '') + '.', 'Su solicitud nos llegó. Chris le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
+    return reply(wantsJson, 200, true, 'Got it' + (first ? ', ' + first : '') + '.', 'Your request reached us. Chris follows up within one business day. You can close this tab.');
   }
   if (es) return reply(wantsJson, 200, true, 'Recibido' + (first && !reason ? ', ' + first : '') + '.',
-    'Su solicitud nos llegó. Su auditoría gratis ya va camino a su correo, y Katie le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
+    'Su solicitud nos llegó. Su auditoría gratis ya va camino a su correo, y Chris le da seguimiento en un día hábil. Ya puede cerrar esta pestaña.');
   return reply(wantsJson, 200, true, 'Got it' + (first && !reason ? ', ' + first : '') + '.',
-    'Your request reached us. Your free audit is on its way to your inbox now, and Katie follows up within one business day. You can close this tab.');
+    'Your request reached us. Your free audit is on its way to your inbox now, and Chris follows up within one business day. You can close this tab.');
 }
 
 async function push(env, f, id) {

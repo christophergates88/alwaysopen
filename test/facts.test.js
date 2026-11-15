@@ -54,7 +54,8 @@ test('Part 8b: the own line says who Always Open is, once, and a second sync cha
   assert.equal(await V.syncOwnLine({ DB }), true);
   const f1 = JSON.parse((await DB.prepare("SELECT facts FROM voice_lines WHERE client_id = 'always-open'").first()).facts);
   assert.equal(f1.notes.split('Always Open is a small team').length, 2, 'once');
-  assert.match(f1.notes, /Katie handles client support/);
+  assert.match(f1.notes, /He handles client support himself \(callers and clients know him as Chris\)/);
+  assert.doesNotMatch(f1.notes, /Katie/, 'Nov 15, 2026: Christopher is the support contact; nobody else is named');
   assert.match(f1.notes, /The free audit is a one-page report/, 'other notes kept');
   assert.equal(f1.services, F.SERVICES_DAY_FIRST_LIVE ? F.SERVICES_DAY_FIRST : F.SERVICES_REPORT_FIRST, 'the description comes from facts.js');
   assert.doesNotMatch(f1.services, /Facebook review|approves anything/, 'retired claims are gone from the live line');

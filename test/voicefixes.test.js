@@ -282,7 +282,7 @@ test('6. "put through when they ask": 0 works by day; in quiet hours only urgent
 
 // ---------- 7. the disclosure ----------
 test('7. the disclosure is always Max\'s own sentence; a greeting that contradicts it is not used', async () => {
-  assert.equal(V.DISCLOSURE, 'I\'m S.I., and this call may be recorded.');
+  assert.equal(V.DISCLOSURE, 'I\'m an automated assistant, and this call may be recorded.');
   const once = t => t.split(V.DISCLOSURE).length - 1;
   for (const bad of ['Thanks for calling Bob\'s Plumbing, this is Sarah, no AI here. Calls are recorded for quality.', 'Hi, thanks for calling Bob\'s Plumbing, this is Sarah at the front desk, calls may be recorded. AI could never replace us.',
     'Thanks for calling Bob\'s Plumbing. You are talking to a real person. How can I help?', 'Thanks for calling Bob\'s Plumbing. This call is not recorded. How can I help?', 'Thanks for calling Bob\'s, I\'m not a robot, promise.']) {
@@ -296,7 +296,7 @@ test('7. the disclosure is always Max\'s own sentence; a greeting that contradic
   // their own words that already say both things play as written (nothing of theirs is cut: the business name lives
   // there); the app's old added sentence becomes the disclosure
   const theirs = V.greetingText('X', false, 'Thanks for calling Lake Country Foam Party! I\'m Max, an S.I., and this call may be recorded. What can I do for you?');
-  assert.equal(theirs, 'Thanks for calling Lake Country Foam Party! I\'m Max, an S.I., and this call may be recorded. What can I do for you?');
+  assert.equal(theirs, 'Thanks for calling Lake Country Foam Party! I\'m Max, an automated assistant, and this call may be recorded. What can I do for you?', 'an old S.I. greeting is said in plain words');
   assert.equal(V.greetingText('X', false, 'You\'ve reached Quillen Plumbing\'s AI assistant, and this call may be recorded. How can I help?'), 'You\'ve reached Quillen Plumbing\'s AI assistant, and this call may be recorded. How can I help?', 'the business name stays');
   assert.equal(V.greetingText('X', false, 'This is Max with Quillen Plumbing, your virtual assistant. How can I help?'), 'This is Max with Quillen Plumbing, your virtual assistant. ' + V.DISCLOSURE + ' How can I help?', 'recording not said: the disclosure goes in, nothing comes out');
   assert.equal(V.greetingOk('Thanks for calling Quillen Plumbing! Press 0 to reach a real person.'), true, 'reaching a person is not claiming to be one');

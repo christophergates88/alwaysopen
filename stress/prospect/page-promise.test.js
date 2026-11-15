@@ -1,4 +1,4 @@
-// BUG: when no audit email will go out, the Worker says so ("Your request reached us. Katie follows up within one
+// BUG: when no audit email will go out, the Worker says so ("Your request reached us. Chris follows up within one
 // business day."), and the English website throws that answer away and prints its own: "Your free audit is on its way
 // to your inbox now". public/index.html line 1519 uses the server's message only when the page is in Spanish
 // (`es&&j.message ? ... : 'Got it... Your free audit is on its way to your inbox now...'`).

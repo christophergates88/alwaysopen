@@ -53,7 +53,7 @@ test('every other line is still a control the app has', () => {
     ['Google Calendar', 'Connect Google Calendar'], ['booking link', 'Copy booking link'], ['request link', 'Copy request link'],
     ['Promise a call-back time', 'Promise a call-back time'], ['hangs up before leaving a message', 'Text after a missed call'], ['check-in call a few days after a job', 'Check in after a job'],
     ['Turn Max off and back on', 'data-a="line-toggle"'], ['Closed today', 'Closed today?'], ['Holiday or new hours', 'Holiday or new hours'], ['Send a photo', 'Photo for a post'],
-    ['Finished a job', 'Finished a job'], ['Approve, edit or skip', 'data-a="approve"'], ['review QR code', 'Print a card'], ['who did what', 'See who did what'], ['Text Katie', 'Text Katie']
+    ['Finished a job', 'Finished a job'], ['Approve, edit or skip', 'data-a="approve"'], ['review QR code', 'Print a card'], ['who did what', 'See who did what'], ['Text Chris', 'Text Chris']
   ];
   const W = words('index', 'en');
   for (const [siteSays, appSays] of pairs) { assert.ok(W.includes(siteSays), 'the list says: ' + siteSays); assert.ok(app.includes(appSays), 'the app still has: ' + appSays); }

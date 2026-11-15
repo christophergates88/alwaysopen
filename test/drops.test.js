@@ -8,10 +8,10 @@ const V = await import('../src/voice.js');
 const D = await import('../src/drill.js');
 
 const msgs = [{ r: 'a', t: 'Always Open, this is Max.' }, { r: 'u', t: 'I just don\'t see how that\'s worth three hundred dollars a month.' },
-  { r: 'a', t: 'Fair to push on it. Starter is $149 a month, about five dollars a day. Want me to have Katie walk you through what fits an agency like yours?' }];
+  { r: 'a', t: 'Fair to push on it. Starter is $149 a month, about five dollars a day. Want me to have Chris walk you through what fits an agency like yours?' }];
 
 test('a drop mid-answer: sorry, then the end of the answer again', () => {
-  assert.equal(V.resumeLine(msgs, true, 'en-US'), 'Sorry, we got cut off for a second. Want me to have Katie walk you through what fits an agency like yours?');
+  assert.equal(V.resumeLine(msgs, true, 'en-US'), 'Sorry, we got cut off for a second. Want me to have Chris walk you through what fits an agency like yours?');
 });
 test('a drop while the caller was talking, or with nothing said yet: the plain line', () => {
   assert.equal(V.resumeLine(msgs, false, 'en-US'), V.RESUME_PLAIN);
@@ -20,7 +20,7 @@ test('a drop while the caller was talking, or with nothing said yet: the plain l
   assert.match(V.resumeLine(msgs, true, 'es-US'), /se cortó/);
 });
 test('control tags are never said again', () => {
-  assert.equal(V.resumeLine([{ r: 'a', t: 'Katie will call you tomorrow. Take care. [END]' }], true, 'en-US'), 'Sorry, we got cut off for a second. Take care.');
+  assert.equal(V.resumeLine([{ r: 'a', t: 'Chris will call you tomorrow. Take care. [END]' }], true, 'en-US'), 'Sorry, we got cut off for a second. Take care.');
 });
 test('the 3-minute test caller talks past the point where real calls drop', () => {
   const pauses = [...D.SCRIPT_LONG.matchAll(/<Pause length="(\d+)"\/>/g)].map(m => +m[1]);

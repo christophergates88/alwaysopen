@@ -1,6 +1,8 @@
 // What Max says about himself on every call, in one place: the phone line (voice.js) adds it to every greeting, and
 // the owner's app (app.js) shows it in the default greeting. Change the wording here and only here.
-export const DISCLOSURE = 'I\'m S.I., and this call may be recorded.';
+// Nov 15, 2026: plain words. It said "I'm S.I.", which a caller may not understand, and the terms promise every caller is
+// told the line is automated.
+export const DISCLOSURE = 'I\'m an automated assistant, and this call may be recorded.';
 
 // A greeting that says Max is not an AI, is a person, or that calls are not recorded is never used.
 const DENY_AI = /\b(?:[Nn]o|NO|[Nn]ot|NOT|[Nn]ever|[Nn]othing|[Ii]sn['’]?t|[Aa]in['’]?t|[Aa]ren['’]?t|[Ww]ithout|[Dd]on['’]?t|[Dd]o not|[Dd]oesn['’]?t|[Dd]oes not)\b(?:\s+[\w'’]+){0,3}?\s+(?:an?\s+)?(?:AI|A\.I\.?|SI|S\.I\.?)(?![\w])|\b(?:AI|A\.I\.?)\s+(?:could|can|will|would|won['’]?t|can['’]?t)\s+(?:never\s+)?(?:replace|beat|do)\b/;
@@ -12,15 +14,15 @@ export function contradicts(t) { t = String(t || ''); return DENY_AI.test(t) || 
 // The owner's own greeting with the disclosure in it. Nothing the owner wrote is taken out (their business name lives in
 // those sentences). If their words already say both things (an assistant of some kind, and that calls are recorded),
 // they play as written; otherwise the disclosure goes in after their first sentence (before it, if that is a question).
-const SAYS_AUTOMATED = /\b(?:AI|A\.I\.|S\.I\.)(?![\w])|\b(?:automated|virtual|digital)\s+(?:assistant|agent)\b|\bartificial intelligence\b/i;
+const SAYS_AUTOMATED = /\b(?:AI|A\.I\.)(?![\w])|\b(?:automated|virtual|digital)\s+(?:assistant|agent)\b|\bartificial intelligence\b/i;
 const SAYS_RECORDED = /\brecord(?:ed|ing)\b/i;
 export function withDisclosure(t) {
   t = String(t || '');
   const n = x => String(x).replace(/[’‘]/g, '\'').toLowerCase();
   if (n(t).indexOf(n(DISCLOSURE)) > -1) return t;
-  // what the app put in greetings before (it becomes the one disclosure)
-  const legacy = /\s*I['’]m (?:an )?S\.I\.,?(?: assistant,?)? and this call may be recorded\./i;
-  if (legacy.test(t)) return t.replace(legacy, ' ' + DISCLOSURE).trim();
+  // what the app put in greetings before Nov 15, 2026 ("I'm S.I., ...", "I'm Max, an S.I., ..."): the same sentence in plain words
+  t = t.replace(/\b(?:an? )?S\.I\.(?:,? assistant)?(?=,? and (?:this call|calls) (?:may be|are|is) recorded)/i, 'an automated assistant');
+  if (n(t).indexOf(n(DISCLOSURE)) > -1) return t.replace(/I[’‘]m an automated assistant, and this call may be recorded\./i, DISCLOSURE);
   if (SAYS_AUTOMATED.test(t) && SAYS_RECORDED.test(t)) return t;
   const parts = t.replace(/\b([AS])\.I\./g, '$1\u0001I\u0001').split(/(?<=[.!?]["'”’)]*)\s+/).map(x => x.replace(/\u0001/g, '.')).filter(x => x.trim());
   const at = parts.length >= 2 ? 1 : (parts.length === 1 && /\?["'”’)]*$/.test(parts[0]) ? 0 : parts.length);

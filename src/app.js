@@ -770,7 +770,7 @@ async function apiLine(req, env, ctx, c) {
   if (b.greeting != null) {
     const g0 = oneLine(clean(b.greeting, 320));
     // Every greeting must tell callers they are talking to an AI and that the call may be recorded. If theirs doesn't, we add that sentence.
-    const DISC = ' I’m an S.I., and this call may be recorded.';
+    const DISC = ' I’m an automated assistant, and this call may be recorded.';
     const g = greetOk(g0) || !g0 ? g0 : (g0.slice(0, 320 - DISC.length).trim() + DISC);
     if (g && !greetOk(g)) return aj({ ok: false, error: greetWhy(g) }, 422);
     if (g !== String(f.greeting || '')) { o.greeting = { v: g, base: String(hq.greeting || '') }; changes.push('greeting: ' + (g || '(back to the standard one)')); }
@@ -928,7 +928,7 @@ async function apiMessage(req, env, ctx, c) {
   const ins = await env.DB.prepare("INSERT INTO app_messages (client_id, at, by, text, hq_synced, dir, notified) VALUES (?1, ?2, ?3, ?4, 0, 'in', 1)")
     .bind(c.client_id, at, by, text).run();
   const id = ins && ins.meta && ins.meta.last_row_id;
-  // "Got it, Katie will reply by …" so nobody wonders whether it went through (checks.js; once every 4 hours at most).
+  // "Got it, Chris will reply by …" so nobody wonders whether it went through (checks.js; once every 4 hours at most).
   try { await (await import('./checks.js')).ackMessage(env, c.client_id, by); } catch (e) { /* the message itself is saved */ }
   const title = (kind === 'hours' ? 'Hours change from ' : 'Message from ') + (c.business || 'a client');
   // Tapping the push, or the link in the email, opens Always Open HQ with the answer box under their message.
@@ -978,7 +978,7 @@ async function apiJob(req, env, ctx, c) {
 }
 
 // The owner's own greeting, recorded on their phone (WAV or MP3, up to about 15 seconds). Twilio plays it first; Max still says
-// he is an S.I. and the call may be recorded right after it, because a recording can't be trusted to say so.
+// he is an automated assistant and the call may be recorded right after it, because a recording can't be trusted to say so.
 const AUDIO_MAX = 700000;
 async function apiGreetingAudio(req, env, c) {
   if (c.staff) return aj({ ok: false, error: 'Only the owner can change the greeting.' }, 403);

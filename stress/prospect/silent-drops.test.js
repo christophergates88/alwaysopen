@@ -4,7 +4,7 @@
 //   2. The sixth request in an hour from one internet address (index.js lines 522-524). One address is not one person:
 //      a shared office, a co-working space, or the Wi-Fi at an event where Always Open is being shown.
 // In both cases the row is saved as spam, nothing is pushed or emailed to Christopher, it is not in /leads, and the
-// page says "Your free audit is on its way to your inbox now, and Katie follows up within one business day."
+// page says "Your free audit is on its way to your inbox now, and Chris follows up within one business day."
 // Neither thing happens, and nobody ever knows.
 // Everything else that looks odd but may be real (a form sent too fast, a stale form, no form time) is "held for a
 // look" and reaches Christopher quietly. These two are not.
@@ -43,7 +43,7 @@ test('an owner who pastes their website, Google listing and Facebook page still 
   const r = await ask(s, { email: 'dana@sinclairplumbing.example', phone: '(478) 555-0101', notes: NOTE });
   assert.equal(r.status, 200);
   const row = await s.one('SELECT status, reason FROM leads');
-  assert.match(r.json().message, /Katie follows up/, 'the owner is told Katie will follow up (Nov 10: held for a look, so no audit is promised)');
+  assert.match(r.json().message, /Chris follows up/, 'the owner is told Chris will follow up (Nov 10: held for a look, so no audit is promised)');
   assert.equal(s.out.length + told(s) > 0, true,
     'the owner was promised an audit and a call; no audit went out, and Christopher got no push and no email (row: ' + row.status + ', "' + row.reason + '")');
 });

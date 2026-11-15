@@ -70,7 +70,7 @@ const FULL = {
         'Approve, edit or skip every reply and post before it goes out.',
         'Your review QR code, with a card to print for the counter or the truck.',
         'A link for each person on your team, and a list of who did what.',
-        'Text Katie. A person on our team answers.'
+        'Text Chris. A person on our team answers.'
       ]]
     ],
     foot: 'The plans below show what comes with each one.', go: 'Get started', demo: 'Try the sample app'
@@ -132,7 +132,7 @@ const FULL = {
         'Aprobar, editar o saltar cada respuesta y publicación antes de que salga.',
         'Su código QR para reseñas, con una tarjeta para imprimir y poner en el mostrador o la camioneta.',
         'Un enlace para cada persona de su equipo, y una lista de quién hizo qué.',
-        'Escríbale a Katie. Le contesta una persona de nuestro equipo.'
+        'Escríbale a Chris. Le contesta una persona de nuestro equipo.'
       ]]
     ],
     foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar', demo: 'Pruebe la aplicación de muestra'
@@ -165,7 +165,7 @@ const OFFICE = {
         'Approve, edit or skip every reply and post before it goes out.',
         'Your review QR code, with a card to print for the counter or the truck.',
         'A link for each person on your team, and a list of who did what.',
-        'Text Katie. A person on our team answers.'
+        'Text Chris. A person on our team answers.'
       ]]
     ],
     foot: 'The plans below show what comes with each one.', go: 'Get started', demo: 'Try the sample app'
@@ -194,7 +194,7 @@ const OFFICE = {
         'Aprobar, editar o saltar cada respuesta y publicación antes de que salga.',
         'Su código QR para reseñas, con una tarjeta para imprimir y poner en el mostrador o la camioneta.',
         'Un enlace para cada persona de su equipo, y una lista de quién hizo qué.',
-        'Escríbale a Katie. Le contesta una persona de nuestro equipo.'
+        'Escríbale a Chris. Le contesta una persona de nuestro equipo.'
       ]]
     ],
     foot: 'Los planes de abajo muestran qué incluye cada uno.', go: 'Empezar', demo: 'Pruebe la aplicación de muestra'

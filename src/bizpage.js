@@ -94,7 +94,7 @@ function setBlock(){
   if(S.fillWeek){var W=S.fillWeek,st=W.steps||[],nd=st.filter(function(x){return x.done;}).length;
     var calUrl='/google/connect?code='+encodeURIComponent(BASE.split('/').pop());
     var act=function(x){if(x.done)return '';
-      if(x.k==='pro')return '<button class="btn line sm" type="button" data-a="katie">Ask Katie about Pro</button>';
+      if(x.k==='pro')return '<button class="btn line sm" type="button" data-a="askus">Ask Chris about Pro</button>';
       if(x.k==='texting')return '<span class="fine" style="margin:0">The carriers usually approve it 1 to 2 weeks after signup. Nothing for you to do.</span>';
       if(x.k==='calendar')return '<a class="btn line sm" href="'+esc(calUrl)+'">Connect Google Calendar</a>';
       if(x.k==='customers')return '<button class="btn line sm" type="button" data-a="pc-import">Import my customers</button>';

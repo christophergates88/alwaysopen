@@ -18,7 +18,7 @@ test('the interview asks every question once, in order, and Spanish only for non
   assert.match(p, /speak Spanish/);
   assert.match(p, /\[END\]/);
   assert.doesNotMatch(interviewPrompt({ business: 'Lake Agency', regulated: true }, false), /Spanish/);
-  assert.match(interviewGreeting({ business: 'Sinclair Plumbing', name: 'Max' }), /S\.I\..*recorded/, 'the interview still says Max is not a person');
+  assert.match(interviewGreeting({ business: 'Sinclair Plumbing', name: 'Max' }), /automated assistant.*recorded/, 'the interview still says Max is not a person');
 });
 
 test('what the interview heard goes live only on the owner’s OK, and can be thrown away', () => {

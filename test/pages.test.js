@@ -14,7 +14,8 @@ test('industry pages: words and samples', () => {
     const body = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '').replace(/<!--[\s\S]*?-->/g, '');
     const text = body.replace(/<[^>]+>/g, ' ').replace(/https?:\/\/\S+/g, '');
     if (p !== 'index') assert.ok(!/\bAI\b/.test(text), p + ' says AI');
-    assert.ok(!/\bChris\b/.test(text), p + ' says Chris');
+    // Nov 15, 2026: Chris is the support contact named on the site (it was Katie); no one else on the team is named.
+    assert.ok(!/\bKatie\b/.test(text), p + ' says Katie');
     assert.ok(!/\blocal\b/.test(text.replace(/https?:\/\/\S+/g, '')), p + ' says local');
     // The pictures use made-up businesses with believable names; a caption still calls them examples (Oct 29, 2026: no more "Sample" tags).
     assert.ok(/An example report\./.test(text), p + ' does not call its report an example');

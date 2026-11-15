@@ -4,7 +4,7 @@
 // weekdays between 10 AM and 3 PM Eastern, this runs a fresh audit for each queued business, and mails a one-page
 // letter through Lob (print, envelope and First-Class postage, about $1.42 each in color with its address page):
 //   - their grade and the three things we'd fix first (letter.js), signed by the Always Open team;
-//   - a QR code to their own live audit page (/your-audit/<token>), where they can have a copy emailed or ask Katie to
+//   - a QR code to their own live audit page (/your-audit/<token>), where they can have a copy emailed or ask Chris to
 //     call. Letter leads are never emailed unless they ask for that copy, and they get no follow-ups (followCron only
 //     reads status 'new'; theirs is 'letter'). The first time someone opens the page, Christopher gets a push.
 // Guardrails: nothing goes until Christopher turns it on with his caps ("Turn on mailed letters" on the Mac posts to
@@ -165,7 +165,7 @@ async function sendOne(env, row, now, h) {
   const L = letterFor(a, {
     offer: 'Try it for a month. If it isn’t worth it, you don’t pay. No contract and no setup fee.',
     mailed: true,
-    contact: 'Questions? Call (706) 460-2226. Max answers any hour, and Katie calls you back.',
+    contact: 'Questions? Call (706) 460-2226. Max answers any hour, and Chris calls you back.',
     sign: 'The Always Open team, Eatonton, Georgia'
   });
   L.qr = qrSvg(link, 'QR code to your live audit'); L.qrLink = link.replace('https://', '');

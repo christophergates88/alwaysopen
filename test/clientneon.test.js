@@ -22,7 +22,7 @@ test('the weekly note leads with what to do, then the four numbers', () => {
 test('report, review ask, storm and radar emails are neon and plain', () => {
   clean(reportEmail({ business: 'X' }, 'October 2026', { stats: { calls: 9, reviews: 2 }, note: 'Nine calls.' }));
   const a = askEmail({ first: 'Sam' }, 'Max has taken 9 calls for you', 'https://alwaysopenoffice.com/r/x', false); clean(a);
-  assert.match(a.text, /Katie/);
+  assert.match(a.text, /Chris/);
   const s = stormEmail({ id: 'i', event: 'Flood Warning', grp: 'flood', counties: 'Putnam County, GA', businesses: 'A', drafted: 1, ends: '', headline: 'h', link: 'https://alerts.weather.gov' }); clean(s);
   assert.match(s.text, /^\[ FLOOD WARNING \]/);
   const r = radarEmail('2026-W45', [{ town: 'Eatonton, GA', wave: true, rate: 3, low: 1, recent: 9 }, { town: 'Madison, GA', wave: false, rate: 0, low: 0, recent: 2 }], []);

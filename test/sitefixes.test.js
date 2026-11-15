@@ -35,7 +35,7 @@ test('one audit per address in 30 days (dots and +tags are the same Gmail box), 
   r = await ask(s, { email: 'DanaWhit+x@googlemail.com' }, '192.0.2.50');
   assert.equal(s.out.length, 1, 'the same mailbox, spelled another way, gets nothing new');
   assert.doesNotMatch(r.json().message, /on its way/, 'and the page does not promise it');
-  assert.match(r.json().message, /Katie follows up within one business day/);
+  assert.match(r.json().message, /Chris follows up within one business day/);
   // three different addresses from one network get audits; the fourth that day is held, and Christopher hears quietly
   for (const [i, e] of ['a@example.org', 'b@example.org', 'c@example.org', 'd@example.org'].entries()) await ask(s, { email: e }, '203.0.113.' + (10 + i));
   assert.deepEqual(s.out.map(m => m.to).slice(1), ['a@example.org', 'b@example.org', 'c@example.org']);

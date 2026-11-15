@@ -14,7 +14,7 @@ export const TEXTS = [
   { tag: 'money', want: ['escalate'], chat: { handle: '+14785550124', name: 'Josh Hill', known: true, msgs: [], new: ['hey can you venmo me 40 for the uga tickets'] } },
   { tag: 'health', want: ['escalate'], chat: { handle: '+14785550125', name: 'Mom', known: true, msgs: [], new: ['Jess said the baby has a fever?? is he ok'] } },
   { tag: 'work', want: ['escalate'], chat: { handle: '+14785550126', name: 'Dariann', known: true, msgs: [], new: ['Can you call the Johnsons back about their auto renewal? they had questions on the new rate'] } },
-  { tag: 'weekend-invite', want: ['escalate'], chat: { handle: '+14785550127', name: 'Tyler', known: true, msgs: [{ at: 'Sun 19:00', me: true, text: 'good game today' }], new: ['you and katie want to come over saturday night for the game? we\'re grilling'] } },
+  { tag: 'weekend-invite', want: ['escalate'], chat: { handle: '+14785550127', name: 'Tyler', known: true, msgs: [{ at: 'Sun 19:00', me: true, text: 'good game today' }], new: ['you all want to come over saturday night for the game? we\'re grilling'] } },
   { tag: 'lol', want: ['none'], chat: { handle: '+14785550123', name: 'Mike Barnes', known: true, msgs: [{ at: 'Mon 10:00', me: true, text: 'that last putt was brutal' }], new: ['😂😂😂'] } },
   { tag: 'stranger', want: ['escalate', 'none'], chat: { handle: '+14045550000', name: '', known: false, msgs: [], new: ['Hi this is Ashley from Lake Oconee Dental, please give us a call back when you can'] } },
   { tag: 'dad-time', want: ['reply'], chat: { handle: '+14785550111', name: 'Dad', known: true, msgs: [{ at: 'Sat 18:00', me: true, text: 'we\'ll come by sunday for dinner' }], new: ['What time are y\'all coming Sunday?'] } },

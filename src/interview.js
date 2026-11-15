@@ -74,7 +74,7 @@ export async function interviewById(env, id) {
 }
 
 export function interviewGreeting(L) {
-  return 'Hi, it’s ' + (L.name || 'Max') + ', the phone assistant for ' + (L.business || 'your business') + '. I’m an S.I., and this call may be recorded. ' +
+  return 'Hi, it’s ' + (L.name || 'Max') + ', the phone assistant for ' + (L.business || 'your business') + '. I’m an automated assistant, and this call may be recorded. ' +
     'I have a few quick questions so I can answer your callers better. First, what kind of work do you do, and is there anything you don’t do?';
 }
 

@@ -527,9 +527,9 @@ export async function apiInbox(req, env, c) {
   return aj({ ok: true });
 }
 // Someone messages Always Open's own Page: an answer right away (once a day per person), with the free audit and Max's
-// number, and the message still pings Christopher so Katie can answer properly. A reply within 24 hours of their
+// number, and the message still pings Christopher so Chris can answer properly. A reply within 24 hours of their
 // message is what Facebook allows.
-export const INSTANT_REPLY = 'Thanks for writing to Always Open. Katie will answer you here, usually the same business day. ' +
+export const INSTANT_REPLY = 'Thanks for writing to Always Open. Chris will answer you here, usually the same business day. ' +
   'While you wait, get your free audit in a few minutes: https://alwaysopenoffice.com/#contact. Or call Max, our phone line, at (706) 460-2226, any hour, to hear how your calls would be answered. ' +
   '(¿Prefiere español? Escríbanos en español y le contestamos en español.)';
 export async function instantReply(env, pg, psid, text, h) {

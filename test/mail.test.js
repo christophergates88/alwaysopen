@@ -165,13 +165,13 @@ test('the scanned letter’s page: its own wording, a call-me box, and the numbe
   const hh = { run: h.run, letterPing: async () => {}, ping: async (t, b) => pings.push(t + ' | ' + b) };
   const html = await (await L.handleAuditPage(new Request(u), env, new URL(u), hh)).text();
   assert.match(html, /Here’s your full audit\./);
-  assert.match(html, /Want Katie to call you\?/);
+  assert.match(html, /Want Chris to call you\?/);
   assert.match(html, /href="tel:\+17064602226"/);
-  assert.match(html, /Max answers, and Katie calls you back\./);
+  assert.match(html, /Max answers, and Chris calls you back\./);
   assert.doesNotMatch(html, /Reply to our text|you asked for/);
   const post = async phone => { const f = new FormData(); f.set('phone', phone); return (await L.handleAuditPage(new Request(u, { method: 'POST', body: f }), env, new URL(u), hh)).text(); };
   assert.match(await post('12'), /That number doesn’t look right/);
-  assert.match(await post('478.555.0142'), /Katie will call \(478\) 555-0142/);
+  assert.match(await post('478.555.0142'), /Chris will call \(478\) 555-0142/);
   await post('(478) 555-0142');
   assert.equal(pings.length, 1, 'the same number twice is one push');
   assert.equal(pings[0], 'Always Open: Quillen Plumbing wants a call | Quillen Plumbing in Eatonton, GA asked for a call at (478) 555-0142 from their mailed letter (grade D). Call while it’s fresh.');

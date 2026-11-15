@@ -9,7 +9,7 @@ const L = { business: 'Lane Plumbing', town: 'Eatonton, GA', name: 'Max', servic
 test('prompt6: about a quarter the size, and every harm rule is still there', () => {
   const p6 = V.systemPrompt(L, '+14785550142', 'en-US', false), old = V.systemPrompt(Object.assign({}, L, { features: [] }), '+14785550142', 'en-US', false);
   assert.ok(p6.length < old.length * 0.6, 'prompt6 is ' + p6.length + ' chars, old is ' + old.length);
-  for (const must of [/S\.I\./, /Make up a price/, /legal, medical, insurance/, /911/, /Social Security/, /\[END\]/, /\[TRANSFER\]|cannot connect/, /first words answer it/, /15 words or fewer/])
+  for (const must of [/automated assistant/, /Make up a price/, /legal, medical, insurance/, /911/, /Social Security/, /\[END\]/, /\[TRANSFER\]|cannot connect/, /first words answer it/, /15 words or fewer/])
     assert.match(p6, must);
   assert.doesNotMatch(p6, /How it sounds|Vary your rhythm|never two replies in a row/, 'no style lists');
   assert.equal(V.systemPrompt(L, '', 'en-US', false), V.systemPrompt(L, '', 'en-US', false), 'the same every turn, so the cache holds');

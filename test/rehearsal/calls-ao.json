@@ -39,7 +39,7 @@
         "is there a contract",
         "okay"
       ],
-      "must": "month to month, cancel in the app, first month refunded, Katie can help",
+      "must": "month to month, cancel in the app, first month refunded, Chris can help",
       "never": "a fee or a contract"
     },
     {
@@ -69,7 +69,7 @@
         "can you book cleanings",
         "have someone call me, Dr. Reyes, this number"
       ],
-      "must": "privacy first, message-only on a dental line, Katie calls back",
+      "must": "privacy first, message-only on a dental line, Chris calls back",
       "never": "say it handles patient records"
     },
     {
@@ -89,7 +89,7 @@
         "huh. you're pretty good",
         "so what do you do exactly"
       ],
-      "must": "S.I., not a person, in a few words, then the short answer",
+      "must": "an automated assistant, not a person, in a few words, then the short answer",
       "never": "claim to be human"
     },
     {
@@ -138,7 +138,7 @@
         "I'm on a job site, give me the thirty second version",
         "okay, have somebody call me tonight"
       ],
-      "must": "the short version in three sentences or fewer, Katie calls back",
+      "must": "the short version in three sentences or fewer, Chris calls back",
       "never": "a promise of a call tonight"
     },
     {
@@ -163,12 +163,12 @@
     {
       "id": "ao-team",
       "turns": [
-        "who's Katie",
+        "who's Chris",
         "what's your team, are you a big company",
         "where are you based"
       ],
-      "must": "a small team in central Georgia near Lake Oconee, Katie handles client support and calls back within one business day",
-      "never": "anything about anyone that isn't on the line, or a name besides Katie"
+      "must": "a small team in central Georgia near Lake Oconee, Chris handles client support and calls back within one business day",
+      "never": "anything about anyone that isn't on the line, or a name besides Chris"
     }
   ]
 }

@@ -87,7 +87,7 @@ const TURN_STUCK_MS = 20000;     // an answer still not done after this (the bac
 const DIAL_MAX_MS = 4 * 3600e3;  // a call being put through is written up from the dial's result; failing that, after this
 const PER_CALLER_HOUR = 5;       // more than this from one number in an hour gets a short message instead of the AI
 const PER_LINE_DAY = 80;         // the most AI calls one line takes in a day
-// What every caller hears first, whatever greeting the owner set: Max is an S.I. and the call may be recorded. The one
+// What every caller hears first, whatever greeting the owner set: Max is an automated assistant and the call may be recorded. The one
 // place this sentence lives; the owner's greeting can't remove it or say otherwise (greetingOk).
 import { DISCLOSURE, contradicts, withDisclosure } from './disclosure.js';
 export { DISCLOSURE };
@@ -1053,7 +1053,7 @@ export class CallRoom extends DurableObject {
       s.lang = 'es-US';
       this.out({ type: 'language', ttsLanguage: 'es-US', transcriptionLanguage: multiStt(this.env, s.line) ? 'multi' : 'es-US' });
       s.esTold = true;
-      return this.say(s, 'Claro. Soy S.I., y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
+      return this.say(s, 'Claro. Soy un asistente automatizado, y esta llamada puede ser grabada. ¿En qué le puedo ayudar?');
     }
     if (d === '0') {
       // 0 puts them through only when the owner takes calls whenever a caller asks (and not in quiet hours, see onSetup).
@@ -1815,7 +1815,7 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     ...(L.earlier ? ['Background: ' + L.earlier + ' If this call is about the same thing, say so once in a few words; if not, do not mention it.', ''] : []),
     ...(L.memory ? ['Background from our records (matched by phone number, which can be wrong): ' + L.memory + ' Confirm who they are before mentioning any of it. Never read out amounts or anyone else\'s details.', ''] : []),
     'Never:',
-    '- Say you are a person. You are an S.I.; the greeting said so. If asked whether you are a person, a bot, an AI or a recording, say in plain words that you are an automated assistant, not a person, and carry on.',
+    '- Say you are a person. You are an automated assistant; the greeting said so. If asked, say so plainly and carry on.',
     '- Make up a price, a time, a promise or a fact that is not written above.',
     '- Give legal, medical, insurance, tax or money advice.' + (L.prices ? ' Share only the prices above.' : ' Do not quote prices.'),
     '- Take card, Social Security, account or policy numbers, birth dates or health details. Say the team will handle it.',
@@ -1889,7 +1889,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
       ''
     ] : []),
     'Rules you never break:',
-    '- You are an S.I. (always write "S.I." so it is said as two letters), not a person, and the greeting said so. Never bring it up again yourself or say what the letters stand for. Only if asked whether you are a person, bot, AI or recording: say "I\'m an automated assistant, not a person" (never just "S.I.") and carry on. S.I. means the same. Never claim to be a person.',
+    '- You are an automated assistant, not a person, and the greeting said so. Never bring it up again yourself. Only if asked whether you are a person, bot, AI or recording: say plainly "I\'m an automated assistant, not a person" and carry on. Never call yourself "S.I.". Never claim to be a person.',
     '- Never give legal, medical, insurance, tax or financial advice. Never discuss coverage, claims, quotes or rates.' + (L.regulated ? '' : ' Explaining what ' + L.business + ' does and how it would work for their kind of business is not advice; do that plainly.') + (L.prices ? ' Only share the prices listed above, word for word.' : ' Never quote a price; say the team will go over pricing.'),
     '- Never promise prices, timing, outcomes or availability, and never guess how fast anyone will call back or get there (no "within 15 minutes", no "within the hour", no "today") unless it is written above.',
     L.neighbors ? '- Nearby businesses on Always Open that take hand-offs: ' + L.neighbors + '. If the caller needs work this business does not do and one of them does that kind of work, offer the nearest one once, plainly: "We don\'t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?" Only on a clear yes, say "One moment, putting you through." and end that reply with [HANDOFF:Lane Electric] using the exact business name. Never name any business that is not on that list. If they say no, take a message as usual.' : null,
@@ -2801,7 +2801,7 @@ const ACK_MORE = {
   hi: ['hey', 'hi', 'hello', 'hey there', 'hi there', 'hello there', 'hola'],
   aimad: ['yeah'],
   // after "Guilty!" or "Nope, I'm the AI!", the AI saying it again is dropped (it already answered the question)
-  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'i\'m an si', 'i am an si', 'yes i\'m an si', 'yes i am', 'that\'s right', 'you got me'],
+  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'i\'m an si', 'i am an si', 'yes i\'m an si', 'i\'m an automated assistant', 'yes i\'m an automated assistant', 'yes i am', 'that\'s right', 'you got me'],
   ishuman: ['nope', 'no', 'i\'m the ai', 'i\'m an ai', 'i am an ai', 'i\'m an si', 'i am an si', 'no i\'m an si', 'nope i\'m the ai', 'no i\'m an ai', 'no i\'m the ai', 'nope ai here', 'ai here', 'not a person', 'i\'m not a person'],
   sing: ['you asked for it', 'okay you asked for it', 'alright you asked for it', 'you got it'],
   nicetry: ['nice try', 'oh nice try', 'good try', 'ha nice try'],
@@ -2914,7 +2914,7 @@ function turnNote(heard, msgs, L) {
 function justSaid(text) {
   return 'You just said "' + text + '" out loud, the instant the caller stopped talking. Your reply is spoken right after it, so go straight to the point: do not say it again, and do not open with another reaction. One or two short sentences, like a person on the phone.';
 }
-const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are an S.I. (write it "S.I.", said as two letters; never "inteligencia artificial" or "IA") and that this call may be recorded ("Soy S.I., y esta llamada puede ser grabada."), then answer what they said.';
+const ES_DISCLOSE = 'This is your first answer in Spanish. Begin it with one short sentence in Spanish saying you are an automated assistant ("un asistente automatizado"; never "inteligencia artificial" or "IA") and that this call may be recorded ("Soy un asistente automatizado, y esta llamada puede ser grabada."), then answer what they said.';
 const ES_WORDS = new Set(('hola buenos buenas dias días tardes noches necesito quiero quisiera por favor gracias habla hablo español espanol usted ustedes tengo tiene mi mis casa ayuda ayudar puede pueden cuanto cuánto cuesta precio ' +
   'señor señora problema agua baño cocina techo cita mañana hoy llamo llamando para con una uno estoy está esta queria quería saber donde dónde cuando cuándo porque nada bien muy también tambien sí ' +
   // the everyday words that carry a Spanish sentence (Nov 4, 2026: "es la tercera vez que llamo y nadie me regresa la llamada" and
@@ -3213,7 +3213,7 @@ export async function syncOwnLine(env) {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
-    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|Katie handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
     const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge });
     if (next.prices === f.prices && next.notes === f.notes && next.services === f.services && next.greeting2 === f.greeting2 && next.nudge === f.nudge) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();

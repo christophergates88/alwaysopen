@@ -21,7 +21,7 @@ const AUDIT = {
 const ENV = { BUSINESS_ADDRESS: '103 W Sumter St, Eatonton, GA 31024' };
 const LEAD = { name: 'Dana Whitfield', email: 'dana@example.com', business: 'Sinclair Plumbing', town: 'Eatonton, GA', plan: 'Growth (most picked)', type: 'Contractor or trade' };
 
-test('the audit email: the grade, the three fixes, a sample page, how to start, Katie, the stop link and the address', () => {
+test('the audit email: the grade, the three fixes, a sample page, how to start, Chris, the stop link and the address', () => {
   const m = L.auditMail(LEAD, AUDIT, 'https://alwaysopenoffice.com/lead/stop?i=7&k=abc', ENV);
   assert.equal(m.subject, 'Your free audit: Sinclair Plumbing gets a D');
   for (const t of [m.text, m.html]) {
@@ -31,7 +31,7 @@ test('the audit email: the grade, the three fixes, a sample page, how to start, 
     assert.match(t, /alwaysopenoffice\.com\/sample-report/);
     assert.match(t, /alwaysopenoffice\.com\/start\?plan=Growth/);
     assert.match(t, /\(706\) 460-2226/);
-    assert.match(t, /Katie answers, usually the same business day/);
+    assert.match(t, /Chris answers, usually the same business day/);
     assert.match(t, /lead\/stop\?i=7&(amp;)?k=abc/);
     assert.match(t, /103 W Sumter St, Eatonton, GA 31024/);
     assert.doesNotMatch(t, /Riverbend/, 'competitors only as an average, never by name');
@@ -49,10 +49,10 @@ test('in Spanish when they wrote in Spanish', () => {
   assert.doesNotMatch(m.text, /while the top nearby/, 'no English details in the Spanish email');
 });
 
-test('Google can’t find it: a short email asking for the name, and Katie by hand', () => {
+test('Google can’t find it: a short email asking for the name, and Chris by hand', () => {
   const m = L.missMail({ name: 'Al', business: 'Als Fixit', town: 'Gray' }, 'https://x/stop', ENV);
   assert.equal(m.subject, 'Your free audit: one quick question');
-  assert.match(m.text, /couldn’t find an exact match/); assert.match(m.text, /Katie will look it up by hand and send it within one business day/);
+  assert.match(m.text, /couldn’t find an exact match/); assert.match(m.text, /Chris will look it up by hand and send it within one business day/);
 });
 
 test('sending: once per address a week, a miss pings Christopher, a failure pings him too', async () => {
@@ -150,7 +150,7 @@ test('the website form: the audit email goes out on its own, and the page says s
   const site = H.makeClient(worker, env);
   const r = await site.call('/lead', { headers: { accept: 'application/json' }, form: { name: 'Dana Whitfield', email: 'dana@example.com', phone: '(478) 555-0101', business: 'Sinclair Plumbing', town: 'Eatonton, GA', type: 'Contractor or trade', plan: 'Growth', t: String(Date.now() - 60000) } });
   assert.equal(r.status, 200);
-  assert.match(r.json().message, /Your free audit is on its way to your inbox now, and Katie follows up within one business day/);
+  assert.match(r.json().message, /Your free audit is on its way to your inbox now, and Chris follows up within one business day/);
   assert.equal(out.length, 1, 'one email to the person who asked');
   assert.equal(out[0].to, 'dana@example.com'); assert.match(out[0].subject, /^Your free audit: Sinclair Plumbing gets a [A-F]$/);
   assert.equal(out[0].from.email, 'hello@alwaysopenoffice.com'); assert.equal(out[0].replyTo, 'hello@alwaysopenoffice.com');

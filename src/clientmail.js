@@ -86,6 +86,6 @@ export function askEmail(c, words, link, second) {
     lines: words ? [{ v: words.charAt(0).toUpperCase() + words.slice(1) + '.', ok: true }] : [],
     doThis: ['Leave an honest Google review of Always Open. Good or bad, it helps other owners decide.'],
     button: /^https:\/\//.test(link || '') ? { text: 'Leave a review', url: link } : null,
-    note: 'Questions or anything to change? Just reply to this email. Katie answers.'
+    note: 'Questions or anything to change? Just reply to this email. Chris answers.'
   }));
 }

@@ -16,9 +16,9 @@ export const ADDONS = {
   'Help-wanted posts': { cents: 9900 },
   'Review alerts beyond Google': { cents: 4900 }
 };
-export const PROMISES = { refundDays: 30, setupFeeCents: 0, contract: 'month to month', reportDay: 2, support: 'Katie', supportReply: 'one business day', textingApproval: 'about two weeks', setup: 'about a week' };
+export const PROMISES = { refundDays: 30, setupFeeCents: 0, contract: 'month to month', reportDay: 2, support: 'Chris', supportReply: 'one business day', textingApproval: 'about two weeks', setup: 'about a week' };
 
-// Who Always Open is, for "who's Katie?" / "what's your team?" / "where are you based?" (Brief 3, Part 8b). Max had no
+// Who Always Open is, for "who's Chris?" / "what's your team?" / "where are you based?" (Brief 3, Part 8b). Max had no
 // answer on Christopher's Nov 5 call and deferred to the callback twice. Christopher approved the wording and his name.
 export const TEAM = { place: 'central Georgia, near Lake Oconee', founder: 'Christopher Gates', support: PROMISES.support, size: 'a small team' };   // Christopher said on Nov 5: have Max say he runs it
 // What Always Open does, as Max says it on its own line, day to day first and the monthly page last (Part 8c: the old
@@ -43,7 +43,7 @@ export function ownLineFacts() {
   return {
     prices: 'Starter is ' + dollars(p.Starter.cents) + ' a month, Growth is ' + dollars(p.Growth.cents) + ' a month, and Pro is ' + dollars(p.Pro.cents) + ' a month, about $' + p.Starter.perDay + ', $' + p.Growth.perDay + ' and $' + p.Pro.perDay + ' a day. There is no setup fee and no contract; it is ' + PROMISES.contract + ', and if the first month isn\'t worth it, it is refunded. ' +
       'Max, this phone assistant (you: say "I come with every plan"), comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
-    about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + ', run by ' + TEAM.founder + '. ' + TEAM.support + ' handles client support and calls people back within ' + PROMISES.supportReply + '; she can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
+    about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + ', run by ' + TEAM.founder + '. He handles client support himself (callers and clients know him as ' + TEAM.support + ') and calls people back within ' + PROMISES.supportReply + '; he can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
     services: SERVICES_DAY_FIRST_LIVE ? SERVICES_DAY_FIRST : SERVICES_REPORT_FIRST,
     // Brief 5 (Nov 5, 2026): after the S.I. line, straight to the caller ("Sorry, legal stuff" sounded like a shrug), and
     // the check-in when a caller goes quiet asks, it doesn't tease ("See? Told you I was good. Left you speechless.").

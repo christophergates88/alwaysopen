@@ -65,12 +65,12 @@ test('a regulated month never suggests price or money, and an empty month still 
   assert.match(html, /<h1>Quiet Co<\/h1>/); assert.match(html, /One thing for next month/); assert.doesNotMatch(html, /When your phone rang/);
 });
 
-test('the one-page report: check-ins have their own band, print fits a Letter page, Katie answers', () => {
+test('the one-page report: check-ins have their own band, print fits a Letter page, Chris answers', () => {
   const html = P.samplePage();
   assert.match(html, /<section class="check"><h2>Three-day check-ins<\/h2>/);
   assert.match(html, /When your phone rang/); assert.match(html, /Why callers didn’t book/); assert.match(html, /What it means/);
   assert.match(html, /@page\{size:letter/); assert.match(html, /print-color-adjust:exact/);
-  assert.match(html, /Katie answers/);
+  assert.match(html, /Chris answers/);
   assert.match(html, /Sample: made-up business and numbers\./, 'still labeled a sample, in the footer');
   assert.doesNotMatch(html, /samplebar|same code that builds/, 'no note across the top');
   assert.doesNotMatch(html, /\bAI\b/);
