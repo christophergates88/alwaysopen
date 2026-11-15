@@ -1,50 +1,41 @@
-// FINDING: the operator board token (opsboard.boardToken) is a static, never-expiring, un-revocable bearer that
-// unlocks the whole operator console and cross-tenant customer data with NO x-key -- just ?t=<token>. It is derived
-// deterministically from LEADS_KEY, so it is identical for the life of that key, and it is transmitted in the clear in
-// the Monday ops email and in several phone pushes (opsboard.boardWeekly, postqueue.queuePush, social.js, gbp/meta
-// connect items). Anyone who sees one such link (forwarded mail, lock-screen push, screenshot, browser history, mail
-// logs) has lasting operator access until the master key is rotated.
+// FINDING (closed): the operator board token used to be a static, never-expiring bearer that unlocked the whole operator
+// console and cross-tenant customer data with no x-key, and it travelled in the Monday ops email and phone pushes.
+// Closed Nov 10, 2026 (dated links that work 30 days, a signed device cookie) and Nov 15, 2026 (the old static link
+// retired outright). This test now holds the fix in place.
 //
 //   node --test stress/intruder/board_token.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { lab } from './_lab.mjs';
 
-test('the board token is static, un-expiring, and opens /ops + cross-tenant data with no key', async () => {
+test('the board link is dated, expires, and the old static link opens nothing', async () => {
   const L = await lab();
-  const biz = await L.signUp();
-  const { boardToken } = await import('../../src/opsboard.js');
+  const { boardToken, boardOk } = await import('../../src/opsboard.js');
   const tok = await boardToken(L.env);
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  assert.match(tok, /^\d{8}[0-9a-f]{32}$/);
+  assert.equal(tok.slice(0, 8), today, 'the link carries its date');
 
-  // 40 hex chars, and identical in a brand-new world built from the same LEADS_KEY (no rotation, no expiry).
-  assert.match(tok, /^[0-9a-f]{40}$/);
-  const L2 = await lab();
-  assert.equal(await boardToken(L2.env), tok, 'the same LEADS_KEY always yields the same token');
+  // today's link opens the board (that is what the Monday email and the pushes carry)
+  assert.equal((await L.site.call('/ops?t=' + tok)).status, 200);
 
-  // One business has an approved Google review reply (owner-controlled customer data).
-  await L.run("INSERT INTO app_items (id, client_id, kind, title, context, stars, text, status, hq_synced, checked, decided_text, decided_at, decided_by, created, updated, notified, photo) VALUES ('rp1', ?1, 'reply', 'Jane Doe', 'Great job on the pipes, highly recommend!', 5, 'Thanks Jane!', 'approved', 1, 1, 'Thanks Jane!', ?2, 'Dana', ?2, ?2, 0, '')",
-    biz.cid, new Date().toISOString());
+  // a link from 31 days ago, correctly signed, is refused; so is tomorrow-and-beyond tampering and a made-up one
+  const old = await boardToken(L.env, Date.now() - 31 * 864e5);
+  assert.notEqual(old, tok);
+  assert.equal(await boardOk(L.env, old), false, 'a 31-day-old link is dead');
+  assert.equal((await L.site.call('/ops?t=' + old)).status, 404);
+  assert.equal((await L.site.call('/ops/post?t=' + old)).status, 404);
+  assert.equal((await L.site.call('/ops/numbers?t=' + old)).status, 404);
+  assert.equal((await L.site.call('/ops/post?t=' + today + 'f'.repeat(32))).status, 404, 'right date, wrong signature');
 
-  // An outsider with only the token (no x-key header) opens the whole console.
-  const board = await L.site.call('/ops?t=' + tok);
-  assert.equal(board.status, 200);
-  assert.match(board.text, /This week/);
+  // the old static link (the same for the life of the key) no longer opens anything
+  const legacy = createHmac('sha256', L.env.LEADS_KEY).update('ops-board-v1').digest('hex').slice(0, 40);
+  assert.equal(await boardOk(L.env, legacy), false);
+  assert.equal((await L.site.call('/ops?t=' + legacy)).status, 404);
+  assert.equal((await L.site.call('/ops/post?t=' + legacy)).status, 404);
+  assert.equal((await L.site.call('/ops/compliance-pack?t=' + legacy)).status, 404);
 
-  const numbers = await L.site.call('/ops/numbers?t=' + tok);   // revenue / funnel / costs / margin
-  assert.equal(numbers.status, 200);
-
-  const pack = await L.site.call('/ops/compliance-pack?t=' + tok);
-  assert.equal(pack.status, 200);
-  assert.match(pack.text.slice(0, 8), /%PDF/);
-
-  // /ops/post exposes every client's reviewer names and review text, and lets the holder mark items "posted".
-  const postPage = await L.site.call('/ops/post?t=' + tok);
-  assert.equal(postPage.status, 200);
-  assert.match(postPage.text, /Jane Doe/, 'another business’s reviewer name is shown to a token-only visitor');
-  assert.match(postPage.text, /Great job on the pipes/, 'and the full review text');
-
-  // No key and no token -> refused, so the token really is the only gate.
+  // no key and no link: refused
   assert.equal((await L.site.call('/ops')).status, 404);
-  assert.equal((await L.site.call('/ops/post?t=' + 'f'.repeat(40))).status, 404);
-  assert.equal((await L.site.call('/ops/numbers?t=' + 'f'.repeat(40))).status, 404);
 });

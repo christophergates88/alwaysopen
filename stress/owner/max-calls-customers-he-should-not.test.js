@@ -36,7 +36,7 @@ test('the owner calls the customer back and taps Done; "30 more minutes" on the 
   const T = await boot();
   try {
     clock.set('2026-11-10T15:00:00Z');
-    const A = await T.signup({ plan: 'Growth', business: 'Sinclair Plumbing' });
+    const A = await T.signup({ plan: 'Pro', business: 'Sinclair Plumbing' });
     const a = T.as(A.base), office = T.as((await T.staffLink(A.cid, 'Olive Office', 'manager')).base);
     await T.fullCall(A.number, '+14785550142', 'Please have someone call me back', { name: 'Vic', callback: '+14785550142', reason: 'Leak', details: '', when: '', urgent: false, callback_wanted: true, callback_at: '', booked: '', spam: false, summary: 'Wants a call back.' });
     const cb = (await office.state()).callbacks.list[0];

@@ -21,16 +21,16 @@ test('a dated link works for 30 days, then not; a forged one never', async () =>
   } finally { Date.now = real; }
 });
 
-test('the old link opens the board until Dec 10, and the device cookie keeps a bookmark working after that', async () => {
+test('the old link no longer opens the board (retired Nov 15, 2026), and the device cookie keeps a bookmark working', async () => {
   const real = Date.now;
   try {
     Date.now = () => Date.parse('2026-11-20T12:00:00Z');
-    assert.equal(await B.boardOk(env, legacy), true, 'the old link, inside the month');
+    assert.equal(await B.boardOk(env, legacy), false, 'the old link is retired');
     const set = await B.boardCookie(env);
     assert.match(set, /^aob=\d+\.[0-9a-f]{32}; Path=\/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax$/);
     const cookie = set.split(';')[0];
     Date.now = () => Date.parse('2027-02-01T12:00:00Z');
-    assert.equal(await B.boardOk(env, legacy), false, 'the old link alone, after Dec 10');
+    assert.equal(await B.boardOk(env, legacy), false, 'the old link alone, later');
     assert.equal(await B.boardOk(env, legacy, req(cookie)), true, 'the bookmark on the device that opened it');
     assert.equal(await B.boardOk(env, '', req('aob=' + cookie.split('=')[1].replace(/.$/, '0'))), false, 'an altered cookie');
     Date.now = () => Date.parse('2028-01-01T12:00:00Z');

@@ -20,9 +20,10 @@ const eq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) 
 
 // The board's link. Since Nov 10, 2026 a link is dated and works for 30 days (the Monday email and every push carry a
 // fresh one), and the device that opens the board keeps a signed cookie for a year, so a bookmark keeps working there.
-// The old link, which never changed, opens the board until Dec 10, 2026, so a bookmark has a month to be opened once.
+// The old link, which never changed, was retired on Nov 15, 2026 (it was to work until Dec 10; Christopher asked for the
+// security holes closed). A device that already opened the board keeps its cookie; any other needs the newest link.
 // None of these is the key itself.
-const DAY = 864e5, LINK_DAYS = 30, COOKIE_DAYS = 365, LEGACY_UNTIL = Date.parse('2026-12-10T00:00:00Z');
+const DAY = 864e5, LINK_DAYS = 30, COOKIE_DAYS = 365, LEGACY_UNTIL = Date.parse('2026-11-15T00:00:00Z');
 async function mac(env, msg, bytes) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.LEADS_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg));
