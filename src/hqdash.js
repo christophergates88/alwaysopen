@@ -14,6 +14,7 @@ export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '
 export const num = n => Math.round(+n || 0).toLocaleString('en-US');
 export const usd = n => (n < 0 ? '−$' : '$') + Math.abs(+n || 0).toLocaleString('en-US', { minimumFractionDigits: Math.abs(+n || 0) < 100 && (+n || 0) % 1 ? 2 : 0, maximumFractionDigits: Math.abs(+n || 0) < 100 ? 2 : 0 });
 export const pct = (a, b) => (b ? Math.round(a / b * 100) + '%' : '–');
+const rate = (a, b) => (b && a <= b ? pct(a, b) : '–');
 const pl = (n, one, many) => num(n) + ' ' + (+n === 1 ? one : many);
 
 // ---------- time, in Eastern ----------
@@ -105,15 +106,15 @@ export async function dashState(env, now) {
     brands: q('SELECT status, COUNT(*) AS n FROM sms_brands GROUP BY status'),
     a2p: q('SELECT status, COUNT(*) AS n FROM a2p_reg GROUP BY status'),
     items: q('SELECT kind, status, COUNT(*) AS n FROM app_items WHERE client_id != ?1 GROUP BY kind, status', DEMO),
-    conn: q("SELECT 'Google Business Profile' AS k, COUNT(*) AS n FROM gbp_tokens UNION ALL SELECT 'Google Calendar', COUNT(*) FROM gcal_tokens UNION ALL SELECT 'Facebook and Instagram', COUNT(*) FROM meta_pages"),
+    conn: q("SELECT 'Google Business Profile' AS k, COALESCE(SUM(CASE WHEN client_id NOT IN ('always-open', ?1) THEN 1 ELSE 0 END), 0) AS n, COALESCE(SUM(CASE WHEN client_id = 'always-open' THEN 1 ELSE 0 END), 0) AS own FROM gbp_tokens UNION ALL SELECT 'Google Calendar', COALESCE(SUM(CASE WHEN client_id NOT IN ('always-open', ?1) THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN client_id = 'always-open' THEN 1 ELSE 0 END), 0) FROM gcal_tokens UNION ALL SELECT 'Facebook and Instagram', COALESCE(SUM(CASE WHEN client_id NOT IN ('always-open', ?1) THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN client_id = 'always-open' THEN 1 ELSE 0 END), 0) FROM meta_pages", DEMO),
     connBad: q('SELECT COUNT(*) AS n FROM connection_health WHERE broken_at IS NOT NULL'),
     social: q('SELECT day, theme, result FROM social_posts ORDER BY day DESC LIMIT 6'),
-    callbacks: q('SELECT status, COUNT(*) AS n FROM callbacks GROUP BY status'),
-    checkins: q('SELECT status, COUNT(*) AS n FROM checkins WHERE created > ?1 GROUP BY status', d30),
-    outcalls: q('SELECT status, COUNT(*) AS n FROM outcalls GROUP BY status'),
+    callbacks: q('SELECT status, COUNT(*) AS n FROM callbacks WHERE client_id != ?1 GROUP BY status', DEMO),
+    checkins: q('SELECT status, COUNT(*) AS n FROM checkins WHERE created > ?1 AND client_id != ?2 GROUP BY status', d30, DEMO),
+    outcalls: q('SELECT status, COUNT(*) AS n FROM outcalls WHERE client_id != ?1 GROUP BY status', DEMO),
     followups: q('SELECT status, COUNT(*) AS n FROM app_followups WHERE client_id != ?1 GROUP BY status', DEMO),
     outreach: q("SELECT COALESCE(NULLIF(outcome, ''), NULLIF(status, ''), 'placed') AS k, COUNT(*) AS n FROM outreach_calls WHERE at > ?1 GROUP BY k", d30),
-    outlists: q('SELECT status, COUNT(*) AS n FROM outreach_lists GROUP BY status'),
+    outlists: q('SELECT status, COUNT(*) AS n FROM outreach_lists WHERE client_id != ?1 GROUP BY status', DEMO),
     pushq: q("SELECT status, COALESCE(NULLIF(via, ''), '') AS via, COUNT(*) AS n FROM push_queue WHERE at > ?1 GROUP BY status, via", d7),
     provision: q('SELECT status, COUNT(*) AS n FROM provision GROUP BY status'),
     lines: q('SELECT v.number, v.client_id, COALESCE(c.business, v.business, v.client_id) AS business, v.on_air, v.industry, v.spanish FROM voice_lines v LEFT JOIN app_clients c ON c.client_id = v.client_id ORDER BY business'),
@@ -137,9 +138,9 @@ export async function dashState(env, now) {
   let twilio = null;
   if ((R.fund || []).length) {
     const f = R.fund, bal = +f[f.length - 1].value, wk = f.filter(r => Date.parse(r.at) > now - 7 * DAY);
-    let perDay = 0; try { perDay = (await import('./funding.js')).burnPerDay(wk); } catch (e) { perDay = 0; }
+    let perDay = 0, level = 'ok'; try { const F = await import('./funding.js'); perDay = F.burnPerDay(wk); level = F.twilioLevel(bal, perDay).level; } catch (e) { perDay = 0; }
     const byDay = new Map(); for (const r of f) byDay.set(etOf(Date.parse(r.at)).day, +r.value);
-    twilio = { balance: bal, perDay, daysLeft: perDay > 0 ? bal / perDay : null, at: f[f.length - 1].at, series: [...byDay].map(([d, v]) => ({ d, label: dayLabel(d), v })) };
+    twilio = { balance: bal, perDay, level, daysLeft: perDay > 0 ? bal / perDay : null, at: f[f.length - 1].at, series: [...byDay].map(([d, v]) => ({ d, label: dayLabel(d), v })) };
   }
   return Object.assign({ now, twilio, renewals: renewals(env.RENEWALS, now) }, R, shape(R, now));
 }
@@ -280,7 +281,7 @@ export function moneyPanels(d) {
   const f = N.funnel.now, p = N.funnel.prev, mo = String(N.month).split(' ')[0], pm = String(N.prevMonth).split(' ')[0];
   out.push(panel('The website funnel, by month', table(['Step', [mo + ' so far', 'r'], [pm, 'r']], [
     ['Free audits run', num(f.audits), num(p.audits)], ['Requests', num(f.requests), num(p.requests)], ['Signups', num(f.signups), num(p.signups)], ['Cancellations', num(f.cancels), num(p.cancels)],
-    ['Audit to request', pct(f.requests, f.audits), pct(p.requests, p.audits)], ['Request to signup', pct(f.signups, f.requests), pct(p.signups, p.requests)]]), { w: 6 }));
+    ['Audit to request', rate(f.requests, f.audits), rate(p.requests, p.audits)], ['Request to signup', rate(f.signups, f.requests), rate(p.signups, p.requests)]]), { w: 6, sub: 'Requests also come by phone, so a month can have more requests than audits; then there is no rate to show.' }));
   out.push(panel('Each client, last 30 days', table(['Business', 'Plan', ['Revenue', 'r'], ['Calls', 'r'], ['Minutes', 'r'], ['Texts', 'r'], ['Est. cost', 'r'], ['Margin', 'r']],
     (N.perClient || []).map(r => [esc(r.business), esc(r.plan), usd(r.revenue), num(r.calls), num(r.minutes), num(r.texts), usd(r.cost), usd(r.margin)]), 'No paying clients yet. Each one gets a row here with what they pay and what they cost.'), { w: 6, sub: 'Lowest margin first.' }));
   if ((N.history || []).length >= 2 && N.history.some(h => +h.mrr_cents > 0)) out.push(panel('Monthly revenue over time', line(N.history.map(h => ({ label: dayLabel(h.day), v: h.mrr_cents / 100 })), { fmt: v => usd(Math.round(v)), label: 'Monthly revenue by day' }), { w: 6, sub: 'A snapshot a day.' }));
@@ -357,7 +358,7 @@ export function workPanels(d) {
   out.push(panel('Replies and posts, by where they stand', table(['Kind'].concat(stt.map(s => [s || 'unset', 'r'])), kinds.map(k => [esc(k)].concat(stt.map(s => num(it.filter(r => (r.kind || 'other') === k && (r.status || '') === s).reduce((a, r) => a + +r.n, 0))))), 'No replies or posts drafted yet.'),
     { w: 6, sub: 'Every client together, the sample business left out. Pending waits on the owner’s OK.' }));
   const cb = (d.connBad || [])[0];
-  out.push(panel('Connections clients have made', table(['Connection', ['Clients', 'r']], (d.conn || []).map(r => [esc(r.k), num(r.n)]), 'None yet.') + (cb && +cb.n ? '<p class="ps">' + st('bad', cb.n + ' broken and waiting on the owner to reconnect') + '</p>' : ''), { w: 6 }));
+  out.push(panel('Connections made', table(['Connection', ['Clients', 'r'], 'Always Open’s own'], (d.conn || []).map(r => [esc(r.k), num(r.n), +r.own ? st('ok', 'Connected') : st('off', 'Not connected')]), 'None yet.') + (cb && +cb.n ? '<p class="ps">' + st('bad', cb.n + ' broken and waiting on the owner to reconnect') + '</p>' : ''), { w: 6 }));
   const row = (name, rows, open, note) => { const m = by(rows, 'status'), all = Object.values(m).reduce((s, x) => s + x, 0), w = open.reduce((s, k) => s + (m[k] || 0), 0); return [name, num(w), num(all - w), esc(note)]; };
   const oc = by(d.outreach, 'k');
   out.push(panel('Work in the pipes', table(['Queue', ['Waiting', 'r'], ['Finished', 'r'], 'What it is'], [
@@ -366,7 +367,7 @@ export function workPanels(d) {
     row('Calls Max owes', d.outcalls, ['pending'], 'reminders and follow-up calls he places himself'),
     row('Quotes and invoices to chase', d.followups, ['open'], 'follow-ups the owners logged'),
     row('Outreach numbers', d.outlists, ['ready'], 'businesses on clients’ calling lists')
-  ]) + (Object.keys(oc).length ? '<p class="ps">Outreach calls placed in 30 days: ' + esc(Object.keys(oc).map(k => oc[k] + ' ' + k).join(', ')) + '.</p>' : ''), { w: 6 }));
+  ]) + '<p class="ps">The sample business’s made-up work is left out.</p>' + (Object.keys(oc).length ? '<p class="ps">Outreach calls placed in 30 days: ' + esc(Object.keys(oc).map(k => oc[k] + ' ' + k).join(', ')) + '.</p>' : ''), { w: 6 }));
   const so = d.social || [];
   out.push(panel('Always Open’s own posts', table(['Day', 'Theme', 'Result'], so.map(r => [esc(dayLabel(r.day)), esc(r.theme || ''), esc(String(r.result || '').slice(0, 80))]), 'Nothing posted yet.'), { w: 6, sub: 'Monday, Wednesday and Friday, once Facebook and Instagram are approved.' }));
   return out.join('');

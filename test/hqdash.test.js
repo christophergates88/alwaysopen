@@ -96,6 +96,7 @@ test('the numbers come straight from the tables: test calls, spam and the sample
   assert.deepEqual(d.callWho.map(r => r.client_id + ':' + r.n).sort(), ['always-open:1', 'demo-plumbing:2', 'oak:1'], 'by line, the sample business named so it can be marked');
   assert.equal(d.callWho.find(r => r.client_id === 'oak').n, 1);
   assert.deepEqual([d.tot.audits, d.prev.audits], [2, 1]); assert.equal(d.audits90[0].n, 3);
+  assert.equal((await (await import('../src/numbers.js')).numbersState(env, NOW)).funnel.now.requests, 2, 'the numbers page leaves the test call out too (a letter still counts there)');
   assert.equal(d.tot.leads, 1, 'one request: not the spam, not the test call, and not a letter nobody has answered');
   assert.deepEqual(d.auditG.map(r => r.g + r.n).sort(), ['A1', 'D1']);
   assert.equal(d.tot.texts, 2, 'a text a rule held back was never sent');
@@ -129,6 +130,10 @@ test('the page: every part is on it and open, each tile leads somewhere real, an
   // what it says is what the tables hold
   assert.match(html, /<span class="kl">Real calls, 7 days<\/span><b>2<\/b>/); assert.match(html, /<span class="kl">Paying clients<\/span><b>0<\/b>/);
   assert.match(html, /<span class="kl">Twilio balance<\/span><b>\$97\.60<\/b><span class="st ok"><i aria-hidden="true">✓<\/i>81 days left<\/span>/);
+  // the tile goes by the money watch's own rule (funding.js): under $25 is low however slowly it is falling, as on Nov 15, 2026 ($20.12, "63 days left", shown as fine)
+  const low = Q.hqHtml(Object.assign({}, s, { dash: Object.assign({}, s.dash, { twilio: Object.assign({}, s.dash.twilio, { balance: 20.12, perDay: 0.32, daysLeft: 63, level: 'warn' }) }) }), 'TOK');
+  assert.match(low, /<span class="kl">Twilio balance<\/span><b>\$20\.12<\/b><span class="st warn"><i aria-hidden="true">!<\/i>Low, 63 days left<\/span>/);
+  assert.equal(s.dash.twilio.level, 'ok');
   assert.match(html, /<span class="kl">Checks passing<\/span><b>\d+ of \d+<\/b><span class="st bad">/, 'a failing job turns the tile, with a word beside the mark');
   assert.match(html, /<li class="bad" tabindex="0" data-tip="voicemail: last ran Today 6:21 PM, took 1\.2 s\. Twilio answered 503">/);
   assert.match(html, /<h3>Calls a day <span class="ct">2 real, 2 test<\/span><\/h3>/);

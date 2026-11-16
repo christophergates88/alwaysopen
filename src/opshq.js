@@ -212,7 +212,7 @@ function leadHtml(l, now) {
   const btn = (s, t) => (l.status === s ? '' : '<button type="button" data-lead="' + l.id + '" data-s="' + s + '">' + t + '</button>');
   return '<div class="it"><b>' + esc(who) + '</b><span class="sub">' + esc(src) + ', ' + esc(when(l.at, now)) + (bits.length ? '. ' + bits.join(', ') : '') + '</span>' +
     (contact ? '<span class="sub">' + contact + '</span>' : '') +
-    (l.call_summary ? '<span class="sub">' + esc(String(l.call_summary).slice(0, 300)) + '</span>' : '') + (l.notes ? '<span class="sub">' + esc(String(l.notes).slice(0, 300)) + '</span>' : '') +
+    (l.call_summary && !String(l.notes || '').includes(String(l.call_summary).slice(0, 60)) ? '<span class="sub">' + esc(String(l.call_summary).slice(0, 300)) + '</span>' : '') + (l.notes ? '<span class="sub">' + esc(String(l.notes).slice(0, 420)) + '</span>' : '') +
     (l.reason ? '<span class="sub">Note: ' + esc(l.reason) + '</span>' : '') +
     '<div class="tags">' + tags + '</div><div class="acts">' + btn('talking', 'Talking') + btn('won', 'Won') + btn('lost', 'Lost') + (l.status === 'new' || l.status === 'letter' ? '' : btn('new', 'Back to new')) + '</div></div>';
 }
@@ -382,7 +382,7 @@ function tiles(s, d, T, total, open) {
   }
   if (d && d.twilio) {
     const w = d.twilio, left = w.daysLeft;
-    t.push(D.tile(D.usd(w.balance), 'Twilio balance', 'about ' + D.usd(w.perDay) + ' a day', { to: 'money', state: left == null ? ['ok', 'Barely moving'] : left < 7 ? ['bad', Math.round(left) + ' days left'] : left < 21 ? ['warn', Math.round(left) + ' days left'] : ['ok', Math.round(left) + ' days left'] }));
+    t.push(D.tile(D.usd(w.balance), 'Twilio balance', 'about ' + D.usd(w.perDay) + ' a day', { to: 'money', state: w.level === 'urgent' ? ['bad', 'Almost out'] : w.level === 'warn' ? ['warn', 'Low' + (left != null ? ', ' + Math.round(left) + ' days left' : '')] : ['ok', left == null ? 'Barely moving' : Math.round(left) + ' days left'] }));
   }
   if (d && d.week) t.push(D.tile(D.num(d.week.real), 'Real calls, 7 days', D.num(d.week.prevReal) + ' the week before · ' + D.num(d.week.test) + ' test calls', { to: 'calls' }));
   if (d && d.grades && d.grades.calls) t.push(D.tile(d.grades.human >= 0 ? d.grades.human + ' / 10' : '–', 'Max sounded human', 'first word in ' + (d.grades.firstWordMs ? (d.grades.firstWordMs / 1000).toFixed(1) + ' s' : '–') + ' · ' + D.num(d.grades.calls) + ' calls graded', { to: 'calls' }));

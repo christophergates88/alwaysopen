@@ -77,7 +77,8 @@ export async function numbersState(env, now) {
   const cancels = (a, b) => real.filter(x => /^(canceled|incomplete_expired)$/.test(x.status || '') && inSpan(x.updated, a, b)).length;
   const funnel = async (a, b) => ({
     audits: +(await one('SELECT COUNT(*) AS n FROM audits WHERE at >= ?1 AND at < ?2', a, b)).n || 0,
-    requests: +(await one("SELECT COUNT(*) AS n FROM leads WHERE at >= ?1 AND at < ?2 AND status != 'spam'", a, b)).n || 0,
+    // not spam, and not a "request" that came from a test call to the sales line (opshq.js marks those the same way)
+    requests: +(await one("SELECT COUNT(*) AS n FROM leads l LEFT JOIN app_calls k ON l.origin LIKE 'phone %' AND k.id = substr(l.origin, 7) WHERE l.at >= ?1 AND l.at < ?2 AND l.status != 'spam' AND COALESCE(k.test, 0) = 0", a, b)).n || 0,
     signups: signups(a, b), cancels: cancels(a, b)
   });
   const fNow = await funnel(cur.iso, nowIso), fPrev = await funnel(prev.iso, cur.iso);
