@@ -367,6 +367,8 @@ export function tally(s) {
   ];
 }
 
+export const NAME_SHIM = 'var __name = function (f) { return f; };';
+
 // The row of figures at the top. Each is a link to the part of the page that explains it. d is the dashboard (it can
 // be missing: the page still opens with the things that need him).
 function tiles(s, d, T, total, open) {
@@ -464,7 +466,12 @@ export function hqHtml(s, tok) {
       '<p style="font-size:14px;margin-top:8px">A regulated office’s reply that the owner edited waits for your look before it can post.</p><div class="acts"><a class="btn" href="/ops/compliance-pack?t=' + esc(tok) + '" target="_blank" rel="noopener">Open the one-page rule sheet</a></div>' : '') +
     look('add', 'Add a client by hand', addClientHtml()) +
     '<a class="look" href="/ops/numbers?t=' + esc(tok) + '">The numbers on their own page: revenue, costs and margin</a>' +
-    '<script>(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');(' + D.dashClient.toString() + ')();</script></main></body></html>';
+    // The two functions are sent as their own text. The deploy's bundler rewrites that text first: it adds a call to a
+    // helper of its own, __name(...), after every named function inside them, and the helper is not in the page. So
+    // on the live site the script stopped at its first line and no button on this page did anything (found Nov 15,
+    // 2026, the first time the live page was opened by a browser that reports its errors; the tests run the code as
+    // written, where there is no such call). NAME_SHIM gives the page that helper.
+    '<script>' + NAME_SHIM + '(' + hqClient.toString() + ')(' + JSON.stringify(tok || '') + ');(' + D.dashClient.toString() + ')();</script></main></body></html>';
 }
 
 // For someone who paid outside the website's checkout (a Stripe Payment Link, a check): the website makes a client on

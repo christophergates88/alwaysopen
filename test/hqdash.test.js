@@ -148,3 +148,32 @@ test('the page: every part is on it and open, each tile leads somewhere real, an
   const plain = Q.hqHtml(Object.assign({}, s, { dash: null }), 'TOK');
   assert.match(plain, /<h2 id="needs">Needs you<\/h2>/); assert.match(plain, /<h3>Every request/); assert.doesNotMatch(plain, /<h2 id="system">/);
 });
+
+// Nov 15, 2026: on the live site every button on HQ was dead, and had been since the page was built. The page sends
+// two functions to the browser as their own text; the deploy's bundler adds __name(...) calls inside that text, and
+// nothing in the page defined __name, so the script threw on its first line. The tests never saw it because they run
+// the code as written. This runs the page's script the way a browser does, after doing to it what the bundler does.
+test('the page script runs to the end in a browser, even after the bundler has put its __name calls in it', async () => {
+  const { env } = await world();
+  const html = Q.hqHtml(await Q.hqState(env, NOW), 'TOK');
+  const js = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  assert.ok(js.startsWith(Q.NAME_SHIM), 'the helper comes first');
+  // what the bundler does: after each named function declared inside another, a call to __name(thatFunction, "its name")
+  const bundled = js.replace(/^(\s+)function (send|again|show|hide)\(([^)]*)\) \{(.*)\}$/gm, (m, sp, name) => m + '\n' + sp + '__name(' + name + ', "' + name + '");');
+  assert.ok((bundled.match(/__name\(/g) || []).length >= 3, 'the rehearsal really did add the calls');
+  const vm = await import('node:vm');
+  const run = code => {
+    const heard = [], made = [];
+    const el = () => ({ setAttribute() {}, style: {}, hidden: false });
+    const sandbox = {
+      document: { addEventListener: (k) => heard.push(k), createElement: () => { const e = el(); made.push(e); return e; }, body: { appendChild() {} }, querySelectorAll: () => [], visibilityState: 'visible' },
+      window: { addEventListener: (k) => heard.push('window:' + k), innerWidth: 390 }, sessionStorage: { getItem: () => '[]', setItem() {} }, location: { reload() {} }, history: {}, navigator: {}, fetch() {}, setInterval() {}, setTimeout() {}, JSON
+    };
+    vm.runInNewContext(code, sandbox);
+    return heard;
+  };
+  assert.throws(() => run(bundled.slice(Q.NAME_SHIM.length)), /__name is not defined/, 'without the helper, this is the live failure');
+  const heard = run(bundled);
+  assert.ok(heard.includes('click'), 'the buttons are listened for');
+  assert.ok(heard.includes('pointermove') && heard.includes('focusin'), 'and the chart readout is on');
+});
