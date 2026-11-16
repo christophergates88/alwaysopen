@@ -45,6 +45,12 @@ export function ownLineFacts() {
       'Max, this phone assistant (you: say "I come with every plan"), comes with every plan with ' + MAX.includedMinutes + ' minutes a month; ' + MAX.moreMinutes + ' more minutes are ' + dollars(MAX.moreCents) + ' a month, ' + perMinute() + ', and past their minutes it is ' + MAX.overCentsPerMinute + ' cents a minute. The free audit costs nothing.',
     about: 'Always Open is ' + TEAM.size + ' based in ' + TEAM.place + ', run by ' + TEAM.founder + '. He handles client support himself (callers and clients know him as ' + TEAM.support + ') and calls people back within ' + PROMISES.supportReply + '; he can tell them more about the team. Max, this phone assistant, answers for every client and for Always Open itself. Nothing else about anyone on the team is shared.',
     services: SERVICES_DAY_FIRST_LIVE ? SERVICES_DAY_FIRST : SERVICES_REPORT_FIRST,
+    // Who calls back, when, and how setup goes (Nov 15, 2026). These three lived only in the line's database row, so
+    // when Christopher took Katie out that morning the site, the app and Max's rules changed and the row did not:
+    // Max was still told "Katie, from our team, will call them back", and said so on the Nov 14 test call.
+    hours: 'This phone line is answered any time, day or night. ' + PROMISES.support + ' returns calls within ' + PROMISES.supportReply + '.',
+    booking: PROMISES.support + ' calls back to set things up, or they can request a free audit at alwaysopenoffice.com. Setup takes ' + PROMISES.setup + '. Nobody is signed up or charged on this call.',
+    next: PROMISES.support + ' will call them back within ' + PROMISES.supportReply + '.',
     // Brief 5 (Nov 5, 2026): after the S.I. line, straight to the caller ("Sorry, legal stuff" sounded like a shrug), and
     // the check-in when a caller goes quiet asks, it doesn't tease ("See? Told you I was good. Left you speechless.").
     greeting2: 'What can I do for you?',

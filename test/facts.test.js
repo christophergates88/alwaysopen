@@ -63,3 +63,49 @@ test('Part 8b: the own line says who Always Open is, once, and a second sync cha
   assert.match(F.ownLineFacts().about, /run by Christopher Gates\./, 'Christopher said on Nov 5 to name him');
   assert.doesNotMatch(F.ownLineFacts().about, /\d{3}|@/, 'no phone numbers or email addresses for people');
 });
+
+// Nov 15, 2026 (evening): that morning Katie came out of the site, the app and Max's rules, and Max's greeting went to
+// "automated assistant". The own line's row was not touched: its hours, booking, next step, goal and owner's notes are
+// hand-written text that lives only in the database, and Max was still being told "Katie, from our team, will call
+// them back" (he said it on the Nov 14 test call). These are those fields as they stood on the live line.
+test('the own line\'s row: Chris calls back, nobody else is named, and "S.I." is gone, down to the hand-written parts', async () => {
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const V = await import('../src/voice.js');
+  const F = await import('../src/facts.js');
+  const live = {
+    hours: 'This phone line is answered any time, day or night. Katie, from our team, returns calls within one business day.',
+    booking: 'Katie, from our team, calls back to set things up, or they can request a free audit at alwaysopenoffice.com. Setup takes about a week. Nobody is signed up or charged on this call.',
+    next: 'Katie, from our team, will call them back within one business day.',
+    notes: 'If a carrier or compliance contact must sign off, that happens before anything is turned on, and Katie can walk them through it. Never say it is compliant or approved by any carrier; say it is built to follow their rules.',
+    greeting: 'Always Open, this is Max. I\'m an S.I., and calls are recorded.',
+    goal: 'for who built you, "The Always Open team put me together." The greeting already said you\'re an S.I.; never bring up S.I. or AI again yourself, and never say what S.I. stands for. If they ask again whether you\'re a person, say in a few words that you\'re an S.I., not a person. If they ask what you run on, that\'s a trade secret. When you offer the call back, say who will call and why, like "I can have Katie from our team give you a call and walk you through it." Never call yourself a receptionist.',
+    owner: 'If someone asks for Chris or Christopher, or says they know him, say you\'ll pass it straight to Chris and he\'ll call them himself; don\'t steer them to Katie. Lead with the after-hours value. When they ask how something works, explain it in two or three sentences instead of offering a call; offer Katie or the audit at most twice a call.',
+    testers: '+14783652533, +14783393489', flux: 1, voice: 'UgBBYS2sOqTuMpoF3BR0'
+  };
+  const DB = makeDB();
+  await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, facts, updated) VALUES ('+17064602226', 'always-open', 'Always Open', 1, ?1, '2026-11-15')").bind(JSON.stringify(live)).run();
+  assert.equal(await V.syncOwnLine({ DB }), true);
+  const row = await DB.prepare("SELECT * FROM voice_lines WHERE client_id = 'always-open'").first(), f = JSON.parse(row.facts);
+  assert.doesNotMatch(row.facts, /Katie/, 'nobody but Chris is named anywhere in the row');
+  assert.doesNotMatch(row.facts, /S\.I\./, 'and Max is never told he is an S.I.');
+  assert.equal(f.next, 'Chris will call them back within one business day.');
+  assert.equal(f.hours, 'This phone line is answered any time, day or night. Chris returns calls within one business day.');
+  assert.match(f.booking, /^Chris calls back to set things up, or they can request a free audit at alwaysopenoffice\.com\. Setup takes about a week\./);
+  assert.equal(f.greeting, 'Always Open, this is Max. I\'m an automated assistant, and calls are recorded.');
+  assert.match(f.goal, /The greeting already said you're an automated assistant; never bring it up again yourself\. If they ask again whether you're a person, say in a few words that you're an automated assistant, not a person\. If they ask what you run on/);
+  assert.match(f.goal, /like "I can have Chris give you a call and walk you through it\."/);
+  assert.match(f.notes, /and Chris can walk them through it\. Never say it is compliant/);
+  assert.match(f.owner, /he'll call them himself\. Lead with the after-hours value\./, 'the clause about Katie is gone, the sentence still ends');
+  assert.match(f.owner, /offer the call back or the audit at most twice a call\.$/);
+  assert.equal(f.testers, live.testers); assert.equal(f.flux, 1); assert.equal(f.voice, live.voice);
+  assert.equal(await V.syncOwnLine({ DB }), false, 'a second sync changes nothing');
+  // and it is what Max is told on a call: the instructions for this line name Chris and no one else
+  const L = V.lineView(row);
+  for (const prompt of [V.systemPrompt(L, '+14705550123', 'en-US'), V.systemPrompt6(L, '+14705550123', 'en-US')]) {
+    assert.doesNotMatch(prompt, /Katie/); assert.doesNotMatch(prompt.replace(/Never call yourself "S\.I\."\./, ''), /S\.I\./);
+    assert.match(prompt, /Chris will call them back within one business day\./);
+  }
+  // the sweep on its own: a sentence that ended in "S.I." keeps its full stop, and plain text passes through
+  assert.equal(V.sweepRetired('You are an S.I. Say so.'), 'You are an automated assistant. Say so.');
+  assert.equal(V.sweepRetired('Starter is $149 a month.'), 'Starter is $149 a month.');
+});

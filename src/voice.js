@@ -17,7 +17,7 @@ const logAct = async (...a) => { try { return await (await import('./biz.js')).l
 import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
-import { ownLineFacts } from './facts.js';
+import { ownLineFacts, PROMISES } from './facts.js';
 import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
@@ -3206,16 +3206,32 @@ async function rehearseOne(env) {
   return true;
 }
 
-// Max's own line says what facts.js says: prices and what each plan adds are rewritten from it whenever they differ
-// (Nov 4, 2026: the row still said $149 for extra minutes after the site said $59).
+// Words that were retired, swept out of the hand-written parts of the own line's row (the goal, the owner's notes, the
+// stored greeting). Nov 15, 2026: Katie is no longer named anywhere (Chris is the one who calls back), and Max calls
+// himself an automated assistant, never "S.I.". The code and the site changed that morning; this text lives only in
+// the database, so it kept both until this sweep.
+export function sweepRetired(t, who) {
+  who = who || 'Chris';
+  return String(t == null ? '' : t)
+    .replace(/;?\s*don[’']t steer them to Katie(\.?)/gi, '$1')
+    .replace(/\boffer Katie or the audit\b/gi, 'offer the call back or the audit')
+    .replace(/\bKatie,? from our team,?/g, who)
+    .replace(/\bKatie\b/g, who)
+    .replace(/The greeting already said you[’']re an S\.I\.; never bring up S\.I\. or AI again yourself, and never say what S\.I\. stands for\./g, 'The greeting already said you\'re an automated assistant; never bring it up again yourself.')
+    // any other "an S.I.": the same thing in plain words (the last dot of "S.I." is kept when it also ended the sentence)
+    .replace(/\b(?:an? )?S\.I\.(?!\w)/g, (m, at, all) => 'an automated assistant' + (/^(\s+["“]?[A-Z]|\s*$)/.test(all.slice(at + m.length)) ? '.' : ''));
+}
+// Max's own line says what facts.js says: prices, what each plan adds, who calls back and how setup goes are rewritten
+// from it whenever they differ (Nov 4, 2026: the row still said $149 for extra minutes after the site said $59).
 export async function syncOwnLine(env) {
   try {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
     const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
-    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge });
-    if (next.prices === f.prices && next.notes === f.notes && next.services === f.services && next.greeting2 === f.greeting2 && next.nudge === f.nudge) return false;
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next });
+    for (const k of Object.keys(next)) if (typeof next[k] === 'string') next[k] = sweepRetired(next[k], PROMISES.support);
+    if (JSON.stringify(next) === JSON.stringify(f)) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();
     return true;
   } catch (e) { return false; }
