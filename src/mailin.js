@@ -275,7 +275,11 @@ export async function inbound(message, env, ctx, h) {
       return { skipped: 'unverified: ' + why };
     }
     if (m.auto) return { skipped: 'auto-reply' };   // an out-of-office reply is not a lead answering
-    return { lead: await leadReplied(env, m.from, 0, m.text) };
+    const lead = await leadReplied(env, m.from, 0, m.text);
+    // Then the reply brain answers them, or hands them to Christopher (replybrain.js). It only acts on audit leads.
+    let brain;
+    try { brain = await (await import('./replybrain.js')).replyBrain(env, m, h.brain); } catch (e) { brain = { error: String((e && e.message) || e).slice(0, 160) }; }
+    return { lead, brain };
   })();
   const out = await work;
   return Object.assign({ forwarded: fwd }, out);

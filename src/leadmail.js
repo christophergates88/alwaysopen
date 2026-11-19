@@ -181,6 +181,8 @@ async function noteSend(env, email, net, id, kind, now) {
   await env.DB.prepare('DELETE FROM audit_sends WHERE at < ?1').bind(iso(now - 40 * DAY)).run().catch(() => {});
 }
 
+// The reply brain (replybrain.js) puts the same footer on its answers.
+export function mailFooter(env, stop, es) { return footer(env || {}, stop, es); }
 function footer(env, stop, es) {
   const addr = one(env.BUSINESS_ADDRESS || '');
   const why = es ? 'Recibe este correo porque pidió una auditoría gratis en alwaysopenoffice.com.' : 'You’re getting this because you asked for a free audit at alwaysopenoffice.com.';
@@ -240,7 +242,7 @@ export function auditMail(lead, a, stop, env, via, go) {
     page: 'El día 2 de cada mes recibe una página que muestra lo que hicimos y cuánto valió. Vea un ejemplo:', start: 'Empezar mi primer mes',
     promise: 'Pruébelo un mes. Si no vale la pena, no lo paga. Sin contrato y sin cargo de instalación.',
     max: '¿Quiere oír cómo se contestarían sus llamadas? Llame a Max, nuestra línea, al ' + MAX + ', a cualquier hora.',
-    q: via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Chris le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Chris contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. Chris contesta, normalmente el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
+    q: via === 'letter' ? '¿Preguntas? Llame al ' + MAX + ' a cualquier hora. Max contesta y Chris le devuelve la llamada.' : via === 'page' ? '¿Preguntas? Responda a nuestro mensaje de texto o escriba a hello@alwaysopenoffice.com. Chris contesta, normalmente el mismo día hábil.' : '¿Preguntas? Responda a este correo. La mayoría recibe respuesta en minutos, y lo que necesite a Chris, él lo contesta el mismo día hábil.', src: 'Calificaciones y número de reseñas de Google Maps, consultados hoy.'
   } : {
     hi: first ? 'Hi ' + first + ',' : 'Hi,',
     intro: via === 'letter' ? 'Here’s your full audit. We looked up ' + name + ' on Google just now and compared it with the busiest nearby businesses like yours.' : 'Here’s the free audit you asked for. We looked up ' + name + ' on Google a minute ago and compared it with the busiest nearby businesses like yours.',
@@ -249,7 +251,7 @@ export function auditMail(lead, a, stop, env, via, go) {
     page: 'On the 2nd of every month you’d get one page showing what we did and what it was worth. Here’s a sample:', start: 'Start my first month',
     promise: 'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee.',
     max: 'Want to hear how your calls would be answered? Call Max, our phone line, at ' + MAX + ', any hour.',
-    q: via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Chris calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Chris answers, usually the same business day.' : 'Questions? Just reply to this email. Chris answers, usually the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
+    q: via === 'letter' ? 'Questions? Call ' + MAX + ' any hour. Max answers, and Chris calls you back.' : via === 'page' ? 'Questions? Reply to our text, or email hello@alwaysopenoffice.com. Chris answers, usually the same business day.' : 'Questions? Just reply to this email. Most get an answer within minutes, and anything that needs Chris, he answers the same business day.', src: 'Ratings and review counts are from Google Maps, looked up today.'
   };
   const pitchText = es ? 'Contestamos cada reseña con un borrador para su visto bueno, mantenemos su perfil de Google al día y contestamos cada llamada a su nombre, de día y de noche, con Max, nuestra línea telefónica. Después de cada trabajo llamamos para ver si todo quedó bien, damos seguimiento a cotizaciones y facturas, y llenamos los días libres con sus propios clientes.' : pitch.text;
   const inner = (
@@ -309,12 +311,12 @@ export function copyMail(lead, link, stop, env, go) {
     ...(fixes.length ? ['Lo primero que arreglaríamos:', ...fixes.map((f, i) => (i + 1) + '. ' + f.title + '. ' + f.fix)] : []),
     'La auditoría completa, consultada de nuevo cada vez que la abre: ' + link,
     'Pruébelo un mes. Si no vale la pena, no lo paga. Sin contrato y sin cargo de instalación: ' + start,
-    '¿Preguntas? Responda a este correo, o llame a Max al ' + MAX + ' a cualquier hora. Chris contesta, normalmente el mismo día hábil.', 'Always Open']
+    '¿Preguntas? Responda a este correo (la mayoría recibe respuesta en minutos), o llame a Max al ' + MAX + ' a cualquier hora.', 'Always Open']
     : ['Hi,', 'Here’s the copy you asked for.' + (g ? ' Your business got a ' + g + ' for how it looks to people searching Google.' : ''),
     ...(fixes.length ? [(fixes.length === 1 ? 'The first thing we’d fix:' : 'What we’d fix first:'), ...fixes.map((f, i) => (i + 1) + '. ' + f.title + '. ' + f.fix)] : []),
     'Your full audit, looked up fresh each time you open it: ' + link,
     'Try it for a month. If it’s not worth it, you don’t pay for it. No contract and no setup fee: ' + start,
-    'Questions? Reply to this email, or call Max at ' + MAX + ' any hour. Chris answers, usually the same business day.', 'Always Open'];
+    'Questions? Reply to this email (most get an answer within minutes), or call Max at ' + MAX + ' any hour.', 'Always Open'];
   const linkify = l => esc(l).replace(esc(link), '<a href="' + esc(go.audit || link) + '" style="color:#FF6A5E">' + esc(link.replace('https://', '')) + '</a>').replace(esc(start), '<a href="' + esc(go.start || start) + '" style="color:#FF6A5E">' + esc(start.replace('https://', '')) + '</a>');
   const html = shell(lines.map(l => '<p style="margin:0 0 14px">' + linkify(l) + '</p>').join('') + ft.html);
   return { subject, html, text: lines.join('\n\n') + ft.text };
@@ -330,9 +332,9 @@ export function followMail(lead, n, stop, env, top, go) {
   if (n === 1) {
     subject = es ? 'Su auditoría gratis: lo más rápido de arreglar' : 'Your free audit: the quickest win';
     lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', '¿Pudo ver la auditoría? Lo más rápido que mejoraría su negocio' + (top && ES[top.title] ? ': ' + ES[top.title][1].charAt(0).toLowerCase() + ES[top.title][1].slice(1) : ' es contestar cada reseña y cada llamada.') + ' Es lo que hacemos la primera semana.',
-      'Empezar: ' + start, 'O responda con una pregunta; Chris contesta, normalmente el mismo día hábil.', 'Always Open']
+      'Empezar: ' + start, 'O responda con una pregunta; la mayoría recibe respuesta en minutos.', 'Always Open']
       : [first ? 'Hi ' + first + ',' : 'Hi,', 'Did you get a chance to look at the audit? The quickest win for your business' + (top && top.fix ? ': ' + top.fix.charAt(0).toLowerCase() + top.fix.slice(1) : ' is a reply to every review and an answer to every call.') + ' That’s the kind of thing we start on in week one.',
-      'Start your first month: ' + start, 'Or reply with a question. Chris answers, usually the same business day.', 'Always Open'];
+      'Start your first month: ' + start, 'Or reply with a question. Most get an answer within minutes.', 'Always Open'];
   } else {
     subject = es ? 'Última nota sobre su auditoría' : 'Last note on your audit';
     lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', 'Última nota de nuestra parte. Si las reseñas, las llamadas y los seguimientos se le acumulan, nosotros nos encargamos, y el día 2 de cada mes recibe una página con lo que hicimos y cuánto valió.',
