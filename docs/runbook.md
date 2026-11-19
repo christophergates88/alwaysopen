@@ -317,6 +317,20 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   calls nobody. `/ops/outreach-review` with no id lists what is waiting.
 - Stop everything now: `UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'`.
 
+## The reply brain: answering people who wrote back (src/replybrain.js, Nov 19, 2026)
+
+Christopher: "with the responses you reply and get them onboarded. it should run automatically. no cost to get it running please."
+
+- **What it does.** Someone who asked for the free audit writes back to hello@. Their email still forwards to Christopher first (mailin.js). Then Claude (`REPLY_MODEL`, default `claude-sonnet-5-5`, on the Worker's own Anthropic key) reads only their new words and either answers from `factSheet()` (built from facts.js: plans, prices, the 30-day promise, setup, the sign-up link), hands it to Christopher with one push, or does nothing (a no, a stop).
+- **It never starts a conversation.** It only answers an audit lead who wrote to hello@ first. It sends nothing cold, and nothing to strangers, auto-replies, no-reply senders or anyone on the do-not-email list.
+- **The guard** (`guard()`) reads every answer before it goes: a price that isn't ours, or ours but next to the wrong plan or add-on; a link off alwaysopenoffice.com; a phone number other than Max's; a deal or promise we don't make (for life, locked in, discounts, free months); the answer speaking as Chris; the word AI; contract talk. Any of those and it goes to Christopher instead.
+- **Handed off once, it stays out.** After a handoff the assistant never answers that person again: Christopher owns the conversation. Also handed off: a 4th answer to one person in 24 hours (8 in all), a failed sender check (dmarc=fail), no `BUSINESS_ADDRESS`, Claude unreachable, an empty reply.
+- **What Christopher sees.** A high push when someone is ready to start ("Ready to start: ..."); a push for each handoff ("Needs you: ..."); a copy of every answer in his inbox, subject "[Assistant] Re: ...". Every decision is a row in D1 `reply_brain` (intent, action, sent, reply, reason).
+- **Every answer carries** the sign-off "Always Open", the line "Answered by the Always Open assistant. Chris reads every conversation.", and the same footer as the audit emails (why they got it, the postal address, the stop link).
+- **The switch.** D1 `lead_keys` row `reply-brain`: `on` (the default), `shadow` (decides and logs, sends nothing), `off`. Turn it off: `INSERT OR REPLACE INTO lead_keys (k, v, at) VALUES ('reply-brain', 'off', datetime('now'))`.
+- **The audit emails now say** "Most get an answer within minutes, and anything that needs Chris, he answers the same business day" (Spanish to match), instead of only "Chris answers".
+- **Tests:** test/replybrain.test.js (questions, ready, no, stop, a deal it was talked into, handoff stays out, strangers and duplicates, the daily cap, failures, the switch, the guard, quoted history).
+
 ## How to roll back a deploy
 
 1. Actions tab, the failed run, read the "Check the live site" step: it says what it saw and whether it already

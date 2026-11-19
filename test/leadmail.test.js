@@ -31,7 +31,7 @@ test('the audit email: the grade, the three fixes, a sample page, how to start, 
     assert.match(t, /alwaysopenoffice\.com\/sample-report/);
     assert.match(t, /alwaysopenoffice\.com\/start\?plan=Growth/);
     assert.match(t, /\(706\) 460-2226/);
-    assert.match(t, /Chris answers, usually the same business day/);
+    assert.match(t, /Just reply to this email\. Most get an answer within minutes, and anything that needs Chris, he answers the same business day\./);
     assert.match(t, /lead\/stop\?i=7&(amp;)?k=abc/);
     assert.match(t, /103 W Sumter St, Eatonton, GA 31024/);
     assert.doesNotMatch(t, /Riverbend/, 'competitors only as an average, never by name');
