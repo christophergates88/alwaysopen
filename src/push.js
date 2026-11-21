@@ -191,10 +191,14 @@ export async function pushHealth(env, now, h) {
   if (!env.NTFY_URL) return { ok: false, why: 'no push topic set: nothing reaches your phone' };
   await ensurePush(env);
   const tk = env.NTFY_TOKEN ? await env.DB.prepare("SELECT v FROM push_meta WHERE k = 'token'").first().catch(() => null) : null;
+  // How many pushes the account has left today is read fresh at least hourly (it sends no push), so the number shown
+  // is today's, never a stale one (Nov 21, 2026: a "0 of 250" from Nov 12 was still showing).
+  const acct = env.NTFY_TOKEN ? await env.DB.prepare("SELECT at FROM push_meta WHERE k = 'account'").first().catch(() => null) : null;
+  const acctOld = !acct || !acct.at || now - Date.parse(acct.at) > 60 * 60e3;
   // A refused token may have been replaced since (Set ntfy token): ask ntfy about the account, which sends no push.
   // The account answering is not enough (a valid token can still lack permission on the topic): the account's
   // grants must include this topic for writing, or "refused" stays until a real push with the token goes through.
-  if (tk && /^refused/.test(tk.v || '')) {
+  if (tk && (/^refused/.test(tk.v || '') || acctOld)) {
     try {
       const f = (h && h.fetch) || fetch;
       const r = await f(String(env.NTFY_URL).replace(/^(https?:\/\/[^/]+).*$/, '$1') + '/v1/account', { headers: { Authorization: 'Bearer ' + String(env.NTFY_TOKEN).trim() }, signal: AbortSignal.timeout(TIMEOUT_MS) });
