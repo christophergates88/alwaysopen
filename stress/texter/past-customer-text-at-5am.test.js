@@ -28,7 +28,7 @@ async function pastCustomer(T, cid, phone, status) {
   await ensurePast(T.env);
   await T.run("INSERT INTO biz_customers (client_id, ckey, name, phone, phone10, agreed, agreed_at, opt_token, source, created, updated) VALUES (?1, 'k1', 'Pat Lowe', ?2, ?3, 1, '2026-01-01', ?4, 'import', '2026-01-01', '2026-01-01')",
     cid, phone, phone.slice(-10), ('tok' + cid).replace(/[^A-Za-z0-9]/g, '').padEnd(16, 'x').slice(0, 16));
-  const r = await T.run("INSERT INTO biz_revive (client_id, ckey, name, phone, reason, draft, status, created, updated) VALUES (?1, 'k1', 'Pat Lowe', ?2, 'Water heater is 9 years old', 'Hi Pat, it has been a while since we flushed your water heater. Want us to come by?', ?3, ?4, ?4)",
+  const r = await T.run("INSERT INTO biz_revive (client_id, ckey, name, phone, reason, draft, status, created, updated, last_at) VALUES (?1, 'k1', 'Pat Lowe', ?2, 'Water heater is 9 years old', 'Hi Pat, it has been a while since we flushed your water heater. Want us to come by?', ?3, ?4, ?4, '2025-09-15T00:00:00Z')",
     cid, phone, status, '2026-11-10T04:00:00Z');
   return r.meta.last_row_id;
 }

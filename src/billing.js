@@ -16,8 +16,21 @@ const SITE = 'https://alwaysopenoffice.com';
 // prices and plan wording live in facts.js, the one place they are set
 export const PLANS = FACT_PLANS;
 const MAX = { cents: FACT_MAX.moreCents, blurb: FACT_MAX.blurb };
-const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
-const REGULATED = ['Insurance agency', 'Medical, dental or legal'];
+// Medical and dental offices are HIPAA covered entities: what Max takes down for them (who called and what they need)
+// is patient health information, and we can't sign the business associate agreement that needs, nor get one from
+// every company the call passes through (Nov 21, 2026 audit). So they can't sign up online, whatever kind of business
+// is picked when the name reads as one. Law offices still can (regulated: Max only takes messages).
+export const HEALTH_TYPE = 'Medical or dental office';
+const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Law office', HEALTH_TYPE, 'Other'];
+const REGULATED = ['Insurance agency', 'Law office', 'Medical, dental or legal', HEALTH_TYPE];
+const HEALTH_NAME = /\b(dental|dentists?|dentistry|orthodont\w*|endodont\w*|periodont\w*|oral surgery|pediatrics?|pediatricians?|dermatolog\w*|optometr\w*|ophthalmolog\w*|chiropract\w*|urgent care|family medicine|family practice|physicians?|medical (center|clinic|group|practice|office|associates)|health center)\b/i;
+export const HEALTH_NOTE = 'We aren’t set up to handle patient health information yet, so medical and dental offices can’t sign up online. Call (706) 460-2226 and we’ll tell you when we are.';
+// The old combined choice from a page cached before Nov 21: a law office stays a law office, the rest are health offices.
+function fixType(type, business) {
+  if (type === 'Medical, dental or legal' || type === 'Medical, dental or vet') return /\b(law|legal|attorneys?|lawyers?)\b/i.test(business || '') ? 'Law office' : HEALTH_TYPE;
+  return TYPES.includes(type) ? type : 'Other';
+}
+export function isHealthOffice(type, business) { return fixType(type, business) === HEALTH_TYPE || HEALTH_NAME.test(String(business || '')); }
 export const EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -125,8 +138,9 @@ export async function createByHand(env, o) {
   await ensureBilling(env);
   const one = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
   const business = one(o.business, 80), owner = one(o.owner, 60), email = one(o.email, 120), phone = one(o.phone, 24), town = one(o.town, 60);
-  const type = TYPES.includes(o.type) ? o.type : 'Other', plan = Object.hasOwn(PLANS, String(o.plan)) ? String(o.plan) : '';
+  const type = fixType(o.type, business), plan = Object.hasOwn(PLANS, String(o.plan)) ? String(o.plan) : '';
   if (business.length < 2) return { ok: false, error: 'Add the business name.' };
+  if (isHealthOffice(type, business)) return { ok: false, error: 'Medical and dental offices can’t be clients yet: we can’t handle patient health information until we can sign a HIPAA business associate agreement.' };
   if (!plan) return { ok: false, error: 'Pick a plan.' };
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'That email does not look right.' };
   const dup = await env.DB.prepare("SELECT client_id, business FROM billing WHERE lower(business) = lower(?1) AND COALESCE(status, '') != 'canceled'").bind(business).first().catch(() => null);
@@ -180,7 +194,9 @@ ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
 <label>Business name<input name="business" required maxlength="120" autocomplete="organization" value="${esc(v.business)}"></label>
 <div class="row"><label>Your name<input name="owner" required maxlength="80" autocomplete="name" value="${esc(v.owner)}"></label><label>Mobile phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel" value="${esc(v.phone)}"></label></div>
 <div class="row"><label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(v.email)}"></label><label>Town and state<input name="town" required maxlength="80" placeholder="Eatonton, GA" value="${esc(v.town)}"></label></div>
-<label>Kind of business<select name="type">${TYPES.map(t => `<option${t === v.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+<label>Kind of business<select name="type" id="type">${TYPES.map(t => `<option${t === v.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+<p class="err" id="hnote"${v.type === HEALTH_TYPE ? '' : ' hidden'}>${esc(HEALTH_NOTE)}</p>
+<script>document.getElementById('type').addEventListener('change',function(){document.getElementById('hnote').hidden=this.value!==${JSON.stringify(HEALTH_TYPE)};});</script>
 ${REF_RE.test(v.ref || '') ? '<input type="hidden" name="ref" value="' + esc(v.ref) + '">' : ''}
 <label class="opt"><input type="checkbox" name="agree" value="1" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and authorize monthly charges until I cancel.</span></label>
 <button class="btn" type="submit">Continue to secure payment</button>
@@ -191,7 +207,8 @@ async function checkout(req, env) {
   const f = await req.formData();
   const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree', 'ref']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
   if (!Object.hasOwn(PLANS, String(v.plan))) v.plan = 'Growth';
-  if (TYPES.indexOf(v.type) < 0) v.type = 'Other';
+  v.type = fixType(v.type, v.business);
+  if (isHealthOffice(v.type, v.business)) return startPage(v, HEALTH_NOTE);
   if (!v.business || !v.owner || v.phone.replace(/\D/g, '').length < 10 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) || !v.town) return startPage(v, 'Please fill in every box.');
   if (v.agree !== '1') return startPage(v, 'Please check the box to agree to the terms.');
   if (!env.STRIPE_KEY) return startPage(v, 'Online signup is not open yet. Call (706) 460-2226 or request the free audit, and we will set you up.');
@@ -344,7 +361,7 @@ export async function handleBilling(req, env, url, h) {
       try { await ensureBilling(env); const w = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first(); if (!w) await setupStripe(env); } catch (e) { /* the page still works; setup retries next load */ }
     }
     // from a trade page (?from=plumbing): the kind of business is picked already
-    const FROM = { plumbing: 'Contractor or trade', hvac: 'Contractor or trade', builders: 'Contractor or trade', 'auto-repair': 'Contractor or trade', marine: 'Dock, marine or outdoor', marinas: 'Dock, marine or outdoor', salons: 'Salon, spa or fitness', restaurants: 'Restaurant or shop', dental: 'Medical, dental or legal', insurance: 'Insurance agency' };
+    const FROM = { plumbing: 'Contractor or trade', hvac: 'Contractor or trade', builders: 'Contractor or trade', 'auto-repair': 'Contractor or trade', marine: 'Dock, marine or outdoor', marinas: 'Dock, marine or outdoor', salons: 'Salon, spa or fitness', restaurants: 'Restaurant or shop', dental: HEALTH_TYPE, insurance: 'Insurance agency' };
     return startPage({ plan: url.searchParams.get('plan') || '', ref: url.searchParams.get('ref') || '', type: FROM[url.searchParams.get('from') || ''] || '' });
   }
   if (path === '/welcome') return welcome(env, url, h);

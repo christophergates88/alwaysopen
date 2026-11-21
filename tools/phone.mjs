@@ -570,7 +570,7 @@ const JS = `(function () {
   // The home page: the cards follow the visitor's trade, picked above the cards or from the business tiles further down.
   var pick = d.querySelector('.aos-pick');
   if (pick) {
-    var TILE = { trades: 'plumbing', marine: 'marine', salon: 'salons', food: 'restaurants', insurance: 'insurance', health: 'dental' };
+    var TILE = { trades: 'plumbing', marine: 'marine', salon: 'salons', food: 'restaurants', insurance: 'insurance' };
     var choose = function (k, scroll) {
       if (!d.querySelector('.aos-set[data-set="' + k + '"]')) return;
       d.querySelectorAll('.aos-set').forEach(function (s) { s.hidden = s.getAttribute('data-set') !== k; });
@@ -762,7 +762,7 @@ function build(file, key) {
   if (key !== 'index') s = s.replace(/href="(?:index\.html|\/)(?:\?from=[a-z-]+)?#contact"/g, 'href="/?from=' + key + '#contact"');
   // one wrapper only: earlier runs wrapped it again once the fold attribute was on it
   if (key === 'index') { const dup = /(<div class="ao-addons" id="addons-all"[^>]*>)\s*<div class="ao-addons" id="addons-all">([\s\S]*?Add-ons are set up per business[\s\S]*?<\/p>\s*<\/div>)\s*<\/div>/; while (dup.test(s)) s = s.replace(dup, '$1$2'); }
-  if (key === 'index') { s = s.replace(/<p class="reglink">[\s\S]*?<\/p>\s*/, ''); s = s.replace('<div class="ctas"><a class="btn primary" href="#contact" data-plan="Starter">', '<p class="reglink">We never see a client’s name or number, and Compliance Guard checks every word before you see it. Full details for <a href="/insurance">insurance agencies</a> and <a href="/dental">dental offices</a>.</p>\n        <div class="ctas"><a class="btn primary" href="#contact" data-plan="Starter">'); }
+  if (key === 'index') { s = s.replace(/<p class="reglink">[\s\S]*?<\/p>\s*/, ''); s = s.replace('<div class="ctas"><a class="btn primary" href="#contact" data-plan="Starter">', '<p class="reglink">We never see a client’s name or number, and Compliance Guard checks every word before you see it. Full details for <a href="/insurance">insurance agencies</a>.</p>\n        <div class="ctas"><a class="btn primary" href="#contact" data-plan="Starter">'); }
   if (key === 'index' && !/<div class="ao-addons" id="addons-all"/.test(s)) {
     const a = s.indexOf('<div class="addons-head" id="addons">'), f = s.indexOf('Add-ons are set up per business', a), b = s.indexOf('</p>', f) + 4;
     if (a < 0 || f < 0) throw new Error('no add-ons block');

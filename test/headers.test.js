@@ -83,8 +83,19 @@ test('search engines get a sitemap of every public page, and each address on it 
   assert.ok(urls.length >= 17);
   for (const u of urls) assert.equal((await site.call(new URL(u).pathname)).status, 200, u);
   // every page file meant for the public is on it (the thank-you, share and not-found pages are not)
-  for (const f of fs.readdirSync(new URL('../public/', import.meta.url)).filter(x => /\.html$/.test(x) && !/^(404|jobdone|og-share|index)\.html$/.test(x))) assert.ok(urls.includes('https://alwaysopenoffice.com/' + f.replace(/\.html$/, '')), f + ' is missing from sitemap.xml');
+  for (const f of fs.readdirSync(new URL('../public/', import.meta.url)).filter(x => /\.html$/.test(x) && !/^(404|jobdone|og-share|index|dental)\.html$/.test(x))) assert.ok(urls.includes('https://alwaysopenoffice.com/' + f.replace(/\.html$/, '')), f + ' is missing from sitemap.xml');
   assert.match(fs.readFileSync(new URL('../public/robots.txt', import.meta.url), 'utf8'), /^Sitemap: https:\/\/alwaysopenoffice\.com\/sitemap\.xml$/m);
+});
+
+test('the dental page is never served: medical and dental offices get a short not-yet page (Nov 21, 2026: HIPAA)', async () => {
+  for (const p of ['/dental', '/dental.html', '/medical']) {
+    const r = await site.call(p);
+    assert.equal(r.status, 200, p);
+    assert.match(r.text, /Medical and dental offices: not yet\./, p);
+    assert.ok(!/cracked tooth/i.test(r.text), p + ' still shows the old page');
+  }
+  assert.ok(!fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8').includes('/dental'));
+  assert.ok(!fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').includes('href="/dental"'));
 });
 
 test('a security contact is published, with a date that is always ahead', async () => {

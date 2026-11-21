@@ -28,10 +28,11 @@ const BY_NAME = [[/\bdental\b|\bdentist/, 'dental'], [/\binsurance\b/, 'insuranc
   [/\bgarage doors?\b/, 'garage doors'], [/\bseptic\b/, 'septic'], [/\bgutters?\b/, 'gutters'], [/\bfloor/, 'flooring'], [/\bremodel|\bconstruct|\bbuilders?\b|\bbuilding\b/, 'builders'], [/\bmoving\b|\bmovers\b/, 'moving'], [/\btow(ing)?\b/, 'towing'],
   [/\bauto\b|\bautomotive\b|\btires?\b|\bmechanic|\bcollision\b|\btransmission|\bdetail/, 'auto repair'], [/\bdocks?\b/, 'docks'], [/\bmarinas?\b(?!['’]s)|\byacht club\b|\bboat rentals?\b/, 'marina'], [/\bmarine\b|\bboats?\b/, 'marine'], [/\bbarber/, 'barber'], [/\bsalon\b|\bhair\b|\bnails?\b|\bbeauty\b/, 'salon'], [/\bfitness\b|\bgym\b|\byoga\b|\bpilates\b/, 'fitness'],
   [/\bgroom/, 'pet grooming'], [/\bclinic\b|\bmedical\b|\bchiropract|\btherap|\bdoctors?\b/, 'medical'], [/\brestaurant\b|\bcafe\b|\bgrill\b|\bbbq\b|\bpizza\b|\bbakery\b|\bdiner\b/, 'restaurant'], [/\bfoam\b|\bparty\b|\bparties\b|\bevents?\b|\brentals?\b/, 'party rentals']];
-const BY_TYPE = { 'Contractor or trade': 'contractor', 'Dock, marine or outdoor': 'marine', 'Salon, spa or fitness': 'salon', 'Restaurant or shop': 'restaurant', 'Insurance agency': 'insurance', 'Medical, dental or legal': 'medical', 'Medical, dental or vet': 'medical' };
+const BY_TYPE = { 'Contractor or trade': 'contractor', 'Dock, marine or outdoor': 'marine', 'Salon, spa or fitness': 'salon', 'Restaurant or shop': 'restaurant', 'Insurance agency': 'insurance', 'Medical, dental or legal': 'medical', 'Law office': 'legal', 'Medical or dental office': 'medical', 'Medical, dental or vet': 'medical' };
 export function industryOf(business, type) {
   const n = String(business || '').toLowerCase();
   if (type === 'Insurance agency') return 'insurance';
+  if (type === 'Law office') return 'legal';
   const med = /^Medical, dental or (legal|vet)$/.test(String(type || ''));
   for (const [re, k] of BY_NAME) if (re.test(n)) return med && !/dental|legal|medical/.test(k) ? 'medical' : k;
   return BY_TYPE[type] || '';

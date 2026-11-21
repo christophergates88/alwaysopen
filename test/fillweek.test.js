@@ -11,7 +11,8 @@ const customers = [
   { name: 'Al Cruz', phone10: '4785550104', agreed: 1, optout: 1 },
   { name: 'Bea Fox', phone10: '4785550105', agreed: 1, optout: 0 },
   { name: 'Cy Diaz', phone10: '4785550106', agreed: 1, optout: 0 },
-  { name: 'Ed Gray', phone10: '4785550107', agreed: 1, optout: 0 }
+  { name: 'Ed Gray', phone10: '4785550107', agreed: 1, optout: 0 },
+  { name: 'Flo Hart', phone10: '4785550108', agreed: 1, optout: 0 }
 ];
 const jobs = [
   { phone: '(478) 555-0101', title: 'Water heater install', amount: 180000, at: ago(300) },
@@ -20,9 +21,10 @@ const jobs = [
   { phone: '4785550104', title: 'Leak', amount: 9000, at: ago(400) },                 // opted out
   { phone: '4785550105', title: 'Faucet', amount: 30000, at: ago(500) },
   { phone: '4785550106', title: 'Old job', amount: 99000, at: ago(1300) },            // too old
-  { phone: '4785550107', title: 'Toilet', amount: 20000, at: ago(200) }
+  { phone: '4785550107', title: 'Toilet', amount: 20000, at: ago(200) },
+  { phone: '4785550108', title: 'Repipe', amount: 400000, at: ago(700) }              // past 18 months: no offer by text (Nov 21, 2026)
 ];
-test('only past customers who agreed, last job 6 months to 3 years ago, not opted out', () => {
+test('only past customers who agreed, last job 6 to 18 months ago, not opted out', () => {
   const c = pickCandidates(customers, jobs, [], [], now);
   assert.deepEqual(c.map(x => x.phone10), ['4785550101', '4785550105', '4785550107']);
 });

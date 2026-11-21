@@ -486,7 +486,8 @@ function addClientHtml() {
     '<div class="acts"><button type="button" class="go" data-addclient="1">Add this client</button><span class="said" role="status"></span></div>' +
     '<div class="it" data-made hidden style="margin-top:10px"><b></b><a class="sub" href="#" target="_blank" rel="noopener" style="display:block;min-height:44px;padding-top:10px"></a><span class="sub"></span></div>';
 }
-const HAND_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Medical, dental or legal', 'Other'];
+// No medical or dental offices (Nov 21, 2026: HIPAA; billing.js createByHand refuses them too).
+const HAND_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Law office', 'Other'];
 const HAND_PLANS = ['Starter', 'Growth', 'Pro'];
 export async function hqAddClient(env, b) {
   const r = await (await import('./billing.js')).createByHand(env, b || {});

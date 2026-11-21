@@ -4,11 +4,13 @@
 // Anything else they reply lands in the owner's inbox like any text.
 // Rules, all enforced here: the owner turned it on and accepted the one-line agreement; Pro; never for regulated
 // businesses; texting is registered for this business (the offer goes from its own number); only customers marked as
-// agreeing to hear from the business, never one who opted out; last job 6 months to 3 years ago; at most 8 per run; no
+// agreeing to hear from the business, never one who opted out; last job 6 to 18 months ago; at most 8 per run; no
 // customer more than once in 90 days; one run per 14 days unless the owner taps it; daytime only.
 // Texts only: Max does not place these calls. A sales call in an automated voice needs written consent that our records
 // don't capture, so calls stay out until that's settled.
-const MAX_OFFERS = 8, GAP_DAYS = 90, RUN_GAP_DAYS = 14, MIN_AGE_D = 182, MAX_AGE_D = 3 * 365;
+// MAX_AGE_D: 18 months, the existing-customer window the Do Not Call rules allow for an offer by text (Nov 21, 2026
+// audit; it was 3 years, which reached people the business no longer has a relationship with).
+const MAX_OFFERS = 8, GAP_DAYS = 90, RUN_GAP_DAYS = 14, MIN_AGE_D = 182, MAX_AGE_D = 548;
 export const AGREEMENT = 'Fill my week texts past customers who agreed to hear from you when your calendar has an open day coming up. Each customer gets at most one offer in 90 days, STOP is honored at once, and you stay responsible for the offer made in your name.';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -126,7 +128,7 @@ export async function runFill(env, c, opts) {
   if (!pick) return { ok: false, error: 'No weekday in the next week has a few open hours on your calendar.' };
   const { customers, jobs, recent, stopped } = await people(env, c.client_id, now);
   const cands = pickCandidates(customers, jobs, recent, stopped, now);
-  if (!cands.length) return { ok: false, error: 'Nobody is due right now: no past customer who agreed to hear from you had their last job 6 months to 3 years ago, or they already got an offer lately.' };
+  if (!cands.length) return { ok: false, error: 'Nobody is due right now: no past customer who agreed to hear from you had their last job 6 to 18 months ago, or they already got an offer lately.' };
   const ins = await env.DB.prepare('INSERT INTO fillweek_runs (client_id, day, created, by) VALUES (?1, ?2, ?3, ?4)').bind(c.client_id, pick.day, new Date(now).toISOString(), (opts && opts.by) || 'Always Open').run();
   const runId = ins && ins.meta && ins.meta.last_row_id;
   const { sendText } = await import('./sms.js');

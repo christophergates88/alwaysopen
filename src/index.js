@@ -464,6 +464,9 @@ async function serve(req, env, ctx) {
     }
     if (path.startsWith('/hq/t/') && (req.method === 'GET' || req.method === 'POST')) return (await import('./hqtexts.js')).handleApprove(req, env, path.slice('/hq/t/'.length));
     if (path.startsWith('/voice/')) return handleVoice(req, env, ctx, url);
+    // Medical and dental offices: not until we can sign a HIPAA business associate agreement (Nov 21, 2026 audit). The
+    // old dental page stays in the repo but is never served; this short page says why, in its place.
+    if (/^\/(dental|medical)(\.html)?\/?$/.test(path) && (req.method === 'GET' || req.method === 'HEAD')) return withSiteHeaders(healthNotice(), url);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD' } });
     }
@@ -529,6 +532,14 @@ async function stormsList(req, env, url) {
   try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS storms (id TEXT PRIMARY KEY, at TEXT, event TEXT, grp TEXT, counties TEXT, headline TEXT, ends TEXT, link TEXT, sent TEXT)').run(); } catch (e) {}
   const rows = await env.DB.prepare("SELECT * FROM storms WHERE id NOT LIKE 'sample:%' ORDER BY at DESC LIMIT 30").all();
   return json({ ok: true, storms: (rows && rows.results) || [] }, 200);
+}
+
+function healthNotice() {
+  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Medical and dental offices · Always Open</title><meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="/favicon.svg">' +
+    '<style>body{margin:0;font:17px/1.55 system-ui,sans-serif;background:#F5F4F0;color:#171B26}main{max-width:560px;margin:0 auto;padding:48px 20px;display:grid;gap:16px}h1{font-size:2rem;line-height:1.1;margin:0}p{margin:0}a{color:#D92D20;font-weight:600}@media (prefers-color-scheme:dark){body{background:#12151D;color:#EEF0F4}}</style></head>' +
+    '<body><main><h1>Medical and dental offices: not yet.</h1><p>A call to a practice is full of patient health information, and we aren’t set up to handle that the way the law asks. Until we are, we don’t sign up medical or dental offices.</p>' +
+    '<p>Want to hear when that changes? Call <a href="tel:+17064602226">(706) 460-2226</a>.</p><p><a href="/">Back to Always Open</a></p></main></body></html>';
+  return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
 }
 
 function withSiteHeaders(res, url) {

@@ -42,7 +42,20 @@ export async function ensurePast(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS biz_revive (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, ckey TEXT NOT NULL, name TEXT DEFAULT '', phone TEXT DEFAULT '', email TEXT DEFAULT '', reason TEXT DEFAULT '', basis TEXT DEFAULT '', est INTEGER DEFAULT 0, draft TEXT DEFAULT '', status TEXT DEFAULT 'pending', result TEXT DEFAULT '', created TEXT, updated TEXT)"),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS biz_revive_c ON biz_revive (client_id, status)')
   ]);
+  // when the customer last bought (or asked for the estimate): it decides whether a text may go (TEXT_DAYS below)
+  try { await env.DB.prepare("ALTER TABLE biz_revive ADD COLUMN last_at TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
   READY.add(env.DB);
+}
+
+// A past-customer note goes by text only inside the existing-customer window the Do Not Call rules allow: 18 months
+// after their last job, 3 months after an estimate they asked for (Nov 21, 2026 audit). Older customers get the email
+// only. Without a date we don't text at all.
+export const TEXT_DAYS = { job: 548, quote: 90 };
+export function reviveTextOk(row, at) {
+  const t = Date.parse((row && row.last_at) || '');
+  if (isNaN(t)) return false;
+  const days = row.reason === 'Estimate went quiet' ? TEXT_DAYS.quote : TEXT_DAYS.job;
+  return (at || Date.now()) - t < days * 864e5;
 }
 
 // ---------------- dates and words ----------------
@@ -218,7 +231,10 @@ export async function apiImport(req, env, c) {
     }
     if (!tb.rows.length) return aj({ ok: false, error: 'No usable customers in that file. Each row needs a phone number or an email.' }, 400);
     const before = +((await env.DB.prepare('SELECT COUNT(*) AS n FROM biz_customers WHERE client_id = ?1').bind(cid).first()) || {}).n || 0;
-    const agreed = b.agreed === true ? 1 : 0;
+    // Nobody comes in from a file as OK to contact (Nov 21, 2026 audit): the owner marks each person who told them it's
+    // OK, one at a time, which is the opt-in the carriers were told about ("they agreed when the business logged the
+    // job"). A whole spreadsheet ticked at once is not consent anyone could show later.
+    const agreed = 0;
     const st = [];
     const seen = new Map();
     for (const r of tb.rows) { const o = seen.get(r.cust.ckey); if (!o) seen.set(r.cust.ckey, Object.assign({}, r.cust)); else for (const k of ['name', 'phone', 'phone10', 'email', 'address']) if (r.cust[k]) o[k] = r.cust[k]; }
@@ -251,11 +267,13 @@ export async function apiImport(req, env, c) {
     return aj({ ok: true, total: +(total && total.n) || 0, agreed: +(total && total.a) || 0, customers: (rs.results || []).map(r => ({ id: r.id, name: r.name || '', phone: r.phone || '', email: r.email || '', agreed: !!+r.agreed, optout: !!+r.optout })) });
   }
   if (b.action === 'agree') {
-    const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(x => +x).filter(x => x > 0).slice(0, 5000);
     const on = b.agreed === false ? 0 : 1;
+    // Marking people OK is one person at a time (Nov 21, 2026 audit); taking the OK away can still be done in bulk.
+    if (on && (b.all === true || (Array.isArray(b.ids) && b.ids.length > 1))) return aj({ ok: false, error: 'Mark people one at a time, only the ones who told you it’s OK to contact them.' }, 400);
+    const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(x => +x).filter(x => x > 0).slice(0, 5000);
     let n = 0;
     if (b.all === true) {
-      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = ?1, agreed_at = CASE WHEN ?1 = 1 THEN ?2 ELSE '' END, updated = ?2 WHERE client_id = ?3 AND optout = 0").bind(on, ts, cid).run();
+      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = 0, agreed_at = '', updated = ?1 WHERE client_id = ?2 AND optout = 0").bind(ts, cid).run();
       n = r.meta.changes;
     } else for (const id of ids) {
       const r = await env.DB.prepare("UPDATE biz_customers SET agreed = ?1, agreed_at = CASE WHEN ?1 = 1 THEN ?2 ELSE '' END, updated = ?2 WHERE id = ?3 AND client_id = ?4 AND optout = 0").bind(on, ts, id, cid).run();
@@ -367,7 +385,8 @@ export async function buildRevive(env, cid, at) {
       pick = { kind: 'service', reason: 'Over a year since the last visit', basis: 'Last job ' + monthYear(new Date(last.at).toISOString()) + (safe(last.title, 60) ? ': ' + safe(last.title, 60) : ''), est: last.amount || fallback, d: { what: safe(last.title, 60), date: monthYear(new Date(last.at).toISOString()) } };
     }
     if (!pick) continue;
-    cands.push({ k, name: cl(name, 80), phone: cl(phone, 30), email: cl(email, 120), pick, draft: draftFor(biz, f, pick.kind, pick.d) });
+    const lastAt = pick.kind === 'quote' ? String(q.created || '') : (last && last.at ? new Date(last.at).toISOString() : '');
+    cands.push({ k, name: cl(name, 80), phone: cl(phone, 30), email: cl(email, 120), pick, draft: draftFor(biz, f, pick.kind, pick.d), lastAt });
   }
   cands.sort((a, b) => b.pick.est - a.pick.est);
   const ts = new Date(at).toISOString();
@@ -375,7 +394,7 @@ export async function buildRevive(env, cid, at) {
   const room = Math.max(0, 40 - (+((await env.DB.prepare("SELECT COUNT(*) AS n FROM biz_revive WHERE client_id = ?1 AND status = 'pending'").bind(cid).first()) || {}).n || 0));
   const st = [];
   for (const x of cands.slice(0, Math.min(REVIVE_CAP, room))) {
-    st.push(env.DB.prepare("INSERT INTO biz_revive (client_id, ckey, name, phone, email, reason, basis, est, draft, status, created, updated) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'pending',?10,?10)").bind(cid, x.k, x.name, x.phone, x.email, x.pick.reason, cl(x.pick.basis, 160), x.pick.est || 0, x.draft, ts));
+    st.push(env.DB.prepare("INSERT INTO biz_revive (client_id, ckey, name, phone, email, reason, basis, est, draft, status, created, updated, last_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'pending',?10,?10,?11)").bind(cid, x.k, x.name, x.phone, x.email, x.pick.reason, cl(x.pick.basis, 160), x.pick.est || 0, x.draft, ts, x.lastAt || ''));
     added++;
   }
   if (st.length) await env.DB.batch(st);
@@ -436,6 +455,8 @@ export async function approveRevive(env, c, row, edited) {
     const cu = await env.DB.prepare('SELECT agreed, optout, opt_token FROM biz_customers WHERE client_id = ?1 AND ckey = ?2').bind(cid, row.ckey).first();
     if (cu && +cu.optout) { await env.DB.prepare("UPDATE biz_revive SET status = 'skipped', result = 'opted out', updated = ?1 WHERE id = ?2").bind(ts, id).run(); return { status: 409, body: { ok: false, error: 'They asked us to stop, so nothing was sent.' } }; }
     if (!cu || !+cu.agreed) return { status: 409, body: { ok: false, needsOk: true, error: 'They haven’t said it’s OK to contact them. Mark them as OK first, or copy the message and reach out yourself.' } };
+    const textOk = reviveTextOk(row);
+    if (!(row.email && EMAIL_RE.test(row.email)) && !(ph10(row.phone) && textOk)) return { status: 409, body: { ok: false, needsEmail: true, error: 'Their last visit was too long ago for us to text them, and there’s no email to send it to. Copy the message and reach out yourself.' } };
     const text = edited || row.draft;
     // 'queued': approved, but it could not go at the time (night, or texting not approved yet); sendHeldRevive tries again
     const claim = await env.DB.prepare("UPDATE biz_revive SET status = 'sending', updated = ?1 WHERE id = ?2 AND client_id = ?3 AND status IN ('pending', 'queued')").bind(ts, id, cid).run();
@@ -451,7 +472,8 @@ export async function approveRevive(env, c, row, edited) {
       res.push('email:' + r); if (r === 'sent') sent = true;
     }
     let status = sent ? 'sent' : 'queued';
-    if (ph10(row.phone) && TEXTING_ON) {
+    if (ph10(row.phone) && TEXTING_ON && !textOk) res.push('text:too long since the last visit');
+    else if (ph10(row.phone) && TEXTING_ON) {
       const cr2 = await env.DB.prepare('SELECT business FROM app_clients WHERE client_id = ?1').bind(cid).first();
       // the business's own hours, not New York's (Nov 10: a held note went out at 5 AM in San Diego, 3 AM in Hilo)
       let tz = ''; try { tz = await (await import('./callbacks.js')).tzFor(env, cid); } catch (e) { tz = ''; }

@@ -57,17 +57,40 @@ test('a customer who said stop is not called, and nothing goes out after 9 PM', 
   assert.equal(dials(s2.world).length, 0);
 });
 
-test('missed visit is offered a new time; estimate and due-for-service calls stay off until turned on', async () => {
+test('missed visit is offered a new time; estimate and due-for-service calls stay off even when switched on', async () => {
+  // Nov 21, 2026: a sales call in an automated voice needs the customer's written consent (TCPA, FCC 24-17), which
+  // nothing collects yet. An old "on" row in the database must not bring them back.
   const { world, DB, env } = await setup();
   await fu(DB, { kind: 'appointment', consent: true, appt: new Date(NOW - 3 * 3600e3).toISOString() });
   await fu(DB, { kind: 'quote', consent: true, note: 'new water heater', created: new Date(NOW - 4 * 864e5).toISOString() });
   let r = await OC.outCallsCron(env, NOW);
-  assert.equal(r.calls, 1, 'only the missed visit: estimates are off by default');
+  assert.equal(r.calls, 1, 'only the missed visit');
   assert.equal((await DB.prepare('SELECT kind FROM outcalls').first()).kind, 'noshow');
-  await DB.prepare("INSERT INTO outcall_prefs (client_id, k, on_) VALUES ('c1', 'quote', 1)").run();
+  await DB.prepare("INSERT INTO outcall_prefs (client_id, k, on_) VALUES ('c1', 'quote', 1), ('c1', 'due', 1)").run();
   r = await OC.outCallsCron(env, NOW + 10 * 60e3);
-  assert.equal(r.calls, 1);
-  assert.deepEqual((await DB.prepare('SELECT kind FROM outcalls ORDER BY id').all()).results.map(x => x.kind), ['noshow', 'quote']);
+  assert.equal(r.calls, 0, 'no estimate call, whatever the stored switch says');
+  assert.deepEqual((await DB.prepare('SELECT kind FROM outcalls ORDER BY id').all()).results.map(x => x.kind), ['noshow']);
+  const p = await OC.prefsOf(env, 'c1', 0);
+  assert.equal(p.quote, false); assert.equal(p.due, false);
+});
+
+test('sales calls cannot be switched on, are not listed, and a queued one is skipped, never dialed', async () => {
+  const { world, DB, env } = await setup();
+  const req = b => new Request('https://x/api/outcalls', { method: 'POST', body: JSON.stringify(b) });
+  const c = { client_id: 'c1', regulated: 0 };
+  for (const key of ['quote', 'due']) {
+    const r = await OC.apiOutcalls(req({ key, on: true }), env, c);
+    assert.equal(r.ok, false); assert.match(r.error, /written OK/);
+    assert.equal((await OC.apiOutcalls(req({ key, on: false }), env, c)).ok, true, 'turning one off is always allowed');
+  }
+  const st = await OC.outcallsState(env, c);
+  assert.ok(!st.list.some(x => x.key === 'quote' || x.key === 'due'));
+  assert.ok(st.list.some(x => x.key === 'confirm'));
+  const id = await OC.queue(env, { client_id: 'c1', kind: 'due', phone: '4785550150', name: 'Al', topic: 'your water heater', ref: 'due:x', due_at: new Date(NOW - 60e3).toISOString() });
+  await OC.outCallsCron(env, NOW);
+  assert.equal(dials(world).length, 0);
+  const row = await DB.prepare('SELECT status, result FROM outcalls WHERE id = ?1').bind(id).first();
+  assert.equal(row.status, 'skipped'); assert.match(row.result, /written consent/);
 });
 
 test('an urgent call rings the owner once, at any hour, and not when switched off', async () => {

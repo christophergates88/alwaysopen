@@ -22,12 +22,16 @@ const ck = clock('2026-11-10T20:00:00Z');
 after(() => ck.restore());
 const T = await boot();
 
-// One business with one past customer who agreed to hear from it (last job almost two years ago), texting approved.
+// One business with one past customer who agreed to hear from it (last job about 14 months ago, inside the 18 months a
+// past-customer text may go), texting approved.
 async function businessWithPastCustomer(o, customer10) {
   const A = await T.signup(o);
   const a = T.as(A.base);
-  const imp = await a.post('/api/import', { action: 'save', csv: 'name,phone,date,amount,work\nOld Cust,' + customer10 + ',2024-01-15,400,drain cleaning', agreed: true });
+  const imp = await a.post('/api/import', { action: 'save', csv: 'name,phone,date,amount,work\nOld Cust,' + customer10 + ',2025-09-15,400,drain cleaning' });
   assert.equal(imp.status, 200, imp.text);
+  // Nov 21, 2026: nobody comes in from a file as OK to contact; the owner marks the one person who agreed
+  const list = (await a.post('/api/import', { action: 'list' })).json();
+  assert.equal((await a.post('/api/import', { action: 'agree', id: list.customers[0].id, agreed: true })).json().ok, true);
   assert.equal((await a.post('/api/revive', { action: 'refresh' })).json().count, 1);
   assert.equal((await T.approveTexting(A.cid)).status, 200);
   const item = (await a.state()).past.revive.items.find(x => x.hasPhone);

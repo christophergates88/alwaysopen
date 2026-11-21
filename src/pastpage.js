@@ -49,7 +49,7 @@ function importSheet(res){
   h+='<div class="list">'+(res.sample||[]).map(function(s){return '<p class="note" style="margin:2px 0"><b>'+esc(s.name||'(no name)')+'</b> · '+esc(s.phone||s.email)+(s.work?' · '+esc(s.work):'')+(s.date?' · '+esc(s.date):'')+(s.amount?' · '+money(s.amount):'')+'</p>';}).join('')+'</div>';
   h+='<details style="margin:8px 0"><summary>Check the columns</summary>'+PF.map(function(f){
     return '<label>'+f[1]+'<select data-pcmap="'+f[0]+'"><option value="-1">(none)</option>'+res.columns.map(function(c,i){return '<option value="'+i+'"'+(res.map[f[0]]===i?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></label>';}).join('')+'</details>';
-  h+='<label class="opt" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="pc-agreed"> <span>These customers have said it’s OK for us to contact them. Leave this unchecked if you’re not sure; you can mark people one at a time later.</span></label>';
+  h+='<p class="fine">Everyone comes in as not yet OK to contact. After the import, mark each person who has told you it’s OK, one at a time.</p>';
   h+='<div class="acts"><button class="btn ok" type="button" data-a="pc-save"'+(res.valid?'':' disabled')+'>Import '+res.valid+' rows</button><button class="btn ghost" type="button" data-close="1">Cancel</button></div>';
   sheet(h);
 }
@@ -69,7 +69,7 @@ function listSheet(){
         (c.optout?'<span class="tag">Asked us to stop</span>':'<button class="btn '+(c.agreed?'ok':'line')+' sm" type="button" data-a="pc-ok" data-id="'+c.id+'" data-s="'+(c.agreed?'0':'1')+'">'+(c.agreed?'OK to contact ✓':'Mark OK to contact')+'</button>')+
         '<button class="btn ghost sm" type="button" data-a="pc-forget" data-id="'+c.id+'">Remove</button></div></article>';}).join('')+'</div>';
     if(j.total>j.customers.length)h+='<p class="fine">Showing the first '+j.customers.length+'. Search to find someone.</p>';
-    h+='<div class="acts" style="margin-top:8px"><button class="btn line sm" type="button" data-a="pc-allok">Mark everyone OK to contact</button><button class="btn ghost sm" type="button" data-a="pc-wipe">Remove all imported customers</button><button class="btn ghost sm" type="button" data-close="1">Close</button></div>';
+    h+='<div class="acts" style="margin-top:8px"><button class="btn ghost sm" type="button" data-a="pc-wipe">Remove all imported customers</button><button class="btn ghost sm" type="button" data-close="1">Close</button></div>';
     sheet(h);
     var q=document.getElementById('pc-q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}
   }).catch(function(){toast('No connection. Try again.');close();});
@@ -81,7 +81,7 @@ function pastAct(a,id,t){
   else if(a==='pc-refresh'){t.disabled=true;post('revive',{action:'refresh'}).then(function(r){t.disabled=false;if(r.j.ok){pcReload(function(){toast(r.j.count?r.j.count+' ready to review.':'No one new this time.');});}else toast(r.j.error||'Could not look. Try again.');});}
   else if(a==='pc-save'){
     t.disabled=true;
-    post('import',{action:'save',csv:PCSV,map:PMAP||undefined,agreed:!!(document.getElementById('pc-agreed')||{}).checked}).then(function(r){
+    post('import',{action:'save',csv:PCSV,map:PMAP||undefined}).then(function(r){
       t.disabled=false;
       if(r.j.ok){close();PCSV='';PMAP=null;toast('Imported '+r.j.customers+' customers.');post('revive',{action:'refresh'}).then(function(){pcReload();});}
       else toast(r.j.error||'Could not import. Try again.');
@@ -99,7 +99,6 @@ function pastAct(a,id,t){
   else if(a==='pc-copy'){var tb=document.getElementById('pc-t-'+id);if(tb){copyText(tb.value,'Copied. It’s marked as yours to send.');post('revive',{action:'copied',id:+id}).then(function(){pcReload(function(){var c=document.getElementById('pc-'+id);if(c)c.remove();});});}}
   else if(a==='pc-skip'){post('revive',{action:'skip',id:+id}).then(function(){pcReload(reviveSheet);});}
   else if(a==='pc-ok'){post('import',{action:'agree',id:+id,agreed:t.dataset.s==='1'}).then(function(){pcReload(listSheet);});}
-  else if(a==='pc-allok'){if(confirm('Only do this if every customer on your list has said it’s OK to contact them. Continue?'))post('import',{action:'agree',all:true,agreed:true}).then(function(){pcReload(listSheet);});}
   else if(a==='pc-forget'){if(confirm('Remove this customer and their imported jobs?'))post('import',{action:'forget',id:+id}).then(function(){pcReload(listSheet);});}
   else if(a==='pc-wipe'){if(confirm('Remove every imported customer and job? Customers who asked us to stop stay on the list so they are never contacted.'))post('import',{action:'wipe',confirm:true}).then(function(){pcReload(function(){close();toast('Removed.');});});}
 }

@@ -14,9 +14,12 @@ const CUSTOMER = '+14785550144';
 async function ownerWithOnePastCustomerDue(T) {
   const A = await T.signup({ plan: 'Pro', business: 'Sinclair Plumbing' });
   const a = T.as(A.base);
-  // the owner uploads a customer list (one customer, last job almost two years ago) and says they agreed to hear from them
-  const imp = await a.post('/api/import', { action: 'save', csv: 'name,phone,date,amount,work\nOld Cust,4785550144,2024-01-15,400,drain cleaning', agreed: true });
+  // the owner uploads a customer list (one customer, last job about 14 months ago) and marks that they agreed to hear from them
+  const imp = await a.post('/api/import', { action: 'save', csv: 'name,phone,date,amount,work\nOld Cust,4785550144,2025-09-15,400,drain cleaning' });
   assert.equal(imp.status, 200, imp.text);
+  // Nov 21, 2026: nobody comes in from a file as OK to contact; the owner marks the one person who agreed
+  const list = (await a.post('/api/import', { action: 'list' })).json();
+  assert.equal((await a.post('/api/import', { action: 'agree', id: list.customers[0].id, agreed: true })).json().ok, true);
   const ref = await a.post('/api/revive', { action: 'refresh' });
   assert.equal(ref.json().count, 1, 'one past customer looks ready to hear from the business');
   const item = (await a.state()).past.revive.items[0];

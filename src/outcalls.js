@@ -2,6 +2,10 @@
 //   to the owner:    urgent  (an active problem is on the line right now), rundown (the day, once, at 7 AM)
 //   to a customer:   confirm (the day before an appointment), noshow (missed it: offer a new time), onway (tap "on my way"),
 //                    quote (an estimate nobody answered, three days on), due (a past customer who agreed to calls, six months on)
+// quote and due are sales calls (they ask the customer to buy). In an automated voice the TCPA needs the customer's own
+// prior express written consent for those (FCC 24-17, Feb 2024), and nothing here collects that, so both stay off for
+// every business whatever the switch says, and any already queued are skipped (Nov 21, 2026 audit). The switches come
+// back only with a written-consent step.
 // The customer's yes is the one already on file: the box the owner checked when the appointment, quote or job was logged,
 // or the OK for a call at the finished job. Nobody is asked twice. Every customer call follows the one set of rules in
 // callbacks.js (8 AM to 9 PM for them, automated-and-recorded notice first, "stop" or 9 ends calls for good, two tries,
@@ -16,12 +20,15 @@ export const KINDS = {
   confirm: { def: 1, label: 'Confirm appointments', sub: 'The day before, Max calls the customer to confirm or find a new time.' },
   noshow: { def: 1, label: 'Rebook missed visits', sub: 'If a customer misses a visit, Max calls once to offer a new time.' },
   onway: { def: 1, label: 'On-my-way call', sub: 'When you tap On my way on a job, Max calls the customer as well as texting.' },
-  quote: { def: 0, label: 'Follow up on estimates', sub: 'Three days after an estimate with no answer, Max calls once to ask if they want a call from you.' },
-  due: { def: 0, label: 'Due-for-service calls', sub: 'Six months after a job, Max calls customers who said calls are OK to offer to set up the next visit.' },
+  quote: { def: 0, sales: true, label: 'Follow up on estimates', sub: 'Three days after an estimate with no answer, Max calls once to ask if they want a call from you.' },
+  due: { def: 0, sales: true, label: 'Due-for-service calls', sub: 'Six months after a job, Max calls customers who said calls are OK to offer to set up the next visit.' },
   // Not calls, but switches the owner flips in the same place: Max's behavior toward the owner.
   summary: { owner: true, setting: true, def: 1, label: 'Text me after every call', sub: 'Within a minute of each call: who called, what they need, how urgent, and their number to tap. Between 9 PM and 8 AM only urgent calls are texted; the rest are waiting in the app in the morning.' }
 };
 const KEYS = Object.keys(KINDS);
+// Sales calls: off for everyone until customers can give their written OK (see the top of this file).
+export const SALES = new Set(KEYS.filter(k => KINDS[k].sales));
+export const SALES_OFF = 'Calls that sell, like estimate follow-ups and due-for-service calls, are off for every business until customers can give their written OK. Texts about the estimate still go out.';
 
 const readyDBs = new WeakSet();
 export async function ensureOutcalls(env) {
@@ -39,10 +46,10 @@ export async function ensureOutcalls(env) {
 export async function prefsOf(env, cid, regulated) {
   await ensureOutcalls(env);
   const out = {};
-  for (const k of KEYS) out[k] = regulated ? false : !!KINDS[k].def;
+  for (const k of KEYS) out[k] = regulated || SALES.has(k) ? false : !!KINDS[k].def;
   if (regulated) return out;
   const rows = ((await env.DB.prepare('SELECT k, on_ FROM outcall_prefs WHERE client_id = ?1').bind(cid).all()).results) || [];
-  for (const r of rows) if (r.k in out) out[r.k] = !!+r.on_;
+  for (const r of rows) if (r.k in out && !SALES.has(r.k)) out[r.k] = !!+r.on_;
   return out;
 }
 
@@ -52,12 +59,14 @@ export async function apiOutcalls(req, env, c) {
   if (+c.regulated) return { ok: false, error: 'Calls out are not available for regulated businesses.' };
   let b = {}; try { b = await req.json(); } catch (e) {}
   if (!KEYS.includes(b.key) || typeof b.on !== 'boolean') return { ok: false, error: 'Bad request' };
+  if (SALES.has(b.key) && b.on) return { ok: false, error: SALES_OFF };
   await env.DB.prepare('INSERT INTO outcall_prefs (client_id, k, on_) VALUES (?1,?2,?3) ON CONFLICT(client_id, k) DO UPDATE SET on_ = excluded.on_').bind(c.client_id, b.key, b.on ? 1 : 0).run();
   return { ok: true, key: b.key, on: b.on, message: KINDS[b.key].label + (b.on ? ' is on.' : ' is off.') };
 }
 export async function outcallsState(env, c) {
   const on = await prefsOf(env, c.client_id, +c.regulated);
-  return { on, list: KEYS.map(x => ({ key: x, owner: !!KINDS[x].owner, setting: !!KINDS[x].setting, label: KINDS[x].label, sub: KINDS[x].sub })) };
+  // sales calls are left out of the list: there is no switch to show until a written-consent step exists
+  return { on, list: KEYS.filter(x => !SALES.has(x)).map(x => ({ key: x, owner: !!KINDS[x].owner, setting: !!KINDS[x].setting, label: KINDS[x].label, sub: KINDS[x].sub })) };
 }
 
 async function lineOf(env, cid) { return await env.DB.prepare('SELECT number, business, regulated, on_air, owner_set, transfer_to FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null); }
@@ -102,6 +111,7 @@ async function place(env, r, now) {
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY)) return false;
   const line = await lineOf(env, r.client_id);
   const skip = (why, final) => env.DB.prepare('UPDATE outcalls SET status = ?1, result = ?2 WHERE id = ?3 AND status = \'pending\'').bind(final ? 'skipped' : 'pending', why, r.id).run().catch(() => {});
+  if (SALES.has(r.kind)) { await skip('sales call: needs written consent', true); return false; }
   if (!line || +line.regulated) { await skip('regulated or no line', true); return false; }
   if (!lineLive(line)) { await skip('line paused', false); return false; }
   const owner = !!(KINDS[r.kind] && KINDS[r.kind].owner);
