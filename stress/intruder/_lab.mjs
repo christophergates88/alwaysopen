@@ -27,7 +27,7 @@ export async function lab(extraEnv) {
     const sessionId = co.location.split('/').pop();
     const s = world.sessions.get(sessionId);
     const body = JSON.stringify({ id: 'evt_' + sessionId, type: 'checkout.session.completed', data: { object: s } });
-    const secret = (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+    const secret = await (await import('../../src/billing.js')).webhookSecret(env, 'billing');
     const wh = await site.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body), 'content-type': 'application/json' } });
     if (wh.status !== 200) throw new Error('webhook failed: ' + wh.text);
     await site.settle();

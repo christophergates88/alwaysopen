@@ -11,6 +11,7 @@ import { firstLook } from './firstlook.js';
 import { queueLine, provisionLine, lineEnded } from './provision.js';
 
 import { PLANS as FACT_PLANS, MAX as FACT_MAX } from './facts.js';
+import { seal, open } from './seal.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 // prices and plan wording live in facts.js, the one place they are set
@@ -370,8 +371,8 @@ export async function handleBilling(req, env, url, h) {
   if (path === '/billing/webhook') {
     await ensureBilling(env);
     const body = await req.text();
-    const row = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_secret'").first();
-    if (!row || !(await verifyStripe(row.v, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
+    const secret = await webhookSecret(env, 'billing');
+    if (!secret || !(await verifyStripe(secret, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
     const ev = JSON.parse(body), o = ev.data && ev.data.object || {};
     const bySub = async (sub, set, msg) => {
       if (!sub || typeof sub !== 'string') return;
@@ -460,6 +461,94 @@ export async function dispute(env, type, o, h) {
   await ops.opsAlert(env, 'stripe-dispute', ((b && b.client_id) || '') + ':' + String(o.id || ''), 'Chargeback: ' + biz + ' disputed ' + amt + '.' + why + ' Answer by ' + due + ' in the Stripe dashboard, Payments, Disputes, or the money and a fee are lost.' + hist);
 }
 
+// ---------- Stripe's webhook signing secrets ----------
+// Two endpoints: billing (Always Open's own subscriptions) and connect (clients' own card payments, biz.js).
+// Nov 21, 2026 audit: their signing secrets sat in billing_config in plain text, where anything that can read the
+// database (a backup copy, a database tool, the HQ code that shares it) could forge Stripe's events: a fake "paid"
+// signup, a fake cancellation. Now only a sealed copy is kept (seal.js; its key comes from STRIPE_KEY, which never
+// touches the database), and sealWebhooks below replaces any endpoint whose secret was ever kept in plain text.
+export const CONNECT_EVENTS = ['account.updated', 'checkout.session.completed'];
+const HOOKS = {
+  billing: { id: 'webhook_id', secret: 'webhook_secret', spec: () => ({ url: SITE + '/billing/webhook', enabled_events: EVENTS, description: 'Always Open billing', api_version: '2024-06-20' }) },
+  connect: { id: 'connect_webhook_id', secret: 'connect_webhook_secret', spec: () => ({ url: SITE + '/stripe/webhook', connect: 'true', enabled_events: CONNECT_EVENTS, description: 'Always Open client payments' }) }
+};
+// Keeps a new endpoint: its id, and its secret sealed. A plain-text secret from before is removed in the same step.
+export async function saveWebhook(env, which, w) {
+  const h = HOOKS[which];
+  if (!h || !w || !w.id || !w.secret) throw new Error('Stripe gave no ' + which + ' webhook endpoint');
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR REPLACE INTO billing_config (k, v) VALUES (?1, ?2)').bind(h.id, w.id),
+    env.DB.prepare('INSERT OR REPLACE INTO billing_config (k, v) VALUES (?1, ?2)').bind(h.secret + '_sealed', await seal(env, h.secret, w.secret)),
+    env.DB.prepare('DELETE FROM billing_config WHERE k = ?1').bind(h.secret)
+  ]);
+}
+// The signing secret of one endpoint ('billing' or 'connect'), or '' when there is none or it can't be opened. Then
+// sealWebhooks makes a new endpoint within 10 minutes, and what was missed meanwhile is caught up anyway: a new
+// signup by its welcome page, a status change by the daily Stripe check (checks.js payingServed).
+export async function webhookSecret(env, which) {
+  const h = HOOKS[which || 'billing'];
+  const rows = ((await env.DB.prepare('SELECT k, v FROM billing_config WHERE k IN (?1, ?2)').bind(h.secret + '_sealed', h.secret).all().catch(() => ({}))).results) || [];
+  const sealed = rows.find(r => r.k === h.secret + '_sealed'), plain = rows.find(r => r.k === h.secret);
+  if (sealed) { try { return await open(env, h.secret, sealed.v); } catch (e) { return ''; } }
+  return plain ? plain.v : '';   // a secret saved before Nov 21, 2026, until sealWebhooks replaces its endpoint
+}
+// Every 10 minutes (index.js). An endpoint whose secret is in plain text, or whose sealed secret can't be opened (STRIPE_KEY
+// was replaced), gets a new endpoint with the same settings and a new secret, kept sealed; then the old endpoint is
+// deleted at Stripe, so the old secret signs nothing anymore. Nobody has to touch the Stripe dashboard.
+// A plain-text secret is only replaced 15 minutes after this code first runs: a deploy rolled back in its first minutes
+// goes back to code that only knows the plain secret. An already-sealed endpoint costs one database read, no Stripe call.
+export const SEAL_WAIT_MS = 15 * 60000;
+export async function sealWebhooks(env, call, now) {
+  if (!env.STRIPE_KEY) return 'no stripe';
+  call = call || stripe; now = now || Date.now();
+  const got = await env.DB.prepare("SELECT k, v FROM billing_config WHERE k LIKE '%webhook%' OR k = 'seal_seen'").all().catch(() => null);
+  if (!got) return 'no billing set up';
+  const cfg = Object.fromEntries((got.results || []).map(r => [r.k, r.v]));
+  const del = k => env.DB.prepare('DELETE FROM billing_config WHERE k = ?1').bind(k).run();
+  const out = [];
+  let any = false;
+  for (const [which, h] of Object.entries(HOOKS)) {
+    // an old endpoint Stripe didn't delete last time (it was down): it is still signing with the old secret
+    if (cfg[h.id + '_old']) {
+      try { await call(env, 'DELETE', 'webhook_endpoints/' + cfg[h.id + '_old']); await del(h.id + '_old'); out.push(which + ': old endpoint deleted'); }
+      catch (e) { if (e.status === 404) await del(h.id + '_old'); else out.push(which + ': old endpoint still there (' + (e.message || e) + ')'); }
+    }
+    const id = cfg[h.id];
+    if (!id) continue;
+    any = true;
+    const sealed = cfg[h.secret + '_sealed'], plain = cfg[h.secret];
+    const opens = sealed ? await open(env, h.secret, sealed).then(() => true, () => false) : false;
+    if (opens) { if (plain) await del(h.secret); continue; }
+    if (plain && !sealed) {
+      // the wait starts at this code's first run; a mark hours old with the plain secret still there means this code
+      // was rolled back and has just come back, so the wait starts over
+      const seen = +cfg.seal_seen || 0, fresh = !seen || now - seen > 2 * 3600e3;
+      if (fresh) { await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('seal_seen', ?1)").bind(String(now)).run(); cfg.seal_seen = String(now); }
+      if (fresh || now - seen < SEAL_WAIT_MS) { out.push(which + ': waiting to replace'); continue; }
+    }
+    // the new endpoint copies the old one's settings (address, events, description, event version)
+    let cur = null;
+    try { cur = await call(env, 'GET', 'webhook_endpoints/' + id); } catch (e) { if (e.status !== 404) throw e; }
+    const spec = h.spec();
+    if (cur) {
+      if (cur.url) spec.url = cur.url;
+      if (Array.isArray(cur.enabled_events) && cur.enabled_events.length) spec.enabled_events = cur.enabled_events;
+      if (cur.description) spec.description = cur.description;
+      if (cur.api_version) spec.api_version = cur.api_version;
+    }
+    // the same key on a retry gets the same endpoint back, so a timeout here never leaves two
+    const w = await call(env, 'POST', 'webhook_endpoints', spec, 'seal-' + which + '-' + id);
+    await saveWebhook(env, which, w);
+    if (cur && cur.status === 'disabled') await call(env, 'POST', 'webhook_endpoints/' + w.id, { disabled: 'true' }).catch(() => {});
+    if (cur) {
+      try { await call(env, 'DELETE', 'webhook_endpoints/' + id); }
+      catch (e) { if (e.status !== 404) { await env.DB.prepare('INSERT OR REPLACE INTO billing_config (k, v) VALUES (?1, ?2)').bind(h.id + '_old', id).run(); out.push(which + ': replaced, old endpoint not deleted yet'); continue; } }
+    }
+    out.push(which + ': replaced');
+  }
+  return out.join('; ') || (any ? 'sealed' : 'no endpoints');
+}
+
 // The webhook endpoint listens for every event in EVENTS. One set up before an event was added gets it here (checks.js
 // runs this once a day), so a new event never depends on remembering to change Stripe by hand.
 export async function ensureEvents(env, call) {
@@ -479,11 +568,8 @@ export async function setupStripe(env) {
     const out = {};
     const have = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'webhook_id'").first();
     if (!have) {
-      const w = await stripe(env, 'POST', 'webhook_endpoints', { url: SITE + '/billing/webhook', enabled_events: EVENTS, description: 'Always Open billing', api_version: '2024-06-20' });
-      await env.DB.batch([
-        env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_id', ?1)").bind(w.id),
-        env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('webhook_secret', ?1)").bind(w.secret)
-      ]);
+      const w = await stripe(env, 'POST', 'webhook_endpoints', HOOKS.billing.spec());
+      await saveWebhook(env, 'billing', w);
       out.webhook = 'created';
     } else out.webhook = 'already set up';
     try {

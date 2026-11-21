@@ -63,7 +63,7 @@ export async function boot() {
   const all = async (sql, ...a) => (await DB.prepare(sql).bind(...a).all()).results;
   const run = (sql, ...a) => DB.prepare(sql).bind(...a).run();
   let evt = 0;
-  async function secret() { return (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v; }
+  async function secret() { return (await import('../../src/billing.js')).webhookSecret(env, 'billing'); }
   async function stripeEvent(type, object) {
     const body = JSON.stringify({ id: 'evt_c' + (++evt), type, data: { object } });
     return site.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(await secret(), body), 'content-type': 'application/json' } });

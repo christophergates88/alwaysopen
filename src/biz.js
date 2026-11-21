@@ -6,6 +6,7 @@ import { TEXTING_ON, replyText } from './sms.js';
 import { lostSince, LABELS as LOST_LABELS } from './lost.js';
 import { buildRevive } from './past.js';
 import { rivalLine } from './rivals.js';
+import { saveWebhook, webhookSecret, CONNECT_EVENTS } from './billing.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -357,14 +358,13 @@ export async function stripeStatus(env, cid, refresh) {
     return { available: true, connected: true, ready: !!+row.ready };
   } catch (e) { return { available: false, connected: false, ready: false }; }
 }
+// The endpoint for clients' card payments, made the first time an owner connects Stripe. Its secret is kept sealed
+// (billing.js saveWebhook, Nov 21, 2026 audit), so whether one exists is read from its id.
 async function connectWebhook(env) {
-  const have = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_webhook_secret'").first().catch(() => null);
+  const have = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_webhook_id'").first().catch(() => null);
   if (have) return;
-  const w = await sx(env, 'POST', 'webhook_endpoints', { url: SITE + '/stripe/webhook', connect: 'true', enabled_events: ['account.updated', 'checkout.session.completed'], description: 'Always Open client payments' });
-  await env.DB.batch([
-    env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('connect_webhook_id', ?1)").bind(w.id),
-    env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('connect_webhook_secret', ?1)").bind(w.secret)
-  ]);
+  const w = await sx(env, 'POST', 'webhook_endpoints', { url: SITE + '/stripe/webhook', connect: 'true', enabled_events: CONNECT_EVENTS, description: 'Always Open client payments' });
+  await saveWebhook(env, 'connect', w);
 }
 // App: POST /api/stripe {action:'connect'} -> {ok, url} (Stripe's own onboarding page). The owner finishes there.
 export async function apiStripe(req, env, c) {
@@ -437,8 +437,8 @@ export async function handleStripe(req, env, ctx, url) {
   if (p !== '/stripe/webhook' || req.method !== 'POST') return new Response('Not found', { status: 404 });
   await ensureBiz(env);
   const body = await req.text();
-  const row = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'connect_webhook_secret'").first().catch(() => null);
-  if (!row || !(await stripeSigOk(row.v, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
+  const secret = await webhookSecret(env, 'connect');
+  if (!secret || !(await stripeSigOk(secret, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
   const ev = JSON.parse(body), o = (ev.data && ev.data.object) || {};
   if (ev.type === 'account.updated') {
     await env.DB.prepare('UPDATE biz_stripe SET ready = ?1, checked = ?2 WHERE account = ?3').bind(o.charges_enabled ? 1 : 0, now(), o.id).run();

@@ -97,7 +97,8 @@ jobs:
             bad=""
             h=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "https://alwaysopenoffice.com/health?core=1" || echo 000)
             [ "$h" = "200" ] || bad="health answered $h"
-            for p in "/|Your business" "/insurance|Compliance Guard" "/app/LZbZROIqlA85xuGEgarAuKRRO3IuO1En|Demo Plumbing"; do
+            # /dental and /start: the Nov 21, 2026 audit's fix (no online signup for medical or dental offices) stays live.
+            for p in "/|Your business" "/insurance|Compliance Guard" "/app/LZbZROIqlA85xuGEgarAuKRRO3IuO1En|Demo Plumbing" "/dental|Medical and dental offices: not yet" "/start|Medical or dental office"; do
               url="${p%%|*}"; want="${p#*|}"
               body=$(curl -sS -m 20 "https://alwaysopenoffice.com$url" || true)
               echo "$body" | grep -q "$want" || bad="$bad; $url missing '$want'"

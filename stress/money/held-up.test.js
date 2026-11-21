@@ -129,7 +129,7 @@ test('customer invoices: a card payment closes the reminder waiting for approval
   const p = await w.signup({ plan: 'Pro', business: 'Invoice Plumbing', phone: '(706) 555-0177', email: 'inv@example.com' });
   assert.equal((await w.site.call(p.A('/api/stripe'), { json: { action: 'connect' } })).status, 200);
   const acct = (await w.get('SELECT account FROM biz_stripe WHERE client_id = ?1', p.cid)).account;
-  const csecret = (await w.get("SELECT v FROM billing_config WHERE k = 'connect_webhook_secret'")).v;
+  const csecret = await (await import('../../src/billing.js')).webhookSecret(w.env, 'connect');
   const cev = async (type, object, sig) => { const body = JSON.stringify({ id: 'evt_h' + Math.random(), type, account: acct, data: { object } }); const r = await w.site.call('/stripe/webhook', { body, headers: { 'stripe-signature': sig || H.stripeSign(csecret, body) } }); await w.site.settle(); return r.status; };
   assert.equal(await cev('account.updated', { id: acct, charges_enabled: true }), 200);
   const inv = (await w.site.call(p.A('/api/invoice'), { json: { action: 'add', name: 'Joe Hart', amount: '1850', number: '1042', due: '2026-06-02', email: 'joe@example.com' } })).json().invoice;

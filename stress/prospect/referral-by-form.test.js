@@ -29,7 +29,7 @@ async function signUp(s, c) {
   const r = await s.client.call('/billing/checkout', { form: Object.assign({ plan: 'Growth', max: '1', town: 'Eatonton, GA', type: 'Contractor or trade', agree: '1' }, c) });
   const id = r.location.split('/').pop();
   const body = JSON.stringify({ id: 'evt_' + id, type: 'checkout.session.completed', data: { object: s.world.sessions.get(id) } });
-  const secret = (await s.one("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+  const secret = await (await import('../../src/billing.js')).webhookSecret(s.env, 'billing');
   const w = await s.client.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body), 'content-type': 'application/json' } });
   assert.equal(w.status, 200, w.text);
   return s.one('SELECT client_id, ref, customer FROM billing WHERE session_id = ?1', id);

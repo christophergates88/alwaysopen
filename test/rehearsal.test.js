@@ -13,6 +13,7 @@ const env = H.makeEnv(world, DB);
 H.installFetch(world, env);
 const { default: worker } = await import('../src/index.js');
 const { CallRoom } = await import('../src/voice.js');
+const { webhookSecret } = await import('../src/billing.js');
 env.CALLROOM = H.makeNamespace(CallRoom, env);
 const site = H.makeClient(worker, env);
 const get = (sql, ...a) => DB.prepare(sql).bind(...a).first();
@@ -27,8 +28,10 @@ test('the sign-up page opens and sets Stripe up by itself the first time', async
   assert.equal(r.status, 200);
   assert.match(r.text, /Start Always Open today/);
   for (const p of ['Starter', 'Growth', 'Pro']) assert.match(r.text, new RegExp(p));
-  const w = await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'");
-  assert.ok(w && w.v, 'the Stripe webhook secret was saved');
+  // the signing secret is kept sealed, never in plain text (Nov 21, 2026 audit)
+  assert.ok(await get("SELECT v FROM billing_config WHERE k = 'webhook_secret_sealed'"), 'the Stripe webhook secret was saved');
+  assert.equal(await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'"), null, 'no plain-text copy');
+  assert.equal(await webhookSecret(env, 'billing'), 'whsec_rehearsal_secret');
 });
 
 test('the home page and the legal pages are served', async () => {
@@ -67,7 +70,7 @@ test('a Stripe outage on checkout shows a plain message, not a crash', async () 
 test('Stripe tells us the payment worked: the client, the app and Max’s line all appear', async () => {
   const s = world.sessions.get(sessionId);
   const body = JSON.stringify({ id: 'evt_1', type: 'checkout.session.completed', data: { object: s } });
-  const secret = (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+  const secret = await webhookSecret(env, 'billing');
   const r = await site.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body), 'content-type': 'application/json' } });
   assert.equal(r.status, 200, r.text);
   const b = await get('SELECT * FROM billing WHERE session_id = ?1', sessionId);
@@ -95,7 +98,7 @@ test('Stripe tells us the payment worked: the client, the app and Max’s line a
 test('the same Stripe event arriving twice does not make a second client or buy a second number', async () => {
   const s = world.sessions.get(sessionId);
   const body = JSON.stringify({ id: 'evt_1', type: 'checkout.session.completed', data: { object: s } });
-  const secret = (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+  const secret = await webhookSecret(env, 'billing');
   const r = await site.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body) } });
   assert.equal(r.status, 200);
   assert.equal((await all('SELECT * FROM billing')).length, 1);

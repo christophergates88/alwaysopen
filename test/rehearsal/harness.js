@@ -107,7 +107,23 @@ export function installFetch(world, env) {
     if (host === 'api.stripe.com') {
       const p = path.replace('/v1/', '');
       if (world.fail.stripe) return json({ error: { message: 'Stripe is having a bad day' } }, 500);
-      if (method === 'POST' && p === 'webhook_endpoints') return json({ id: 'we_test1', secret: 'whsec_rehearsal_secret' });
+      // Webhook endpoints, kept in world.stripeHooks. The first one made is we_test1 with whsec_rehearsal_secret; later ones
+      // (the client-payments endpoint, or a replacement) get the next number. Deleting one is recorded in world.stripeHookDeletes.
+      if (p === 'webhook_endpoints' || /^webhook_endpoints\//.test(p)) {
+        const hooks = world.stripeHooks = world.stripeHooks || new Map();
+        const id = p.split('/')[1];
+        if (method === 'POST' && !id) {
+          const f = form(), n = hooks.size + 1, w = { id: 'we_test' + n, object: 'webhook_endpoint', url: f.get('url'), description: f.get('description') || null, api_version: f.get('api_version') || null, connect: f.get('connect') === 'true', status: 'enabled', enabled_events: [...f.keys()].filter(k => /^enabled_events\[/.test(k)).map(k => f.get(k)), secret: n === 1 ? 'whsec_rehearsal_secret' : 'whsec_rehearsal_secret' + n };
+          hooks.set(w.id, w);
+          return json(w);
+        }
+        const w = hooks.get(id);
+        if (!w || w.deleted) return json({ error: { message: 'No such webhook endpoint: ' + id } }, 404);
+        const { secret, ...shown } = w;
+        if (method === 'GET') return json(shown);
+        if (method === 'DELETE') { if (world.fail.stripeDelete) return json({ error: { message: 'Stripe is having a bad day' } }, 500); w.deleted = true; (world.stripeHookDeletes = world.stripeHookDeletes || []).push(id); return json({ id, object: 'webhook_endpoint', deleted: true }); }
+        if (method === 'POST') { const f = form(), ev = [...f.keys()].filter(k => /^enabled_events\[/.test(k)).map(k => f.get(k)); if (ev.length) w.enabled_events = ev; if (f.get('disabled') === 'true') w.status = 'disabled'; const { secret: s2, ...now } = w; return json(now); }
+      }
       if (method === 'POST' && p === 'billing_portal/configurations') return json({ id: 'bpc_test1' });
       if (method === 'POST' && p === 'billing_portal/sessions') return json({ url: 'https://billing.stripe.com/p/session/test' });
       if (method === 'GET' && p === 'account') return json({ settings: { dashboard: { display_name: 'Always Open (test)' } } });
@@ -123,7 +139,6 @@ export function installFetch(world, env) {
       if (method === 'POST' && p === 'accounts') { world.stripeAccounts = (world.stripeAccounts || []).concat([body]); if (world.fail.connectOff) return json({ error: { message: 'You can only create new accounts if you\u2019ve signed up for Connect' } }, 400); return json({ id: 'acct_' + world.id('', 16) }); }
       if (method === 'POST' && p === 'account_links') return json({ url: 'https://connect.stripe.com/setup/s/' + world.id('', 12) });
       if (method === 'GET' && /^accounts\/acct_/.test(p)) return json({ id: p.slice(9), charges_enabled: false });
-      if (method === 'POST' && p === 'webhook_endpoints') return json({ id: 'we_test2', secret: 'whsec_x' });
       if (method === 'POST' && p === 'products') return json({ id: 'prod_' + world.id('', 10) });
       const sub = p.match(/^subscriptions\/([^?]+)/);
       if (sub && method === 'GET') return json({ id: sub[1], items: { data: [{ id: 'si_main', price: { product: { name: 'Always Open Growth' } } }] } });

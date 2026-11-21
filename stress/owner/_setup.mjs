@@ -65,7 +65,7 @@ export async function boot() {
     const sessionId = r.location.split('/').pop();
     const s = world.sessions.get(sessionId);
     const body = JSON.stringify({ id: 'evt_' + (++evt), type: 'checkout.session.completed', data: { object: s } });
-    const secret = (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+    const secret = await (await import('../../src/billing.js')).webhookSecret(env, 'billing');
     const w = await site.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body), 'content-type': 'application/json' } });
     if (w.status !== 200) throw new Error('webhook refused: ' + w.status + ' ' + w.text);
     await site.settle();

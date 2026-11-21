@@ -50,7 +50,7 @@ test('a new paying client’s welcome page ("Your first look") never shows anoth
   const r = await s.client.call('/billing/checkout', { form: { plan: 'Growth', max: '1', business: 'Whitfield Heating & Air', owner: 'Dana Whitfield', phone: '(478) 555-0111', email: 'dana@whitfieldhvac.example', town: 'Gray, GA', type: 'Contractor or trade', agree: '1' } });
   const id = r.location.split('/').pop();
   const body = JSON.stringify({ id: 'evt_1', type: 'checkout.session.completed', data: { object: s.world.sessions.get(id) } });
-  const secret = (await s.one("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+  const secret = await (await import('../../src/billing.js')).webhookSecret(s.env, 'billing');
   assert.equal((await s.client.call('/billing/webhook', { body, headers: { 'stripe-signature': H.stripeSign(secret, body), 'content-type': 'application/json' } })).status, 200);
   s.world.places = { places: [RIVAL] };
   const w = await s.client.call('/welcome?s=' + id);

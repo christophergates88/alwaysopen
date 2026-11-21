@@ -31,7 +31,7 @@ for (const c of [snoop, victim]) {
   assert.equal((await w.site.call(c.A('/api/stripe'), { json: { action: 'connect' } })).status, 200);
   acct[c.cid] = (await w.get('SELECT account FROM biz_stripe WHERE client_id = ?1', c.cid)).account;
 }
-const csecret = (await w.get("SELECT v FROM billing_config WHERE k = 'connect_webhook_secret'")).v;
+const csecret = await (await import('../../src/billing.js')).webhookSecret(w.env, 'connect');
 let evN = 0;
 const connectEvent = async (type, object, account) => { const body = JSON.stringify({ id: 'evt_c' + (++evN), type, account, data: { object } }); const r = await w.site.call('/stripe/webhook', { body, headers: { 'stripe-signature': H.stripeSign(csecret, body) } }); await w.site.settle(); return r; };
 for (const c of [snoop, victim]) assert.equal((await connectEvent('account.updated', { id: acct[c.cid], charges_enabled: true }, acct[c.cid])).status, 200);

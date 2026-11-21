@@ -126,7 +126,7 @@ export async function boot(extraEnv) {
   const all = async (sql, ...a) => (await DB.prepare(sql).bind(...a).all()).results;
   const run = (sql, ...a) => DB.prepare(sql).bind(...a).run();
   await site.call('/start?plan=Growth');   // sets Stripe up (webhook secret) the way the live site does on first load
-  const secret = async () => (await get("SELECT v FROM billing_config WHERE k = 'webhook_secret'")).v;
+  const secret = async () => (await import('../../src/billing.js')).webhookSecret(env, 'billing');
   // A signed Stripe event to /billing/webhook.
   let evN = 0;
   async function event(type, object, o) {
