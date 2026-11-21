@@ -37,11 +37,11 @@ async function makeTables(src, dst, tables) {
     .concat(idx.map(i => String(i.sql).replace(/^\s*CREATE\s+(UNIQUE\s+)?INDEX\s+(IF\s+NOT\s+EXISTS\s+)?/i, (m, u) => 'CREATE ' + (u || '') + 'INDEX IF NOT EXISTS ')));
   if (stmts.length) await dst.batch(stmts.map(s => dst.prepare(s)));
 }
-// Row counts of many tables in one statement.
+// Row counts of many tables, 60 to a statement (D1 caps the columns of one result at 100).
 async function counts(db, names) {
   const out = {};
-  for (let i = 0; i < names.length; i += 120) {
-    const part = names.slice(i, i + 120);
+  for (let i = 0; i < names.length; i += 60) {
+    const part = names.slice(i, i + 60);
     const r = await db.prepare('SELECT ' + part.map((n, j) => '(SELECT COUNT(*) FROM ' + q(n) + ') AS c' + j).join(', ')).first();
     part.forEach((n, j) => { out[n] = +((r || {})['c' + j] || 0); });
   }

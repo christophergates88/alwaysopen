@@ -29,7 +29,12 @@ export function makeDB(schemaFile) {
   });
   const exec1 = (sql, args) => {
     const st = db.prepare(sql);
-    if (isRead(sql)) return { results: st.all(...clean(args)).map(r => Object.assign({}, r)), success: true, meta: { changes: 0, last_row_id: 0 } };
+    if (isRead(sql)) {
+      const rows = st.all(...clean(args)).map(r => Object.assign({}, r));
+      // D1 refuses a result with more than 100 columns (Nov 21, 2026: the database split's counts hit this live)
+      if (rows.length && Object.keys(rows[0]).length > 100) throw new Error('D1_ERROR: too many columns in result set: SQLITE_ERROR');
+      return { results: rows, success: true, meta: { changes: 0, last_row_id: 0 } };
+    }
     const r = st.run(...clean(args));
     return { results: [], success: true, meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
   };
