@@ -179,7 +179,9 @@ export async function ackMessage(env, cid, by, now) {
   const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_messages WHERE client_id = ?1 AND dir = 'out' AND by = ?2 AND at > ?3").bind(cid, AUTO_BY, new Date(now - 4 * H).toISOString()).first().catch(() => null);
   if (recent && +recent.n) return '';
   const who = String(by || '').trim().split(/\s+/)[0];
-  const text = 'Got it' + (who && !/^(owner|staff)$/i.test(who) ? ', ' + who : '') + '. ' + replyBy(now);
+  // away by his Failsafe: no reply time is promised (failsafe.js)
+  let isAway = false; try { isAway = await (await import('./failsafe.js')).away(env); } catch (e) { isAway = false; }
+  const text = 'Got it' + (who && !/^(owner|staff)$/i.test(who) ? ', ' + who : '') + '. ' + (isAway ? (await import('./failsafe.js')).AWAY_ACK : replyBy(now));
   await env.DB.prepare("INSERT INTO app_messages (client_id, at, by, text, hq_synced, dir, notified) VALUES (?1, ?2, ?3, ?4, 1, 'out', 0)").bind(cid, new Date(now).toISOString(), AUTO_BY, text).run();
   return text;
 }
@@ -365,6 +367,8 @@ export async function checksCron(env, now, h) {
   await step('texts', 3 * H, () => textDelivery(env, now, h));
   await step('mail', 20 * H, () => mailRecords(env, now, h));
   await step('sales-callbacks', 10 * 60e3 - 5000, () => salesCallbacks(env, now, h));
+  // his Failsafe tripped: pause clients' billing and tell them (failsafe.js); and back again when he turns it on
+  await step('failsafe', 10 * 60e3 - 5000, async () => (await import('./failsafe.js')).failsafeCron(env, now, h));
   const errs = Object.entries(out).filter(([, v]) => v && v.error);
   if (errs.length) throw new Error(errs.map(([k, v]) => k + ': ' + v.error).join('; '));
   return out;
