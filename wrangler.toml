@@ -15,17 +15,19 @@ run_worker_first = true
 html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"
 
+# Always Open's own database: every business table (Nov 21, 2026 audit: it used to share one with Gates HQ).
 [[d1_databases]]
 binding = "DB"
-database_name = "alwaysopen"
-database_id = "d1ca8165-65de-4bf3-97a3-899037682ff2"
-
-# The database split (Nov 21, 2026 audit, src/dbsplit.js): Always Open's business tables are being copied into a
-# database of their own. While BIZ is bound, the 10-minute job copies them there; nothing reads BIZ yet.
-[[d1_databases]]
-binding = "BIZ"
 database_name = "alwaysopen-biz"
 database_id = "75aca375-8122-42e3-a564-8219aea58c7c"
+
+# Gates HQ's database (the old shared one, which its brain, page, Failsafe and scheduled tasks use): only Gates HQ's
+# code reaches it, through hqEnv() in src/hqdb.js. Its old copies of the business tables are no longer read or written
+# by the business side.
+[[d1_databases]]
+binding = "HQDB"
+database_name = "alwaysopen"
+database_id = "d1ca8165-65de-4bf3-97a3-899037682ff2"
 
 # Emails each website request to Christopher (Cloudflare Email Routing, verified address).
 [[send_email]]

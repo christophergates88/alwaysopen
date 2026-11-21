@@ -32,14 +32,14 @@ every data table (never tokens or keys). To load it into a fresh database:
    `voice_lines`, `app_calls`, `leads`, `app_items` and a few others on its own):
 
 ```
-npx wrangler@4 d1 execute alwaysopen --remote --file=test/fixtures/schema.sql --yes
-npx wrangler@4 d1 execute alwaysopen --remote --file=tools/restore-extra.sql --yes
+npx wrangler@4 d1 execute alwaysopen-biz --remote --file=test/fixtures/schema.sql --yes
+npx wrangler@4 d1 execute alwaysopen-biz --remote --file=tools/restore-extra.sql --yes
 ```
 2. Turn the copy into a SQLite file and the inserts (Node 22, from the Mac, in `GatesHQ/alwaysopen`):
 
 ```
 node tools/restore.mjs alwaysopen-2026-11-01.jsonl.gz restored.sqlite --sql
-npx wrangler@4 d1 execute alwaysopen --remote --file=restore.sql --yes
+npx wrangler@4 d1 execute alwaysopen-biz --remote --file=restore.sql --yes
 ```
 
    The first line prints the row count per table and leaves `restored.sqlite` you can open with any SQLite viewer.

@@ -10,7 +10,8 @@ const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
 H.installFetch(world, env);
 const { default: worker } = await import('../src/index.js');
 const site = H.makeClient(worker, env);
-const row = async (k) => { try { return await DB.prepare('SELECT at, v FROM hq_kv WHERE k = ?1').bind(k).first(); } catch (e) { return null; } };
+// Gates HQ's own database when the suite runs split (SPLIT_TEST=1), else the one database
+const row = async (k) => { try { return await (env.HQDB || DB).prepare('SELECT at, v FROM hq_kv WHERE k = ?1').bind(k).first(); } catch (e) { return null; } };
 
 test('the money row is kept whole from the Mac, and only from the Mac', async () => {
   const money = { at: '2026-11-14T09:05:00-05:00', bank_at: '2026-11-14T09:04:10-05:00', balance: 1234.56,
