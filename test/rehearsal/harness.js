@@ -209,7 +209,8 @@ export function installFetch(world, env) {
 export function makeEnv(world, DB, extra) {
   class FakeEmail { async send(msg) { world.mail.push({ from: msg.from, to: msg.to, raw: msg.raw }); } }
   const env = Object.assign({
-    DB,
+    // SPLIT_TEST=1 runs everything with Gates HQ's database apart from the business one, as live since Nov 21, 2026
+    DB, HQDB: process.env.SPLIT_TEST ? makeDB() : undefined,
     EMAIL: new FakeEmail(),
     MAIL_FROM: 'forms@example.test', MAIL_TO: 'owner@example.test',
     NTFY_URL: 'https://ntfy.example.test/topic',

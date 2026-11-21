@@ -18,6 +18,7 @@
 // loud. Problems still go by email and are listed in the 7 AM push (ops.js, morning.js). Loud at night is kept for the
 // few things where callers can reach nobody at all: a number that no longer points at us, or Twilio out of money.
 
+import { hqEnv } from './hqdb.js';
 const TIMEOUT_MS = 8000;
 const LEASE_MS = 5 * 60e3;            // a push handed to the Mac and not confirmed comes back after this
 const TEXT_AFTER_MS = 10 * 60e3;      // important pushes still waiting this long become a text
@@ -84,8 +85,21 @@ export async function push(env, p, h) {
   } catch (e) { return 'off'; }
 }
 
+// Since the database split (Nov 21, 2026), Gates HQ's pushes (its brain's, its Failsafe's) wait in Gates HQ's own queue
+// (hqdb.js), and Always Open's in its own. The Mac takes both in one list; Gates HQ's ids reach it with HQ_ID added,
+// so its reports land in the right queue. The 10-minute job drains both the same way.
+export const HQ_ID = 1e9;
+const sides = env => { const h = hqEnv(env); return h === env ? [[env, 0]] : [[env, 0], [h, HQ_ID]]; };
 // GET /ops/push-queue: the Mac takes what's waiting. POST /ops/push-queue {done:[ids], failed:[ids]}: what went.
 export async function relayTake(env, now) {
+  const items = [];
+  for (const [e, add] of sides(env)) {
+    try { for (const r of (await takeOne(e, now)).items) items.push(Object.assign(r, { id: r.id + add })); }
+    catch (x) { if (!add) throw x; }   // Gates HQ's queue failing never keeps Always Open's from the Mac
+  }
+  return { ok: true, items };
+}
+async function takeOne(env, now) {
   now = now || Date.now();
   await ensurePush(env);
   await note(env, 'relay', 'asked', now);
@@ -96,6 +110,15 @@ export async function relayTake(env, now) {
   return { ok: true, items: rows };
 }
 export async function relayDone(env, b, now) {
+  const all = sides(env), out = { ok: true, done: 0, failed: 0 };
+  for (const [e, add] of all) {
+    const pick = x => (Array.isArray(x) ? x : []).map(n => parseInt(n, 10)).filter(n => n > 0 && (all.length === 1 || (add ? n >= HQ_ID : n < HQ_ID))).map(n => n - add);
+    const r = await doneOne(e, { done: pick(b && b.done), failed: pick(b && b.failed) }, now);
+    out.done += r.done; out.failed += r.failed;
+  }
+  return out;
+}
+async function doneOne(env, b, now) {
   now = now || Date.now();
   await ensurePush(env);
   await note(env, 'relay', 'reported', now);
@@ -107,8 +130,19 @@ export async function relayDone(env, b, now) {
   return { ok: true, done: done.length, failed: failed.length };
 }
 
-// Every 10 minutes. h: { fetch, text(body) -> {ok, retry} } for tests.
+// Every 10 minutes, for both queues. h: { fetch, text(body) -> {ok, retry} } for tests.
 export async function pushCron(env, now, h) {
+  let out = null;
+  for (const [e, add] of sides(env)) {
+    try {
+      const r = await cronOne(e, now, h);
+      if (!out) out = r;
+      else if (r && !r.off) for (const k of ['sent', 'texted', 'dropped']) if (typeof r[k] === 'number') out[k] = (out[k] || 0) + r[k];
+    } catch (x) { if (!add) throw x; }
+  }
+  return out;
+}
+async function cronOne(env, now, h) {
   now = now || Date.now();
   h = h || {};
   if (!env.NTFY_URL) return { off: true };

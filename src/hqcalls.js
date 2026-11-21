@@ -18,6 +18,7 @@
 // call" is kept for good (call_optout). If a private person answers a business call, it apologizes and ends.
 import { DurableObject } from 'cloudflare:workers';
 import { Speaker, voiceFor, thinkingFor } from './voice.js';
+import { hqEnv } from './hqdb.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const HOST = 'alwaysopenoffice.com';
@@ -379,6 +380,8 @@ export async function claude(env, system, messages, onText, signal, maxTokens) {
 
 // ---------- the call itself ----------
 export class HqCallRoom extends DurableObject {
+  // a call for Christopher keeps its record in Gates HQ's own database (hqdb.js)
+  constructor(ctx, env) { super(ctx, env); this.env = hqEnv(env); }
   async fetch(req) {
     if (this.ctx.getWebSockets().length) return new Response('Busy', { status: 409 });
     const id = +new URL(req.url).searchParams.get('id') || 0;

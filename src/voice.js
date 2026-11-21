@@ -105,7 +105,7 @@ export async function handleVoice(req, env, ctx, url) {
   const kind = p[1] || '';
   if (kind === 'ws') return relaySocket(req, env, p[2] || '', url);
   // Gates HQ's calls for Christopher (hqcalls.js): their own relay socket, checked by its own token.
-  if (kind === 'hqws') return (await import('./hqcalls.js')).hqSocket(req, env, p[2] || '', url);
+  if (kind === 'hqws') return (await import('./hqcalls.js')).hqSocket(req, (await import('./hqdb.js')).hqEnv(env), p[2] || '', url);
   if (kind === 'drill' && req.method === 'GET') return (await import('./callcheck.js')).drillAudio(env, p[2] || '', p[3] || '');
   if (!env.VOICE_KEY || !p[2] || !safeEq(p[2], env.VOICE_KEY)) return txt('Not found', 404);
   if (kind === 'diag' && req.method === 'GET') return diag(env);
@@ -118,13 +118,14 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'sms') return await handleSms(req, env, form, true);
     // Gates HQ calls for Christopher (hqcalls.js): the call he approved, its relay ending, its result, and his calls line.
     if (/^hq(c|cafter|cstatus|line|linedone|linesms)$/.test(kind)) {
-      const hc = await import('./hqcalls.js');
-      if (kind === 'hqc') return await hc.hqcAnswer(env, url, form);
-      if (kind === 'hqcafter') return await hc.hqcAfter(env, url, form);
-      if (kind === 'hqcstatus') return await hc.hqcStatus(env, url, form);
-      if (kind === 'hqline') return await hc.hqLineCall(env, form);
-      if (kind === 'hqlinedone') return hc.hqLineDone(env, form);
-      return await hc.hqLineSms(env, form);
+      // in Gates HQ's own database (hqdb.js)
+      const hc = await import('./hqcalls.js'), he = (await import('./hqdb.js')).hqEnv(env);
+      if (kind === 'hqc') return await hc.hqcAnswer(he, url, form);
+      if (kind === 'hqcafter') return await hc.hqcAfter(he, url, form);
+      if (kind === 'hqcstatus') return await hc.hqcStatus(he, url, form);
+      if (kind === 'hqline') return await hc.hqLineCall(he, form);
+      if (kind === 'hqlinedone') return hc.hqLineDone(he, form);
+      return await hc.hqLineSms(he, form);
     }
     // The voicemail backup finished a recording (voicemail.js): the owner gets the words now, not at the next sweep.
     if (kind === 'vm') { ctx.waitUntil((await import('./voicemail.js')).voicemailHook(env, form).catch(e => opsAlert(env, 'voicemail', '', (e && e.message) || e))); return new Response(null, { status: 204 }); }
