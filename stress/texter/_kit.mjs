@@ -25,7 +25,7 @@ export const clock = {
 
 let nClient = 0, nSid = 0;
 export function boot(extra) {
-  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB, Object.assign({ OPS_TEXT_TO: '+14783652533' }, extra || {}));
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB, Object.assign({ OPS_TEXT_TO: '+14785550142' }, extra || {}));
   // sms.js and fillweek.js make some tables once per process (a module-level flag), and the fixture schema lacks them,
   // so a second boot in the same file would run without them. Live D1 keeps them; make them here the same way.
   DB.raw.exec("CREATE TABLE IF NOT EXISTS sms_seen (sid TEXT PRIMARY KEY, at TEXT); CREATE TABLE IF NOT EXISTS sms_meta (k TEXT PRIMARY KEY, v TEXT); CREATE INDEX IF NOT EXISTS sms_log_client ON sms_log (client_id, at);" +

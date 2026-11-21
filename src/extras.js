@@ -11,6 +11,7 @@ const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement,pa
 const HQ = 'always-open';   // Always Open's own Page (social.js)
 export { TEXTING_ON } from './sms.js';
 import { TEXTING_ON, sendText } from './sms.js';
+import { sealToken, openToken, metaProof } from './seal.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const val = (f, k, n) => String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, n);
@@ -305,9 +306,10 @@ export async function handleMeta(req, env, url) {
     const pg = (pages.data || [])[0];
     if (!pg) return msg('No page found', 'We could not find a Facebook Page on that account. Make sure you picked your business Page, then try again.', 400);
     await env.DB.prepare('INSERT OR REPLACE INTO meta_pages (client_id, page_id, page_name, page_token, ig_id, connected_at) VALUES (?1,?2,?3,?4,?5,?6)')
-      .bind(st[0], pg.id, pg.name || '', pg.access_token, (pg.instagram_business_account || {}).id || '', new Date().toISOString()).run();
+      .bind(st[0], pg.id, pg.name || '', await sealToken(env, 'meta_pages.page_token', pg.access_token), (pg.instagram_business_account || {}).id || '', new Date().toISOString()).run();
     // Page messages come to the shared inbox in the app (replies only when someone taps Send).
-    await fetch(GRAPH + '/' + pg.id + '/subscribed_apps', { method: 'POST', body: new URLSearchParams({ subscribed_fields: 'messages', access_token: pg.access_token }) }).catch(() => {});
+    const proof = await metaProof(env, pg.access_token);
+    await fetch(GRAPH + '/' + pg.id + '/subscribed_apps', { method: 'POST', body: new URLSearchParams(Object.assign({ subscribed_fields: 'messages', access_token: pg.access_token }, proof ? { appsecret_proof: proof } : {})) }).catch(() => {});
     if (st[0] === HQ) return msg('Facebook connected', 'Always Open’s posts will go to ' + esc(pg.name || 'the Page') + ((pg.instagram_business_account) ? ' and its Instagram' : ' (no Instagram business account is linked to that Page yet)') + ' on Monday, Wednesday and Friday mornings. Nothing else to do.');
     return msg('Facebook connected', 'Approved posts will now go to ' + esc(pg.name || 'your Page') + ((pg.instagram_business_account) ? ' and your Instagram' : '') + '. Nothing posts until you approve it in the app.');
   }
@@ -320,14 +322,26 @@ export async function handleMeta(req, env, url) {
   }
   return new Response('Not found', { status: 404 });
 }
+// One Page's row with its token opened (sealed since Nov 21, 2026) and Facebook's appsecret_proof for it. Null when
+// there is none, or its token can't be opened (then the owner connects Facebook again). by: 'client_id' or 'page_id'.
+export async function metaPage(env, by, val) {
+  const r = await env.DB.prepare('SELECT * FROM meta_pages WHERE ' + (by === 'page_id' ? 'page_id' : 'client_id') + ' = ?1').bind(String(val || '')).first().catch(() => null);
+  if (!r) return null;
+  try { r.page_token = await openToken(env, 'meta_pages.page_token', r.page_token); } catch (e) { return null; }
+  if (!r.page_token) return null;
+  r.proof = await metaProof(env, r.page_token);
+  return r;
+}
+// A Page's token and its proof, as URL parameters.
+export const metaAuth = pg => 'access_token=' + encodeURIComponent(pg.page_token) + (pg.proof ? '&appsecret_proof=' + pg.proof : '');
 // Only called after the owner approves a post that has a photo (or by social.js for Always Open's own Page).
 export async function metaPublish(env, cid, text, photoUrl) {
   if (!photoUrl || !(cid === HQ ? metaReady(env) : await metaLive(env))) return 'off';
   await ensureMeta(env);
-  const m = await env.DB.prepare('SELECT * FROM meta_pages WHERE client_id = ?1').bind(cid).first();
+  const m = await metaPage(env, 'client_id', cid);
   if (!m) return 'off';
   const out = [];
-  const post = async (path, params) => { const r = await fetch(GRAPH + path, { method: 'POST', body: new URLSearchParams(Object.assign({ access_token: m.page_token }, params)) }); return r.json().catch(() => ({})); };
+  const post = async (path, params) => { const r = await fetch(GRAPH + path, { method: 'POST', body: new URLSearchParams(Object.assign({ access_token: m.page_token }, m.proof ? { appsecret_proof: m.proof } : {}, params)) }); return r.json().catch(() => ({})); };
   const why = j => ' (' + String((j && j.error && j.error.message) || 'no id back').slice(0, 120) + ')';
   const fb = await post('/' + m.page_id + '/photos', { url: photoUrl, caption: text });
   out.push('fb:' + (fb.id ? 'ok' : 'fail' + why(fb)));

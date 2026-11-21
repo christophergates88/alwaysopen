@@ -18,7 +18,7 @@ const AUDIT = {
     { weight: 6, title: 'No tap-to-call button on the website', saw: 'x', fix: 'y' }],
   fine: ['Website works on phones'], rivals: [{ name: 'Riverbend Plumbing', rating: 4.8, reviews: 211 }]
 };
-const ENV = { BUSINESS_ADDRESS: '103 W Sumter St, Eatonton, GA 31024' };
+const ENV = { BUSINESS_ADDRESS: '100 Main St, Springfield, GA 30000' };
 const LEAD = { name: 'Dana Whitfield', email: 'dana@example.com', business: 'Sinclair Plumbing', town: 'Eatonton, GA', plan: 'Growth (most picked)', type: 'Contractor or trade' };
 
 test('the audit email: the grade, the three fixes, a sample page, how to start, Chris, the stop link and the address', () => {
@@ -33,7 +33,7 @@ test('the audit email: the grade, the three fixes, a sample page, how to start, 
     assert.match(t, /\(706\) 460-2226/);
     assert.match(t, /Chris answers, usually the same business day/);
     assert.match(t, /lead\/stop\?i=7&(amp;)?k=abc/);
-    assert.match(t, /103 W Sumter St, Eatonton, GA 31024/);
+    assert.match(t, /100 Main St, Springfield, GA 30000/);
     assert.doesNotMatch(t, /Riverbend/, 'competitors only as an average, never by name');
     assert.doesNotMatch(t, /\bAI\b/);
   }
@@ -127,7 +127,7 @@ test('follow-ups: day 2 and day 6, weekday business hours, and they stop on sign
   assert.deepEqual(r, { sent: 1, stopped: 1 });
   assert.equal(sent[0].to, 'dana@example.com'); assert.equal(sent[0].subject, 'Your free audit: the quickest win', 'no "Re:" and nothing typed into the form');
   assert.match(sent[0].text, /The quickest win for your business: we add hours, holiday hours and closures, and keep them current\./);
-  assert.match(sent[0].text, /lead\/stop\?i=/); assert.match(sent[0].text, /103 W Sumter St/);
+  assert.match(sent[0].text, /lead\/stop\?i=/); assert.match(sent[0].text, /100 Main St/);
   assert.deepEqual(await L.followCron(env, t0 + 3 * 864e5, h), { sent: 0, stopped: 0 }, 'not twice');
   r = await L.followCron(env, t0 + 6 * 864e5, h);   // the next Sunday: quiet
   assert.deepEqual(r, { quiet: true });

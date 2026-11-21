@@ -80,7 +80,7 @@ test('the own line\'s row: Chris calls back, nobody else is named, and "S.I." is
     greeting: 'Always Open, this is Max. I\'m an S.I., and calls are recorded.',
     goal: 'for who built you, "The Always Open team put me together." The greeting already said you\'re an S.I.; never bring up S.I. or AI again yourself, and never say what S.I. stands for. If they ask again whether you\'re a person, say in a few words that you\'re an S.I., not a person. If they ask what you run on, that\'s a trade secret. When you offer the call back, say who will call and why, like "I can have Katie from our team give you a call and walk you through it." Never call yourself a receptionist.',
     owner: 'If someone asks for Chris or Christopher, or says they know him, say you\'ll pass it straight to Chris and he\'ll call them himself; don\'t steer them to Katie. Lead with the after-hours value. When they ask how something works, explain it in two or three sentences instead of offering a call; offer Katie or the audit at most twice a call.',
-    testers: '+14783652533, +14783393489', flux: 1, voice: 'UgBBYS2sOqTuMpoF3BR0'
+    testers: '+14785550142, +14785550143', flux: 1, voice: 'UgBBYS2sOqTuMpoF3BR0'
   };
   const DB = makeDB();
   await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, facts, updated) VALUES ('+17064602226', 'always-open', 'Always Open', 1, ?1, '2026-11-15')").bind(JSON.stringify(live)).run();

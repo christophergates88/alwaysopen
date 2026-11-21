@@ -10,7 +10,7 @@ export const { default: worker } = await import('../../src/index.js');
 export const { CallRoom } = await import('../../src/voice.js');
 export const L = await import('../../src/leadmail.js');
 
-export const ADDRESS = '103 W Sumter St, Eatonton, GA 31024';
+export const ADDRESS = '100 Main St, Springfield, GA 30000';
 // What Google Places answers for a plumber in Eatonton (the same listing test/sitefixes.test.js uses).
 export const PLACE = { id: 'ChIJsinclair', displayName: { text: 'Sinclair Plumbing' }, formattedAddress: '12 Oak St, Eatonton, GA 31024, USA', rating: 4.3, userRatingCount: 31, primaryTypeDisplayName: { text: 'Plumber' }, businessStatus: 'OPERATIONAL', regularOpeningHours: { weekdayDescriptions: ['Mon 8-5'] }, photos: [] };
 

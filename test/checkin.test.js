@@ -8,15 +8,15 @@ function db(rows) {
 }
 test('no check-in is scheduled unless the owner turned it on', async () => {
   const env = { DB: db({}) };
-  assert.equal(await scheduleCheckin(env, { client_id: 'c1', regulated: 0 }, 'Linda', '4783652533', 'water heater'), null);
+  assert.equal(await scheduleCheckin(env, { client_id: 'c1', regulated: 0 }, 'Linda', '4785550142', 'water heater'), null);
   assert.ok(!env.DB.log.some(s => s.includes('INSERT INTO checkins')));
 });
 test('regulated clients never get one', async () => {
   const env = { DB: db({ 'checkin_prefs': { on_: 1 } }) };
-  assert.equal(await scheduleCheckin(env, { client_id: 'c1', regulated: 1 }, 'Linda', '4783652533', 'x'), null);
+  assert.equal(await scheduleCheckin(env, { client_id: 'c1', regulated: 1 }, 'Linda', '4785550142', 'x'), null);
 });
 test('a "no" creates an urgent call-back for the owner, a 9 opts them out', async () => {
-  const mk = () => db({ 'FROM checkins k': { id: 5, client_id: 'c1', phone: '+14783652533', first: 'Linda', job: 'water heater', business: 'Sinclair Plumbing', review_link: '' } });
+  const mk = () => db({ 'FROM checkins k': { id: 5, client_id: 'c1', phone: '+14785550142', first: 'Linda', job: 'water heater', business: 'Sinclair Plumbing', review_link: '' } });
   let env = { DB: mk() };
   let res = await checkinGather(env, new URL('https://x/voice/cig/k?id=5'), new URLSearchParams({ Digits: '2' }));
   assert.ok((await res.text()).includes('He will call you himself'));

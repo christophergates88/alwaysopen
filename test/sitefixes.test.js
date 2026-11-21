@@ -17,7 +17,7 @@ const { default: worker } = await import('../src/index.js');
 const PLACE = { id: 'ChIJsinclair', displayName: { text: 'Sinclair Plumbing' }, formattedAddress: '12 Oak St, Eatonton, GA 31024, USA', rating: 4.3, userRatingCount: 31, primaryTypeDisplayName: { text: 'Plumber' }, businessStatus: 'OPERATIONAL', regularOpeningHours: { weekdayDescriptions: ['Mon 8-5'] }, photos: [] };
 function site(extra) {
   const world = new H.World(), DB = H.makeDB(), out = [];
-  const env = H.makeEnv(world, DB, Object.assign({ BUSINESS_ADDRESS: '103 W Sumter St, Eatonton, GA 31024', SEND_MAIL: { send: async m => { out.push(m); } } }, extra || {}));
+  const env = H.makeEnv(world, DB, Object.assign({ BUSINESS_ADDRESS: '100 Main St, Springfield, GA 30000', SEND_MAIL: { send: async m => { out.push(m); } } }, extra || {}));
   H.installFetch(world, env);
   world.places = { places: [PLACE] };
   return { world, DB, env, out, client: H.makeClient(worker, env) };

@@ -26,7 +26,7 @@ const ASK1 = 'Let me check with Mike right now. While I do, what is the address 
 async function mk(o) {
   o = o || {};
   const world = new H.World(), DB = H.makeDB();
-  const env = H.makeEnv(world, DB, Object.assign({ OPS_TEXT_TO: '+14783652533' }, o.env || {}));
+  const env = H.makeEnv(world, DB, Object.assign({ OPS_TEXT_TO: '+14785550142' }, o.env || {}));
   H.installFetch(world, env);
   env.CALLROOM = H.makeNamespace(V.CallRoom, env);
   await CB.ensureLineTz(env);
@@ -395,11 +395,11 @@ test('Always Open’s own line asks Christopher, and his reply to that number is
   const x = await w.room(sidOf(11), CALLER, OWN_LINE);
   await w.say(x, 'Could someone show my marina how this works this week?');
   assert.match(w.prompt(), /Let me check with Christopher right now/);
-  assert.equal(w.world.ownerTexts.at(-1).To, '+14783652533');
+  assert.equal(w.world.ownerTexts.at(-1).To, '+14785550142');
   assert.ok(w.world.pushes.some(p => /Max is asking you/.test(p.title)), 'and a push to his phone');
   c.add(6000);
   const m = w.at(x);
-  const r = await w.text('+14783652533', 'Yes Thursday at 2', OWN_LINE);
+  const r = await w.text('+14785550142', 'Yes Thursday at 2', OWN_LINE);
   assert.match(r.text, /Got it\. Max is telling them now\./);
   assert.equal(w.since(x, m), 'I just heard back. Christopher says: Yes Thursday at 2.');
 }));

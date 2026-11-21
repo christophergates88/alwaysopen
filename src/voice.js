@@ -560,7 +560,7 @@ export class CallRoom extends DurableObject {
     const s = await this.load();
     if (!s || s.done || s.finalized || (s.resumes || 0) >= 2 || s.endAt) return false;
     s.resumes = (s.resumes || 0) + 1; s.resuming = 1; s.closedAt = Date.now(); s.lastDrop = code;
-    // Build Brief 8: the line usually dies while Max is mid-answer (Nov 6: Sree at 1:31, Dariann at 1:02), so the caller
+    // Build Brief 8: the line usually dies while Max is mid-answer (Nov 6: two testers' calls, at 1:31 and 1:02), so the caller
     // missed how it ended. Max says sorry and says the end of it again, instead of "Go ahead" to someone mid-thought.
     const talking = !!(this.live || s.agentTalking);
     s.resumeLine = resumeLine(s.msgs, talking, s.lang);
@@ -1647,7 +1647,7 @@ export function trimLead(lead, L, msgs, used) {
   if (P6(L)) return lead6(lead, used || []);
   // live for every call since Nov 5: won its blind test 25 to 17, human 5.7 vs 5.5, tells 16 vs 21
   if (!lead) return lead;
-  // Nov 6 calls (Christopher 10:45, Sree, Dariann): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
+  // Nov 6 test calls (three testers): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
   // "Got it. Alright.", "Mm-hm.") on every reply and asked why Max talks like that. Only the first answer gets one now.
   return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) ? null : lead;
 }

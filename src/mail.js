@@ -64,7 +64,7 @@ function eastern(now) {
   return { day: p.year + '-' + p.month + '-' + p.day, month: p.year + '-' + p.month, hour: +p.hour % 24, wd: p.weekday };
 }
 
-// "103 W Sumter St, Eatonton, GA 31024, USA" -> the parts Lob wants.
+// "100 Main St, Springfield, GA 30000, USA" -> the parts Lob wants.
 export function splitAddress(a) {
   const m = /^(.+?),\s*([^,]+),\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?(?:,\s*(?:USA|United States))?$/.exec(one(a));
   return m ? { address_line1: m[1].slice(0, 64), address_city: m[2].slice(0, 200), address_state: m[3], address_zip: m[4] } : null;

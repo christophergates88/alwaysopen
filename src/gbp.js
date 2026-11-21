@@ -9,6 +9,7 @@
 // Kept: which Google location belongs to which client (ids, so we know where to post), what we posted, and monthly
 // totals of the profile's own numbers for the business that owns them. Review text is not copied anywhere new except
 // into the owner's own draft, as the email check already does.
+import { sealToken, openToken } from './seal.js';
 const app = async () => import('./app.js');
 const isOn = async env => (await import('./launch.js')).isOn(env, 'google');
 
@@ -38,7 +39,7 @@ export async function ensureGbp(env) {
 const tokens = new Map();
 export async function saveRefresh(env, who, refresh) {
   await ensureGbp(env);
-  await env.DB.prepare('INSERT OR REPLACE INTO gbp_tokens (client_id, refresh, connected_at) VALUES (?1, ?2, ?3)').bind(who, refresh, new Date().toISOString()).run();
+  await env.DB.prepare('INSERT OR REPLACE INTO gbp_tokens (client_id, refresh, connected_at) VALUES (?1, ?2, ?3)').bind(who, await sealToken(env, 'gbp_tokens.refresh', refresh), new Date().toISOString()).run();
   tokens.delete(who);
   try { await (await import('./connections.js')).markOk(env, who, 'profile'); } catch (e) { /* fine */ }
 }
@@ -48,8 +49,13 @@ export async function accessToken(env, who) {
   await ensureGbp(env);
   const row = await env.DB.prepare('SELECT refresh FROM gbp_tokens WHERE client_id = ?1').bind(who).first();
   if (!row || !env.GOOGLE_CLIENT_ID) return null;
+  const refresh = await openToken(env, 'gbp_tokens.refresh', row.refresh).catch(() => '');
+  if (!refresh) {
+    try { await (await import('./connections.js')).markBroken(env, who, 'profile', 'its saved sign-in could not be opened'); } catch (e) { /* fine */ }
+    return null;
+  }
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: refresh, grant_type: 'refresh_token' }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) {
     try { const cn = await import('./connections.js'); if (cn.refusedForGood(r.status, j)) await cn.markBroken(env, who, 'profile', j.error || ('Google answered ' + r.status)); } catch (e) { /* the cron will find it */ }
@@ -64,8 +70,10 @@ export async function tryRefresh(env, who) {
   await ensureGbp(env);
   const row = await env.DB.prepare('SELECT refresh FROM gbp_tokens WHERE client_id = ?1').bind(who).first();
   if (!row) return { ok: false, status: 404, body: { error: 'no token' } };
+  const refresh = await openToken(env, 'gbp_tokens.refresh', row.refresh).catch(() => '');
+  if (!refresh) return { ok: false, status: 401, body: { error: 'invalid_grant', error_description: 'the saved sign-in could not be opened' } };
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: row.refresh, grant_type: 'refresh_token' }) });
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', refresh_token: refresh, grant_type: 'refresh_token' }) });
   const j = await r.json().catch(() => ({}));
   return { ok: r.ok && !!j.access_token, status: r.status, body: j };
 }

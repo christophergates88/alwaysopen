@@ -14,7 +14,7 @@ const audit = (name, grade, extra) => Object.assign({ found: true, at: new Date(
   areas: [{ label: 'Reviews', grade: 'D' }], findings: [{ title: 'Fewer reviews than nearby competitors', saw: '23 reviews, while the busiest nearby average 140.', fix: 'We ask every customer for a review after each job.' }], fine: [] }, extra || {});
 
 async function setup() {
-  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB, { LOB_KEY: 'live_abc123', BUSINESS_ADDRESS: '103 W Sumter St, Eatonton, GA 31024' });
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB, { LOB_KEY: 'live_abc123', BUSINESS_ADDRESS: '100 Main St, Springfield, GA 30000' });
   H.installFetch(world, env);
   await (await import('../src/leadmail.js')).ensureLeadMail(env);
   await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, active) VALUES ('c1', 'h1', 'Pickard Auto', 1)").run();
@@ -77,7 +77,7 @@ test('mailed: a D gets a letter with its QR code; a B, a client, a business with
   assert.equal(L.auth, 'Basic ' + btoa('live_abc123:'));
   assert.equal(L.key, 'ao-letter-1', 'one letter per queue row, however often it is retried');
   assert.deepEqual(L.b.to, { name: 'Quillen Plumbing', address_line1: '201 N Jefferson Ave', address_city: 'Eatonton', address_state: 'GA', address_zip: '31024' });
-  assert.deepEqual(L.b.from, { name: 'Always Open', address_line1: '103 W Sumter St', address_city: 'Eatonton', address_state: 'GA', address_zip: '31024' });
+  assert.deepEqual(L.b.from, { name: 'Always Open', address_line1: '100 Main St', address_city: 'Springfield', address_state: 'GA', address_zip: '30000' });
   assert.deepEqual([L.b.color, L.b.mail_type, L.b.use_type, L.b.address_placement], [true, 'usps_first_class', 'marketing', 'insert_blank_page']);
   assert.match(L.page, /Quillen Plumbing, graded/);
   assert.match(L.page, /<svg[^>]*aria-label="QR code to your live audit"/);

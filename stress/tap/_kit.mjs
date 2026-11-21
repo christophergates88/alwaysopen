@@ -12,7 +12,7 @@ export const { setBrand } = await import('../../src/sms.js');
 export const { default: worker } = await import('../../src/index.js');
 
 export const LINE = '+14785551001', LINE3 = '+14785551003', CELL = '+14785557777', OWNER = '+14785550101', CALLER = '+14785550142',
-  CALLER2 = '+14785550199', CODE = 'q'.repeat(32), CODE2 = 'z'.repeat(32), CODE3 = 'k'.repeat(32), OWN_LINE = '+17065550000', OPS = '+14783652533';
+  CALLER2 = '+14785550199', CODE = 'q'.repeat(32), CODE2 = 'z'.repeat(32), CODE3 = 'k'.repeat(32), OWN_LINE = '+17065550000', OPS = '+14785550142';
 export const sidOf = n => 'CA' + String(n).padStart(32, '0');
 export function zoneWhere(want) {
   for (let off = -11; off <= 12; off++) { const h = (new Date().getUTCHours() + off + 24) % 24; if (want(h)) return off === 0 ? 'Etc/GMT' : 'Etc/GMT' + (off > 0 ? '-' : '+') + Math.abs(off); }

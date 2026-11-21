@@ -12,7 +12,7 @@ const NOW = Date.parse('2026-10-29T15:00:00Z');     // Thursday 11 AM Eastern
 const NIGHT = Date.parse('2026-10-30T03:00:00Z');   // 11 PM Eastern
 const iso = t => new Date(t).toISOString();
 async function setup() {
-  const DB = H.makeDB(), env = { DB, BUSINESS_ADDRESS: '103 W Sumter St, Eatonton, GA 31024' };
+  const DB = H.makeDB(), env = { DB, BUSINESS_ADDRESS: '100 Main St, Springfield, GA 30000' };
   await C.ensureChecks(env);
   await DB.prepare("INSERT INTO app_clients (client_id, code_hash, business, owner_first, active) VALUES ('c1', 'h1', 'Quillen Plumbing', 'Sam', 1), ('c2', 'h2', 'Larkspur Salon', '', 1), ('demo-plumbing', 'h3', 'Demo', '', 1)").run();
   await DB.prepare("INSERT INTO billing (client_id, sub, status, business, owner, email, code, created, customer) VALUES ('c2', 'sub_2', 'active', 'Larkspur Salon', 'Jess Moore', 'jess@example.com', 'CODE2', ?1, 'cus_2')").bind(iso(NOW - 40 * DAY)).run();
@@ -23,9 +23,14 @@ const item = (DB, id, cid, kind, stars, ago) => DB.prepare("INSERT INTO app_item
 test('business hours and the promised reply time', () => {
   assert.equal(C.businessHours(Date.parse('2026-10-29T13:00:00Z'), Date.parse('2026-10-29T17:00:00Z')), 4, '9 AM to 1 PM Thursday');
   assert.equal(C.businessHours(Date.parse('2026-10-30T20:00:00Z'), Date.parse('2026-11-02T15:00:00Z')), 2, 'Friday 4 PM to Monday 10 AM: one hour Friday, one Monday');
-  assert.equal(C.replyBy(NOW), 'Chris will reply within a few hours.');
-  assert.equal(C.replyBy(NIGHT), 'Chris will reply by 10 AM tomorrow.');
-  assert.equal(C.replyBy(Date.parse('2026-10-31T16:00:00Z')), 'Chris will reply by 10 AM Monday.', 'Saturday noon');
+  // a time he can keep: the end of his own workday (Nov 21, 2026 audit)
+  assert.equal(C.replyBy(NOW), 'Chris will reply by 6 PM today.', 'Thursday 11 AM');
+  assert.equal(C.replyBy(Date.parse('2026-10-29T20:30:00Z')), 'Chris will reply by 6 PM tomorrow.', 'Thursday 4:30 PM');
+  assert.equal(C.replyBy(NIGHT), 'Chris will reply by 6 PM tomorrow.', 'Thursday 11 PM');
+  assert.equal(C.replyBy(Date.parse('2026-10-31T16:00:00Z')), 'Chris will reply by 6 PM Monday.', 'Saturday noon');
+  assert.equal(C.replyBy(Date.parse('2026-10-30T21:00:00Z')), 'Chris will reply by 6 PM Monday.', 'Friday 5 PM');
+  assert.equal(new Date(C.replyDue(NOW)).toISOString(), '2026-10-29T22:00:00.000Z', '6 PM Eastern, daylight time');
+  assert.equal(new Date(C.replyDue(Date.parse('2026-11-12T15:00:00Z'))).toISOString(), '2026-11-12T23:00:00.000Z', '6 PM Eastern, standard time');
 });
 
 test('drafts waiting on an owner: reminded at 1 and 3 days (a low review after 6 hours), by push or else by email, never at night', async () => {
@@ -70,27 +75,27 @@ test('a new client whose line has had no calls: nudged on day 2 and day 5 with t
   assert.match(await C.morningChecks(env, NOW + 5 * DAY), /No calls yet, forwarding probably off: Larkspur Salon\./);
 });
 
-test('client messages: one automatic note, then Christopher after 4 business hours with no answer; an answer stops it', async () => {
+test('client messages: one automatic note promising 6 PM, then Christopher at 5 PM with no answer; an answer stops it', async () => {
   const { DB, env } = await setup();
   const msg = (cid, text, at) => DB.prepare("INSERT INTO app_messages (client_id, at, by, text, dir) VALUES (?1, ?2, 'Sam', ?3, 'in')").bind(cid, iso(at), text).run();
   const t0 = Date.parse('2026-10-29T13:30:00Z');   // 9:30 AM Thursday
   await msg('c1', 'Can you change our Sunday hours?', t0);
-  assert.equal(await C.ackMessage(env, 'c1', 'Sam Quillen', t0), 'Got it, Sam. Chris will reply within a few hours.');
+  assert.equal(await C.ackMessage(env, 'c1', 'Sam Quillen', t0), 'Got it, Sam. Chris will reply by 6 PM today.');
   assert.equal(await C.ackMessage(env, 'c1', 'Sam', t0 + 60e3), '', 'once every 4 hours');
   await msg('c2', 'Hello?', t0);
   await DB.prepare("INSERT INTO app_messages (client_id, at, by, text, dir) VALUES ('c2', ?1, 'Chris', 'Hi Jess, done.', 'out')").bind(iso(t0 + HR)).run();
   const pings = [];
   const h = { ping: async (t, b) => pings.push(t + ' | ' + b) };
-  assert.deepEqual(await C.messageTimer(env, t0 + 3 * HR, h), { reminded: 0 });
-  assert.deepEqual(await C.messageTimer(env, t0 + 4.5 * HR, h), { reminded: 1 }, 'the automatic note is not an answer');
-  assert.match(pings[0], /^Always Open: 1 client message waiting over 4 business hours \| Quillen Plumbing \(Sam\): Can you change our Sunday hours\?/);
-  assert.deepEqual(await C.messageTimer(env, t0 + 5 * HR, h), { reminded: 0 }, 'once');
+  assert.deepEqual(await C.messageTimer(env, t0 + 7 * HR, h), { reminded: 0 }, '4:30 PM: not yet');
+  assert.deepEqual(await C.messageTimer(env, t0 + 7.5 * HR, h), { reminded: 1 }, '5 PM, an hour before the promise; the automatic note is not an answer');
+  assert.match(pings[0], /^Always Open: 1 client message to answer by 6 PM \| Quillen Plumbing \(Sam\): Can you change our Sunday hours\?/);
+  assert.deepEqual(await C.messageTimer(env, t0 + 8 * HR, h), { reminded: 0 }, 'once');
   assert.match(await C.morningChecks(env, Date.parse('2026-10-30T15:00:00Z')), /Unanswered client messages: Quillen Plumbing\./, 'a business day later');
   assert.match(pings[0], /Answer on Always Open HQ and it shows in their app\.$/, 'no ops key here, so no link: it still says where to answer');
   // with the ops key the same push opens Always Open HQ on a tap, and an answer typed there ends the wait
   const env2 = Object.assign({}, env, { LEADS_KEY: 'k-for-tests' }), taps = [], mon = Date.parse('2026-11-02T14:30:00Z');   // 9:30 AM Monday
   await msg('c1', 'One more thing: closed Friday too.', mon);
-  assert.deepEqual(await C.messageTimer(env2, mon + 5 * HR, { ping: async (t, b, p, click) => taps.push([b, click]) }), { reminded: 1 });
+  assert.deepEqual(await C.messageTimer(env2, mon + 8 * HR, { ping: async (t, b, p, click) => taps.push([b, click]) }), { reminded: 1 });
   assert.match(taps[0][0], /Tap to answer on Always Open HQ\. It shows in their app\.$/);
   assert.match(taps[0][1], /^https:\/\/alwaysopenoffice\.com\/ops\/hq\?t=[0-9]{8}[0-9a-f]{32}$/);
   assert.equal(await (await import('../src/opsboard.js')).boardOk(env2, new URL(taps[0][1]).searchParams.get('t'), null), true, 'the link is one the board accepts');
@@ -202,13 +207,13 @@ test('sales call-backs: a real caller Max promised a call gets one push about 90
   await (await import('../src/leadmail.js')).ensureLeadMail(env);
   await DB.prepare("INSERT INTO app_calls (id, client_id, test) VALUES ('CAreal', 'always-open', 0), ('CAtest', 'always-open', 1)").run();
   const thu8pm = Date.parse('2026-10-30T00:14:00Z');
-  await DB.prepare("INSERT INTO leads (at, name, business, phone, plan, town, origin, grade, status) VALUES (?1, 'Caller at +14787182248', '', '+14787182248', 'Growth', '', 'phone CAreal', '', 'new'), (?1, 'Me', '', '+14783652533', '', '', 'phone CAtest', '', 'new'), (?1, '', 'Quillen Plumbing', '(478) 555-0142', '', 'Eatonton, GA', 'letter 4', 'D', 'letter')").bind(new Date(thu8pm).toISOString()).run();
+  await DB.prepare("INSERT INTO leads (at, name, business, phone, plan, town, origin, grade, status) VALUES (?1, 'Caller at +14785550187', '', '+14785550187', 'Growth', '', 'phone CAreal', '', 'new'), (?1, 'Me', '', '+14785550142', '', '', 'phone CAtest', '', 'new'), (?1, '', 'Quillen Plumbing', '(478) 555-0142', '', 'Eatonton, GA', 'letter 4', 'D', 'letter')").bind(new Date(thu8pm).toISOString()).run();
   const pings = [], h = { ping: async (t, b, p) => pings.push([t, b, p]) };
   const fri = t => Date.parse('2026-10-30T' + t + ':00-04:00');
   assert.deepEqual(await C.salesCallbacks(env, thu8pm + 3600e3, h), { waiting: 'outside business hours' });
   assert.deepEqual((await C.salesCallbacks(env, fri('10:00'), h)).told, [], 'one business hour is too soon');
-  assert.deepEqual((await C.salesCallbacks(env, fri('10:31'), h)).told, ['Caller at +14787182248']);
-  assert.deepEqual(pings[0], ['Always Open: call Caller at +14787182248 back', 'Max told them Chris would call. +14787182248 · Growth plan · called Thursday. If it’s done, ignore this.', 'high']);
+  assert.deepEqual((await C.salesCallbacks(env, fri('10:31'), h)).told, ['Caller at +14785550187']);
+  assert.deepEqual(pings[0], ['Always Open: call Caller at +14785550187 back', 'Max told them Chris would call. +14785550187 · Growth plan · called Thursday. If it’s done, ignore this.', 'high']);
   assert.deepEqual((await C.salesCallbacks(env, fri('11:00'), h)).told, [], 'once');
   // The letter's lead counts from its "Call me".
   await C.markCallMe(env, 3, fri('13:00'));

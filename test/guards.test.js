@@ -100,7 +100,7 @@ test('g-short keeps what an agency owner must hear, once, and gives a "how does 
   const again = call('What do you do?', 'Every review reply gets checked by Compliance Guard, and nothing goes out until you approve it in the app.', 'ok');
   const r2 = run(AGENCY, again, 'Okay. What else?', ['g-short'], 'Sure. We answer your missed calls. We reply to your reviews. Every reply gets checked by Compliance Guard first.');
   assert.ok(r2.cuts.some(c => /Compliance Guard/.test(c.text)), JSON.stringify(r2));
-  // Nov 6 replay of Sree's call: "your OK", "how it would work", a price objection, and "seven p.m." mid-sentence
+  // Nov 6 replay of a tester's call: "your OK", "how it would work", a price objection, and "seven p.m." mid-sentence
   const ok = 'Not just posts. I answer every call live, and every Google review gets a reply. Your profile stays current too, and quotes that went quiet get a follow-up reminder you send yourself. All of it waits for your OK in the app.';
   assert.ok(!run(AGENCY, call('What do you do?'), 'So a voice mail and you just do Google posts.', ['g-short'], ok).cuts.some(c => /waits for your OK/.test(c.text)));
   const how = 'Your calls forward to me from the number you already have. I answer live and take the caller\'s name, number and what they need, nothing on quotes, rates or claims. You see it in the app right away.';

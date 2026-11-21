@@ -1,7 +1,7 @@
 // Jobs, quotes, Stripe Connect payments, the shared inbox, review insights, team roles, onboarding and the weekly summary.
 // Tables create themselves on first use. Nothing is sent to a customer or posted without the owner (or their team) tapping it.
 import { pushClient, sha256hex, mailTo } from './app.js';
-import { page, ensureInvoices, invOut } from './extras.js';
+import { page, ensureInvoices, invOut, metaPage, metaAuth } from './extras.js';
 import { TEXTING_ON, replyText } from './sms.js';
 import { lostSince, LABELS as LOST_LABELS } from './lost.js';
 import { buildRevive } from './past.js';
@@ -515,11 +515,11 @@ export async function apiInbox(req, env, c) {
   if (b.action !== 'reply' || !m) return aj({ ok: false, error: 'Bad request' }, 400);
   const text = cl(b.text, 1000);
   if (!text) return aj({ ok: false, error: 'Type a reply first.' }, 400);
-  const pg = await env.DB.prepare('SELECT page_id, page_token FROM meta_pages WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
+  const pg = await metaPage(env, 'client_id', c.client_id);
   if (!pg) return aj({ ok: false, error: 'Connect Facebook first.' }, 409);
   const lastIn = await env.DB.prepare("SELECT at FROM biz_msgs WHERE client_id = ?1 AND channel = 'facebook' AND thread = ?2 AND dir = 'in' ORDER BY at DESC LIMIT 1").bind(c.client_id, m[1]).first();
   if (!lastIn || Date.now() - Date.parse(lastIn.at) > 24 * 3600e3) return aj({ ok: false, error: 'Facebook only allows replies within 24 hours of their last message. Call them or reply from Facebook.' }, 409);
-  const r = await fetch(GRAPH + '/' + pg.page_id + '/messages?access_token=' + encodeURIComponent(pg.page_token), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ recipient: { id: m[1] }, messaging_type: 'RESPONSE', message: { text } }) });
+  const r = await fetch(GRAPH + '/' + pg.page_id + '/messages?' + metaAuth(pg), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ recipient: { id: m[1] }, messaging_type: 'RESPONSE', message: { text } }) });
   const j = await r.json().catch(() => ({}));
   if (!j.message_id) return aj({ ok: false, error: 'Facebook did not take the reply. Try again, or reply from Facebook.' }, 502);
   await env.DB.prepare("INSERT OR IGNORE INTO biz_msgs (client_id, channel, thread, name, text, dir, at, by, status, ext_id) VALUES (?1,'facebook',?2,'',?3,'out',?4,?5,'read',?6)").bind(c.client_id, m[1], text, now(), c.staff || 'Owner', j.message_id).run();
@@ -539,7 +539,7 @@ export async function instantReply(env, pg, psid, text, h) {
   if (last && now - Date.parse(last.at) < 24 * 3600e3) return 'already';
   if (/^\s*(stop|unsubscribe|cancel)\s*$/i.test(String(text || ''))) return 'skipped';
   await env.DB.prepare('INSERT OR REPLACE INTO fb_instant (psid, at) VALUES (?1, ?2)').bind(psid, new Date(now).toISOString()).run();
-  const r = await f(GRAPH + '/' + pg.page_id + '/messages?access_token=' + encodeURIComponent(pg.page_token), { method: 'POST', headers: { 'content-type': 'application/json' },
+  const r = await f(GRAPH + '/' + pg.page_id + '/messages?' + metaAuth(pg), { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: INSTANT_REPLY } }) });
   const j = await r.json().catch(() => ({}));
   return j.message_id ? 'sent' : 'failed';
@@ -559,13 +559,13 @@ export async function metaWebhook(req, env, ctx, url) {
   await ensureBiz(env);
   let ev = {}; try { ev = JSON.parse(body); } catch (e) {}
   for (const en of (ev.entry || [])) {
-    const pg = await env.DB.prepare('SELECT client_id, page_id, page_token FROM meta_pages WHERE page_id = ?1').bind(String(en.id || '')).first().catch(() => null);
+    const pg = await metaPage(env, 'page_id', en.id);
     if (!pg) continue;
     for (const m of (en.messaging || [])) {
       if (!m.message || m.message.is_echo || !m.sender) continue;
       const psid = String(m.sender.id), text = cl(m.message.text || (m.message.attachments ? '[photo or file]' : ''), 2000);
       let name = '';
-      try { const u = await (await fetch(GRAPH + '/' + psid + '?fields=name&access_token=' + encodeURIComponent(pg.page_token))).json(); name = cl(u.name, 80); } catch (e) {}
+      try { const u = await (await fetch(GRAPH + '/' + psid + '?fields=name&' + metaAuth(pg))).json(); name = cl(u.name, 80); } catch (e) {}
       // A message to Always Open's own Page goes to Christopher's phone; answer it in Facebook.
       if (pg.client_id === 'always-open') {
         ctx.waitUntil((async () => (await import('./app.js')).opsPing(env, 'Facebook message to Always Open' + (name ? ' from ' + name : ''), text.slice(0, 300), 'high', 'speech_balloon', 'https://www.facebook.com/messages/'))().catch(() => {}));

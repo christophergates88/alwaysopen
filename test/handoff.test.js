@@ -10,8 +10,8 @@ test('a hand-off only goes to a business on the list', async () => {
   const log = [];
   const env = { DB: { prepare: (sql) => ({ bind: (...a) => ({ run: async () => { log.push(sql); } }), run: async () => { log.push(sql); } }), batch: async () => {} } };
   const list = [{ id: 'c2', business: 'Lane Electric', industry: 'electrical', number: '+14785550101', miles: 2 }];
-  assert.equal(await startHandoff(env, 'c1', 'CA1', '+14783652533', 'Some Other Shop', list, 'electrical'), null);
-  const n = await startHandoff(env, 'c1', 'CA1', '+14783652533', 'lane electric', list, 'electrical');
+  assert.equal(await startHandoff(env, 'c1', 'CA1', '+14785550142', 'Some Other Shop', list, 'electrical'), null);
+  const n = await startHandoff(env, 'c1', 'CA1', '+14785550142', 'lane electric', list, 'electrical');
   assert.equal(n && n.id, 'c2');
   assert.ok(log.some(s => s.includes('INSERT INTO handoffs')));
 });

@@ -4,8 +4,8 @@
 //               by push to the app, or by email when they have no app. "Every review answered" depends on that tap.
 //   setup       New clients whose line has had no real call: forwarding probably isn't on, so they get nothing for
 //               their money. Nudges with the exact steps on day 2 and day 5; Christopher hears on day 7.
-//   messages    Owner messages to us. An instant "got it, Chris will reply by …", a push to Christopher after 4 business
-//               hours with no answer, and the 7 AM push after one business day.
+//   messages    Owner messages to us. An instant "got it, Chris will reply by 6 PM …", a push to Christopher an hour
+//               before that with no answer yet, and the 7 AM push after one business day.
 //   spend       Today's Claude use, minutes and texts against a normal day; 3x normal is an alert. (The hard ceiling on
 //               texts lives in sms.js, where every text goes through.)
 //   paying      Every paying client is served and every served client is paying: Stripe's word on each subscription
@@ -151,14 +151,27 @@ export async function setupNudges(env, now, h) {
 
 // ---------- owner messages to us ----------
 // Right after an owner writes (app.js): one automatic note saying when Chris will answer. At most one every 4 hours.
+// Nov 21, 2026 audit: "within a few hours" landed inside his own 9-to-5 job, so it was a promise nobody would keep.
+// The promise is now the end of his workday: 6 PM Eastern the same weekday when the message came before 4 PM, else
+// 6 PM the next weekday. messageTimer pushes him an hour before that.
+const REPLY_HOUR = 18, CUTOFF_HOUR = 16;
+export function replyDue(at) {
+  const e = eastern(at);
+  const sameDay = !/Sat|Sun/.test(e.wd) && e.hour < CUTOFF_HOUR;
+  // the first quarter hour that reads 6:00 PM on a weekday, today if it still counts, else a later day
+  let t = Math.ceil(at / 9e5) * 9e5;
+  for (let i = 0; i < 4 * 24 * 8; i++, t += 9e5) {
+    const x = eastern(t);
+    if (x.hour !== REPLY_HOUR || x.minute !== 0 || /Sat|Sun/.test(x.wd)) continue;
+    if (x.day === e.day && !sameDay) continue;
+    return t;
+  }
+  return at + DAY;
+}
 export function replyBy(now) {
-  const e = eastern(now);
-  if (!/Sat|Sun/.test(e.wd) && e.hour >= 9 && e.hour < 15) return 'Chris will reply within a few hours.';
-  // The next business morning.
-  let t = now + H;
-  for (let i = 0; i < 96; i++, t += H) { const x = eastern(t); if (!/Sat|Sun/.test(x.wd) && x.hour === 10) break; }
-  const e2 = eastern(t), when = e2.day === eastern(now + DAY).day ? 'tomorrow' : new Date(t).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
-  return 'Chris will reply by 10 AM ' + when + '.';
+  const due = replyDue(now), d = eastern(due);
+  const when = d.day === eastern(now).day ? 'today' : d.day === eastern(now + DAY).day ? 'tomorrow' : new Date(due).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
+  return 'Chris will reply by 6 PM ' + when + '.';
 }
 export async function ackMessage(env, cid, by, now) {
   now = now || Date.now();
@@ -180,8 +193,7 @@ export async function messageTimer(env, now, h) {
   now = now || Date.now(); h = h || {};
   const late = [];
   for (const r of await unanswered(env, now)) {
-    const bh = businessHours(Date.parse(r.at), now);
-    if (bh < 4) continue;
+    if (now < replyDue(Date.parse(r.at)) - H) continue;   // an hour before the promised 6 PM
     const k = 'msg:' + r.id;
     if (await getMark(env, k)) continue;
     await setMark(env, k, 'reminded', now);
@@ -190,7 +202,7 @@ export async function messageTimer(env, now, h) {
   if (late.length) {
     const lines = late.slice(0, 4).map(r => (r.business || r.client_id) + ' (' + (r.by || 'owner') + '): ' + String(r.text || '').replace(/\s+/g, ' ').slice(0, 90));
     let hq = ''; try { hq = await (await import('./opsboard.js')).hqLink(env); } catch (e) { hq = ''; }
-    await ping(env, h, 'Always Open: ' + plural(late.length, 'client message') + ' waiting over 4 business hours', lines.join('\n') + '\n' + (hq ? 'Tap to answer on Always Open HQ. It shows in their app.' : 'Answer on Always Open HQ and it shows in their app.'), 'high', 'speech_balloon', hq);
+    await ping(env, h, 'Always Open: ' + plural(late.length, 'client message') + ' to answer by 6 PM', lines.join('\n') + '\n' + (hq ? 'Tap to answer on Always Open HQ. It shows in their app.' : 'Answer on Always Open HQ and it shows in their app.'), 'high', 'speech_balloon', hq);
   }
   return { reminded: late.length };
 }
