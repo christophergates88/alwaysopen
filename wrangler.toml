@@ -20,6 +20,13 @@ binding = "DB"
 database_name = "alwaysopen"
 database_id = "d1ca8165-65de-4bf3-97a3-899037682ff2"
 
+# The database split (Nov 21, 2026 audit, src/dbsplit.js): Always Open's business tables are being copied into a
+# database of their own. While BIZ is bound, the 10-minute job copies them there; nothing reads BIZ yet.
+[[d1_databases]]
+binding = "BIZ"
+database_name = "alwaysopen-biz"
+database_id = "75aca375-8122-42e3-a564-8219aea58c7c"
+
 # Emails each website request to Christopher (Cloudflare Email Routing, verified address).
 [[send_email]]
 name = "EMAIL"
