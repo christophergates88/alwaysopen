@@ -93,3 +93,15 @@ test('a past-customer note goes by text only within 18 months of the last job, 3
   assert.equal(P.reviveTextOk({ reason: 'Estimate went quiet', last_at: ago(120) }, now), false);
   assert.equal(P.reviveTextOk({ reason: 'Over a year since the last visit', last_at: '' }, now), false, 'no date, no text');
 });
+
+test('a law office line takes name, number, a time and the kind of matter, never the case details', async () => {
+  const V = await import('../src/voice.js');
+  const legal = V.lineView({ business: 'Reid Law Firm', town: 'Eatonton, GA', regulated: 1, industry: 'legal', facts: '{}' });
+  const plumb = V.lineView({ business: 'Sinclair Plumbing', town: 'Eatonton, GA', regulated: 0, industry: 'plumbing', facts: '{}' });
+  for (const fn of [V.systemPrompt, V.systemPrompt6]) {
+    const p = fn(legal, '+14785550101', 'en-US', false), q = fn(plumb, '+14785550101', 'en-US', false);
+    assert.match(p, /law office/i);
+    assert.match(p, /Never (ask what happened or for any details of their case|the details of their case)/);
+    assert.ok(!/details of their case/.test(q), 'a plumber is not told this');
+  }
+});
