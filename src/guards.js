@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback', 'g-closer'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback', 'g-closer', 'g-ask3'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -170,7 +170,7 @@ const NO_AUDIT = /\b(don'?t|do not|no) (want|need)\b[^.?!]*\baudit\b|\bno,? (tha
 // Nov 21, 2026 replay of 26 practice calls on the live line: "Want me to have Chris walk you through it?" is the same
 // offer, and so is "Want me to set that up?" right after "he calls back within one business day" (it slipped past as a
 // third offer in a row). A caller who asks for the call themselves ("have somebody call me back") has said yes.
-const CALLBACK_OFFER = /\b(chris|him|someone|somebody|the team)\b[^.?!]*\b(call|ring|reach)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(a|that) (call|call back|callback)\b[^.?!]*\?|\bset (that|a|the) call up\b[^.?!]*\?|\bset up (that|a|the) call\b[^.?!]*\?|\b(chris|him)\b[^.?!]*\b(walk|go over|go through|talk)\b[^.?!]*\?/i;
+const CALLBACK_OFFER = /\b(chris|him|someone|somebody|the team)\b[^.?!]*\b(call|ring|reach)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(a|that) (call|call back|callback)\b[^.?!]*\?|\bset (that|a|the) call up\b[^.?!]*\?|\bset up (that|a|the) call\b[^.?!]*\?|\b(chris|him)\b[^.?!]*\b(walk|go over|go through|talk)\b[^.?!]*\?|\b(put|get|have) you down for (a|the|that) (call|call back|callback|call-back)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(the|a) (callback|call-back|call back) (with|from) chris\b[^.?!]*\?|\bque (chris|[eé]l) (te|le) (llame|marque|devuelva la llamada)\b[^.?!]*\?|\b(una )?llamada de chris\b[^.?!]*\?/i;
 const SET_UP = /\b(want|like|should|shall)\b[^.?!]*\b(set (that|it|this) up|line (that|it) up|arrange (that|it))\b[^.?!]*\?|^\s*(want|like) that\?/i;
 const CALL_MENTION = /\b(calls?|ring|reach)\b[^.?!]*\b(back|you)\b|\bcall-?back\b/i;
 const WANTS_CALL = /\b(call|ring) me\b|\bcall (me )?back\b|\bcallback\b|\bhave (him|chris|somebody|someone|the team) (call|ring|reach)\b|\b(get|put|take) (my|me) (name )?down\b|\bsign me up\b/i;
@@ -299,7 +299,20 @@ function stockCloser(s, ctx) {
   if (!isQ(s) || !CLOSER.test(String(s).trim())) return false;
   return sentencesOf(ctx.spoken || '').some(x => !isQ(x) && words(x) >= 4);
 }
-const ORDER = [['g-canned', cannedLine], ['g-closer', stockCloser], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+// v3 (loop 2): the same question two replies in a row, or a third time, after the caller let it pass: their name, the
+// shop's name, their town, or a read-back of the same number. Loop 1's lowest grades were nearly all this ("repeats the
+// 'What's the shop called?' question twice, ignoring the caller's pivots").
+const NAME_ASK = /\b(your name|name (for|so|should i)|who (am i|should i) (be )?(putting|put) down|(what'?s|what is) the (name|shop|business|company)\b|(shop|business|company|salon|store|truck|studio) (called|name)\b|name of (your|the) (shop|business|company|salon|store))/i;
+const TOWN_ASK = /\b(what town|which town|where are you (located|based)|what city|where'?s the (shop|business))\b/i;
+const digitsOf = t => (lc(t).match(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|\d)\b/g) || []).map(w => ({ zero: 0, oh: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 })[w] ?? w).join('');
+function askThird(s, ctx) {
+  if (!isQ(s)) return false;
+  const mine = (ctx.msgs || []).filter(m => m.r === 'a').slice(1).map(m => String(m.t || ''));
+  const d = digitsOf(s);
+  if (d.length >= 7) return mine.some(t => isQ(sentencesOf(t).slice(-1)[0] || '') && digitsOf(t).includes(d));
+  return [NAME_ASK, TOWN_ASK].some(k => k.test(s) && (mine.filter(t => k.test(t)).length >= 2 || (mine.length > 0 && k.test(mine[mine.length - 1]))));
+}
+const ORDER = [['g-canned', cannedLine], ['g-closer', stockCloser], ['g-ask3', askThird], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

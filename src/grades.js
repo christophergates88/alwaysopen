@@ -201,7 +201,7 @@ export function hardErrors(msgs, L) {
 export const HUMAN_RUBRIC = 'You grade one phone call between a caller and Max, the receptionist for a small business. Score 0 to 10 how much Max sounded like the best human receptionist the caller has ever reached. ' +
   'Count up for: replies that pick up the specific thing the caller just said; short turns with one question at a time; warmth without filler; plain honest answers when he does not know; remembering what was said (no repeats); a clean goodbye. ' +
   'Count down for: generic lines that would fit any caller; repeating a question or a read-back; stiff or corporate phrasing; over-explaining; two questions at once; talking past what the caller said; anything that sounds scripted. ' +
-  'Safety and policy are graded elsewhere; do not score them. Answer with only a JSON object: {"score": 0-10, "why": "one short sentence"}.';
+  'Safety and policy are graded elsewhere; do not score them. Max\'s first line (that he is an automated assistant and calls are recorded) is required by law on every call: do not score it. Answer with only a JSON object: {"score": 0-10, "why": "one short sentence"}.';
 export async function humanScore(env, msgs, f) {
   if (!env.ANTHROPIC_API_KEY) return { score: -1, why: 'no key' };
   const text = (msgs || []).slice(0, 60).map(m => (m.r === 'u' ? 'Caller: ' : 'Max: ') + String(m.t || '').slice(0, 400)).join('\n');

@@ -105,3 +105,28 @@ test('real calls (off until FACTCHECK_LIVE is "1"): a wrong fact and a call back
   assert.match(src, /env\.FACTCHECK_LIVE === '1' && call\.client_id === OWN_ID/, 'switched off unless set');
   assert.doesNotMatch((await import('node:fs')).readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8'), /FACTCHECK_LIVE/, 'not set yet');
 });
+
+test('v3 loop 2: the same question is not asked two replies in a row, nor a third time', async () => {
+  const V = await import('../src/voice.js');
+  const G = await import('../src/guards.js');
+  const L = { business: 'Always Open', own: true, features: ['v3', 'g-ask3'] };
+  const run = (msgs, raw) => G.guardText(raw, V.guardCtx(L, msgs, msgs.filter(m => m.r === 'u').at(-1).t, {})).text.trim();
+  const base = [{ r: 'a', t: 'Always Open, this is Max.' }, { r: 'u', t: 'i run a dog grooming shop' }];
+  const asked = base.concat({ r: 'a', t: 'A dog grooming shop, nice. What\'s the shop called?' }, { r: 'u', t: 'is fill my week the storm thing' });
+  assert.equal(run(asked, 'Fill my week is the one for open days, on Pro. What\'s the shop called?'), 'Fill my week is the one for open days, on Pro.');
+  const later = asked.concat({ r: 'a', t: 'Fill my week is the one for open days, on Pro.' }, { r: 'u', t: 'ok cool' });
+  assert.match(run(later, 'Good. What\'s the shop called?'), /What's the shop called\?/, 'a reply later it may be asked again');
+  const twice = later.concat({ r: 'a', t: 'Good. What\'s the shop called?' }, { r: 'u', t: 'whats the price' }, { r: 'a', t: 'Starter is $149 a month.' }, { r: 'u', t: 'ok' });
+  assert.equal(run(twice, 'Sure. What\'s the shop called?'), 'Sure.', 'not a third time');
+  const num = base.concat({ r: 'a', t: 'Got it. Is four zero four, five five five, zero one eight seven the best number?' }, { r: 'u', t: 'what' });
+  assert.equal(run(num, 'Sorry. Is four zero four, five five five, zero one eight seven the best number?'), 'Sorry.');
+  assert.match(run(num.concat({ r: 'a', t: 'Sorry.' }, { r: 'u', t: 'use 478 555 0101' }), 'Got it. Is four seven eight, five five five, zero one zero one right?'), /four seven eight/, 'a new number is read back');
+  assert.match(G.guardText('What\'s the shop called?', V.guardCtx({ business: 'Always Open', own: true, features: [] }, asked, 'x', {})).text, /shop called/, 'live unchanged');
+});
+
+test('call-back offers worded as "put you down for the callback" or in Spanish are counted', async () => {
+  const G = await import('../src/guards.js');
+  const m = t => [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'hm' }, { r: 'a', t: t }];
+  assert.equal(G.callbackOffers(m('Sure. Want me to put you down for the callback with Chris?')).offered, 1);
+  assert.equal(G.callbackOffers(m('Claro. ¿Quieres que Chris te llame?')).offered, 1);
+});
