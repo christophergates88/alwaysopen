@@ -201,7 +201,7 @@ test('v4 (practice only): told each turn what it already said; asks only their n
   const p4 = V.systemPrompt(L(['v4']), '+14045550187', 'en-US', false), p3 = V.systemPrompt(L(['v3']), '+14045550187', 'en-US', false);
   assert.match(p4, /3\. Get their name, once, when they want the call back\. If they skip it, go on without it; never ask for their business name or town\./);
   assert.match(p3, /3\. Get the details the team needs: their business name, what kind of business it is, the town/);
-  assert.match(p4, /say the one thing that fits their business best/); assert.doesNotMatch(p4, /Never stop at taking messages/);
+  assert.match(p4, /say the one or two things that fit their business best, in a sentence or two; more only if they ask/); assert.doesNotMatch(p4, /example from their world/, 'v4 run 1 made answers longer'); assert.doesNotMatch(p4, /Never stop at taking messages/);
   assert.match(p3, /Never stop at taking messages/);
   assert.match(p4, /How you talk on this line \(most important\)/, 'v4 carries v3');
   assert.ok(p4.length <= 14200, 'within the prompt budget: ' + p4.length);

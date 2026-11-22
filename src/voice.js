@@ -1939,7 +1939,7 @@ function withTap(p, L) {
 export function systemPrompt(L, caller, lang, wrapUp) {
   if (P6(L)) return withTap(systemPrompt6(L, caller, lang, wrapUp), L);
   const facts = [
-    ['What we do', L.own && V4(L) ? String(L.services || '').replace('Never stop at taking messages: booking the visit, Shoulder Tap and the follow-ups are what set it apart.', 'When they ask what it does, say the one thing that fits their business best, in a sentence or two, with an example from their world; more only if they ask.') : L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
+    ['What we do', L.own && V4(L) ? String(L.services || '').replace('Never stop at taking messages: booking the visit, Shoulder Tap and the follow-ups are what set it apart.', 'When they ask what it does, say the one or two things that fit their business best, in a sentence or two; more only if they ask.') : L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
     ['Address', L.address], ['Website', L.website], ['Other notes', L.notes], ['From the owner (things they want callers told)', L.owner]
   ].filter(x => x[1]).map(x => '- ' + x[0] + ': ' + x[1]).join('\n');
   const callerSaid = E164.test(caller || '') ? spokenNumber(caller) : '';
