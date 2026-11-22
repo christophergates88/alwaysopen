@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -161,6 +161,24 @@ const AUDIT = /\b(free )?audit\b|\bauditor[ií]a\b/i;
 const AUDIT_OFFER = /\b(want|like|should i|can i|shall i|happy to)\b[^.?!]*\b(audit|auditor[ií]a)\b|\b(audit|auditor[ií]a)\b[^.?!]*\?/i;
 const TAKES = /\b(yes|yeah|yep|sure|ok(ay)?|please|text (it|me)|send (it|me)|go ahead|s[ií]|claro|m[aá]ndel[oa])\b/i;
 const NO_AUDIT = /\b(don'?t|do not|no) (want|need)\b[^.?!]*\baudit\b|\bno,? (thanks|thank you)\b|\bstop (asking|offering)\b|\bnot interested\b/i;
+// The call back, offered a third time (Nov 21, 2026 practice calls: "Want Chris to call you?" on turns 3, 4 and 5, while
+// the owner's own rule is twice a call at most). Once they said yes or gave a number, it is not offered again either.
+const CALLBACK_OFFER = /\b(chris|him|someone|somebody|the team)\b[^.?!]*\b(call|ring|reach)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(a|that) (call|call back|callback)\b[^.?!]*\?|\bset (that|a|the) call up\b[^.?!]*\?|\bset up (that|a|the) call\b[^.?!]*\?/i;
+export function callbackOffers(msgs) {
+  let offered = 0, taken = false, lastOffer = -1;
+  (msgs || []).forEach((m, i) => {
+    const t = String(m.t || '');
+    if (m.r === 'a' && CALLBACK_OFFER.test(t)) { offered++; lastOffer = i; }
+    if (m.r === 'u' && lastOffer > -1 && i === lastOffer + 1 && (TAKES.test(t) || /\d{3}/.test(t))) taken = true;
+  });
+  return { offered, taken };
+}
+function callbackTwice(s, ctx) {
+  // Always Open's own line only: there the owner set the limit; on a business's line the call back is the job
+  if (!(ctx.L && ctx.L.own) || !CALLBACK_OFFER.test(s)) return false;
+  const c = callbackOffers(ctx.msgs);
+  return c.taken || c.offered >= 2;
+}
 export function auditState(msgs) {
   let offered = 0, taken = false, declined = false, lastOffer = -1;
   (msgs || []).forEach((m, i) => {
@@ -240,7 +258,7 @@ function shortReply(s, ctx) {
 // out yet"). Max says he is an automated assistant when asked and gets back to the question; he never remarks on his own voice.
 const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|test me|put me to the test|outside (of )?my lane|outside what i can help with|sounds interesting, though)\b|^\s*ha[,.!]/i;
 function cannedLine(sentence) { return CANNED.test(lc(sentence)); }
-const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

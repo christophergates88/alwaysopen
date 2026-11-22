@@ -980,7 +980,7 @@ export class CallRoom extends DurableObject {
     if (mine.first != null) cur.lat = (cur.lat || []).concat([mine.first]).slice(-40);
     // The caller talked over it: keep only what they heard, and let their next words lead.
     if (mine.cut != null) {
-      cur.msgs.push({ r: 'a', t: cutText(mine.lead, mine.cut), lead: mine.lead || undefined }); cur.last = Date.now(); await this.keep(cur);
+      cur.msgs.push({ r: 'a', t: cutText(mine.lead, mine.heard != null ? mine.heard : mine.cut), lead: mine.lead || undefined, rest: mine.rest ? mine.rest.slice(0, 400) : undefined }); cur.last = Date.now(); await this.keep(cur);
       // they heard "Let me check with Mike" and talked over the rest: the question still goes out (Nov 10: it was dropped)
       const askQ = sp.flags.ask || ((/\[\s*ASK\s*:?\s*([^\]]{1,200})\]/i.exec(raw) || [])[1] || '').trim();
       if (askQ && this.tapStart(cur, askQ)) await this.keep(cur);
@@ -996,7 +996,8 @@ export class CallRoom extends DurableObject {
     }
     cur.fails = 0;
     const text = ((mine.lead ? mine.lead + ' ' : '') + spoken).trim();
-    if (text) cur.msgs.push({ r: 'a', t: text, lead: mine.lead || undefined });
+    // The sentences it went out as stay on the newest reply only, for a talk-over reported after the next turn began.
+    if (text) { for (const x of cur.msgs) if (x.parts) delete x.parts; cur.msgs.push({ r: 'a', t: text, lead: mine.lead || undefined, parts: sp.parts.length > 1 ? sp.parts.slice() : undefined }); }
     cur.last = Date.now() + speakMs(spoken);
     if (sp.flags.book && !cur.booked && cur.line.slots) {
       const sl = cur.line.slots[sp.flags.book.n - 1];
@@ -1038,10 +1039,19 @@ export class CallRoom extends DurableObject {
       hit = interruptHitsNow(u, (L.lead ? L.lead + ' ' : '') + L.sp.spoken + L.sp.pending, b >= 0 ? s.msgs[b].t : '', Date.now() - L.t0);
     }
     this.mark('I', [u.slice(0, 40), hit ? 'now' : 'before']);
-    if (hit) { L.cut = u; L.sp.stop(); L.held = []; if (this.live === L) return; }
+    if (hit) { L.cut = u; L.heard = heardOf(L.sp.parts, u, L.lead); L.rest = restOf(L.sp.parts, u, L.lead); L.sp.stop(); L.held = []; if (this.live === L) return; }
     // Keep only what the caller heard of the reply they talked over.
     const i = hit ? (lastA > lastU ? lastA : -1) : (L ? lastBefore(s.msgs, 'a', lastU) : lastA);
-    if (i >= 0) s.msgs[i].t = cutText(s.msgs[i].lead, u, s.msgs[i].t);
+    // Nothing heard, and Max's last reply had finished playing a second or more before this turn began: the interrupt was
+    // about this turn's reaction, sent while they were still talking, not that reply (Nov 21, 2026: "Okay. Sure, ask away.
+    // What would you like to know about Always Open?" played in full and was rewritten to "Okay. —").
+    const finished = !hit && !u.trim() && L && !s.agentTalking && s.agentAt && s.agentAt < L.t0 - 1000;
+    if (i >= 0 && !finished) {
+      const parts = hit ? L.sp.parts : s.msgs[i].parts;
+      const rest = restOf(parts, u, s.msgs[i].lead);
+      s.msgs[i].t = cutText(s.msgs[i].lead, heardOf(parts, u, s.msgs[i].lead), s.msgs[i].t);
+      if (rest) s.msgs[i].rest = rest.slice(0, 400); else delete s.msgs[i].rest;
+    }
     // A transfer is only ever set once the line saying it was fully written ("One moment, let me reach him."): talking over
     // it does not undo it. A goodbye is different: a caller who talks over it ("wait, my number changed") keeps the call.
     if (!s.transfer && !s.handoff && !(s.endAt && CLOSING.test(u.trim()))) s.endAt = 0;   // "thanks, bye" over his goodbye keeps the hang-up
@@ -1594,16 +1604,18 @@ function quietText(line) {
 function moreText(t) { t = oneLine(String(t || '')); return t.length >= 2 && t.length <= 320 && !/[<>\[\]]/.test(t) && !contradicts(t) ? t : ''; }
 // A line's own answer to "Are you AI?" (Max: "I could sing for you, but you wouldn't like it."), said as written right after
 // the one-word honest reaction ("Guilty." / "Nope."), once a call; after that the AI answers in its own words.
+function firstSentences(t, n) { const m = String(t || '').match(/[^.?!]+[.?!]+["”’]?/g); return m ? m.slice(0, n).join(' ').replace(/\s+/g, ' ').trim() : String(t || '').trim(); }
 export function fixedReply(L, lead, msgs) {
   // "Hello?" or "Are you there?" after Max asked something (Nov 5 call: "Yep, I'm here. Hey, I'm here," and nothing):
   // the reaction says he is here, and he asks his last question again, word for word. No AI, no second sentence.
   if (lead && lead.kind === 'hear') {
     const lastA = [...(msgs || [])].reverse().find(x => x.r === 'a');
+    if (lastA && lastA.rest && / —$/.test(String(lastA.t || ''))) return firstSentences(lastA.rest, 2);
     const qs = String(lastA && lastA.t || '').match(/[^.?!]*\?/g);
     const q = qs && qs.length ? qs[qs.length - 1].trim() : '';
     return /hear me|still there|you there/i.test(q) ? '' : q;
   }
-  if (!lead || (lead.kind !== 'isai' && lead.kind !== 'ishuman') || !L || !L.aiJoke) return '';
+  if (!lead || (lead.kind !== 'isai' && lead.kind !== 'ishuman' && lead.kind !== 'aieither') || !L || !L.aiJoke) return '';
   return (msgs || []).some(x => x.r === 'a' && String(x.t || '').indexOf(L.aiJoke) > -1) ? '' : L.aiJoke;
 }
 // A line may use its own greeting: a sensible length, and nothing in it that says Max is not an AI, is a person, or that
@@ -1638,23 +1650,30 @@ export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-le
 // g-ask2 (narrowed): won its blind test 23 to 17, 5 of 7 emergency pairs (Nov 5, judgeset10). g-stock, g-sales, g-short
 // stay off: each cut things callers needed.
 // g-audit: Part 8a, live on sight (it only removes a repeated offer of the free audit; Christopher's Nov 5 call).
-export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit', 'g-canned', 'g-short'];
+export const LIVE_GUARDS = ['g-safety', 'g-town', 'g-once', 'g-promise', 'g-history', 'g-ask2', 'g-audit', 'g-canned', 'g-short', 'g-callback'];
 // Brief 3, Part 2b: from the caller's third turn on, the quick reaction ("Got it.", "Mm-hm.") is a tic the judges keep
 // marking down; the model answers in about half a second by then. Kept for a question, trouble, an emergency, a goodbye.
 const LEAD_TICS = new Set(['info', 'name', 'said', 'yes', 'no', 'point', 'doubt', 'wait']);
 // Reactions that carry meaning and stay all call: trouble, danger, upset, sad, goodbye, thanks.
-const KEEP_LEADS = new Set(['danger', 'urgent', 'trouble', 'upset', 'sad', 'bye', 'thanks']);
+// isai, ishuman, aieither: asked whether he is a person, he says plainly what he is, at any point in the call (Nov 21, 2026)
+// hear: "Hello?" gets "Yep, I'm here." at once, any time in the call (it was dropped after the first answer)
+const KEEP_LEADS = new Set(['danger', 'urgent', 'trouble', 'upset', 'sad', 'bye', 'thanks', 'isai', 'ishuman', 'aieither', 'hear']);
 export function trimLead(lead, L, msgs, used) {
-  if (P6(L)) return lead6(lead, used || []);
+  const lastU = [...(msgs || [])].reverse().find(m => m.r === 'u');
+  const lastT = String(lastU && lastU.t || '').toLowerCase();
+  // After a long turn the answer takes longest to start, and on Nov 21, 2026 the caller said "Hello?" into a 1.5-second
+  // silence after 36 words, talking over Max's answer as it began: a long turn always gets a quick reaction.
+  const long = lastT.split(/\s+/).filter(Boolean).length >= LONG_TURN;
+  if (P6(L)) return lead6(lead, used || [], ASKED.test(lastT), long);
   // live for every call since Nov 5: won its blind test 25 to 17, human 5.7 vs 5.5, tells 16 vs 21
   if (!lead) return lead;
   // Nov 6 test calls (three testers): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
   // "Got it. Alright.", "Mm-hm.") on every reply and asked why Max talks like that. Only the first answer gets one now.
-  return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) ? null : lead;
+  return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) && !long ? null : lead;
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
-export const HELD_LABEL = { 'g-audit': 'offering the audit again', 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+export const HELD_LABEL = { 'g-audit': 'offering the audit again', 'g-callback': 'offering the call back a third time', 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
 function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
 // The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
 export function transcriptOf(msgs, held) {
@@ -1674,14 +1693,16 @@ export function guardCtx(L, msgs, said, st) {
 export function hasFeature(L, k) { return !!(L && (L.style === 'v2' || (Array.isArray(L.features) && L.features.includes(k)))); }
 export function lineView(line) {
   const f = parse(line.facts) || {};
-  const pick = k => oneLine(String(f[k] || '')).slice(0, 3000);
+  // Notes get more room: Always Open's own line keeps its plans, team and regulated-office answers there, 3,214 characters
+  // on Nov 21, 2026, and Max was cut off mid-word at 3,000 ("...only to custom"), never seeing how access or forwarding works.
+  const pick = (k, max) => oneLine(String(f[k] || '')).slice(0, max || 3000);
   return {
     features: Array.isArray(f.features) ? f.features.filter(k => FEATURES.includes(k)) : [],
     business: line.business || 'the business', town: line.town || '', regulated: !!+line.regulated, industry: line.industry || '', spanish: !!+line.spanish,
     own: line.client_id === OWN_ID, lostOff: (() => { try { return JSON.parse(line.owner_set || '{}').lostAsk === false; } catch (e) { return false; } })(),
     canTransfer: E164.test(line.transfer_to || '') && line.transfer_when !== 'never', transferWhen: line.transfer_when || 'never', canRing: E164.test(line.transfer_to || ''),
-    services: pick('services'), area: pick('area'), hours: closedToday(line) + pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake') || tradeDefaults(line.industry).intake,
-    urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes'), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
+    services: pick('services', 4000), area: pick('area'), hours: closedToday(line) + pick('hours'), prices: pick('prices'), booking: pick('booking'), intake: pick('intake') || tradeDefaults(line.industry).intake,
+    urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes', 6000), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
     greeting: oneLine(String(f.greeting || '')).slice(0, 320), greeting2: greetingOk(f.greeting) ? moreText(f.greeting2) : '', name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30), goal: pick('goal'),
     aiJoke: moreText(f.aiJoke), owner: oneLine(String(f.owner || '')).replace(/[\[\]<>{}]/g, '').slice(0, 800),
     role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80), recorded: !!f.greetAudio
@@ -1771,13 +1792,26 @@ export const P6 = L => !!(L && Array.isArray(L.features) && L.features.includes(
 const P6_GUARDS = ['g-safety', 'g-promise', 'g-history'];
 // What a person says while thinking: short, and each one at most once a call.
 const LEADS6 = { trouble: ['Oh no.', 'Okay.'], urgent: ['Okay.', 'Got it.'], danger: ['Okay.'], sad: ['Oh, I\'m sorry.'], personal: ['Oh, man.'],
-  upset: ['I hear you.'], isai: ['Yep.'], ishuman: ['Nope.'], hear: ['Yep, I\'m here.'], thanks: ['Sure.'], bye: ['Okay.'], hi: ['Hi.'],
+  upset: ['I hear you.'], isai: ['Yep, automated assistant.'], ishuman: ['Nope, automated assistant.'], aieither: ['Automated assistant, not a person.'], hear: ['Yep, I\'m here.'], thanks: ['Sure.'], bye: ['Okay.'], hi: ['Hi.'],
   any: ['Okay.', 'Sure.', 'Right.', 'Got it.', 'Hm.', 'Mm-hm.'] };
-export function lead6(lead, used) {
+const AI_ANSWER = new Set(['isai', 'ishuman', 'aieither', 'hear']);   // said every time they come up, not once a call
+// A question to Max, which his answer may well turn down. "Sure. No, I never quote." and "Right. No, Vagaro doesn't
+// connect." opened 47 replies in the Nov 21, 2026 practice calls: after a question the reaction is one that fits a no.
+const ASKED = /\?|^\s*(so |ok |okay |and |but |right |hm |um |uh |well )*(can|could|does|do|did|is|are|was|will|would|should|have|has|any)\b|\bor not\b|\byes or no\b|\b(do|does|did|can|could|will|would|is|are|was|were|should) (you|i|they|we|it|that|this|those|these|there|he|she|my|your|our)\b/;
+const NEUTRAL6 = ['Hm.', 'Okay.'];
+const LONG_TURN = 20;
+export function lead6(lead, used, asked, long) {
   if (!lead) return null;
+  // "Are you a real person?" gets the plain answer every time it is asked, not a spare "Okay." the second time
+  if (AI_ANSWER.has(lead.kind) && LEADS6[lead.kind]) return { kind: lead.kind, text: LEADS6[lead.kind][0] };
   const u = new Set((used || []).map(x => String(x)));
-  const pick = (LEADS6[lead.kind] || []).concat(LEADS6.any).find(x => !u.has(x));
-  return pick ? { kind: lead.kind, text: pick } : null;
+  const pool = asked && !LEADS6[lead.kind] ? NEUTRAL6 : (LEADS6[lead.kind] || []).concat(asked ? NEUTRAL6 : LEADS6.any);
+  const pick = pool.find(x => !u.has(x));
+  if (pick) return { kind: lead.kind, text: pick };
+  // a long turn: a plain one again, as long as it was not one of the last two said
+  const recent = new Set((used || []).slice(-2).map(String));
+  const again = long ? NEUTRAL6.find(x => !recent.has(x)) : null;
+  return again ? { kind: lead.kind, text: again } : null;
 }
 export function systemPrompt6(L, caller, lang, wrapUp) {
   const facts = [
@@ -1789,25 +1823,37 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     ? (L.transferWhen === 'asked' ? 'If they ask for a person, or it is urgent, you may connect them.' : 'Only if it is urgent' + (L.urgent ? ' (' + L.urgent + ')' : '') + ', you may connect them to the owner.') + ' Say one short line like "Let me get them for you, one moment." and end that reply with [TRANSFER].'
     : 'You cannot connect calls. If they ask for a person, say the team will call them back.';
   const name = L.name || 'Max';
+  // Always Open's own line is a sales line, and Max on it is the live demo. Until Nov 21, 2026 prompt6 never carried that
+  // line's brief (L.goal: confident, never self-deprecating, help for their kind of business before any offer), so on
+  // Christopher's golf-shop test call Max called himself "just the phone line", agreed message-taking was "the core of it",
+  // said "it may not fit", and told him he could not book a tee time or fill his calendar, both of which the site sells.
+  const own = !!L.own;
   return [
-    'You are ' + name + ', who answers the phone for ' + L.business + (L.town ? ' in ' + L.town : '') + '. You know the business cold and you like the people who call. You talk the way a good front-desk person does: short, plain and warm, and you answer what was asked before anything else.',
+    own
+      ? 'You are ' + name + ', ' + L.business + '\'s phone assistant, answering ' + L.business + '\'s own line. Callers are usually business owners, and you are also the live demo: how you handle this call is what their customers would get. You know the product cold and you are proud of it. You talk short, plain and warm, and you answer what was asked before anything else.'
+      : 'You are ' + name + ', who answers the phone for ' + L.business + (L.town ? ' in ' + L.town : '') + '. You know the business cold and you like the people who call. You talk the way a good front-desk person does: short, plain and warm, and you answer what was asked before anything else.',
     'The caller has already heard: "' + (L.recorded ? DISCLOSURE + ' What can I do for you?' : greetingText(L.business, L.spanish, L.greeting)) + (L.greeting2 && L.heard2 ? ' ' + L.greeting2 : '') + '" Do not repeat it.',
     lang === 'es-US' ? 'The caller chose Spanish. Speak only Spanish, simply and warmly.' : 'Speak English unless the caller speaks Spanish; then answer in Spanish.',
     '',
     'How you talk:',
     '- One or two short sentences, 15 words or fewer each, then stop and let them talk. Ask one thing at a time, and never ask something they already told you or you already asked.',
     '- If they asked a question, your first words answer it: yes, no, a number, a name, or the plain fact. Then one more sentence if it helps.',
-    '- If they ask about their own life (a kid, a bill, dinner), give one warm, human line, say you are just the phone line here, and ask what else you can do.',
+    own
+      ? '- If they talk about their own life, or to someone with them (a kid, a dog, dinner), a few warm words at most, then pick up where you left off. Never put yourself down: no "just the phone line", no "I\'m only". On this line you are the product.'
+      : '- If they ask about their own life (a kid, a bill, dinner), give one warm, human line, say you are just the phone line here, and ask what else you can do. If they are talking to someone with them, do not answer that part.',
     '- If they say they do not like talking to AI, agree in a few dry words, say you are good at this, and go straight to what they asked.',
     '',
+    ...(own && L.goal ? ['On this line:', L.goal, ''] : []),
     'Your job:',
     '1. Answer what they called about, from what you know below.',
     '2. When they want a call back or something done, get their name' + (callerSaid ? ' and ask if ' + callerSaid + ' is the best number.' : ' and the best number, and read it back.'),
-    '3. Get what the team needs' + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '.',
-    L.slots && L.slots.length ? '4. For a visit, these times are open: ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Offer two. When they pick one and you have their name, read it back, then end that reply with [BOOK n|name|reason]. ' + (L.bookMode === 'hold' ? 'Say it is penciled in and the team will confirm.' : 'Say it is booked.') : '4. For a visit, ask what day and time work and say the team will confirm.',
-    '5. Say what happens next: ' + (L.next || 'someone from the team will call them back soon.') + ' Ask once if there is anything else; on a no, say goodbye.',
-    L.own ? '6. Once an owner is interested and you know their business and town, you may offer once: "Want a free audit of how you look on Google, by text?"' : null,
-    (L.regulated || L.lostOff || L.own) ? null : '6. If they decide not to go ahead, you may ask once whether it was the price, the timing or the drive, then let them go.',
+    (own ? '3. Once they want the audit or a call back, and not before, get what ' + (PROMISES.support || 'the team') + ' needs' : '3. Get what the team needs') + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '.',
+    L.slots && L.slots.length ? '4. For a visit, these times are open: ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Offer two. When they pick one and you have their name, read it back, then end that reply with [BOOK n|name|reason]. ' + (L.bookMode === 'hold' ? 'Say it is penciled in and the team will confirm.' : 'Say it is booked.') : (own ? null : '4. For a visit, ask what day and time work and say the team will confirm.'),
+    own
+      ? '4. When they want a call back, say what happens next: ' + (L.next || 'someone from the team will call them back soon.') + ' A no to one offer is not a goodbye: if they have not yet heard what ' + L.business + ' would do for a business like theirs, tell them in a line, with an example from their world. Say goodbye once they are done.'
+      : '5. Say what happens next: ' + (L.next || 'someone from the team will call them back soon.') + ' Ask once if there is anything else; on a no, say goodbye.',
+    own ? '5. Only after you have told them how ' + L.business + ' would help a business like theirs, and they sound interested, you may offer once: "Want a free audit of how you look on Google, by text?"' : null,
+    (L.regulated || L.lostOff || own) ? null : '6. If they decide not to go ahead, you may ask once whether it was the price, the timing or the drive, then let them go.',
     '',
     'What you know about ' + L.business + ' (only this; anything else, the team answers on the callback):',
     facts || '- Nothing else is on file. Take a message.',
@@ -1818,6 +1864,7 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     'Never:',
     '- Say you are a person. You are an automated assistant; the greeting said so. If asked, say so plainly and carry on.',
     '- Make up a price, a time, a promise or a fact that is not written above.',
+    own ? '- Say ' + L.business + ' can\'t do something unless what you know says so. Not written above: say ' + (PROMISES.support || 'the team') + ' can go over it on the callback.' : null,
     '- Give legal, medical, insurance, tax or money advice.' + (L.prices ? ' Share only the prices above.' : ' Do not quote prices.'),
     '- Take card, Social Security, account or policy numbers, birth dates or health details. Say the team will handle it.',
     '- Share the owner\'s or staff\'s personal numbers, addresses or schedules.',
@@ -1827,7 +1874,9 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     '',
     'Controls (never say these out loud): after you say goodbye and they are done, end with [END]. ' + transfer + (L.tap ? ' ' + tapRule(L, true) : ''),
     '',
-    'Most important: every reply is at most two short sentences, plus one question if you need one. Even when they ask what we do, pick the one or two things that matter to them and stop; they will ask for more.',
+    own
+      ? 'Most important: every reply is at most two short sentences, plus one question if you need one. When they ask what we do, pick the one or two things that matter most for their kind of business, with an example from their world, and stop. If they ask for more, doubt it, or ask whether that is all, give them something bigger they have not heard yet (booking the visit on the call, Shoulder Tap, the three-day check-in, Fill my week, Outreach), never the same line again, and never agree that taking messages is all you do.'
+      : 'Most important: every reply is at most two short sentences, plus one question if you need one. Even when they ask what we do, pick the one or two things that matter to them and stop; they will ask for more.',
     wrapUp ? 'The call is running long: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n');
 }
@@ -2133,6 +2182,9 @@ export class Speaker {
     this.stopped = false; this.asked = false;
     // VOICE_CHUNK=word brings back the old way (pieces as they come) if sentence utterances ever misbehave on a call.
     this.whole = !(opts && opts.chunk === 'word'); this.sent = 0; this.capT = null;
+    // Each sentence sent as its own utterance, in order. Twilio's interrupt reports only how far it got into the one it
+    // was playing, so these tell which earlier ones the caller already heard in full (see heardOf).
+    this.parts = [];
   }
   push(tok) {
     if (this.stopped) {
@@ -2167,7 +2219,16 @@ export class Speaker {
     // Once Max has asked a question, he stops and lets them answer: anything written after it ("...shut off? The valves
     // are usually...") is dropped, so he never talks over the answer. Control tags are read before this and still count.
     if (this.asked) return;
-    const q = t.indexOf('?');
+    // A question inside quotes is an example, not Max asking: 'I text you "can you come today?" and pass your answer back'
+    // was cut at the quoted question mark, so the caller never heard how it works (5 of 52 practice calls, Nov 21, 2026).
+    let q = -1;
+    for (let k = 0; k < t.length; k++) {
+      const ch = t[k];
+      if (ch === '“') this.inQuote = true;
+      else if (ch === '”') this.inQuote = false;
+      else if (ch === '"') this.inQuote = !this.inQuote;
+      else if (ch === '?' && !this.inQuote) { q = k; break; }
+    }
     if (q >= 0) { this.asked = true; t = t.slice(0, q + 1); }
     if (!this.whole) {
       if (!t.trim()) { this.pending += t; return; }   // keep spaces with the words, so the last piece is never just a space
@@ -2211,6 +2272,7 @@ export class Speaker {
     if (this.capT) { clearTimeout(this.capT); this.capT = null; }
     this.send(this.msg((this.sent ? ' ' : '') + p.replace(/^\s+/, ''), true));   // a space between utterances keeps the joined text readable
     this.spoken += (this.spoken && !/\s$/.test(this.spoken) ? ' ' : '') + p + ' ';
+    if (this.parts.length < 24) this.parts.push(p.replace(/^\s+/, ''));
     this.sent++;
   }
   msg(token, last) { const o = { type: 'text', token, last }; if (this.lang && this.lang !== 'en-US') o.lang = this.lang; return o; }
@@ -2257,8 +2319,10 @@ export const LEADS = {
   trouble: ['Oh no, okay.', 'Oh, I\'m sorry, okay.', 'Oh no.', 'Oh, okay.'],
   upset: ['I hear you.', 'I understand.'],
   aiq: ['Fair question.'],
-  isai: ['Yep.'],
-  ishuman: ['Nope.'],
+  // the plain words every time (Nov 21, 2026 practice calls: "Nope. I could sing for you" never said what he is)
+  isai: ['Yep, automated assistant.'],
+  ishuman: ['Nope, automated assistant.'],
+  aieither: ['Automated assistant, not a person.'],
   sing: ['Okay.'],
   nicetry: ['Hmm.'],
   private: ['Hmm.'],
@@ -2326,7 +2390,7 @@ function qNorm(t) {
 }
 // Words that are clearly a finished question ("How much is it?"), so Max can react before Twilio's end of turn. Not a tag
 // people say mid-thought ("..., right?", "you know what?"), and not so short it could be the start of something else.
-const QUICK_KINDS = { wh: 1, worry: 1, tech: 1, yn: 1, aiq: 1, isai: 1, ishuman: 1, brag: 1, ask: 1, point: 1, dare: 1, hear: 1, repeat: 1 };
+const QUICK_KINDS = { wh: 1, worry: 1, tech: 1, yn: 1, aiq: 1, isai: 1, ishuman: 1, aieither: 1, brag: 1, ask: 1, point: 1, dare: 1, hear: 1, repeat: 1 };
 export function quickQuestion(t) {
   const raw = String(t || '').trim();
   if (!/\?["'”’)]*$/.test(raw)) return false;
@@ -2582,6 +2646,7 @@ const BYE_NOW = /\b(bye|goodbye|that's all|that is all|that's it|that is it|that
 const SAME_NUM = /\b(same number|this number|this one|the number i'?m calling (from|on)|the one i'?m (calling from|on)|calling from is fine|that number'?s fine|este número|este numero|el mismo( número| numero)?|del que (llamo|estoy llamando))\b/;
 const STREET_WORD = /\b\d+\s+(?:[\w'-]+\s+){0,2}(street|st|road|rd|drive|dr|lane|ln|avenue|ave|court|ct|circle|cir|way|highway|hwy|boulevard|blvd|place|pl|trail|parkway|pike|point|pointe|pt|cove|ridge|run|loop|terrace|ter|crossing|xing|bend|hollow|path|row|square|sq|landing|bluff|creek|hill|heights|hts|pass|trace|alley|calle|avenida|camino)\b/;
 // A caller's own life, not their business (Nov 5, 6:29 PM: "I have a child that is not wanting me to hold them").
+const BUSINESS_TALK = /\b(phones?|calls?|calling|voicemail|answers?|answering|schedule|scheduling|calendar|books|bookings?|appointments?|jobs?|work|works|office|quotes?|invoices?|reviews?|website|customers?|service|pay for|bills? (for|from) (this|you)|cost|price)\b/;
 const PERSONAL = /\b(my (child|kid|kids|son|daughter|baby|toddler|wife|husband|girlfriend|boyfriend|marriage|family)|a child|a toddler|parenting|my (health|doctor|diet)|my (electric|power|light|water) bill|feel(ing)? (down|sad|lonely|stressed))\b/;
 // "I really don't like talking to AI" (Nov 5, 6:35 PM): Christopher wants a dry joke about being good at the job.
 const HATE_AI = /\b((don't|do not|never) (like|love|enjoy|trust|want)( talking| to talk| speaking| to speak)? (to |with )?(an? )?(ai|a i|robots?|bots?|machines?|computers?|automated)|hate (ai|a i|robots|bots|machines|talking to)|not a fan of (ai|robots|bots))\b/;
@@ -2606,7 +2671,16 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
-  if (PERSONAL.test(String(said || '').toLowerCase()) && !/\b(customers?|clients?|my (business|company|shop|crew))\b/.test(String(said || '').toLowerCase())) out.push('This is about the caller\'s own life, not a business. Answer the way a friendly person on a business phone line would: one short, warm, human line about it (a plain thought is fine, like "kids go through phases like that"), and say simply that you are just the phone line here. Do not list professionals to call, do not use phrases like "outside my lane" or "outside what I can help with", do not pitch, and do not ask what business they run. End by asking what else you can do for them.');
+  // A wife, kids or family named while talking about the business ("my wife answers our phone", "my son does the books")
+  // is business, not their own life: on Always Open's line that note turned a sales objection into "I'm just the phone
+  // line here. What else can I do for you?" (Nov 21, 2026 practice calls). Max's own line is the live demo, so even a
+  // real personal aside gets a few warm words there and the call picks up again, never "just the phone line".
+  const low = String(said || '').toLowerCase();
+  if (PERSONAL.test(low) && !/\b(customers?|clients?|my (business|company|shop|crew))\b/.test(low) && !BUSINESS_TALK.test(low)) {
+    out.push(s.line && s.line.own
+      ? 'They mentioned their own life. A few warm words about it, then pick up where you left off. Never say you are "just the phone line" here: on this line you are the product.'
+      : 'This is about the caller\'s own life, not a business. Answer the way a friendly person on a business phone line would: one short, warm, human line about it (a plain thought is fine, like "kids go through phases like that"), and say simply that you are just the phone line here. Do not list professionals to call, do not use phrases like "outside my lane" or "outside what I can help with", do not pitch, and do not ask what business they run. End by asking what else you can do for them.');
+  }
   if (HATE_AI.test(String(said || '').toLowerCase().replace(/[’‘]/g, "'"))) out.push('The caller just said they don\'t like talking to AI. Start with one short, dry, confident joke about being good at your job, in your own words (the idea: "Fair. Most of them are bad at this. I\'m annoyingly good at it."). Then answer what they asked. No apology, no thanks for sticking around, and never "test me" or "change your mind".');
   if (COMPLIMENT.test(String(said || '').toLowerCase())) out.push('The caller just paid you a compliment. Thank them in a few warm words and stop there: no question and no pitch in this reply.');
   // Brief 5 (Nov 5 call): "That's not what I asked" twice in a row, while Max restated his pitch. When the caller says
@@ -2739,7 +2813,10 @@ function leadKindEn(raw, orig) {
   if (has(UPSET)) return 'upset';
   // turning down what was offered, hard ("Monday? Absolutely not."): heard, never "Fair question."
   if (has(/\b(absolutely not|no way|unacceptable|not acceptable|ridiculous|not good enough|(call|calling|go to|going to|go with|find) (someone|somebody) else)\b/)) return 'upset';
-  // "Are you AI?" gets a straight, playful yes right away; "Are you a real person?" a straight no
+  // "Are you AI?" gets a straight, playful yes right away; "Are you a real person?" a straight no. Both at once ("Is this
+  // a real person or a robot?") gets the plain answer: "Yep." there sounded like "yes, a real person" and "Nope." answered
+  // nothing (Nov 21, 2026 practice calls: "Yep. I could sing for you, but you wouldn't like it." on every version).
+  if (isQ && has(/\b(are you|is this|is that|am i (talking|speaking)|you're|you are)\b/) && has(/\b(human|person|real)\b[^.?!]*\bor\b[^.?!]*\b(robot|bot|ai|a i|computer|machine|automated|recording)\b|\b(robot|bot|ai|a i|computer|machine|automated|recording)\b[^.?!]*\bor\b[^.?!]*\b(human|person|real)\b/)) return 'aieither';
   if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(robot|bot|ai|a i|si|s i|computer|machine|automated)\b/)) return 'isai';
   if (isQ && has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real |actual |live )?(human|person|recording)\b|\b(are you|is this) real\b/)) return 'ishuman';
   if (has(/\b(are you|is this|am i talking to|am i speaking (to|with)|you're|you are) (a |an )?(real )?(robot|bot|ai|human|person|computer|machine|recording|live person)\b|\b(real|live|actual) (person|human)\b|\b(talk|speak) (to|with) (a |an )?(human|person|someone real|somebody real)\b|\b(hate|can't stand|cannot stand|don't like|do not like) (talking to )?(robots?|bots?|ai|machines?|computers?|automated)\b/)) return isQ ? 'aiq' : 'aimad';
@@ -2806,8 +2883,9 @@ const ACK_MORE = {
   hi: ['hey', 'hi', 'hello', 'hey there', 'hi there', 'hello there', 'hola'],
   aimad: ['yeah'],
   // after "Guilty!" or "Nope, I'm the AI!", the AI saying it again is dropped (it already answered the question)
-  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'i\'m an si', 'i am an si', 'yes i\'m an si', 'i\'m an automated assistant', 'yes i\'m an automated assistant', 'yes i am', 'that\'s right', 'you got me'],
-  ishuman: ['nope', 'no', 'i\'m the ai', 'i\'m an ai', 'i am an ai', 'i\'m an si', 'i am an si', 'no i\'m an si', 'nope i\'m the ai', 'no i\'m an ai', 'no i\'m the ai', 'nope ai here', 'ai here', 'not a person', 'i\'m not a person'],
+  isai: ['guilty', 'yep guilty', 'guilty as charged', 'yes', 'yep', 'yeah', 'i am', 'i\'m an ai', 'i\'m the ai', 'i am an ai', 'yes i\'m an ai', 'yep i\'m an ai', 'i\'m an si', 'i am an si', 'yes i\'m an si', 'i\'m an automated assistant', 'yes i\'m an automated assistant', 'yes i am', 'that\'s right', 'you got me', 'yep automated assistant', 'automated assistant', 'an automated assistant'],
+  ishuman: ['nope', 'no', 'i\'m the ai', 'i\'m an ai', 'i am an ai', 'i\'m an si', 'i am an si', 'no i\'m an si', 'nope i\'m the ai', 'no i\'m an ai', 'no i\'m the ai', 'nope ai here', 'ai here', 'not a person', 'i\'m not a person', 'nope automated assistant', 'automated assistant', 'an automated assistant', 'i\'m an automated assistant'],
+  aieither: ['automated assistant not a person', 'an automated assistant not a person', 'i\'m an automated assistant', 'i\'m an automated assistant not a person', 'automated assistant', 'not a person', 'i\'m not a person'],
   sing: ['you asked for it', 'okay you asked for it', 'alright you asked for it', 'you got it'],
   nicetry: ['nice try', 'oh nice try', 'good try', 'ha nice try'],
   private: ['hmm', 'hmm okay', 'ah'],
@@ -2864,6 +2942,31 @@ export function interruptHitsNow(u, now, before, ms) {
   const inNow = !!key && cur.indexOf(key) > -1, inPrev = !!key && prev.indexOf(key) > -1;
   if (inNow !== inPrev) return inNow;
   return ms >= LATE_MS;
+}
+// What the caller heard of a reply sent as several utterances. Twilio's utteranceUntilInterrupt covers only the sentence it
+// was playing, so the sentences before that one were heard in full (Nov 21, 2026 golf call: "Sorry about that. Shoulder Tap
+// means..." played for 11 seconds, and the transcript and Max's own memory kept only "Outreach is on our top plan, where
+// I call a list of businesses you —"). Nothing heard, or no sentence it fits: just what Twilio said.
+export function heardOf(parts, u, lead) {
+  u = oneLine(u);
+  if (!u || !Array.isArray(parts) || parts.length < 2) return u;
+  const n = x => String(x || '').toLowerCase().replace(/[’‘]/g, '\'').replace(/[^a-z0-9áéíóúñü]+/g, '');
+  const key = n(u);
+  if (!key || (lead && n(lead).startsWith(key))) return u;   // still in the reaction: none of the answer was heard
+  const k = parts.findIndex(p => n(p).startsWith(key));
+  if (k <= 0) return u;
+  return (parts.slice(0, k).map(oneLine).join(' ') + ' ' + u).trim();
+}
+// What of a reply the caller never heard: the sentence it was cut in, from its start, and the ones after it. A "Hello?"
+// right after picks the reply up there (fixedReply), instead of a new answer that opens with an apology (Nov 21, 2026:
+// "Yep, I'm here." then "Sorry, I'm here. You're right, I undersold it." then "Sorry about that.").
+export function restOf(parts, u, lead) {
+  if (!Array.isArray(parts) || !parts.length) return '';
+  const n = x => String(x || '').toLowerCase().replace(/[’‘]/g, '\'').replace(/[^a-z0-9áéíóúñü]+/g, '');
+  const key = n(oneLine(u));
+  if (!key || (lead && n(lead).startsWith(key))) return parts.map(oneLine).join(' ');
+  const k = parts.findIndex(p => n(p).startsWith(key));
+  return k < 0 ? '' : parts.slice(k).map(oneLine).join(' ');
 }
 // What the caller actually heard of a reply they talked over.
 function cutText(lead, u, orig) {
@@ -2932,17 +3035,21 @@ const EN_COMMON = new Set('i im i\'m a an the need my is it to and you we have c
 export function spanishOpener(said) {
   const w = String(said || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-záéíóúñü\s]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!w) return false;
-  if (/\b(espa(ñ|n|ny)ol|espaniol|es pan yol|en espa)\b/.test(w) || /\b(speak|habla|hablas|abla) spaniel\b/.test(w)) return true;
+  if ((/\b(espa(ñ|n|ny)ol|espaniol|es pan yol|en espa)\b/.test(w) || /\b(speak|habla|hablas|abla) spaniel\b/.test(w)) && !englishSentence(w.split(' '))) return true;
   if (/\b(ne(s|c)e?s?s?ito|nay say toe|nessa seeto|necessito|por fa ?vor|pour fa ?vor|plo ?mero|quisiera|kiss era|me llamo|my ya mo|tengo una?|ten go una?)\b/.test(w)) return true;
   const m = w.match(/^(hola|ola|oh la|o la|allo|al[oó]|bueno|buenos|buenas|bwenas|bueno s|oiga|disculpe|perd[oó]n|se[ñn]or|se[ñn]ora|si se[ñn]or)\b/);
   if (!m) return false;
   const rest = w.slice(m[0].length).trim().split(' ').filter(Boolean);
   return rest.length <= 2 || rest.filter(x => EN_COMMON.has(x)).length < 2;
 }
+// A sentence that is plainly English: more than four words, three or more of them everyday English ones.
+function englishSentence(words) { return words.length > 4 && words.filter(x => EN_COMMON.has(x)).length >= 3; }
 export function looksSpanish(said) {
   const w = String(said || '').toLowerCase().replace(/[^a-záéíóúñü\s]/g, ' ').split(/\s+/).filter(Boolean);
   if (!w.length) return false;
-  if (w.includes('español') || w.includes('espanol')) return true;
+  // "Español" on its own (or with a few Spanish words) asks for Spanish. An English sentence about Spanish does not: "my crew
+  // speaks mostly espanol, can you talk to the customers in spanish" switched a whole call to Spanish (Nov 21, 2026).
+  if ((w.includes('español') || w.includes('espanol')) && !englishSentence(w)) return true;
   const hits = w.filter(x => ES_WORDS.has(x)).length;
   return hits >= 3 || (hits >= 2 && hits / w.length >= 0.34);
 }
@@ -3222,6 +3329,10 @@ export function sweepRetired(t, who) {
     .replace(/\boffer Katie or the audit\b/gi, 'offer the call back or the audit')
     .replace(/\bKatie,? from our team,?/g, who)
     .replace(/\bKatie\b/g, who)
+    // Nov 21, 2026: two numbers with nothing behind them, which every grader of the practice calls marked as made up. The
+    // selling point stays; the figures go.
+    .replace(/\bmost missed calls come after five, at lunch and on weekends\b/gi, 'calls keep coming after five, at lunch and on weekends')
+    .replace(/\ba part-time receptionist costs well over \$1,000 a month\b/gi, 'a part-time hire costs several times as much')
     .replace(/The greeting already said you[’']re an S\.I\.; never bring up S\.I\. or AI again yourself, and never say what S\.I\. stands for\./g, 'The greeting already said you\'re an automated assistant; never bring it up again yourself.')
     // any other "an S.I.": the same thing in plain words (the last dot of "S.I." is kept when it also ended the sentence)
     .replace(/\b(?:an? )?S\.I\.(?!\w)/g, (m, at, all) => 'an automated assistant' + (/^(\s+["“]?[A-Z]|\s*$)/.test(all.slice(at + m.length)) ? '.' : ''));
@@ -3233,7 +3344,7 @@ export async function syncOwnLine(env) {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
-    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Booking software other than Google Calendar|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
     const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next });
     for (const k of Object.keys(next)) if (typeof next[k] === 'string') next[k] = sweepRetired(next[k], PROMISES.support);
     if (JSON.stringify(next) === JSON.stringify(f)) return false;
