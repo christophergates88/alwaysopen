@@ -97,7 +97,7 @@ const E164 = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 // website lead does (a phone push, and an email the daily check turns into a Pipeline prospect), not a client's app.
 export const OWN_ID = 'always-open';
 import { callerMemory } from './past.js';
-import { guardOne, guardText, guardsOn, callState, GUARDS, sentencesOf, tagHide, tagShow } from './guards.js';
+import { guardOne, guardText, guardsOn, callState, GUARDS, sentencesOf, tagHide, tagShow, callbackOffers, auditState } from './guards.js';
 
 // ---------- HTTP: Twilio webhooks and the relay socket ----------
 export async function handleVoice(req, env, ctx, url) {
@@ -2672,6 +2672,13 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  // Always Open's own line: the call back offered twice and let pass. Nov 21, 2026 replay: the third came as "I just need
+  // the best number, and I've got the one you're calling from. Want him to use that one?", which no sentence check can
+  // tell from a real ask, so the model is told before it writes.
+  if (s.line && s.line.own) {
+    const cb = callbackOffers(s.msgs);
+    if (cb.offered >= 2 && !cb.taken) out.push('You have offered Chris\'s call back twice and they have not taken it. Do not offer it again' + (auditState(s.msgs).taken ? '' : ' or ask for their name or number') + ', unless they ask for a call.');
+  }
   // A wife, kids or family named while talking about the business ("my wife answers our phone", "my son does the books")
   // is business, not their own life: on Always Open's line that note turned a sales objection into "I'm just the phone
   // line here. What else can I do for you?" (Nov 21, 2026 practice calls). Max's own line is the live demo, so even a

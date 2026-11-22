@@ -37,7 +37,7 @@ test('Max’s own line is rewritten from facts.js when it drifts, and left alone
   assert.equal(await V.syncOwnLine({ DB: db }), true);
   const f = JSON.parse((await db.prepare("SELECT facts FROM voice_lines WHERE number = '+17064602226'").first()).facts);
   assert.equal(f.prices, F.ownLineFacts().prices);
-  assert.match(f.prices, /300 more minutes are \$59 a month, about 20 cents a minute/);
+  assert.match(f.prices, /300 minutes a month\. Past those, it is 25 cents a minute\. A client who often goes over can add 300 more minutes for \$59 a month \(about 20 cents a minute\)\./);
   assert.match(f.notes, /^Every plan, Starter included, has a booking and quote page/);
   assert.match(f.notes, /Email: hello@alwaysopenoffice\.com\.$/);
   assert.doesNotMatch(f.notes, /Growth adds booking/);

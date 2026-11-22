@@ -120,3 +120,28 @@ test('replay: the audit is texted when the call ends, not "within two business d
   assert.equal(swept, 'Chris can tell them about that on the callback. The free audit is a one-page report on how they look online; one asked for on a call is texted to them as soon as the call ends. Email: hello@alwaysopenoffice.com.');
   assert.equal(V.sweepRetired(swept), swept, 'once is enough');
 });
+
+// ---------- second replay, on the shipped fixes (Nov 21, 11:01 PM) ----------
+test('replay 2: Max is told review replies are on every plan, apart from Growth\'s review requests', async () => {
+  const F = await import('../src/facts.js');
+  const p = F.ownLineFacts().plans;
+  const a = p.indexOf('Every plan, Starter included, answers every Google review'), b = p.indexOf('Growth adds review requests after every job (asking each customer for a new review)');
+  assert.ok(a > 0 && b > a, 'replies on every plan, said just before what Growth adds');
+  assert.match(p, /^Every plan, Starter included, has a booking/);
+  // and the two minute rates are told apart
+  assert.match(F.ownLineFacts().prices, /Past those, it is 25 cents a minute\. A client who often goes over can add 300 more minutes/);
+});
+
+test('replay 2: after two offers of the call back that were let pass, the model is told to stop asking', () => {
+  const s = msgs => ({ line: { own: true, features: [], business: 'Always Open' }, msgs });
+  const twice = call('who runs it', 'Chris does. Want him to call you?', 'how long have yall been around', 'Chris can tell you on the callback. Want that?', 'can you just give me his cell');
+  assert.match(V.callerNotes(s(twice), twice.at(-1).t), /offered Chris's call back twice and they have not taken it\. Do not offer it again or ask for their name or number, unless they ask for a call\./);
+  const once = call('who runs it', 'Chris does. Want him to call you?', 'how long have yall been around');
+  assert.doesNotMatch(V.callerNotes(s(once), once.at(-1).t), /offered Chris's call back twice/);
+  const asked = twice.concat({ r: 'a', t: 'I keep his cell private.' }, { r: 'u', t: 'fine have him call me back' });
+  assert.doesNotMatch(V.callerNotes(s(asked), asked.at(-1).t), /offered Chris's call back twice/, 'they asked for it');
+  const audit = twice.concat({ r: 'a', t: 'I keep his cell private. Want a free audit of how you look on Google, by text?' }, { r: 'u', t: 'yeah send it' });
+  assert.match(V.callerNotes(s(audit), audit.at(-1).t), /Do not offer it again, unless they ask for a call\./, 'the number for the audit can still be confirmed');
+  // a business's own line: the call back is the job there
+  assert.doesNotMatch(V.callerNotes({ line: { own: false, features: [] }, msgs: twice }, twice.at(-1).t), /call back twice/);
+});
