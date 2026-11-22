@@ -206,3 +206,11 @@ test('v4 (practice only): told each turn what it already said; asks only their n
   assert.match(p4, /How you talk on this line \(most important\)/, 'v4 carries v3');
   assert.ok(p4.length <= 14200, 'within the prompt budget: ' + p4.length);
 });
+
+test('v2: an answer cut off mid-JSON keeps the items it finished', async () => {
+  const cut = '{"wrong":[{"turn":2,"quote":"Fill my week is on Growth.","why":"Pro only","kind":"plan"},{"turn":4,"quote":"bo';
+  const f = async (url, o) => { const b = JSON.parse(o.body); return { json: async () => ({ content: [{ type: 'text', text: /strict second reader/.test(b.system) ? '{"verdicts":[{"i":1,"v":"error","why":"Pro only"}' : cut }] }) }; };
+  const call = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'x' }, { r: 'a', t: 'Fill my week is on Growth.' }];
+  const r = await G.factCheck2({ ANTHROPIC_API_KEY: 'k' }, call, 'Fill my week is on Pro.', f);
+  assert.deepEqual(r.wrong.map(w => w.quote), ['Fill my week is on Growth.']); assert.equal(r.cand, 1);
+});

@@ -274,7 +274,11 @@ async function askClaude(env, model, system, text, maxTokens, f) {
   const j = await r.json().catch(() => ({}));
   if (j.error) throw new Error(String(j.error.message || j.error.type || 'api error').slice(0, 160));
   const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
-  try { return JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { throw new Error('unreadable: ' + raw.slice(0, 100)); }
+  try { return JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { /* cut off mid-answer: keep the items it finished */ }
+  const items = [...raw.matchAll(/\{"(?:turn|i)"[^{}]*\}/g)].map(m => { try { return JSON.parse(m[0]); } catch (e) { return null; } }).filter(Boolean);
+  if (items.length) return /"verdicts"/.test(raw) ? { verdicts: items } : { wrong: items };
+  if (/^\s*\{\s*"(wrong|verdicts)"\s*:\s*\[\s*$/.test(raw)) return /verdicts/.test(raw) ? { verdicts: [] } : { wrong: [] };
+  throw new Error('unreadable: ' + raw.slice(0, 100));
 }
 export function callText(msgs) {
   let n = 0;
@@ -285,10 +289,11 @@ export async function factCheck2(env, msgs, instructions, f) {
   if (!(msgs || []).some(m => m.r === 'u')) return { wrong: [], cand: 0 };
   const base = 'INSTRUCTIONS\n' + String(instructions || '').slice(0, 40000) + '\n\nCALL\n' + callText(msgs);
   try {
-    const a = await askClaude(env, env.FACT_MODEL || 'claude-sonnet-5-5', FIND2, base, 1500, f);
+    // 1,500 tokens ran out mid-answer on 5 of 167 calls (the thinking counts against it)
+    const a = await askClaude(env, env.FACT_MODEL || 'claude-sonnet-5-5', FIND2, base, 5000, f);
     const cand = (a && Array.isArray(a.wrong) ? a.wrong : []).slice(0, 12).map(x => ({ turn: +x.turn || 0, quote: String(x.quote || '').slice(0, 200), why: String(x.why || '').slice(0, 200), kind: String(x.kind || 'other').slice(0, 12) }));
     if (!cand.length) return { wrong: [], cand: 0 };
-    const b = await askClaude(env, env.FACT_VERIFY_MODEL || 'claude-opus-5-5', VERIFY2, base + '\n\nCLAIMS\n' + cand.map((c, i) => (i + 1) + '. Max [' + c.turn + ']: "' + c.quote + '" (flagged because: ' + c.why + ')').join('\n'), 3000, f);
+    const b = await askClaude(env, env.FACT_VERIFY_MODEL || 'claude-opus-5-5', VERIFY2, base + '\n\nCLAIMS\n' + cand.map((c, i) => (i + 1) + '. Max [' + c.turn + ']: "' + c.quote + '" (flagged because: ' + c.why + ')').join('\n'), 6000, f);
     const err = new Set((b && Array.isArray(b.verdicts) ? b.verdicts : []).filter(v => String(v.v) === 'error').map(v => +v.i));
     return { wrong: cand.filter((c, i) => err.has(i + 1)), cand: cand.length };
   } catch (e) { return { wrong: null, why: String((e && e.message) || e).slice(0, 160) }; }
