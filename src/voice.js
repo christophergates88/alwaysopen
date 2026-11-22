@@ -3369,9 +3369,34 @@ export async function syncOwnLine(env) {
 }
 
 const REHEARSE_ROOMS = 6;
+// A whole practice set from one row: kind 'rehearse-set', detail { set: '100', tag, features, facts, only: [ids] } plus
+// anything a request takes (number, caller, who, model, line). Split into requests of at most 8 calls and 78 turns.
+export async function expandSets(env) {
+  let row = null;
+  try { row = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-set-done' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-set' ORDER BY at LIMIT 1) AND kind = 'rehearse-set' RETURNING detail").first(); } catch (e) { return 0; }
+  if (!row) return 0;
+  const j = parse(row.detail) || {};
+  if (String(j.set) !== '100') return 0;
+  const { CALLS100 } = await import('./calls100.js');
+  const only = Array.isArray(j.only) ? new Set(j.only.map(String)) : null;
+  const groups = [[]]; let n = 0;
+  for (const c of CALLS100.filter(x => !only || only.has(x.id))) {
+    if (groups.at(-1).length === 8 || n + c.turns.length > 78) { groups.push([]); n = 0; }
+    groups.at(-1).push(c); n += c.turns.length;
+  }
+  const base = Object.assign({ number: OWN_NUMBER_100, caller: '+14045550187', who: 'Chris' }, j); delete base.set; delete base.only;
+  let k = 0;
+  for (const g of groups.filter(x => x.length)) {
+    k++;
+    await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'rehearse-request', ?2)").bind(new Date(Date.now() + k).toISOString(), JSON.stringify(Object.assign({}, base, { tag: String(j.tag || 'set').slice(0, 36) + '-' + k, calls: g }))).run();
+  }
+  return k;
+}
+const OWN_NUMBER_100 = '+17064602226';
 export async function voiceCron(env) {
   await claudeCheck(env);
   await syncOwnLine(env);
+  await expandSets(env).catch(() => 0);
   // Timers can run in any of Cloudflare's locations, and Claude refuses requests from some regions. Rehearsals run in a
   // room kept in the eastern US, like the calls themselves (Twilio connects from there).
   // Six rooms side by side (Nov 4, 2026: one room took about 3 minutes a request, so 80 queued requests took hours).
