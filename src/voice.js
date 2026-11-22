@@ -1396,12 +1396,16 @@ export function earlierCall(prev, now) {
 }
 
 // What a real call got wrong, for Christopher (FACTCHECK_LIVE): the fact check's findings and a call back offered past twice.
-export async function liveSlips(env, msgs, L, f) {
-  const fc = await factCheck(env, msgs, L || {}, f).catch(() => ({ wrong: null }));
+// Checker v2.1 against an answer key of 200 practice calls (Nov 22, 2026): its price, plan, timing and "I'm checking with
+// Chris right now" flags were real 15 times in 16; the rest were real about half the time. Those four kinds are texted;
+// every flag is kept in the call's grade either way.
+const TEXT_KINDS = new Set(['price', 'plan', 'timing', 'action']);
+export async function liveSlips(env, msgs, L, f, instructions) {
+  const fc = await factCheck2(env, msgs, instructions || systemPrompt(L || {}, '', 'en-US', false), f).catch(() => ({ wrong: null }));
   const cb = callbackOffers(msgs);
-  const slips = (fc.wrong || []).slice(0, 3).map(w => '"' + w.quote + '" (' + w.why + ')');
+  const slips = (fc.wrong || []).filter(w => TEXT_KINDS.has(w.kind)).slice(0, 3).map(w => '"' + w.quote + '" (' + w.why + ')');
   if (cb.offered > 2) slips.push('offered the call back ' + cb.offered + ' times');
-  return { slips, facts: fc.wrong ? fc.wrong.length : -1 };
+  return { slips, facts: fc.wrong ? fc.wrong.length : -1, all: fc.wrong || [] };
 }
 async function writeUp(env, sid, s, why) {
   const call = SID_RE.test(sid) ? await env.DB.prepare('SELECT * FROM app_calls WHERE id = ?1').bind(sid).first() : null;
@@ -3399,7 +3403,8 @@ async function rehearseOne(env) {
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
     // asked for with "facts": true on the request: every reply read against what the line was told (grades.js factCheck)
-    const fc = j.facts === true ? await factCheck(env, msgs, L).catch(() => ({ wrong: null })) : null;
+    // v2.1 (Nov 22, 2026): the exact instructions Max had, a second skeptical read; facts: 1 still asks for the first checker
+    const fc = j.facts === true ? await factCheck2(env, msgs, systemPrompt(L, String(j.caller || ''), 'en-US', false)).catch(() => ({ wrong: null })) : j.facts === 1 ? await factCheck(env, msgs, L).catch(() => ({ wrong: null })) : null;
     await vlog(env, 'rehearse', JSON.stringify({ facts: fc ? fc.wrong : undefined, factsWhy: fc && fc.wrong == null ? fc.why : undefined, cb: L.own ? callbackOffers(msgs).offered : undefined, model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
   }
   return true;
