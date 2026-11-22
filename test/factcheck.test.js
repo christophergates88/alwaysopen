@@ -14,7 +14,7 @@ test('factCheck sends the facts and the call, and returns what the checker found
   const seen = [];
   const r = await G.factCheck(env, msgs, L, fake('{"wrong":[{"turn":1,"quote":"On the Growth plan, every Google review gets a reply.","why":"Every plan answers reviews."}]}', seen));
   assert.deepEqual(r.wrong, [{ turn: 1, quote: 'On the Growth plan, every Google review gets a reply.', why: 'Every plan answers reviews.' }]);
-  assert.match(seen[0].messages[0].content, /^FACTS\nBUSINESS: Always Open\nPRICES: Starter is \$149 a month\.\nNOTES: Every plan answers every Google review\.\n\nCALL\nMax: Hi\.\nCaller: which plan/);
+  assert.match(seen[0].messages[0].content, /^FACTS\nBUSINESS: Always Open\nPRICES: Starter is \$149 a month\.\nNOTES: Every plan answers every Google review\.\nRULES MAX FOLLOWS[^\n]*\n\nCALL\nMax: Hi\.\nCaller: which plan/);
   assert.match(seen[0].system, /wrong plan IS wrong/);
 });
 
@@ -58,4 +58,36 @@ test('factCheck asks Sonnet with the lowest thinking it accepts, and says why wh
   assert.equal(seen[0].model, 'claude-sonnet-5-5');
   const r = await G.factCheck(env, msgs, L, async () => ({ json: async () => ({ type: 'error', error: { type: 'invalid_request_error', message: 'thinking.type: disabled is not supported' } }) }));
   assert.equal(r.wrong, null); assert.match(r.why, /disabled is not supported/);
+});
+
+test('two packs queued together run side by side: their requests alternate', async () => {
+  const V = await import('../src/voice.js');
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const db = makeDB();
+  for (const [at, tag] of [['2026-11-22T06:00:00Z', 'base'], ['2026-11-22T06:00:01Z', 'v3']]) await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'rehearse-pack', ?2)").bind(at, JSON.stringify({ set: '100', tag, features: tag === 'v3' ? ['tap', 'v3'] : ['tap'] })).run();
+  await V.expandSets({ DB: db });
+  const tags = (await db.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at").all()).results.map(r => JSON.parse(r.detail).tag);
+  assert.deepEqual(tags.slice(0, 4), ['base-1', 'v3-1', 'base-2', 'v3-2']);
+  assert.equal(tags.length % 2, 0);
+});
+
+test('v3 (practice only): stock closers are cut after a real answer, stock reactions turn plain, replies are a little shorter', async () => {
+  const V = await import('../src/voice.js');
+  const G = await import('../src/guards.js');
+  const L = f => ({ business: 'Always Open', own: true, features: f, prices: 'Starter is $149 a month.' });
+  const msgs = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'i run a salon, can you put people in vagaro' }];
+  const ctx = f => V.guardCtx(L(f), msgs, msgs[1].t, {});
+  const raw = 'No, Vagaro does not connect to me. I take the time they want and text you to check it while they wait. Does that sound like your day?';
+  assert.match(G.guardText(raw, ctx(['tap'])).text, /Does that sound like your day\?/, 'the live version is unchanged');
+  assert.doesNotMatch(G.guardText(raw, ctx(['tap', 'v3', 'g-closer'])).text, /Does that sound/);
+  for (const q of ['Make sense?', 'Want to hear how that works on a busy Saturday?', 'Which part do you want more on?', 'Anything else on your list?', 'Would that work for your front desk?'])
+    assert.equal(G.guardText('I answer every call, day or night. ' + q, ctx(['tap', 'v3', 'g-closer'])).text.trim(), 'I answer every call, day or night.', q);
+  for (const q of ['What kind of business do you run?', 'What\'s your name?', 'Is four zero four, five five five, zero one eight seven the best number?', 'Does your tee sheet run your bookings?'])
+    assert.match(G.guardText('I answer every call, day or night. ' + q, ctx(['tap', 'v3', 'g-closer'])).text, new RegExp(q.replace(/[?.]/g, '\\$&')), q);
+  assert.equal(G.guardText('Does that make sense?', ctx(['tap', 'v3', 'g-closer'])).text, 'Does that make sense?', 'a reply that is only the question stays');
+  // reactions
+  const lead = { kind: 'wh', text: 'Good question.' };
+  const two = [{ r: 'u', t: 'hi' }, { r: 'a', t: 'Hi.' }, { r: 'u', t: 'so tell me what the deal is with the plans and everything because i read the site and it is a lot to take in honestly' }];
+  assert.equal(V.trimLead(lead, L(['tap', 'v3']), two, []).text, 'Okay.');
+  assert.equal(V.trimLead(lead, L(['tap']), two, []).text, 'Good question.', 'live unchanged');
 });

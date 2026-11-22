@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback', 'g-closer'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -282,8 +282,8 @@ function shortReply(s, ctx) {
   // a short opener ("Fair pushback.", "Yep.") is not one of the two: on Nov 5 it cut the actual answer after it
   const before = sentencesOf(ctx.spoken || '').filter(x => !isQ(x) && words(x) > 3).length, w = words(ctx.spoken || '');
   if (!before) return false;
-  const how = HOWQ.test(lc(ctx.said));
-  return before >= ((ctx.urgent || ctx.danger || how) ? 3 : 2) || w + words(s) > (how ? 55 : 40);
+  const how = HOWQ.test(lc(ctx.said)), v3 = !!(ctx.L && Array.isArray(ctx.L.features) && ctx.L.features.includes('v3'));
+  return before >= ((ctx.urgent || ctx.danger || how) ? 3 : 2) || w + words(s) > (how ? (v3 ? 46 : 55) : (v3 ? 34 : 40));
 }
 
 // Brief 5 (Nov 5, 2026 call): canned comebacks that tell a caller they are talking to a script ("Give me a minute to
@@ -291,7 +291,15 @@ function shortReply(s, ctx) {
 // out yet"). Max says he is an automated assistant when asked and gets back to the question; he never remarks on his own voice.
 const CANNED = /\b(change your mind|(you're|you are) testing me|testing me\b|sharp ear|nice try|guilty|(can't|cannot) (fully )?smooth|(my|the) voice (is|isn't|sounds|part)|i'd rather you hear it|test me|put me to the test|outside (of )?my lane|outside what i can help with|sounds interesting, though)\b|^\s*ha[,.!]/i;
 function cannedLine(sentence) { return CANNED.test(lc(sentence)); }
-const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+// v3: a stock closing question after a real answer ("Does that sound like your day?", "Make sense?", "Want to hear how that
+// works?", "Which part do you want more on?"). The answer stands on its own and the caller talks next. A question that moves
+// the call on (their name, their business, a time) is not one of these.
+const CLOSER = /^\W*(so,?\s+|now,?\s+|and\s+)?((does|do|would|did) (that|this|it|any of that|all that) (sound|make sense|fit|help|cover|work|answer|seem|clear)|makes? sense|sound good|how does (that|this) sound|(want|would you like|wanna|do you want) (me )?to (hear|know|walk|go (over|through)|see|show|try|dig|get into)|want (the rest|more|to hear more)|which (part|one|piece)( of (that|those))? (do you want|would you like|should i|sounds|matters)|(is there )?anything (else|more)|what else|(any )?other questions|is that (helpful|what you (meant|needed))|that help)\b[^?]*\?\W*$/i;
+function stockCloser(s, ctx) {
+  if (!isQ(s) || !CLOSER.test(String(s).trim())) return false;
+  return sentencesOf(ctx.spoken || '').some(x => !isQ(x) && words(x) >= 4);
+}
+const ORDER = [['g-canned', cannedLine], ['g-closer', stockCloser], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it

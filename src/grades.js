@@ -229,9 +229,12 @@ const FACT_RUBRIC = 'You audit a phone assistant named Max for factual accuracy.
   'Do NOT flag: opinions, warmth, jokes, examples that only illustrate a supported feature in the caller\'s trade, things the caller said, questions, Max saying he does not know or that someone will call back, rounding a price to words, or a correct fact phrased differently. ' +
   'A feature placed on the wrong plan IS wrong. Saying something cannot be done when FACTS says it can IS wrong, and the reverse. ' +
   'Return ONLY JSON: {"wrong":[{"turn":<1-based index of Max\'s reply among his replies>,"quote":"<his exact words, under 25 words>","why":"<what FACTS says, under 25 words>"}]}. An accurate call returns {"wrong":[]}.';
+// What Max is built to do, true on every line (his instructions and the call code), so the checker does not flag it: the
+// first 100-call check flagged about 20 of these as unsupported.
+const MAX_RULES = 'RULES MAX FOLLOWS (true; do not flag them): he never takes card numbers, Social Security numbers, birth dates, passwords or health details, and stops a caller who starts to give one; anyone hurt or in danger is told to call 911, and a short safety step (shut the water off, get outside) is fine; every call gets its own line, so many callers at once are all answered, with no busy signal; calls are never cut off when minutes run out; only Google reviews are answered (not Yelp or Facebook); a call back goes to the number they are calling from unless they give another; he is an automated assistant and says so when asked.';
 export function factsText(L) {
   const keys = ['business', 'town', 'industry', 'hours', 'area', 'services', 'prices', 'booking', 'next', 'urgent', 'intake', 'notes', 'owner'];
-  return keys.filter(k => L && L[k] && typeof L[k] === 'string').map(k => k.toUpperCase() + ': ' + L[k]).join('\n').slice(0, 24000) + (L && L.regulated ? '\nREGULATED OFFICE: messages only, no booking, no advice.' : '');
+  return keys.filter(k => L && L[k] && typeof L[k] === 'string').map(k => k.toUpperCase() + ': ' + L[k]).join('\n').slice(0, 24000) + (L && L.regulated ? '\nREGULATED OFFICE: messages only, no booking, no advice.' : '') + '\n' + MAX_RULES;
 }
 const FACT_MODEL = env => env.FACT_MODEL || 'claude-sonnet-5-5';
 export async function factCheck(env, msgs, L, f) {

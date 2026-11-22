@@ -1641,7 +1641,13 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', ...GUARDS];
+// ---------- v3 (Nov 22, 2026): practice-only until it beats the live version on the 100-call set ----------
+// The sounds-human grader marks down generic lines and scripted-sounding ones. The live version ended answers with
+// "Does that sound like your day?", opened them with "Good question.", and said "no setup fee, no contract" again and again.
+export const V3 = L => !!(L && Array.isArray(L.features) && L.features.includes('v3'));
+const STOCK_LEADS = new Set(['Good question.', 'Fair question.', 'Okay, so.', 'Okay, nice.', 'Good point.', 'Fair point.', 'Sure thing.']);
+
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
 // g-safety: fired once in 42 calls (smoke call), correctly; narrowed after round 2 so the name is still taken once safe.
 // g-town: one cut in 42, correct ("¿Eso es en Eatonton?"). g-once, g-promise: no cut in 42 after their fixes; their one
@@ -1667,6 +1673,8 @@ export function trimLead(lead, L, msgs, used) {
   if (P6(L)) return lead6(lead, used || [], ASKED.test(lastT), long);
   // live for every call since Nov 5: won its blind test 25 to 17, human 5.7 vs 5.5, tells 16 vs 21
   if (!lead) return lead;
+  // v3: a stock reaction ("Good question.") is said as a plain one, or not at all after the first answer
+  if (V3(L) && STOCK_LEADS.has(lead.text)) lead = Object.assign({}, lead, { text: 'Okay.' });
   // Nov 6 test calls (three testers): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
   // "Got it. Alright.", "Mm-hm.") on every reply and asked why Max talks like that. Only the first answer gets one now.
   return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) && !long ? null : lead;
@@ -3372,9 +3380,17 @@ const REHEARSE_ROOMS = 6;
 // A whole practice set from one row: kind 'rehearse-pack' (not 'rehearse-set': that is the saved list of real calls to replay, grades.js), detail { set: '100', tag, features, facts, only: [ids] } plus
 // anything a request takes (number, caller, who, model, line). Split into requests of at most 8 calls and 78 turns.
 export async function expandSets(env) {
+  // up to four packs at once; request k of pack p is queued at t0 + 10k + p ms, so packs queued together (the live version and
+  // a candidate) run side by side, in the same minutes, and a slow minute for the model hits both alike
+  const t0 = Date.now();
+  let total = 0;
+  for (let p = 0; p < 4; p++) { const n = await expandOne(env, t0, p); if (n < 0) break; total += n; }
+  return total;
+}
+async function expandOne(env, t0, p) {
   let row = null;
-  try { row = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-pack-done' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-pack' ORDER BY at LIMIT 1) AND kind = 'rehearse-pack' RETURNING detail").first(); } catch (e) { return 0; }
-  if (!row) return 0;
+  try { row = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-pack-done' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-pack' ORDER BY at LIMIT 1) AND kind = 'rehearse-pack' RETURNING detail").first(); } catch (e) { return -1; }
+  if (!row) return -1;
   const j = parse(row.detail) || {};
   if (String(j.set) !== '100') return 0;
   const { CALLS100 } = await import('./calls100.js');
@@ -3388,7 +3404,7 @@ export async function expandSets(env) {
   let k = 0;
   for (const g of groups.filter(x => x.length)) {
     k++;
-    await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'rehearse-request', ?2)").bind(new Date(Date.now() + k).toISOString(), JSON.stringify(Object.assign({}, base, { tag: String(j.tag || 'set').slice(0, 36) + '-' + k, calls: g }))).run();
+    await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'rehearse-request', ?2)").bind(new Date(t0 + 10 * k + p).toISOString(), JSON.stringify(Object.assign({}, base, { tag: String(j.tag || 'set').slice(0, 36) + '-' + k, calls: g }))).run();
   }
   return k;
 }

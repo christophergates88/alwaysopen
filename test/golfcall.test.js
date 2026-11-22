@@ -26,7 +26,7 @@ test('Max is told what the site sells: booking on the call, the three-day check-
   assert.match(f.plans, /Every plan, Starter included, has Shoulder Tap, except at insurance, medical and legal offices\./, 'every plan: a practice call put it on Growth and Pro');
   assert.match(f.services, /^Day to day:/);
   assert.match(f.services, /books the visit on the owner's calendar right on the call/);
-  assert.match(f.services, /never say it can't; say Chris can go over it on the callback/);
+  assert.match(f.services, /never say it can't and never say yes: say Chris can go over it on the callback/);
   assert.match(f.services, /Never stop at taking messages/);
   // the site sells each of these, so Max saying them is not a new promise
   const site = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -252,7 +252,7 @@ test('Max knows reviews are never removed, Spanish costs nothing extra, which pl
   assert.match(f.services, /Reviews are never removed or hidden by us/);
   assert.match(f.services, /Every plan answers callers in English and Spanish at no extra cost/);
   assert.match(f.services, /say which plan it is on/);
-  assert.match(f.services, /checking with Chris mid-call is only for what just Chris can answer for this caller/);
+  assert.match(f.services, /check with Chris mid-call only when the caller wants a time for him to call them; never for a discount, a deal, their account or how soon they can start/);
   assert.match(f.services, /every call is still answered day or night, the message is on their phone right away \(an 8 p\.m\. call about a fender bender is on the agent's phone before bed, not in voicemail\), and every review reply is checked by Compliance Guard/);
   assert.match(f.services, /Once they give a name and number for a call back, say in that same reply that Chris will call them within one business day/);
   assert.match(f.plans, /Storm Desk \(when the National Weather Service issues a warning for their county, a storm-day post is drafted for them to approve\)/);
