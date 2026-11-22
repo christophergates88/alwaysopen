@@ -20,6 +20,7 @@ test('the Mac’s Gates HQ routes pass, with this worker’s own key added here'
   assert.equal(plain.status, 403, 'from the internet the route still wants the key');
   const r = await ep.fetch(req('/ops/hq-text-queue'));
   assert.equal(r.status, 200);
+  assert.equal(r.headers.get('x-ao-hqmac'), 'yes', 'the router answered');
   const j = await r.json();
   assert.equal(j.ok, true);
   assert.ok(Array.isArray(j.out));
@@ -37,6 +38,7 @@ test('nothing else gets through: not the business routes, not the Gates HQ route
   for (const p of ['/ops/push-queue', '/ops/clients', '/ops/hq-sense', '/ops/hq-code', '/ops/hq-rehearse', '/ops/text-test', '/ops/hq-plans/x', '/ops/busy', '/']) {
     const r = await ep.fetch(req(p, { method: 'POST', body: '{}' }));
     assert.equal(r.status, 404, p);
+    assert.equal(r.headers.get('x-ao-hqmac'), 'no', p + ': turned away here, nothing done');
   }
   const big = await ep.fetch(req('/ops/hq-plans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: 'x'.repeat(400001) }));
   assert.equal(big.status, 413);
