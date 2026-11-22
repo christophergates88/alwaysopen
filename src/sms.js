@@ -31,7 +31,7 @@ export function keywordOf(body) {
   return START_WORDS.has(w) ? 'start' : (HELP_WORDS.has(w) ? 'help' : '');
 }
 // Kinds that answer something the customer just did may go out at any hour; the rest wait for daytime.
-const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops', 'tap']);   // 'ops': only ever to Christopher; push.js decides the hour. 'tap': only ever to an owner, about a call live right now (tap.js decides the hour)
+const ANYTIME = new Set(['reply', 'test', 'textback', 'confirm', 'booking', 'onway', 'ops', 'tap', 'consent']);   // 'consent': the one text a customer asks for when they sign up (consent.js)   // 'ops': only ever to Christopher; push.js decides the hour. 'tap': only ever to an owner, about a call live right now (tap.js decides the hour)
 const TEXTS_PER_CLIENT_HOUR = 60, TEXTS_PER_HOUR = 400;   // answers to someone who just called or texted, and "on the way" (the owner is literally driving there)
 const TEXTS_PER_CLIENT_DAY = 200;   // automatic texts for one business in a day, whatever starts them
 
@@ -228,6 +228,7 @@ export async function handleSms(req, env, form, sigOk) {
   if (key === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO sms_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, from10, now).run();
     await env.DB.prepare('UPDATE biz_customers SET optout = 1, agreed = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
+    try { await (await import('./consent.js')).endConsent(env, cid, from10, 'STOP'); } catch (e) { /* the opt-out above is what counts */ }
     mark = 'Opted out of texts';
   } else if (key === 'start') {
     await env.DB.prepare('DELETE FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).run();
@@ -238,9 +239,16 @@ export async function handleSms(req, env, form, sigOk) {
     reply = '<Message>This is the text line for ' + biz + '. Reply STOP to end texts. Call the business for anything else.</Message>';
     mark = 'Answered automatically';
   }
+  // JOIN starts a sign-up for this business's texts, and YES to a sign-up text confirms it (consent.js). Only for a
+  // business whose own texting is registered: before that its answers can't reach anyone.
+  let signed = null;
+  if (!key && cid !== OWN && await senderFor(env, cid).catch(() => null)) {
+    try { signed = await (await import('./consent.js')).consentFromText(env, cid, from10, body, line.business, msgSid); } catch (e) { signed = null; }
+    if (signed) { mark = signed.mark; if (signed.reply) reply = '<Message>' + signed.reply.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</Message>'; }
+  }
   // A YES to a Fill my week offer books the time (fillweek.js pushes the owner); the text still lands in the inbox.
   let filled = null;
-  if (!key) { try { filled = await (await import('./fillweek.js')).onReply(env, cid, from10, body); } catch (e) { filled = null; } }
+  if (!key && !signed) { try { filled = await (await import('./fillweek.js')).onReply(env, cid, from10, body); } catch (e) { filled = null; } }
   const cu = await env.DB.prepare('SELECT name FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 LIMIT 1').bind(cid, from10).first().catch(() => null);
   const name = (cu && cu.name) || '';
   const sid = String(form.get('MessageSid') || '');
@@ -261,7 +269,7 @@ export async function handleSms(req, env, form, sigOk) {
     try { const ans = await (await import('./timecard.js')).timecardReply(env, OWN, body); if (ans) return xml('<Message>' + ans.replace(/[<&>]/g, '') + '</Message>'); } catch (e) { /* falls through */ }
   }
   if (cid === OWN && !key) { try { const app = await import('./app.js'); if (await (await import('./ourreviews.js')).onReply(env, from10, body, (t, b, pr, tag) => app.opsPing(env, t, b, pr, tag))) return xml(); } catch (e) { /* falls through to the inbox push */ } }
-  const said = key === 'stop' ? '“' + body + '”: they won’t get texts from you any more. Call them if you need to reach them.' : (key === 'start' ? '“' + body + '”: they’re back on texts from you.' : body);
+  const said = key === 'stop' ? '“' + body + '”: they won’t get texts from you any more. Call them if you need to reach them.' : (key === 'start' ? '“' + body + '”: they’re back on texts from you.' : (signed ? '“' + body + '”: ' + signed.note : body));
   const { pushClient } = await import('./app.js').catch(() => ({ pushClient: async () => {} }));
   await pushClient(env, cid, { aps: { alert: { title: 'Text from ' + who, body: said.slice(0, 200) }, sound: 'default', 'thread-id': 'inbox' }, screen: 'inbox' }).catch(() => {});
   return xml(reply);

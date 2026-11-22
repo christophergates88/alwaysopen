@@ -76,6 +76,12 @@ async function serve(req, env, ctx) {
       let proof = ''; try { const A = await import('./answerrate.js'); proof = A.networkLine(await A.networkCached(env)); } catch (e) { proof = ''; }
       return withSiteHeaders(new Response(samplePage(proof), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } }), url);
     }
+    if (path === '/ok' || path.startsWith('/ok/')) {
+      // A business's customers sign up for its texts themselves, in writing (consent.js; Nov 22, 2026).
+      const { handleSignup } = await import('./consent.js');
+      const r = await handleSignup(req, env, url);
+      return /^text\/html/.test(r.headers.get('content-type') || '') ? withSiteHeaders(r, url) : r;
+    }
     if (path === '/health') {
       const k = req.headers.get('x-key') || '';
       if (k && env.LEADS_KEY && await sameKey(k, env.LEADS_KEY)) return json(await healthDetail(env), 200);

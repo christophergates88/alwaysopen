@@ -63,10 +63,13 @@ function listSheet(){
   sheet('<h2>Past customers</h2><p class="fine">Loading…</p>');
   post('import',{action:'list',q:PSEARCH}).then(function(r){
     var j=r.j;if(!j.ok){toast(j.error||'Could not load.');close();return;}
-    var h='<h2>Past customers</h2><p class="note" style="margin:0">'+j.total+' customers · '+j.agreed+' marked OK to contact</p><label>Search<input type="search" id="pc-q" value="'+esc(PSEARCH)+'" maxlength="40" placeholder="Name, phone or email"></label>';
+    var su=j.signup||{};
+    var h='<h2>Past customers</h2><p class="note" style="margin:0">'+j.total+' customers · '+j.agreed+' marked OK to contact</p>'+
+      (su.ready&&su.url?'<p class="fine">Customers can sign up for your texts themselves, in writing: <a href="'+esc(su.url)+'" target="_blank" rel="noopener">'+esc(su.url.replace(/^https:\/\//,''))+'</a> · <a href="'+esc(su.url)+'/qr.svg" target="_blank" rel="noopener">QR code to print</a>'+(su.self?' · '+su.self+' signed up themselves':'')+'</p>':'')+
+      '<label>Search<input type="search" id="pc-q" value="'+esc(PSEARCH)+'" maxlength="40" placeholder="Name, phone or email"></label>';
     h+='<div class="list">'+j.customers.map(function(c){
       return '<article class="card"><b>'+esc(c.name||'(no name)')+'</b><p class="note" style="margin:2px 0">'+esc(c.phone||'')+(c.phone&&c.email?' · ':'')+esc(c.email||'')+'</p><div class="acts">'+
-        (c.optout?'<span class="tag">Asked us to stop</span>':'<button class="btn '+(c.agreed?'ok':'line')+' sm" type="button" data-a="pc-ok" data-id="'+c.id+'" data-s="'+(c.agreed?'0':'1')+'">'+(c.agreed?'OK to contact ✓':'Mark OK to contact')+'</button>')+
+        (c.optout?'<span class="tag">Asked us to stop</span>':(c.self?'<span class="tag">Signed up themselves</span>':'')+'<button class="btn '+(c.agreed?'ok':'line')+' sm" type="button" data-a="pc-ok" data-id="'+c.id+'" data-s="'+(c.agreed?'0':'1')+'">'+(c.agreed?'OK to contact ✓':'Mark OK to contact')+'</button>')+
         '<button class="btn ghost sm" type="button" data-a="pc-forget" data-id="'+c.id+'">Remove</button></div></article>';}).join('')+'</div>';
     if(j.total>j.customers.length)h+='<p class="fine">Showing the first '+j.customers.length+'. Search to find someone.</p>';
     h+='<div class="acts" style="margin-top:8px"><button class="btn ghost sm" type="button" data-a="pc-wipe">Remove all imported customers</button><button class="btn ghost sm" type="button" data-close="1">Close</button></div>';
