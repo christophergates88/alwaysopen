@@ -255,6 +255,45 @@ export async function factCheck(env, msgs, L, f) {
   } catch (e) { return { wrong: null, why: 'failed: ' + String((e && e.message) || e).slice(0, 120) }; }
 }
 
+// ---------- fact check v2 (Nov 22, 2026) ----------
+// The first checker read only the line's facts, flagged about 60 statements per 100 calls, and on review about 6 in 10
+// were not errors: Max's own rules (no card numbers, 911), true things the facts don't spell out, examples in the caller's
+// trade. v2 reads the exact instructions Max had on the call, and a second, skeptical read keeps only real errors.
+const FIND2 = 'You check what Max, an automated phone assistant, told a caller, against INSTRUCTIONS: the exact instructions Max had on this call (his facts and his rules). ' +
+  'List only statements by Max that would leave the caller believing something false: a wrong price or plan, a feature put on the wrong plan, saying something can be done that INSTRUCTIONS say cannot (or the reverse), a wrong time promise, an invented feature, policy or promise, or claiming an action that did not happen (for example "I am checking with Chris right now" when he cannot be). ' +
+  'Not errors: anything INSTRUCTIONS state, support or allow (his rules included), a supported feature illustrated with an example from the caller\'s trade, paraphrase, rounding, small talk, jokes, opinions, deferring to Chris, and harmless details consistent with INSTRUCTIONS. When unsure, leave it out. ' +
+  'Max\'s replies are numbered. Return ONLY JSON: {"wrong":[{"turn":<Max reply number>,"quote":"<his exact words, under 25 words>","why":"<what INSTRUCTIONS say, under 25 words>","kind":"price|plan|feature|policy|timing|promise|action|other"}]}. An accurate call returns {"wrong":[]}.';
+const VERIFY2 = 'You are a strict second reader of a fact check on a phone call. For each numbered CLAIM, read Max\'s words in the CALL and the INSTRUCTIONS he had. ' +
+  'Answer "error" only if INSTRUCTIONS clearly contradict what he said, or he invented a price, plan, feature, policy, time promise or action that would mislead the caller. Answer "ok" if INSTRUCTIONS state it, support it or allow it, or it is a paraphrase, an example, a deferral or harmless. ' +
+  'Return ONLY JSON: {"verdicts":[{"i":<claim number>,"v":"error|ok","why":"<under 20 words>"}]}.';
+async function askClaude(env, model, system, text, maxTokens, f) {
+  const thinking = /haiku/.test(model) ? { thinking: { type: 'disabled' } } : /sonnet/.test(model) ? { thinking: { type: 'between_tools' } } : {};
+  const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
+    headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
+    body: JSON.stringify(Object.assign({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: text }] }, thinking)) });
+  const j = await r.json().catch(() => ({}));
+  if (j.error) throw new Error(String(j.error.message || j.error.type || 'api error').slice(0, 160));
+  const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
+  try { return JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { throw new Error('unreadable: ' + raw.slice(0, 100)); }
+}
+export function callText(msgs) {
+  let n = 0;
+  return (msgs || []).slice(0, 60).map(m => m.r === 'u' ? 'Caller: ' + String(m.t || '').slice(0, 700) : 'Max [' + (++n) + ']: ' + String(m.t || '').slice(0, 700)).join('\n');
+}
+export async function factCheck2(env, msgs, instructions, f) {
+  if (!env.ANTHROPIC_API_KEY) return { wrong: null, why: 'no key' };
+  if (!(msgs || []).some(m => m.r === 'u')) return { wrong: [], cand: 0 };
+  const base = 'INSTRUCTIONS\n' + String(instructions || '').slice(0, 40000) + '\n\nCALL\n' + callText(msgs);
+  try {
+    const a = await askClaude(env, env.FACT_MODEL || 'claude-sonnet-5-5', FIND2, base, 1500, f);
+    const cand = (a && Array.isArray(a.wrong) ? a.wrong : []).slice(0, 12).map(x => ({ turn: +x.turn || 0, quote: String(x.quote || '').slice(0, 200), why: String(x.why || '').slice(0, 200), kind: String(x.kind || 'other').slice(0, 12) }));
+    if (!cand.length) return { wrong: [], cand: 0 };
+    const b = await askClaude(env, env.FACT_VERIFY_MODEL || 'claude-opus-5-5', VERIFY2, base + '\n\nCLAIMS\n' + cand.map((c, i) => (i + 1) + '. Max [' + c.turn + ']: "' + c.quote + '" (flagged because: ' + c.why + ')').join('\n'), 3000, f);
+    const err = new Set((b && Array.isArray(b.verdicts) ? b.verdicts : []).filter(v => String(v.v) === 'error').map(v => +v.i));
+    return { wrong: cand.filter((c, i) => err.has(i + 1)), cand: cand.length };
+  } catch (e) { return { wrong: null, why: String((e && e.message) || e).slice(0, 160) }; }
+}
+
 // The failures worth turning into a rehearsal.
 export function failuresOf(g) {
   if (g.spam || g.turns < 2) return [];

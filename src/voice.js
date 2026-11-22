@@ -18,7 +18,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
 import { ownLineFacts, PROMISES } from './facts.js';
-import { factCheck, gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
+import { factCheck, factCheck2, gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
 import { slotsFor, bookFor } from './availability.js';
@@ -3296,6 +3296,23 @@ async function rehearseOne(env) {
       const msgs = (Array.isArray(c.msgs) ? c.msgs : []).map(m => ({ r: m.r === 'u' ? 'u' : 'a', t: String(m.t || '').slice(0, 600) }));
       const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
       await vlog(env, 'rehearse-score', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String(c.id || '').slice(0, 40), human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, SL) }), 4000);
+    }
+    return true;
+  }
+  // Re-check saved practice calls with fact check v2, without running them again: detail { recheck: [rowids], tag,
+  // features } (the features the calls ran with, so the instructions read are the ones Max had).
+  if (Array.isArray(j.recheck)) {
+    const rline = await lineFor(env, String(j.number || OWN_NUMBER_100)).catch(() => null);
+    if (!rline) return true;
+    const RL = rehearsalLine(rline, j), ro = rehearsalOpening(rline, j, RL);
+    const instructions = systemPrompt(RL, String(j.caller || '+14045550187'), 'en-US', false);
+    for (const rid of j.recheck.slice(0, 12)) {
+      const row = await env.DB.prepare("SELECT detail FROM voice_log WHERE rowid = ?1 AND kind = 'rehearse'").bind(+rid || 0).first().catch(() => null);
+      const d = (row && parse(row.detail)) || {};
+      const msgs = [{ r: 'a', t: ro.opening }].concat(ro.more ? [{ r: 'a', t: ro.more }] : []);
+      for (const o of (Array.isArray(d.out) ? d.out : [])) { msgs.push({ r: 'u', t: String(o.said || '') }); msgs.push({ r: 'a', t: ((o.lead ? o.lead + ' ' : '') + String(o.reply || '')).trim() }); }
+      const fc = await factCheck2(env, msgs, instructions).catch(e => ({ wrong: null, why: String(e) }));
+      await vlog(env, 'rehearse-recheck', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: d.id, row: +rid, old: d.facts, wrong: fc.wrong, cand: fc.cand, why: fc.wrong == null ? fc.why : undefined }));
     }
     return true;
   }

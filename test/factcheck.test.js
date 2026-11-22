@@ -140,3 +140,49 @@ test('v3 loop 3: the own line\'s prompt says each thing once, no pitch, the call
   assert.doesNotMatch(p0, /How you talk on this line/);
   assert.doesNotMatch(V.systemPrompt({ business: 'Lane Plumbing', features: ['v3'] }, '+14045550187', 'en-US', false), /How you talk on this line/, 'a business\'s own line is not this');
 });
+
+// ---------- fact check v2 ----------
+test('v2: Sonnet finds, a skeptical Opus read keeps only real errors; the call is numbered by Max\'s replies', async () => {
+  const seen = [];
+  const f = async (url, o) => { const b = JSON.parse(o.body); seen.push(b);
+    const text = /strict second reader/.test(b.system) ? '{"verdicts":[{"i":1,"v":"ok","why":"his rules allow it"},{"i":2,"v":"error","why":"replies are on every plan"}]}'
+      : '{"wrong":[{"turn":1,"quote":"I never take card numbers.","why":"not in facts","kind":"policy"},{"turn":2,"quote":"On the Growth plan, every Google review gets a reply.","why":"every plan","kind":"plan"}]}';
+    return { json: async () => ({ content: [{ type: 'thinking', thinking: '...' }, { type: 'text', text }] }) }; };
+  const call = [{ r: 'a', t: 'Always Open, this is Max.' }, { r: 'u', t: 'can i pay now' }, { r: 'a', t: 'I never take card numbers.' }, { r: 'u', t: 'which plan answers reviews' }, { r: 'a', t: 'On the Growth plan, every Google review gets a reply.' }];
+  const r = await G.factCheck2({ ANTHROPIC_API_KEY: 'k' }, call, 'You are Max. Never take card numbers. Every plan answers every Google review.', f);
+  assert.deepEqual(r.wrong.map(w => w.quote), ['On the Growth plan, every Google review gets a reply.']);
+  assert.equal(r.cand, 2);
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].model, 'claude-sonnet-5-5'); assert.deepEqual(seen[0].thinking, { type: 'between_tools' });
+  assert.equal(seen[1].model, 'claude-opus-5-5'); assert.equal(seen[1].thinking, undefined, 'Opus 5.5 takes no thinking setting here');
+  assert.match(seen[0].messages[0].content, /^INSTRUCTIONS\nYou are Max\.[\s\S]*\n\nCALL\nMax \[1\]: Always Open, this is Max\.\nCaller: can i pay now\nMax \[2\]: I never take card numbers\./);
+  assert.match(seen[1].messages[0].content, /CLAIMS\n1\. Max \[1\]: "I never take card numbers\." \(flagged because: not in facts\)\n2\. Max \[2\]/);
+  // nothing found: no second read
+  seen.length = 0;
+  const none = async (url, o) => { seen.push(1); return { json: async () => ({ content: [{ type: 'text', text: '{"wrong":[]}' }] }) }; };
+  assert.deepEqual((await G.factCheck2({ ANTHROPIC_API_KEY: 'k' }, call, 'x', none)).wrong, []); assert.equal(seen.length, 1);
+  // a refusal is "could not run", with the reason
+  const bad = async () => ({ json: async () => ({ type: 'error', error: { message: 'overloaded' } }) });
+  const e = await G.factCheck2({ ANTHROPIC_API_KEY: 'k' }, call, 'x', bad);
+  assert.equal(e.wrong, null); assert.match(e.why, /overloaded/);
+});
+
+test('v2: saved practice calls are re-checked against the instructions they ran with, without running them again', async () => {
+  const V = await import('../src/voice.js');
+  const H = await import('./rehearsal/harness.js');
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, town, updated, facts) VALUES ('+17064602226', 'always-open', 'Always Open', 1, 'answering service', 'Eatonton, GA', '2026-11-22', ?1)").bind(JSON.stringify({ notes: 'Every plan answers every Google review.', prices: 'Starter is $149 a month.' })).run();
+  const out = [{ said: 'which plan answers reviews', lead: 'Okay.', reply: 'On the Growth plan, every Google review gets a reply.' }];
+  const saved = await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T07:30:00Z', 'rehearse', ?1) RETURNING rowid").bind(JSON.stringify({ id: 'b-7', tag: 'L4v3-3', out, facts: [{ turn: 1, quote: 'old flag', why: 'x' }] })).first();
+  const seen = [];
+  world.aiNote = b => { seen.push(b); return /strict second reader/.test(b.system) ? { verdicts: [{ i: 1, v: 'error', why: 'every plan' }] } : { wrong: [{ turn: 2, quote: 'On the Growth plan, every Google review gets a reply.', why: 'replies are on every plan', kind: 'plan' }] }; };
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T17:00:00Z', 'rehearse-request', ?1)").bind(JSON.stringify({ recheck: [saved.rowid], tag: 'rc', features: ['v3'] })).run();
+  await V.rehearse(env);
+  const r = JSON.parse((await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse-recheck'").first()).detail);
+  assert.equal(r.id, 'b-7'); assert.equal(r.row, saved.rowid); assert.equal(r.tag, 'rc'); assert.equal(r.cand, 1);
+  assert.deepEqual(r.old, [{ turn: 1, quote: 'old flag', why: 'x' }]);
+  assert.deepEqual(r.wrong.map(w => w.kind), ['plan']);
+  assert.match(seen[0].messages[0].content, /INSTRUCTIONS\n[\s\S]*Every plan answers every Google review[\s\S]*How you talk on this line[\s\S]*\n\nCALL\nMax \[1\]: [^\n]*\nCaller: which plan answers reviews\nMax \[2\]: Okay\. On the Growth plan/, 'the v3 instructions Max had, then the call');
+  assert.equal((await DB.prepare("SELECT count(*) AS n FROM voice_log WHERE kind = 'rehearse'").first()).n, 1, 'nothing was run again');
+});
