@@ -18,7 +18,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
 import { ownLineFacts, PROMISES } from './facts.js';
-import { gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
+import { factCheck, gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
 import { slotsFor, bookFor } from './availability.js';
@@ -3323,7 +3323,9 @@ async function rehearseOne(env) {
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
-    await vlog(env, 'rehearse', JSON.stringify({ model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
+    // asked for with "facts": true on the request: every reply read against what the line was told (grades.js factCheck)
+    const fc = j.facts === true ? await factCheck(env, msgs, L).catch(() => ({ wrong: null })) : null;
+    await vlog(env, 'rehearse', JSON.stringify({ facts: fc ? fc.wrong : undefined, cb: L.own ? callbackOffers(msgs).offered : undefined, model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
   }
   return true;
 }

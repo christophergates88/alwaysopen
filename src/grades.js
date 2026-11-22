@@ -220,6 +220,35 @@ export async function humanScore(env, msgs, f) {
   } catch (e) { return { score: -1, why: 'failed' }; }
 }
 
+// The fact check (Nov 22, 2026). Three live replays said "no hard errors" while Max put review replies on the wrong plan
+// and gave the wrong audit timing: the scanner only knows patterns. Here a second model reads every reply against the
+// facts the line was given and lists each statement that contradicts them or is not in them. Practice calls, and real
+// calls once switched on. Returns { wrong: [{ turn, quote, why }] }, or { wrong: null } when it could not run.
+const FACT_RUBRIC = 'You audit a phone assistant named Max for factual accuracy. You get FACTS (everything Max was told about the business) and a CALL. ' +
+  'List every statement by Max that (a) contradicts FACTS, or (b) states a specific price, plan, feature, number, time promise, integration or policy that FACTS does not support. ' +
+  'Do NOT flag: opinions, warmth, jokes, examples that only illustrate a supported feature in the caller\'s trade, things the caller said, questions, Max saying he does not know or that someone will call back, rounding a price to words, or a correct fact phrased differently. ' +
+  'A feature placed on the wrong plan IS wrong. Saying something cannot be done when FACTS says it can IS wrong, and the reverse. ' +
+  'Return ONLY JSON: {"wrong":[{"turn":<1-based index of Max\'s reply among his replies>,"quote":"<his exact words, under 25 words>","why":"<what FACTS says, under 25 words>"}]}. An accurate call returns {"wrong":[]}.';
+export function factsText(L) {
+  const keys = ['business', 'town', 'industry', 'hours', 'area', 'services', 'prices', 'booking', 'next', 'urgent', 'intake', 'notes', 'owner'];
+  return keys.filter(k => L && L[k] && typeof L[k] === 'string').map(k => k.toUpperCase() + ': ' + L[k]).join('\n').slice(0, 24000) + (L && L.regulated ? '\nREGULATED OFFICE: messages only, no booking, no advice.' : '');
+}
+export async function factCheck(env, msgs, L, f) {
+  if (!env.ANTHROPIC_API_KEY) return { wrong: null, why: 'no key' };
+  if ((msgs || []).filter(m => m.r === 'u').length < 1) return { wrong: [] };
+  const text = 'FACTS\n' + factsText(L) + '\n\nCALL\n' + (msgs || []).slice(0, 60).map(m => (m.r === 'u' ? 'Caller: ' : 'Max: ') + String(m.t || '').slice(0, 700)).join('\n');
+  try {
+    const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
+      headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
+      body: JSON.stringify({ model: env.FACT_MODEL || 'claude-sonnet-5-5', max_tokens: 900, thinking: { type: 'disabled' }, system: FACT_RUBRIC, messages: [{ role: 'user', content: text }] }) });
+    const j = await r.json().catch(() => ({}));
+    const raw = (j.content || []).map(x => x.text || '').join('');
+    let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
+    if (!o || !Array.isArray(o.wrong)) return { wrong: null, why: 'unreadable' };
+    return { wrong: o.wrong.slice(0, 12).map(x => ({ turn: +x.turn || 0, quote: String(x.quote || '').slice(0, 200), why: String(x.why || '').slice(0, 200) })) };
+  } catch (e) { return { wrong: null, why: 'failed' }; }
+}
+
 // The failures worth turning into a rehearsal.
 export function failuresOf(g) {
   if (g.spam || g.turns < 2) return [];
