@@ -10,7 +10,9 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 
 export const MAC_ROUTES = /^\/ops\/hq-(plans|text|text-queue|call-tick)$/;
 const MAX_BODY = 400000;
-const no = (status, error) => new Response(JSON.stringify({ ok: false, error }), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+// x-ao-hqmac says whether this worker's router answered ('yes') or this entrypoint turned it away ('no'), so Gates HQ 2
+// knows the Mac may try its old way only when nothing was done here.
+const no = (status, error) => new Response(JSON.stringify({ ok: false, error }), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-ao-hqmac': 'no' } });
 
 // req: the Mac's request as Gates HQ 2 hands it on (the path is one of MAC_ROUTES); worker: this worker's own router.
 export async function handOn(env, ctx, req, worker) {
@@ -21,7 +23,10 @@ export async function handOn(env, ctx, req, worker) {
   if (body && body.byteLength > MAX_BODY) return no(413, 'too big');
   const h = new Headers({ 'x-key': env.LEADS_KEY, 'user-agent': 'gates-hq-brain' });
   for (const k of ['content-type', 'accept']) { const v = req.headers.get(k); if (v) h.set(k, v); }
-  return worker.fetch(new Request('https://alwaysopenoffice.com' + u.pathname + u.search, { method: req.method, headers: h, body }), env, ctx);
+  const r = await worker.fetch(new Request('https://alwaysopenoffice.com' + u.pathname + u.search, { method: req.method, headers: h, body }), env, ctx);
+  const out = new Headers(r.headers);
+  out.set('x-ao-hqmac', 'yes');
+  return new Response(r.body, { status: r.status, headers: out });
 }
 
 export class HqMac extends WorkerEntrypoint {
