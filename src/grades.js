@@ -233,6 +233,7 @@ export function factsText(L) {
   const keys = ['business', 'town', 'industry', 'hours', 'area', 'services', 'prices', 'booking', 'next', 'urgent', 'intake', 'notes', 'owner'];
   return keys.filter(k => L && L[k] && typeof L[k] === 'string').map(k => k.toUpperCase() + ': ' + L[k]).join('\n').slice(0, 24000) + (L && L.regulated ? '\nREGULATED OFFICE: messages only, no booking, no advice.' : '');
 }
+const FACT_MODEL = env => env.FACT_MODEL || 'claude-sonnet-5-5';
 export async function factCheck(env, msgs, L, f) {
   if (!env.ANTHROPIC_API_KEY) return { wrong: null, why: 'no key' };
   if ((msgs || []).filter(m => m.r === 'u').length < 1) return { wrong: [] };
@@ -240,13 +241,15 @@ export async function factCheck(env, msgs, L, f) {
   try {
     const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
       headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
-      body: JSON.stringify({ model: env.FACT_MODEL || 'claude-sonnet-5-5', max_tokens: 900, thinking: { type: 'disabled' }, system: FACT_RUBRIC, messages: [{ role: 'user', content: text }] }) });
+      // Sonnet and Opus 5.5 refuse "disabled" (the first 100-call run came back unchecked): their lowest is "between_tools"
+      body: JSON.stringify({ model: FACT_MODEL(env), max_tokens: 1200, thinking: /haiku/.test(FACT_MODEL(env)) ? { type: 'disabled' } : { type: 'between_tools' }, system: FACT_RUBRIC, messages: [{ role: 'user', content: text }] }) });
     const j = await r.json().catch(() => ({}));
-    const raw = (j.content || []).map(x => x.text || '').join('');
+    if (j.error) return { wrong: null, why: String(j.error.message || j.error.type || 'api error').slice(0, 160) };
+    const raw = (j.content || []).filter(x => x.type === 'text' || x.text).map(x => x.text || '').join('');
     let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
-    if (!o || !Array.isArray(o.wrong)) return { wrong: null, why: 'unreadable' };
+    if (!o || !Array.isArray(o.wrong)) return { wrong: null, why: 'unreadable: ' + raw.slice(0, 120) };
     return { wrong: o.wrong.slice(0, 12).map(x => ({ turn: +x.turn || 0, quote: String(x.quote || '').slice(0, 200), why: String(x.why || '').slice(0, 200) })) };
-  } catch (e) { return { wrong: null, why: 'failed' }; }
+  } catch (e) { return { wrong: null, why: 'failed: ' + String((e && e.message) || e).slice(0, 120) }; }
 }
 
 // The failures worth turning into a rehearsal.

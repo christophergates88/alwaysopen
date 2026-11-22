@@ -50,3 +50,12 @@ test('queuing a pack never touches the saved list of real calls to replay (kind 
   assert.equal(await V.expandSets({ DB: db }), 0);
   assert.equal((await db.prepare("SELECT count(*) AS n FROM voice_log WHERE kind = 'rehearse-set'").first()).n, 1);
 });
+
+test('factCheck asks Sonnet with the lowest thinking it accepts, and says why when the API refuses', async () => {
+  const seen = [];
+  await G.factCheck(env, msgs, L, fake('{"wrong":[]}', seen));
+  assert.deepEqual(seen[0].thinking, { type: 'between_tools' }, 'Sonnet 5.5 refuses "disabled"');
+  assert.equal(seen[0].model, 'claude-sonnet-5-5');
+  const r = await G.factCheck(env, msgs, L, async () => ({ json: async () => ({ type: 'error', error: { type: 'invalid_request_error', message: 'thinking.type: disabled is not supported' } }) }));
+  assert.equal(r.wrong, null); assert.match(r.why, /disabled is not supported/);
+});

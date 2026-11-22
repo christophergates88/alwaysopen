@@ -3325,7 +3325,7 @@ async function rehearseOne(env) {
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
     // asked for with "facts": true on the request: every reply read against what the line was told (grades.js factCheck)
     const fc = j.facts === true ? await factCheck(env, msgs, L).catch(() => ({ wrong: null })) : null;
-    await vlog(env, 'rehearse', JSON.stringify({ facts: fc ? fc.wrong : undefined, cb: L.own ? callbackOffers(msgs).offered : undefined, model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
+    await vlog(env, 'rehearse', JSON.stringify({ facts: fc ? fc.wrong : undefined, factsWhy: fc && fc.wrong == null ? fc.why : undefined, cb: L.own ? callbackOffers(msgs).offered : undefined, model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
   }
   return true;
 }
