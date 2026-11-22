@@ -319,7 +319,8 @@ export async function dialOut(env, line, to, path, statusPath, extra) {
   const form = new URLSearchParams(Object.assign({ To: to, From: line.number, Url: SITE + path, Method: 'POST', StatusCallback: SITE + statusPath, StatusCallbackMethod: 'POST', Timeout: '25', MachineDetection: 'Enable' }, extra || {}));
   let r, j = {};
   try {
-    r = await fetch(TWILIO + env.TWILIO_ACCOUNT_SID + '/Calls.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
+    // from the account that holds the line (its own sub-account, twacct.js), with the main account's key
+    r = await fetch(TWILIO + (await (await import('./twacct.js')).accountOf(env, line.client_id)) + '/Calls.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
     j = await r.json().catch(() => ({}));
   } catch (e) { return { ok: false, why: 'Twilio unreachable' }; }
   if (!r.ok || !j.sid) return { ok: false, why: String(j.message || ('Twilio answered ' + r.status)).slice(0, 120) };

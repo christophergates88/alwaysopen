@@ -149,7 +149,8 @@ export async function sendText(env, o) {
   else { if (!from) { await log('skipped', 'no number'); return { ok: false, why: 'no number to send from' }; } form.set('From', from); }
   let r, j = {};
   try {
-    r = await fetch(TWILIO + env.TWILIO_ACCOUNT_SID + '/Messages.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
+    // the account that holds the business's number (its own sub-account, twacct.js), with the main account's key
+    r = await fetch((await (await import('./twacct.js')).baseOf(env, cid)) + '/Messages.json', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() });
     j = await r.json().catch(() => ({}));
   } catch (e) { await log('failed', 'unreachable'); return { ok: false, why: 'Twilio unreachable' }; }
   if (!r.ok || !j.sid) { const why = String((j && j.message) || ('Twilio answered ' + r.status)).slice(0, 160); await log('failed', why); return { ok: false, why }; }
@@ -303,13 +304,16 @@ export async function smsSweep(env, now, h) {
   const from = Math.max(start, now - SWEEP_LOOKBACK_MS, (swept || now) - 30 * 60e3);
   const f = h.fetch || fetch, auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
   const msgs = [];
-  let url = TWILIO + env.TWILIO_ACCOUNT_SID + '/Messages.json?PageSize=200&DateSent%3E=' + new Date(from).toISOString().slice(0, 10);
-  for (let page = 0; page < 5 && url; page++) {
-    const r = await f(url, { headers: { authorization: auth } });
-    if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of texts');
-    const j = await r.json();
-    for (const m of j.messages || []) msgs.push(m);
-    url = j.next_page_uri ? 'https://api.twilio.com' + j.next_page_uri : '';
+  // every account: the main one and each business's own sub-account (twacct.js)
+  for (const acct of await (await import('./twacct.js')).allAccounts(env)) {
+    let url = TWILIO + acct + '/Messages.json?PageSize=200&DateSent%3E=' + new Date(from).toISOString().slice(0, 10);
+    for (let page = 0; page < 5 && url; page++) {
+      const r = await f(url, { headers: { authorization: auth } });
+      if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of texts');
+      const j = await r.json();
+      for (const m of j.messages || []) msgs.push(m);
+      url = j.next_page_uri ? 'https://api.twilio.com' + j.next_page_uri : '';
+    }
   }
   const cand = msgs.filter(m => m.direction === 'inbound' && lines.has(m.to) && /^SM[0-9a-f]{32}$/.test(m.sid || '') &&
     (Date.parse(m.date_sent || m.date_created) || 0) >= from && now - (Date.parse(m.date_sent || m.date_created) || now) >= SWEEP_SETTLE_MS);

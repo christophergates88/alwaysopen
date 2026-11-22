@@ -317,6 +317,23 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   calls nobody. `/ops/outreach-review` with no id lists what is waiting.
 - Stop everything now: `UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'`.
 
+## Twilio sub-accounts, one per client (src/twacct.js, Nov 22, 2026)
+
+`TWILIO_SUBACCOUNTS` in `wrangler.toml` is `off`. With `on`, each client set up from then on gets its own Twilio
+sub-account the moment its line is first set up: its number, its texting registration (profile, brand, campaign,
+Messaging Service), its texts, its calls and its usage all live there, so one business's carrier trouble or spam flag
+never reaches another business or Always Open's own line. Billing still comes out of the main account's balance.
+
+- Businesses set up before stay in the main account. Nothing ever moves a live number. Turning it `off` again stops new
+  sub-accounts only; the ones made keep working.
+- The table `tw_accounts` (client, sub-account SID) says who is where. A sub-account's key is never stored: the Worker
+  asks Twilio for it with the main key when it needs it and keeps it in memory for 10 minutes.
+- If Twilio won't make a sub-account, the line is set up in the main account, as before, and you get a push saying so.
+- In the Twilio console: Account (top left) > Subaccounts, each named "Always Open client <id>: <business>".
+- Webhooks from a sub-account's number are signed with that sub-account's key; `src/voice.js` (`sigOkAny`) checks the
+  main key first, then the sub-account's, only for sub-accounts in `tw_accounts`.
+- The first client set up with it `on` is the real test: watch its number, a test text and its texting registration.
+
 ## How to roll back a deploy
 
 1. Actions tab, the failed run, read the "Check the live site" step: it says what it saw and whether it already

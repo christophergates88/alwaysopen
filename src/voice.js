@@ -113,7 +113,7 @@ export async function handleVoice(req, env, ctx, url) {
   const body = await req.text();
   if (body.length > 20000) return txt('Too large', 413);
   const form = new URLSearchParams(body);
-  if (env.TWILIO_AUTH_TOKEN && !(await twilioSigOk(env.TWILIO_AUTH_TOKEN, url.href, form, req.headers.get('x-twilio-signature')))) return txt('Forbidden', 403);
+  if (env.TWILIO_AUTH_TOKEN && !(await sigOkAny(env, url.href, form, req.headers.get('x-twilio-signature')))) return txt('Forbidden', 403);
   try {
     if (kind === 'sms') return await handleSms(req, env, form, true);
     // Gates HQ calls for Christopher (hqcalls.js): the call he approved, its relay ending, its result, and his calls line.
@@ -3199,6 +3199,15 @@ async function callToken(env, sid) { return (await hmacHex('SHA-256', env.VOICE_
 async function hmacHex(hash, key, data) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash }, false, ['sign']);
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data)))].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+// The main account's key, or (for a business's own sub-account, twacct.js) that sub-account's key.
+async function sigOkAny(env, href, form, sig) {
+  if (await twilioSigOk(env.TWILIO_AUTH_TOKEN, href, form, sig)) return true;
+  const acct = String(form.get('AccountSid') || '');
+  if (!acct || acct === env.TWILIO_ACCOUNT_SID) return false;
+  const { sigTokens } = await import('./twacct.js');
+  for (const t of (await sigTokens(env, acct)).slice(1)) if (await twilioSigOk(t, href, form, sig)) return true;
+  return false;
 }
 async function twilioSigOk(token, href, form, sig) {
   if (!sig) return false;

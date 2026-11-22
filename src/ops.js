@@ -171,7 +171,8 @@ export async function slowChecks(env, h) {
       const wrong = [], fixed = [], unknown = [];
       for (const l of lines) {
         if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
-        const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
+        const acct = await (await import('./twacct.js')).accountOfNumber(env, l.number);   // a business's own sub-account, or the main one
+        const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + acct + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
         if (!r.ok) { unknown.push(l.business || l.number); continue; }   // Twilio had a moment: not the number's fault
         const j = await r.json().catch(() => ({}));
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
@@ -189,7 +190,7 @@ export async function slowChecks(env, h) {
         if (!off.length && !noBackup) continue;
         const { fallbackUrl } = await import('./provision.js');
         const set = Object.assign({ VoiceMethod: 'POST', SmsMethod: 'POST', VoiceFallbackUrl: fallbackUrl(l.business, env.VOICE_KEY), VoiceFallbackMethod: 'GET' }, want);
-        const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(set).toString() });
+        const u = await f('https://api.twilio.com/2010-04-01/Accounts/' + acct + '/IncomingPhoneNumbers/' + pn.sid + '.json', { method: 'POST', headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(set).toString() });
         if (!u.ok) { wrong.push((l.business || l.number) + (off.length ? ' (' + off.join(' and ') + ' point elsewhere, and Twilio would not let us point them back: ' + u.status + ')' : ' (no voicemail backup, and Twilio would not take one: ' + u.status + ')')); continue; }
         try { await vm.ensureVoicemail(env); await env.DB.prepare('INSERT OR REPLACE INTO vm_meta (k, v) VALUES (?1, ?2)').bind('fallback:' + l.number, new Date().toISOString()).run(); } catch (e) { /* only a note */ }
         if (off.length) fixed.push((l.business || l.number) + ' (' + off.join(' and ') + ')');

@@ -98,6 +98,8 @@ async function serve(req, env, ctx) {
       for (const n of nums) {
         const row = { number: n.number, business: n.business || '' };
         try {
+          // each number in the account that holds it (a business's own sub-account, twacct.js); the newer Messaging API takes that account's own key
+          const T = await import('./twacct.js'), acct = await T.accountOfNumber(env, n.number), base = T.API + acct, mauth = await T.authFor(env, acct);
           const l = await fetch(base + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(n.number), { headers: { authorization: auth } }).then(r => r.json());
           const pn = l.incoming_phone_numbers && l.incoming_phone_numbers[0];
           if (!pn) { row.result = 'not in this Twilio account'; out.push(row); continue; }
@@ -108,7 +110,7 @@ async function serve(req, env, ctx) {
           const brand = own && own.client_id === 'always-open' ? { messaging_sid: env.TWILIO_MESSAGING_SID } : await env.DB.prepare("SELECT messaging_sid FROM sms_brands WHERE client_id = ?1 AND status = 'approved'").bind(own && own.client_id).first().catch(() => null);
           if (!brand || !brand.messaging_sid) row.senderPool = 'waiting for this business to have its own texting registration';
           else {
-            const m = await fetch('https://messaging.twilio.com/v1/Services/' + brand.messaging_sid + '/PhoneNumbers', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ PhoneNumberSid: pn.sid }).toString() });
+            const m = await fetch('https://messaging.twilio.com/v1/Services/' + brand.messaging_sid + '/PhoneNumbers', { method: 'POST', headers: { authorization: mauth, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ PhoneNumberSid: pn.sid }).toString() });
             const mj = await m.json().catch(() => ({}));
             row.senderPool = m.ok ? 'added' : (mj.code === 21712 || /already/i.test(mj.message || '') ? 'already there' : 'failed: ' + String(mj.message || m.status).slice(0, 80));
           }
@@ -192,7 +194,7 @@ async function serve(req, env, ctx) {
       if (!/^CA[0-9a-f]{32}$/.test(sid) || !env.TWILIO_ACCOUNT_SID) return json({ ok: false, error: 'bad sid' }, 400);
       const auth = 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
       const get = async u => { try { const r = await fetch(u, { headers: { Authorization: auth } }); const t = await r.text(); try { return { status: r.status, data: JSON.parse(t) }; } catch (e) { return { status: r.status, text: t.slice(0, 2000) }; } } catch (e) { return { error: String(e).slice(0, 200) }; } };
-      const base = 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Calls/' + sid;
+      const base = 'https://api.twilio.com/2010-04-01/Accounts/' + (await (await import('./twacct.js')).accountOfCall(env, sid)) + '/Calls/' + sid;
       const [call, events, notes, summary, media] = await Promise.all([get(base + '.json'), get(base + '/Events.json?PageSize=50'), get(base + '/Notifications.json'),
         get('https://insights.twilio.com/v1/Voice/' + sid + '/Summary'), get('https://insights.twilio.com/v1/Voice/' + sid + '/Events?PageSize=100')]);
       return json({ ok: true, call, events, notes, summary, media }, 200);
