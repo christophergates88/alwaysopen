@@ -120,7 +120,11 @@ const DIGITS = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|cero|uno
 // asking again a turn later is what a good receptionist does ("Got it. And your name?"), and an "I still need ..."
 // sentence is usually the only question, so cutting it drops the ask with the wording. What stays: the number once
 // when caller ID has it, the name at most twice, nothing they already gave.
+// "Anything else on your list?" closed six answers in a row on a Nov 21, 2026 practice call (a State Farm agent with
+// a list of questions): asked again only once two replies have gone by without it.
+const ANY_ELSE = /\b(anything else|what else|any other (question|questions|thing|things)|something else|more questions)\b/i;
 function askLess(s, ctx) {
+  if (isQ(s) && ANY_ELSE.test(s) && (ctx.msgs || []).filter(m => m.r === 'a').slice(-2).some(m => sentencesOf(m.t).some(x => isQ(x) && ANY_ELSE.test(x)))) return true;
   const a = asksFor(s);
   if (!a.length || DIGITS.test(s)) return false;
   const st = ctx.state || { asked: {}, have: {} };
@@ -163,21 +167,35 @@ const TAKES = /\b(yes|yeah|yep|sure|ok(ay)?|please|text (it|me)|send (it|me)|go 
 const NO_AUDIT = /\b(don'?t|do not|no) (want|need)\b[^.?!]*\baudit\b|\bno,? (thanks|thank you)\b|\bstop (asking|offering)\b|\bnot interested\b/i;
 // The call back, offered a third time (Nov 21, 2026 practice calls: "Want Chris to call you?" on turns 3, 4 and 5, while
 // the owner's own rule is twice a call at most). Once they said yes or gave a number, it is not offered again either.
-const CALLBACK_OFFER = /\b(chris|him|someone|somebody|the team)\b[^.?!]*\b(call|ring|reach)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(a|that) (call|call back|callback)\b[^.?!]*\?|\bset (that|a|the) call up\b[^.?!]*\?|\bset up (that|a|the) call\b[^.?!]*\?/i;
+// Nov 21, 2026 replay of 26 practice calls on the live line: "Want me to have Chris walk you through it?" is the same
+// offer, and so is "Want me to set that up?" right after "he calls back within one business day" (it slipped past as a
+// third offer in a row). A caller who asks for the call themselves ("have somebody call me back") has said yes.
+const CALLBACK_OFFER = /\b(chris|him|someone|somebody|the team)\b[^.?!]*\b(call|ring|reach)\b[^.?!]*\?|\b(want|like)\b[^.?!]*\b(a|that) (call|call back|callback)\b[^.?!]*\?|\bset (that|a|the) call up\b[^.?!]*\?|\bset up (that|a|the) call\b[^.?!]*\?|\b(chris|him)\b[^.?!]*\b(walk|go over|go through|talk)\b[^.?!]*\?/i;
+const SET_UP = /\b(want|like|should|shall)\b[^.?!]*\b(set (that|it|this) up|line (that|it) up|arrange (that|it))\b[^.?!]*\?|^\s*(want|like) that\?/i;
+const CALL_MENTION = /\b(calls?|ring|reach)\b[^.?!]*\b(back|you)\b|\bcall-?back\b/i;
+const WANTS_CALL = /\b(call|ring) me\b|\bcall (me )?back\b|\bcallback\b|\bhave (him|chris|somebody|someone|the team) (call|ring|reach)\b|\b(get|put|take) (my|me) (name )?down\b|\bsign me up\b/i;
+const NO_CALL = /\b(don'?t|do not|no need to|never)\s+(need\s+(a\s+|to\s+)?)?(call|ring)|\bno call|\bnot interested\b/i;
+// a yes to the offer starts the answer: "ok then sing me a little song" (Nov 21 replay) is not one
+const CB_TAKES = /^\W*(yes|yeah|yep|yup|sure|ok(ay)?|please|go ahead|that works|sounds good|do it|alright|all right|s[ií]|claro)\b(?!\W*(then|but)\b)/i;
+const isOffer = (s, around) => CALLBACK_OFFER.test(s) || (SET_UP.test(s) && CALL_MENTION.test(around || ''));
 export function callbackOffers(msgs) {
   let offered = 0, taken = false, lastOffer = -1;
   (msgs || []).forEach((m, i) => {
     const t = String(m.t || '');
-    if (m.r === 'a' && CALLBACK_OFFER.test(t)) { offered++; lastOffer = i; }
-    if (m.r === 'u' && lastOffer > -1 && i === lastOffer + 1 && (TAKES.test(t) || /\d{3}/.test(t))) taken = true;
+    if (m.r === 'a' && sentencesOf(t).some((x, k, all) => isOffer(x, all.slice(0, k).join(' ')))) { offered++; lastOffer = i; }
+    if (m.r === 'u' && !NO_CALL.test(t) && ((lastOffer > -1 && i === lastOffer + 1 && (CB_TAKES.test(t) || /\d{3}/.test(t))) || WANTS_CALL.test(t))) taken = true;
   });
   return { offered, taken };
 }
+const NAME_NUMBER_ASK = /\b(best number|right number|number (for|to reach|to call)|your (name|number)|what'?s the name|name for|area code)\b/i;
 function callbackTwice(s, ctx) {
   // Always Open's own line only: there the owner set the limit; on a business's line the call back is the job
-  if (!(ctx.L && ctx.L.own) || !CALLBACK_OFFER.test(s)) return false;
-  const c = callbackOffers(ctx.msgs);
-  return c.taken || c.offered >= 2;
+  if (!(ctx.L && ctx.L.own)) return false;
+  if (isOffer(s, ctx.spoken)) { const c = callbackOffers(ctx.msgs); return c.taken || c.offered >= 2; }
+  // The name or number asked right after an offer that was just cut asked for a call they have not said yes to
+  // (Nov 21 replay: "Now, want Chris to call you back?" was cut and "Is 404-555-0187 the best number?" went out alone).
+  if (ctx.lastCut === 'g-callback' && isQ(s) && NAME_NUMBER_ASK.test(s)) return !callbackOffers(ctx.msgs).taken && !auditState(ctx.msgs).taken;
+  return false;
 }
 export function auditState(msgs) {
   let offered = 0, taken = false, declined = false, lastOffer = -1;
@@ -234,10 +252,23 @@ const MORE = /\b(tell me more|more detail|in detail|explain|walk me through|ever
 const ASSURE = /\b(compliance guard|until you approve|you approve|approve it|nothing goes out|sign(s|ed)? off|sign-off|send it yourself|you send it|never (text|call|contact|email|message)s? (your|their|any)|never need|(customer|policy) records|waits? for your (ok|okay|approval)|wait on your ok)\b/;
 // "How does it work / what do you ask them / who sees it": the answer is the steps, so it gets one more sentence.
 // A price objection ("how is that worth $149", "why hire you over a person") gets the same room for its answer.
-const HOWQ = /\b(how (does|do|would|will|is|can|did)|how (it|this|that|you|we) (would|will|does|do|could) work|how it works|what do (you|they) (do|ask|say|send|see)|who (sees|gets|can see)|where does|worth|expensive|smarter|cheaper|hire (you|a person|someone|somebody))\b/;
+// "What do I lose if I go with that one?" too (Nov 21 replay: the answer, what Starter leaves out, was the sentence cut).
+const HOWQ = /\b(how (does|do|would|will|is|can|did)|how (it|this|that|you|we) (would|will|does|do|could) work|how it works|what do (you|they) (do|ask|say|send|see)|who (sees|gets|can see)|where does|worth|expensive|smarter|cheaper|hire (you|a person|someone|somebody)|what (do|would|will|did) (i|we) (lose|miss|give up|skip|get)|what'?s the difference|what('s| is) not (on|in))\b/;
+// A quote still open in what was said so far: its next sentence closes it. Nov 21 replay: the length cut took the second
+// line of a song Max sang for a caller, the closing quote with it, and what followed was said inside the open quote.
+const openQuote = t => { const x = String(t || ''); return (x.match(/"/g) || []).length % 2 === 1 || (x.match(/“/g) || []).length > (x.match(/”/g) || []).length; };
+// What a feature can't do, or the plan it is on, the first time it is said (Nov 21 replay: the length cut took "If your
+// tee sheet is separate software, it doesn't connect." and left "I can." for a golf shop; it took "Yelp isn't covered,
+// though." and "It's on Growth and Pro." too). A short sentence only, and never past 55 words in all.
+const LIMIT = /\b(doesn'?t|does not|don'?t|do not|won'?t|will not|can'?t|cannot|isn'?t|is not|aren'?t|are not)\s+(connect|sync|link|covered|cover|included|include|work with)\b|\bnot (covered|included|connected)\b|\b(on|in) (growth|pro)( and pro)?\b|\b(growth|pro) plan\b|\bnot on (starter|growth)\b/;
 function shortReply(s, ctx) {
   if (isQ(s) || SAFETY.test(s)) return false;
   if (MORE.test(lc(ctx.said))) return false;
+  if (openQuote(ctx.spoken)) return false;
+  if (LIMIT.test(lc(s)) && words(s) <= 18 && words(ctx.spoken || '') + words(s) <= 55) {
+    const said = (ctx.msgs || []).filter(m => m.r === 'a').flatMap(m => sentencesOf(m.t)).map(norm);
+    if (!said.includes(norm(s))) return false;
+  }
   if (ASSURE.test(lc(s))) {
     const before = (ctx.msgs || []).filter(m => m.r === 'a').map(m => lc(m.t)).join(' ');
     const k = (lc(s).match(ASSURE) || [])[0];
@@ -263,8 +294,11 @@ const ORDER = [['g-canned', cannedLine], ['g-safety', safetyThenAsk], ['g-once',
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it
   if (!/[a-z0-9]/i.test(String(sentence || '').replace(/\[[^\]]*\]?/g, ''))) return '';
-  for (const [k, f] of ORDER) if (ON(ctx, k) && f(sentence, ctx)) return k;
-  return '';
+  let cut = '';
+  for (const [k, f] of ORDER) if (ON(ctx, k) && f(sentence, ctx)) { cut = k; break; }
+  // what the last sentence of this reply lost, for a guard that depends on it (g-callback: the ask after a cut offer)
+  if (ctx) ctx.lastCut = cut;
+  return cut;
 }
 
 // A whole reply (practice calls): the same per-sentence decisions the live call makes as the words stream in.
@@ -272,9 +306,10 @@ export function guardText(text, ctx) {
   const parts = sentencesOf(text);
   if (!parts.length) return { text, cuts: [] };
   let spoken = '';
-  const keep = [], cuts = [];
+  const keep = [], cuts = [], c = Object.assign({}, ctx, { lastCut: '' });
   for (const p of parts) {
-    const g = guardOne(p, Object.assign({}, ctx, { spoken }));
+    c.spoken = spoken;
+    const g = guardOne(p, c);
     if (g) { cuts.push({ guard: g, text: p.trim().slice(0, 120) }); continue; }
     keep.push(p); spoken += p;
   }

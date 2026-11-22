@@ -142,6 +142,8 @@ test('rooms running side by side never take the same practice request', async ()
   await Promise.all([V.rehearse({ DB: db }), V.rehearse({ DB: db }), V.rehearse({ DB: db })]);
   const r = await db.prepare("SELECT kind, COUNT(*) AS n FROM voice_log GROUP BY kind ORDER BY kind").all();
   assert.deepEqual(r.results.map(x => x.kind + ':' + x.n), ['rehearse:1', 'rehearse-taken:1'], 'claimed once, run once');
+  const taken = await db.prepare("SELECT at FROM voice_log WHERE kind = 'rehearse-taken'").first();
+  assert.ok(Date.parse(taken.at) > Date.now() - 60e3, 'the claim stamps when the run started, so a deploy waits for it (/ops/busy)');
 });
 
 test('Part 1d: a goodbye closes, "same number" settles it, no town assumed, no held time on a regulated line, no routine closer in trouble', () => {

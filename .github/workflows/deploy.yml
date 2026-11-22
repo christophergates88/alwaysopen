@@ -64,27 +64,25 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with: { name: app-shots, path: app-shots, if-no-files-found: ignore, retention-days: 14 }
-      # A deploy restarts every call room, which cuts a caller off mid-sentence. Wait (up to 40 minutes) until no call
-      # is live and no practice run started in the last 3 minutes. If the check itself can't run, say so and go ahead.
+      # A deploy restarts every call room, which cuts a caller off mid-sentence. Wait (up to 40 minutes) until no call is
+      # live, on a Max line or one Max is making for Christopher. A practice run is waited for up to 10 minutes, then cut.
+      # The live site answers (/ops/busy, with the ops key). Until Nov 21, 2026 this read the databases with wrangler,
+      # which this token can't do, so it said "unknown" on every deploy and never waited. If the check can't run, say so
+      # and go ahead.
       - name: Wait until no call is live
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
         run: |
-          q="SELECT (SELECT count(*) FROM app_calls WHERE outcome = 'live' AND at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 minutes')) AS calls, (SELECT count(*) FROM voice_log WHERE kind = 'rehearse-taken' AND at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 minutes')) AS drills"
           fails=0
-          # Max's calls are in Always Open's own database (alwaysopen-biz) since the Nov 21, 2026 split; the old shared
-          # one (alwaysopen) is asked too, for a call that began before a deploy that switched them.
           for i in $(seq 1 120); do
-            busy=""
-            for db in alwaysopen-biz alwaysopen; do
-              out=$(npx -y wrangler@4 d1 execute $db --remote --json --command "$q" 2>/dev/null || true)
-              b=$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s)[0].results[0];console.log(r.calls+r.drills>0?"busy "+r.calls+" call(s), "+r.drills+" practice run(s)":"clear")}catch(e){console.log("unknown")}})')
-              [ "$b" != "clear" ] && { busy="$b"; break; }
-              busy="clear"
-            done
+            out=$(curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" https://alwaysopenoffice.com/ops/busy 2>/dev/null || true)
+            busy=$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let r;try{r=JSON.parse(s)}catch(e){}if(!r||!r.ok||!Number.isFinite(r.calls)||!Number.isFinite(r.drills)){console.log("unknown");return}console.log(r.calls>0?"calls "+r.calls:r.drills>0?"drills "+r.drills:"clear")})')
             echo "$(date -u +%H:%M:%S) $busy"
-            [ "$busy" = "clear" ] && exit 0
-            if [ "$busy" = "unknown" ]; then fails=$((fails+1)); [ $fails -ge 3 ] && { echo "::warning::Could not check for live calls; deploying anyway"; exit 0; }; fi
+            case "$busy" in
+              clear) exit 0 ;;
+              unknown) fails=$((fails+1)); if [ $fails -ge 3 ]; then echo "::warning::Could not check for live calls; deploying anyway"; exit 0; fi ;;
+              drills*) if [ $i -ge 30 ]; then echo "::notice::A practice run was still going after 10 minutes; deploying (it is cut short)"; exit 0; fi ;;
+            esac
             sleep 20
           done
           echo "::error::A call stayed live for 40 minutes; not deploying now"; exit 1

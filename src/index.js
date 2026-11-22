@@ -117,6 +117,24 @@ async function serve(req, env, ctx) {
       }
       return json({ ok: true, numbers: out }, 200);
     }
+    if (path === '/ops/busy') {
+      // The deploy waits on this: a deploy restarts every call room, which cuts a caller off mid-sentence. Until Nov 21,
+      // 2026 the deploy read the databases with wrangler, which its Cloudflare token could not do, so the check said
+      // "unknown" on every deploy and none of them waited. The site answers from its own bindings instead.
+      // calls: callers on a Max line (and voicemails being left), plus calls Max is making for Christopher (Gates HQ).
+      // drills: practice runs claimed in the last 5 minutes (one takes about 3; the claim stamps the time).
+      const k = req.headers.get('x-key') || '';
+      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      const since = m => new Date(Date.now() - m * 60e3).toISOString();
+      const count = async (db, sql, arg) => +(((await db.prepare(sql).bind(arg).first()) || {}).n) || 0;
+      try {
+        const calls = await count(env.DB, "SELECT count(*) AS n FROM app_calls WHERE outcome = 'live' AND at > ?1", since(20));
+        const drills = await count(env.DB, "SELECT count(*) AS n FROM voice_log WHERE kind = 'rehearse-taken' AND at > ?1", since(5));
+        // no such table yet on a fresh setup: nothing of Gates HQ's is on the phone
+        const hq = await count(hqEnv(env).DB, "SELECT count(*) AS n FROM hq_calls_out WHERE status IN ('dialing', 'talking') AND approved_at > ?1", since(20)).catch(() => 0);
+        return json({ ok: true, calls: calls + hq, drills }, 200);
+      } catch (e) { return json({ ok: false, error: 'could not check' }, 500); }
+    }
     if (path === '/ops/heartbeat') {
       // Scheduled tasks outside the worker say they ran: POST {task:"check"} with the key.
       const k = req.headers.get('x-key') || '';

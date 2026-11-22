@@ -1846,7 +1846,8 @@ export function systemPrompt6(L, caller, lang, wrapUp) {
     ...(own && L.goal ? ['On this line:', L.goal, ''] : []),
     'Your job:',
     '1. Answer what they called about, from what you know below.',
-    '2. When they want a call back or something done, get their name' + (callerSaid ? ' and ask if ' + callerSaid + ' is the best number.' : ' and the best number, and read it back.'),
+    // Nov 21 replay: "it's dale at 555 0142" got "Is 404-555-0187 the best number?", the number he was calling from
+    '2. When they want a call back or something done, get their name' + (callerSaid ? ' and ask if ' + callerSaid + ' is the best number. If they just gave you a number, that is the one: read it back, and ask for the area code if it had none.' : ' and the best number, and read it back.'),
     (own ? '3. Once they want the audit or a call back, and not before, get what ' + (PROMISES.support || 'the team') + ' needs' : '3. Get what the team needs') + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '.',
     L.slots && L.slots.length ? '4. For a visit, these times are open: ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Offer two. When they pick one and you have their name, read it back, then end that reply with [BOOK n|name|reason]. ' + (L.bookMode === 'hold' ? 'Say it is penciled in and the team will confirm.' : 'Say it is booked.') : (own ? null : '4. For a visit, ask what day and time work and say the team will confirm.'),
     own
@@ -2785,7 +2786,8 @@ function leadKindEn(raw, orig) {
   const n = w.split(' ').length;
   const has = re => re.test(w);
   // a caller's own life (Nov 5, 6:29 PM): a person's reaction, before anything else reads it as a plain question
-  if (has(PERSONAL) && !has(/\b(customers?|clients?|my (business|company|shop|crew)|we (do|fix|install))\b/)) return 'personal';
+  // "my wife answers our phone and we got voicemail already" is about the phones, not their life (Nov 21 replay: "Oof.")
+  if (has(PERSONAL) && !has(/\b(customers?|clients?|my (business|company|shop|crew)|we (do|fix|install))\b/) && !has(BUSINESS_TALK)) return 'personal';
   // the real ask, without "yeah so", "um" or "hi" in front of it
   const core = w.replace(/^((yeah|yes|yep|so|um+|uh+|well|okay|ok|oh|hi|hey|hello|and|but|like|alright|all right|thanks|thank you|max)\s+)+/, '');
   if (/^(what|huh|sorry|pardon|pardon me|excuse me|come again|what was that|what did you say|say again)$/.test(w) ||
@@ -3240,8 +3242,9 @@ function rehearsalLine(line, j) {
 }
 async function rehearseOne(env) {
   let req = null;
-  // claimed in one statement, so the rooms running side by side never take the same request
-  try { req = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1) AND kind = 'rehearse-request' RETURNING rowid AS id, detail").first(); } catch (e) { return false; }
+  // claimed in one statement, so the rooms running side by side never take the same request. The claim stamps the time,
+  // so a deploy can tell a practice run is going (/ops/busy) and wait for it instead of cutting it off.
+  try { req = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-taken', at = ?1 WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at LIMIT 1) AND kind = 'rehearse-request' RETURNING rowid AS id, detail").bind(new Date().toISOString()).first(); } catch (e) { return false; }
   if (!req) return false;
   const j = parse(req.detail) || {};
   // Score transcripts already run (the baseline from before a change), with the same rubric the new run gets.
@@ -3333,6 +3336,9 @@ export function sweepRetired(t, who) {
     // selling point stays; the figures go.
     .replace(/\bmost missed calls come after five, at lunch and on weekends\b/gi, 'calls keep coming after five, at lunch and on weekends')
     .replace(/\ba part-time receptionist costs well over \$1,000 a month\b/gi, 'a part-time hire costs several times as much')
+    // Nov 21 replay: a call's audit is texted the moment the call ends (textAudit, leadmail.js), but the line's notes still
+    // said "within two business days", and Max told a caller exactly that.
+    .replace(/\bThe free audit is a one-page report on how they look online, within two business days\./g, 'The free audit is a one-page report on how they look online; one asked for on a call is texted to them as soon as the call ends.')
     .replace(/The greeting already said you[’']re an S\.I\.; never bring up S\.I\. or AI again yourself, and never say what S\.I\. stands for\./g, 'The greeting already said you\'re an automated assistant; never bring it up again yourself.')
     // any other "an S.I.": the same thing in plain words (the last dot of "S.I." is kept when it also ended the sentence)
     .replace(/\b(?:an? )?S\.I\.(?!\w)/g, (m, at, all) => 'an automated assistant' + (/^(\s+["“]?[A-Z]|\s*$)/.test(all.slice(at + m.length)) ? '.' : ''));
