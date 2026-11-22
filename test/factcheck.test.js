@@ -186,3 +186,23 @@ test('v2: saved practice calls are re-checked against the instructions they ran 
   assert.match(seen[0].messages[0].content, /INSTRUCTIONS\n[\s\S]*Every plan answers every Google review[\s\S]*How you talk on this line[\s\S]*\n\nCALL\nMax \[1\]: [^\n]*\nCaller: which plan answers reviews\nMax \[2\]: Okay\. On the Growth plan/, 'the v3 instructions Max had, then the call');
   assert.equal((await DB.prepare("SELECT count(*) AS n FROM voice_log WHERE kind = 'rehearse'").first()).n, 1, 'nothing was run again');
 });
+
+test('v4 (practice only): told each turn what it already said; asks only their name; one thing that fits, not a list', async () => {
+  const V = await import('../src/voice.js');
+  const F = await import('../src/facts.js');
+  const f = F.ownLineFacts();
+  const L = feat => Object.assign({ business: 'Always Open', own: true, features: feat, intake: 'their business name, what kind of business it is, the town' }, f);
+  const msgs = [{ r: 'a', t: 'Always Open, this is Max.' }, { r: 'u', t: 'what does it cost' }, { r: 'a', t: 'Starter is $149 a month, no contract, and the first month is refunded if it is not worth it.' }, { r: 'u', t: 'and if a customer asks a price i only know' }, { r: 'a', t: 'I text you the question while they are on the line. That is Shoulder Tap. Want Chris to call you?' }, { r: 'u', t: 'hm ok so what else' }];
+  assert.deepEqual(V.saidAlready(msgs), ['the prices', 'the first-month refund', 'no contract', 'Shoulder Tap', 'that Chris can call them']);
+  const note = V.callerNotes({ line: L(['v4']), msgs }, 'hm ok so what else');
+  assert.match(note, /Already said this call: the prices, the first-month refund, no contract, Shoulder Tap, that Chris can call them\. Do not say any of it again/);
+  assert.doesNotMatch(V.callerNotes({ line: L(['v3']), msgs }, 'x'), /Already said this call/, 'v3 unchanged');
+  assert.doesNotMatch(V.callerNotes({ line: L([]), msgs }, 'x'), /Already said this call/, 'live unchanged');
+  const p4 = V.systemPrompt(L(['v4']), '+14045550187', 'en-US', false), p3 = V.systemPrompt(L(['v3']), '+14045550187', 'en-US', false);
+  assert.match(p4, /3\. Get their name, once, when they want the call back\. If they skip it, go on without it; never ask for their business name or town\./);
+  assert.match(p3, /3\. Get the details the team needs: their business name, what kind of business it is, the town/);
+  assert.match(p4, /say the one thing that fits their business best/); assert.doesNotMatch(p4, /Never stop at taking messages/);
+  assert.match(p3, /Never stop at taking messages/);
+  assert.match(p4, /How you talk on this line \(most important\)/, 'v4 carries v3');
+  assert.ok(p4.length <= 14200, 'within the prompt budget: ' + p4.length);
+});

@@ -1657,11 +1657,29 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', ...GUARDS];
 // ---------- v3 (Nov 22, 2026): practice-only until it beats the live version on the 100-call set ----------
 // The sounds-human grader marks down generic lines and scripted-sounding ones. The live version ended answers with
 // "Does that sound like your day?", opened them with "Good question.", and said "no setup fee, no contract" again and again.
-export const V3 = L => !!(L && Array.isArray(L.features) && L.features.includes('v3'));
+export const V3 = L => !!(L && Array.isArray(L.features) && (L.features.includes('v3') || L.features.includes('v4')));
+// ---------- v4 (Nov 22, 2026): v3, plus what the grader's top complaints need written in, not cut out ----------
+// Repeating (half of 400 graded calls) is what the model writes: each turn it is told what it has already said. The line
+// asks for "business name, kind of business, town, plan" before a call back, which made the shop-name question come back;
+// only their name is asked now. "Never stop at taking messages: booking, Shoulder Tap and the follow-ups" made answers a list.
+export const V4 = L => !!(L && Array.isArray(L.features) && L.features.includes('v4'));
+const SAID_TOPICS = [
+  ['the prices', /\$\s?\d|\b(149|299|499)\b|\b(a hundred|one) forty-nine\b|\bfour ninety-nine\b|\btwo ninety-nine\b/i],
+  ['the first-month refund', /\brefund/i], ['no contract', /\bno contract|\bmonth to month/i], ['no setup fee', /\bsetup fee/i],
+  ['cancelling from the app', /\bcancel/i], ['Shoulder Tap', /\bshoulder tap\b|\btext you the question\b/i],
+  ['booking on the call', /\bbook(s|ing)? (the|a|it|visits?|appointments?)\b[^.?!]*\b(on the call|right on|calendar)\b/i],
+  ['Spanish', /\bspanish\b/i], ['Fill my week', /\bfill my week\b/i], ['the three-day check-in', /\bthree days after\b|\bthree-day check-in\b/i],
+  ['review replies', /\breview(s)? (gets?|get) (a )?repl|\bevery (google )?review\b|\banswer(s)? every review\b/i], ['how setup works', /\bcall forwarding\b|\babout a week\b/i],
+  ['that Chris can call them', /\bchris\b[^.?!]*\b(call|walk you through|go over)\b/i], ['the free audit', /\bfree audit\b/i],
+];
+export function saidAlready(msgs) {
+  const mine = (msgs || []).filter(m => m.r === 'a').slice(1).map(m => String(m.t || '')).join(' ');
+  return SAID_TOPICS.filter(([, re]) => re.test(mine)).map(([name]) => name);
+}
 const STOCK_LEADS = new Set(['Good question.', 'Fair question.', 'Okay, so.', 'Okay, nice.', 'Good point.', 'Fair point.', 'Sure thing.']);
 
 // Guards that passed their blind test and run on every call (Brief 3). Until then each is a switch for practice calls.
@@ -1921,7 +1939,7 @@ function withTap(p, L) {
 export function systemPrompt(L, caller, lang, wrapUp) {
   if (P6(L)) return withTap(systemPrompt6(L, caller, lang, wrapUp), L);
   const facts = [
-    ['What we do', L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
+    ['What we do', L.own && V4(L) ? String(L.services || '').replace('Never stop at taking messages: booking the visit, Shoulder Tap and the follow-ups are what set it apart.', 'When they ask what it does, say the one thing that fits their business best, in a sentence or two, with an example from their world; more only if they ask.') : L.services], ['Where we work', L.area], ['Hours', L.hours], ['Prices we can share', L.prices], ['How booking works', L.booking],
     ['Address', L.address], ['Website', L.website], ['Other notes', L.notes], ['From the owner (things they want callers told)', L.owner]
   ].filter(x => x[1]).map(x => '- ' + x[0] + ': ' + x[1]).join('\n');
   const callerSaid = E164.test(caller || '') ? spokenNumber(caller) : '';
@@ -1942,7 +1960,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     'Your job, in order:',
     L.goal ? '1. ' + L.goal : '1. Find out what they need.',
     (L.goal ? '2. Once they want a call back or are clearly interested, and not before, get their name and the best number.' : '2. Get their name and the best number for a callback.') + (callerSaid ? ' They are calling from ' + callerSaid + '. Ask if that is the best number; if not, get the right one and read it back.' : ' Read the number back to check it.'),
-    '3. Get the details the team needs' + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '. If the work is at their place, get the street address and town before you wrap up.',
+    L.own && V4(L) ? '3. Get their name, once, when they want the call back. If they skip it, go on without it; never ask for their business name or town.' : '3. Get the details the team needs' + (L.intake ? ': ' + L.intake : ': what is going on, where, and how soon') + '. If the work is at their place, get the street address and town before you wrap up.',
     L.slots && L.slots.length
       ? '4. If they want an appointment or a visit, these times are open (numbered): ' + L.slots.map((x, i) => (i + 1) + ') ' + x.say).join('; ') + '. Offer the first two, in one short sentence. If neither works, offer the next two, then the last two. Once they clearly pick one and you have their name, read the day and time back, and when they say yes, end that reply with [BOOK n | their name | short reason], where n is the number of the time. ' +
         (L.bookMode === 'hold' ? 'Then tell them it is penciled in and the team will text or call to confirm it shortly. Never say it is booked or confirmed.' : 'Then tell them it is booked and they will hear from the team if anything changes.') +
@@ -2706,6 +2724,11 @@ export function callerNotes(s, said) {
       : 'The caller has asked for a person twice. Stop trying to help them yourself: ' + back);
   const done = settledOnCall(s.msgs);
   if (done) out.push(done);
+  // v4: what he has already told them this call, so he does not say it again (the grader's top complaint)
+  if (s.line && s.line.own && V4(s.line)) {
+    const said = saidAlready(s.msgs);
+    if (said.length) out.push('Already said this call: ' + said.join(', ') + '. Do not say any of it again unless they ask about it directly, and then in a few new words.');
+  }
   // Always Open's own line: the call back offered twice and let pass. Nov 21, 2026 replay: the third came as "I just need
   // the best number, and I've got the one you're calling from. Want him to use that one?", which no sentence check can
   // tell from a real ask, so the model is told before it writes.
