@@ -30,7 +30,7 @@ test('one row queues the whole 100-call set as practice requests', async () => {
   const V = await import('../src/voice.js');
   const { makeDB } = await import('./rehearsal/harness.js');
   const db = makeDB();
-  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T05:00:00Z', 'rehearse-set', ?1)").bind(JSON.stringify({ set: '100', tag: 'base', features: ['tap'], facts: true })).run();
+  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T05:00:00Z', 'rehearse-pack', ?1)").bind(JSON.stringify({ set: '100', tag: 'base', features: ['tap'], facts: true })).run();
   const n = await V.expandSets({ DB: db });
   const rows = (await db.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse-request' ORDER BY at").all()).results.map(r => JSON.parse(r.detail));
   assert.equal(rows.length, n);
@@ -38,6 +38,15 @@ test('one row queues the whole 100-call set as practice requests', async () => {
   for (const r of rows) { assert.ok(r.calls.length <= 8); assert.ok(r.calls.reduce((a, c) => a + c.turns.length, 0) <= 80); assert.equal(r.facts, true); assert.deepEqual(r.features, ['tap']); assert.equal(r.number, '+17064602226'); assert.equal(r.set, undefined); }
   assert.equal(rows[0].tag, 'base-1');
   assert.equal(await V.expandSets({ DB: db }), 0, 'claimed once');
-  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T05:01:00Z', 'rehearse-set', ?1)").bind(JSON.stringify({ set: '100', tag: 'few', only: ['golf-replay', 'a-4'] })).run();
+  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-22T05:01:00Z', 'rehearse-pack', ?1)").bind(JSON.stringify({ set: '100', tag: 'few', only: ['golf-replay', 'a-4'] })).run();
   assert.equal(await V.expandSets({ DB: db }), 1);
+});
+
+test('queuing a pack never touches the saved list of real calls to replay (kind rehearse-set)', async () => {
+  const V = await import('../src/voice.js');
+  const { makeDB } = await import('./rehearsal/harness.js');
+  const db = makeDB();
+  await db.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-06T15:12:00Z', 'rehearse-set', '{\"number\":\"+17064602226\",\"calls\":[[\"hi\"]],\"auto\":true}')").run();
+  assert.equal(await V.expandSets({ DB: db }), 0);
+  assert.equal((await db.prepare("SELECT count(*) AS n FROM voice_log WHERE kind = 'rehearse-set'").first()).n, 1);
 });

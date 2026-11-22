@@ -3369,11 +3369,11 @@ export async function syncOwnLine(env) {
 }
 
 const REHEARSE_ROOMS = 6;
-// A whole practice set from one row: kind 'rehearse-set', detail { set: '100', tag, features, facts, only: [ids] } plus
+// A whole practice set from one row: kind 'rehearse-pack' (not 'rehearse-set': that is the saved list of real calls to replay, grades.js), detail { set: '100', tag, features, facts, only: [ids] } plus
 // anything a request takes (number, caller, who, model, line). Split into requests of at most 8 calls and 78 turns.
 export async function expandSets(env) {
   let row = null;
-  try { row = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-set-done' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-set' ORDER BY at LIMIT 1) AND kind = 'rehearse-set' RETURNING detail").first(); } catch (e) { return 0; }
+  try { row = await env.DB.prepare("UPDATE voice_log SET kind = 'rehearse-pack-done' WHERE rowid = (SELECT rowid FROM voice_log WHERE kind = 'rehearse-pack' ORDER BY at LIMIT 1) AND kind = 'rehearse-pack' RETURNING detail").first(); } catch (e) { return 0; }
   if (!row) return 0;
   const j = parse(row.detail) || {};
   if (String(j.set) !== '100') return 0;
