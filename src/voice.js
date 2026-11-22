@@ -1395,6 +1395,14 @@ export function earlierCall(prev, now) {
   return 'This number called ' + ago + (prev.caller_name ? ' (' + oneLine(prev.caller_name).replace(/[^A-Za-z .\'-]/g, '').slice(0, 40) + ')' : '') + ' about: ' + what + '. The team already has that message.';
 }
 
+// What a real call got wrong, for Christopher (FACTCHECK_LIVE): the fact check's findings and a call back offered past twice.
+export async function liveSlips(env, msgs, L, f) {
+  const fc = await factCheck(env, msgs, L || {}, f).catch(() => ({ wrong: null }));
+  const cb = callbackOffers(msgs);
+  const slips = (fc.wrong || []).slice(0, 3).map(w => '"' + w.quote + '" (' + w.why + ')');
+  if (cb.offered > 2) slips.push('offered the call back ' + cb.offered + ' times');
+  return { slips, facts: fc.wrong ? fc.wrong.length : -1 };
+}
 async function writeUp(env, sid, s, why) {
   const call = SID_RE.test(sid) ? await env.DB.prepare('SELECT * FROM app_calls WHERE id = ?1').bind(sid).first() : null;
   if (!call) return false;
@@ -1460,7 +1468,15 @@ async function writeUp(env, sid, s, why) {
       if (hard.length) await opsAlert(env, 'max-hard', call.client_id, 'Max said something he shouldn\'t have on a call: ' + hard.slice(0, 3).map(h => h.flag + ' ("' + h.quote + '")').join('; ') + '. The call is queued as a rehearsal so the fix can be checked.').catch(() => {});
       // Risky safety advice on a real call ("shut off the breaker", "go into the basement"): Christopher hears about it.
       if (g.unsafe) await opsAlert(env, 'max-unsafe', call.client_id, 'Max may have given risky safety advice on a call: "' + unsafeAdvice(maxText).slice(0, 160) + '". The call is queued as a rehearsal so the fix can be checked.').catch(() => {});
-      const f = failuresOf(g).concat(hard.length ? ['said something he shouldn\'t'] : []);
+      // Nov 22, 2026: the same fact check practice calls get, and the call-back limit, on every real call on Always Open's
+      // line. Off until FACTCHECK_LIVE is "1" (wrangler.toml): a slip is texted to Christopher with what was said.
+      let slips = [];
+      if (env.FACTCHECK_LIVE === '1' && call.client_id === OWN_ID && !g.spam && heard >= 2) {
+        const ls = await liveSlips(env, msgs, (s && s.line) || {});
+        slips = ls.slips; g.facts = ls.facts;
+        if (slips.length) await opsAlert(env, 'max-fact', call.client_id, 'Max slipped on a call from ' + (call.caller || 'unknown') + ': ' + slips.join('; ') + '. It is queued as a practice call so the fix can be checked.').catch(() => {});
+      }
+      const f = failuresOf(g).concat(hard.length ? ['said something he shouldn\'t'] : []).concat(slips.length ? ['a fact or the call-back limit'] : []);
       if (f.length) await queueFromCall(env, call, msgs, f);
     } catch (e) { await vlog(env, 'grade-error', String((e && e.message) || e)); }
   }

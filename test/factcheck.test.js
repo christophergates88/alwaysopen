@@ -91,3 +91,17 @@ test('v3 (practice only): stock closers are cut after a real answer, stock react
   assert.equal(V.trimLead(lead, L(['tap', 'v3']), two, []).text, 'Okay.');
   assert.equal(V.trimLead(lead, L(['tap']), two, []).text, 'Good question.', 'live unchanged');
 });
+
+test('real calls (off until FACTCHECK_LIVE is "1"): a wrong fact and a call back past twice are what gets texted', async () => {
+  const V = await import('../src/voice.js');
+  const offer = 'Want Chris to call you?';
+  const call = [{ r: 'a', t: 'Hi.' }, { r: 'u', t: 'what plans' }, { r: 'a', t: 'On the Growth plan, every Google review gets a reply. ' + offer }, { r: 'u', t: 'hm' }, { r: 'a', t: 'Sure. ' + offer }, { r: 'u', t: 'what else' }, { r: 'a', t: 'Lots. ' + offer }];
+  const r = await V.liveSlips({ ANTHROPIC_API_KEY: 'k' }, call, { business: 'Always Open' }, fake('{"wrong":[{"turn":1,"quote":"On the Growth plan, every Google review gets a reply.","why":"Every plan answers reviews."}]}'));
+  assert.deepEqual(r.slips, ['"On the Growth plan, every Google review gets a reply." (Every plan answers reviews.)', 'offered the call back 3 times']);
+  assert.equal(r.facts, 1);
+  const clean = await V.liveSlips({ ANTHROPIC_API_KEY: 'k' }, call.slice(0, 3), {}, fake('{"wrong":[]}'));
+  assert.deepEqual(clean.slips, []);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/voice.js', import.meta.url), 'utf8');
+  assert.match(src, /env\.FACTCHECK_LIVE === '1' && call\.client_id === OWN_ID/, 'switched off unless set');
+  assert.doesNotMatch((await import('node:fs')).readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8'), /FACTCHECK_LIVE/, 'not set yet');
+});
