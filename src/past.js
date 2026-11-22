@@ -44,6 +44,8 @@ export async function ensurePast(env) {
   ]);
   // when the customer last bought (or asked for the estimate): it decides whether a text may go (TEXT_DAYS below)
   try { await env.DB.prepare("ALTER TABLE biz_revive ADD COLUMN last_at TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
+  // who gave the OK (Nov 22, 2026): 'owner' (marked in the app) or 'self' (the customer signed up themselves, consent.js)
+  try { await env.DB.prepare("ALTER TABLE biz_customers ADD COLUMN agreed_how TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
   READY.add(env.DB);
 }
 
@@ -262,9 +264,11 @@ export async function apiImport(req, env, c) {
   if (b.action === 'list') {
     const qn = cl(b.q, 40), like = '%' + qn.replace(/[%_]/g, '') + '%';
     const total = await env.DB.prepare('SELECT COUNT(*) AS n, SUM(agreed) AS a FROM biz_customers WHERE client_id = ?1').bind(cid).first();
-    const rs = qn ? await env.DB.prepare('SELECT id, name, phone, email, agreed, optout FROM biz_customers WHERE client_id = ?1 AND (name LIKE ?2 OR phone LIKE ?2 OR email LIKE ?2) ORDER BY name LIMIT 100').bind(cid, like).all()
-      : await env.DB.prepare('SELECT id, name, phone, email, agreed, optout FROM biz_customers WHERE client_id = ?1 ORDER BY name LIMIT 100 OFFSET ?2').bind(cid, Math.max(0, Math.min(100000, +b.offset || 0))).all();
-    return aj({ ok: true, total: +(total && total.n) || 0, agreed: +(total && total.a) || 0, customers: (rs.results || []).map(r => ({ id: r.id, name: r.name || '', phone: r.phone || '', email: r.email || '', agreed: !!+r.agreed, optout: !!+r.optout })) });
+    const rs = qn ? await env.DB.prepare('SELECT id, name, phone, email, agreed, optout, agreed_how FROM biz_customers WHERE client_id = ?1 AND (name LIKE ?2 OR phone LIKE ?2 OR email LIKE ?2) ORDER BY name LIMIT 100').bind(cid, like).all()
+      : await env.DB.prepare('SELECT id, name, phone, email, agreed, optout, agreed_how FROM biz_customers WHERE client_id = ?1 ORDER BY name LIMIT 100 OFFSET ?2').bind(cid, Math.max(0, Math.min(100000, +b.offset || 0))).all();
+    // The link where customers sign up for texts themselves (consent.js), once this business can text.
+    let signup = null; try { signup = await (await import('./consent.js')).signupState(env, cid); } catch (e) { signup = null; }
+    return aj({ ok: true, total: +(total && total.n) || 0, agreed: +(total && total.a) || 0, signup, customers: (rs.results || []).map(r => ({ id: r.id, name: r.name || '', phone: r.phone || '', email: r.email || '', agreed: !!+r.agreed, optout: !!+r.optout, self: !!+r.agreed && r.agreed_how === 'self' })) });
   }
   if (b.action === 'agree') {
     const on = b.agreed === false ? 0 : 1;
@@ -273,10 +277,10 @@ export async function apiImport(req, env, c) {
     const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(x => +x).filter(x => x > 0).slice(0, 5000);
     let n = 0;
     if (b.all === true) {
-      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = 0, agreed_at = '', updated = ?1 WHERE client_id = ?2 AND optout = 0").bind(ts, cid).run();
+      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = 0, agreed_at = '', agreed_how = '', updated = ?1 WHERE client_id = ?2 AND optout = 0").bind(ts, cid).run();
       n = r.meta.changes;
     } else for (const id of ids) {
-      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = ?1, agreed_at = CASE WHEN ?1 = 1 THEN ?2 ELSE '' END, updated = ?2 WHERE id = ?3 AND client_id = ?4 AND optout = 0").bind(on, ts, id, cid).run();
+      const r = await env.DB.prepare("UPDATE biz_customers SET agreed = ?1, agreed_at = CASE WHEN ?1 = 1 THEN ?2 ELSE '' END, agreed_how = CASE WHEN ?1 = 1 THEN 'owner' ELSE '' END, updated = ?2 WHERE id = ?3 AND client_id = ?4 AND optout = 0").bind(on, ts, id, cid).run();
       n += r.meta.changes;
     }
     return aj({ ok: true, changed: n });
@@ -285,6 +289,8 @@ export async function apiImport(req, env, c) {
     const id = +b.id || 0;
     const cu = await env.DB.prepare('SELECT ckey, phone10, email FROM biz_customers WHERE id = ?1 AND client_id = ?2').bind(id, cid).first();
     if (!cu) return aj({ ok: false, error: 'Not found' }, 404);
+    // a customer who signed up themselves and is removed: their sign-up ends too (the record of it is kept)
+    try { await (await import('./consent.js')).endConsent(env, cid, cu.phone10 || '', 'removed by the business'); } catch (e) { /* the row goes anyway */ }
     await env.DB.batch([
       env.DB.prepare("DELETE FROM biz_jobs WHERE client_id = ?1 AND source = 'import' AND ((?2 != '' AND " + NUM('phone') + " LIKE '%' || ?2) OR (?3 != '' AND lower(email) = ?3))").bind(cid, cu.phone10 || '', cu.email || ''),
       env.DB.prepare('DELETE FROM biz_revive WHERE client_id = ?1 AND ckey = ?2').bind(cid, cu.ckey),
@@ -297,7 +303,8 @@ export async function apiImport(req, env, c) {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM biz_jobs WHERE client_id = ?1 AND source = 'import'").bind(cid),
       env.DB.prepare("DELETE FROM biz_revive WHERE client_id = ?1 AND status = 'pending'").bind(cid),
-      env.DB.prepare('DELETE FROM biz_customers WHERE client_id = ?1 AND optout = 0').bind(cid)
+      // "Remove all imported customers" keeps the ones who signed up for texts themselves (consent.js)
+      env.DB.prepare("DELETE FROM biz_customers WHERE client_id = ?1 AND optout = 0 AND COALESCE(agreed_how, '') != 'self'").bind(cid)
     ]);
     return aj({ ok: true });
   }

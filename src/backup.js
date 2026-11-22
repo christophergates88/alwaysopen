@@ -10,6 +10,8 @@ export const TABLES = ['app_clients', 'app_staff', 'app_locations', 'voice_lines
   'sms_brands', 'a2p_reg', 'biz_stripe', 'app_settings', 'biz_msgs', 'mail_suppress', 'lead_keys', 'audit_sends',
   // Outreach: who signed what, every do-not-call request and every call (the Telemarketing Sales Rule wants five years).
   // Not the copy of the national Do Not Call list (dnc_slices): it is reloaded from the FTC, and never leaves the database.
+  // Who signed up for a business's texts themselves, and the words they agreed to (consent.js): kept as proof.
+  'biz_consent', 'consent_links',
   'outreach_terms', 'outreach_optout', 'outreach_webstop', 'outreach_calls', 'outreach_lists', 'outreach_pitch', 'outreach_review'];
 // Columns that open something (an owner's app link) never leave the database, even in a backup. A restored client
 // gets a new link from HQ; the app keeps only a hash of the code anyway (app_clients.code_hash).
