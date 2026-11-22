@@ -54,9 +54,17 @@ export async function ensureVoicemail(env) {
 }
 
 const auth = env => 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN);
-function tw(env, h, path, method) {
+// A call or a recording lives in the account of the line it came to (a business's own sub-account, twacct.js).
+const recAcct = new Map();
+async function acctFor(env, h, path) {
+  const c = /^\/Calls\/(CA[0-9a-f]{32})/.exec(path);
+  if (c) return (await import('./twacct.js')).accountOfCall(env, c[1], h && h.fetch);
+  const r = /^\/Recordings\/(RE[0-9a-f]{32})/.exec(path);
+  return (r && recAcct.get(r[1])) || env.TWILIO_ACCOUNT_SID;
+}
+async function tw(env, h, path, method) {
   const f = (h && h.fetch) || fetch;
-  const url = /^\/2010-04-01\//.test(path) ? 'https://api.twilio.com' + path : TW + env.TWILIO_ACCOUNT_SID + path;
+  const url = /^\/2010-04-01\//.test(path) ? 'https://api.twilio.com' + path : TW + await acctFor(env, h, path) + path;
   return f(url, { method: method || 'GET', headers: { authorization: auth(env) } });
 }
 async function mark(env, sid, status, note, rec, tries) {
@@ -91,7 +99,9 @@ async function recordingOf(env, sid, h) {
   const r = await tw(env, h, '/Calls/' + sid + '/Recordings.json');
   if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the call’s recordings');
   const j = await r.json();
-  return (j.recordings || []).find(x => x.status === 'completed' && +x.duration >= 2 && REC_RE.test(x.sid || '')) || null;
+  const rec = (j.recordings || []).find(x => x.status === 'completed' && +x.duration >= 2 && REC_RE.test(x.sid || '')) || null;
+  if (rec) recAcct.set(rec.sid, await acctFor(env, h, '/Calls/' + sid));
+  return rec;
 }
 const dropRecording = (env, rec, h) => tw(env, h, '/Recordings/' + rec + '.json', 'DELETE').catch(() => null);
 
@@ -171,13 +181,17 @@ export async function vmSweep(env, now, h) {
   const from = Math.max(now - LOOKBACK_MS, (last && Date.parse(last.v)) ? Date.parse(last.v) - 30 * 60e3 : now - 3 * 3600e3);
   // Twilio filters by day; the time is checked here.
   const calls = [];
-  let path = '/Calls.json?PageSize=200&StartTime%3E=' + iso(from).slice(0, 10);
-  for (let page = 0; page < 5 && path; page++) {
-    const r = await tw(env, h, path);
-    if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of calls');
-    const j = await r.json();
-    for (const c of j.calls || []) calls.push(c);
-    path = j.next_page_uri || '';
+  // every account: the main one and each business's own sub-account (twacct.js); each call remembers its account
+  const T = await import('./twacct.js');
+  for (const acct of await T.allAccounts(env)) {
+    let path = '/2010-04-01/Accounts/' + acct + '/Calls.json?PageSize=200&StartTime%3E=' + iso(from).slice(0, 10);
+    for (let page = 0; page < 5 && path; page++) {
+      const r = await tw(env, h, path);
+      if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of calls');
+      const j = await r.json();
+      for (const c of j.calls || []) { calls.push(c); T.noteCall(c.sid, acct); }
+      path = j.next_page_uri || '';
+    }
   }
   const ended = /^(completed|busy|no-answer|canceled|failed)$/;
   const cand = calls.filter(c => c.direction === 'inbound' && lines.has(c.to) && ended.test(c.status) && SID_RE.test(c.sid || '') &&

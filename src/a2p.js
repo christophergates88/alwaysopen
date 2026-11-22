@@ -79,7 +79,8 @@ function form(params) {
   return p.toString();
 }
 async function tw(env, method, url, params, extraHeaders) {
-  const r = await fetch(url, { method, headers: Object.assign({ Authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN), 'content-type': 'application/x-www-form-urlencoded' }, extraHeaders || {}), body: method === 'GET' ? undefined : form(params || {}) });
+  // env.TW_AUTH: a business's own sub-account (twacct.js, set in advance()); otherwise the main account
+  const r = await fetch(url, { method, headers: Object.assign({ Authorization: env.TW_AUTH || ('Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN)), 'content-type': 'application/x-www-form-urlencoded' }, extraHeaders || {}), body: method === 'GET' ? undefined : form(params || {}) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(String(j.message || ('Twilio answered ' + r.status)).slice(0, 300)); e.status = r.status; e.code = j.code; throw e; }
   return j;
@@ -101,7 +102,7 @@ async function stepProfile(env, row, f, sids) {
       first_name: f.first, last_name: f.last, business_title: f.title, job_position: f.position, email: f.email, phone_number: '+1' + f.phone } })).sid;
     await assign(env, 'CustomerProfiles', sids.profile, sids.repEU);
   }
-  if (!sids.address) sids.address = (await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Addresses.json', { CustomerName: biz, Street: f.street, City: f.city, Region: f.state, PostalCode: f.zip, IsoCountry: 'US', FriendlyName: biz })).sid;
+  if (!sids.address) sids.address = (await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + (env.TW_ACCT || env.TWILIO_ACCOUNT_SID) + '/Addresses.json', { CustomerName: biz, Street: f.street, City: f.city, Region: f.state, PostalCode: f.zip, IsoCountry: 'US', FriendlyName: biz })).sid;
   if (!sids.doc) {
     sids.doc = (await tw(env, 'POST', TH + 'SupportingDocuments', { Type: 'customer_profile_address', FriendlyName: biz + ' address', Attributes: { address_sids: sids.address } })).sid;
     await assign(env, 'CustomerProfiles', sids.profile, sids.doc);
@@ -182,11 +183,11 @@ async function stepWaitCampaign(env, row, f, sids) {
 async function stepNumber(env, row, f, sids) {
   const line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 AND on_air = 1 ORDER BY updated DESC LIMIT 1').bind(row.client_id).first();
   if (!line) return { wait: true };   // the Max line isn't set up yet; finish when it is
-  const l = await tw(env, 'GET', 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(line.number));
+  const l = await tw(env, 'GET', 'https://api.twilio.com/2010-04-01/Accounts/' + (env.TW_ACCT || env.TWILIO_ACCOUNT_SID) + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(line.number));
   const pn = (l.incoming_phone_numbers || [])[0];
   if (!pn) return { fix: 'The business number is not in our Twilio account yet.' };
   try { await tw(env, 'POST', MSG + 'Services/' + sids.mg + '/PhoneNumbers', { PhoneNumberSid: pn.sid }); } catch (e) { if (!/already/i.test(e.message) && e.code !== 21712) throw e; }
-  await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers/' + pn.sid + '.json', { SmsUrl: SITE + '/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST' }).catch(() => {});
+  await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + (env.TW_ACCT || env.TWILIO_ACCOUNT_SID) + '/IncomingPhoneNumbers/' + pn.sid + '.json', { SmsUrl: SITE + '/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST' }).catch(() => {});
   const { setBrand } = await import('./sms.js');
   await setBrand(env, row.client_id, sids.mg, 'approved');
   return { done: true };
@@ -199,7 +200,7 @@ async function stepSpProfile(env, row, f, sids) {
     sids.starterEU = (await tw(env, 'POST', TH + 'EndUsers', { Type: 'starter_customer_profile_information', FriendlyName: who + ' starter profile', Attributes: { first_name: f.first, last_name: f.last, email: f.email, phone_number: '+1' + f.phone } })).sid;
     await assign(env, 'CustomerProfiles', sids.profile, sids.starterEU);
   }
-  if (!sids.address) sids.address = (await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Addresses.json', { CustomerName: who || f.legal, Street: f.street, City: f.city, Region: f.state, PostalCode: f.zip, IsoCountry: 'US', FriendlyName: f.legal })).sid;
+  if (!sids.address) sids.address = (await tw(env, 'POST', 'https://api.twilio.com/2010-04-01/Accounts/' + (env.TW_ACCT || env.TWILIO_ACCOUNT_SID) + '/Addresses.json', { CustomerName: who || f.legal, Street: f.street, City: f.city, Region: f.state, PostalCode: f.zip, IsoCountry: 'US', FriendlyName: f.legal })).sid;
   if (!sids.doc) {
     sids.doc = (await tw(env, 'POST', TH + 'SupportingDocuments', { Type: 'customer_profile_address', FriendlyName: f.legal + ' address', Attributes: { address_sids: sids.address } })).sid;
     await assign(env, 'CustomerProfiles', sids.profile, sids.doc);
@@ -256,7 +257,13 @@ export async function advance(env, cid) {
   const save = (status, step, error, form2) => env.DB.prepare('UPDATE a2p_reg SET status = ?1, step = ?2, sids = ?3, error = ?4, form = ?5, tries = ?6, updated = ?7 WHERE client_id = ?8')
     .bind(status, step, JSON.stringify(sids), error || '', JSON.stringify(form2 || f), status === row.status && step === row.step ? (+row.tries || 0) + 1 : 0, now(), cid).run();
   let r;
-  try { r = await STEPS[row.step](env, row, f, sids, { ref: c && c.ref }); }
+  try {
+    // A business with its own sub-account (twacct.js) registers there: its profile, brand, campaign and Messaging Service
+    // are made in that account with its own key, as Twilio's guide for resellers with sub-accounts says.
+    const T = await import('./twacct.js'), acct = await T.accountOf(env, cid);
+    const te = acct === env.TWILIO_ACCOUNT_SID ? env : Object.assign(Object.create(env), { TW_ACCT: acct, TW_AUTH: await T.authFor(env, acct) });
+    r = await STEPS[row.step](te, row, f, sids, { ref: c && c.ref });
+  }
   catch (e) {
     await save(row.status, row.step, '', f);   // keep any SIDs created before the error
     if ((+row.tries || 0) >= 5 || (e.status && e.status < 500 && e.status !== 429)) {

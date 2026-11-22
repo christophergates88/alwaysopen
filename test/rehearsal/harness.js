@@ -154,6 +154,16 @@ export function installFetch(world, env) {
 
     // ---- Twilio ----
     if (host === 'api.twilio.com') {
+      // which account each request was made in (a business's own sub-account, twacct.js)
+      (world.twPaths = world.twPaths || []).push(method + ' ' + path);
+      if (path === '/2010-04-01/Accounts.json' && method === 'POST') {
+        if (world.fail.subaccount) return json({ message: 'Sub-accounts are not enabled on this account' }, 400);
+        const sid = 'AC' + world.id('', 32).replace(/[^0-9a-f]/g, '0').slice(0, 32).padEnd(32, '0');
+        (world.subs = world.subs || []).push({ sid, name: form().get('FriendlyName') });
+        return json({ sid, auth_token: 'subkey-' + sid.slice(-8), status: 'active' }, 201);
+      }
+      const ga = path.match(/^\/2010-04-01\/Accounts\/(AC[0-9a-f]{32})\.json$/);
+      if (ga && method === 'GET') return json({ sid: ga[1], auth_token: 'subkey-' + ga[1].slice(-8), status: 'active' });
       if (world.fail.twilioBuy && /IncomingPhoneNumbers\.json$/.test(path) && method === 'POST') return json({ message: 'Your account balance is too low' }, 402);
       if (/AvailablePhoneNumbers/.test(path)) {
         const ac = (u.searchParams.get('AreaCode') || (u.searchParams.get('NearNumber') || '+1478').replace(/\D/g, '').slice(1, 4) || '478');

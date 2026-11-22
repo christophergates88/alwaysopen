@@ -277,10 +277,15 @@ export async function textDelivery(env, now, h) {
   now = now || Date.now(); h = h || {};
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return { off: true };
   const f = h.fetch || fetch;
-  const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Messages.json?PageSize=300&DateSent%3E=' + new Date(now - DAY).toISOString().slice(0, 10), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
-  if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of texts');
-  const j = await r.json();
-  const out = (j.messages || []).filter(m => /^outbound/.test(m.direction || '') && now - (Date.parse(m.date_sent || m.date_created) || 0) < DAY);
+  // every account: the main one and each business's own sub-account (twacct.js)
+  const all = [];
+  for (const acct of await (await import('./twacct.js')).allAccounts(env)) {
+    const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + acct + '/Messages.json?PageSize=300&DateSent%3E=' + new Date(now - DAY).toISOString().slice(0, 10), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
+    if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the list of texts');
+    const j = await r.json();
+    for (const m of j.messages || []) all.push(m);
+  }
+  const out = all.filter(m => /^outbound/.test(m.direction || '') && now - (Date.parse(m.date_sent || m.date_created) || 0) < DAY);
   const bad = out.filter(m => /^(failed|undelivered)$/.test(m.status || ''));
   const res = { sent: out.length, failed: bad.length };
   if (bad.length < 5 || bad.length / Math.max(out.length, 1) < 0.15) return res;

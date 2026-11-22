@@ -54,8 +54,9 @@ export function searches(phone, town) {
   return out;
 }
 
-async function tw(env, method, path, form) {
-  const r = await fetch(TW + env.TWILIO_ACCOUNT_SID + path, { method, headers: Object.assign({ authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) }, form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}), body: form ? new URLSearchParams(form).toString() : undefined });
+// acct: the account the number lives in (a business's own sub-account, twacct.js); the main account's key works on both.
+async function tw(env, method, path, form, acct) {
+  const r = await fetch(TW + (acct || env.TWILIO_ACCOUNT_SID) + path, { method, headers: Object.assign({ authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) }, form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}), body: form ? new URLSearchParams(form).toString() : undefined });
   const j = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, j };
 }
@@ -95,14 +96,17 @@ export async function provisionLine(env, cid) {
   // Every number is named with the client's id. If an earlier try bought one but stopped before writing it down, that
   // number is found here and used, never a second one bought.
   const fname = ('Always Open ' + cid + ': ' + business).slice(0, 64);
+  // With TWILIO_SUBACCOUNTS on, a new business gets a sub-account of its own first, and its number is bought there
+  // (twacct.js). If Twilio can't make one, the main account is used, as before.
+  const acct = await (await import('./twacct.js')).subaccountFor(env, cid, business);
   let bought = null, lastErr = '';
   try {
-    const mine = await tw(env, 'GET', '/IncomingPhoneNumbers.json?PageSize=5&FriendlyName=' + encodeURIComponent(fname));
+    const mine = await tw(env, 'GET', '/IncomingPhoneNumbers.json?PageSize=5&FriendlyName=' + encodeURIComponent(fname), null, acct);
     const n0 = ((mine.j && mine.j.incoming_phone_numbers) || []).find(x => x.phone_number && x.sid);
     if (n0) bought = { number: n0.phone_number, sid: n0.sid };
   } catch (e) { /* buying below still works */ }
   for (const q of (bought ? [] : searches((b && b.phone) || c.phone, town))) {
-    const s = await tw(env, 'GET', '/AvailablePhoneNumbers/US/Local.json?VoiceEnabled=true&SmsEnabled=true&ExcludeAllAddressRequired=true&PageSize=5' + (q ? '&' + q : ''));
+    const s = await tw(env, 'GET', '/AvailablePhoneNumbers/US/Local.json?VoiceEnabled=true&SmsEnabled=true&ExcludeAllAddressRequired=true&PageSize=5' + (q ? '&' + q : ''), null, acct);
     const list = (s.j.available_phone_numbers || []).map(x => x.phone_number).filter(Boolean);
     for (const num of list.slice(0, 3)) {
       const r = await tw(env, 'POST', '/IncomingPhoneNumbers.json', {
@@ -110,7 +114,7 @@ export async function provisionLine(env, cid) {
         VoiceUrl: SITE + '/voice/in/' + env.VOICE_KEY, VoiceMethod: 'POST', StatusCallback: SITE + '/voice/status/' + env.VOICE_KEY, StatusCallbackMethod: 'POST',
         VoiceFallbackUrl: fallbackUrl(business, env.VOICE_KEY), VoiceFallbackMethod: 'GET',
         SmsUrl: SITE + '/voice/sms/' + env.VOICE_KEY, SmsMethod: 'POST'
-      });
+      }, acct);
       if (r.ok && r.j.sid) { bought = { number: r.j.phone_number || num, sid: r.j.sid }; break; }
       lastErr = String((r.j && r.j.message) || ('Twilio answered ' + r.status)).slice(0, 160);
       if (r.status === 401 || r.status === 403 || /balance|funds|suspended/i.test(lastErr)) break;
@@ -166,7 +170,7 @@ export async function provisionCron(env, at) {
       try { await (await import('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
     }
     if (days >= RELEASE_DAYS && e.number_sid && env.TWILIO_ACCOUNT_SID) {
-      const r = await tw(env, 'DELETE', '/IncomingPhoneNumbers/' + e.number_sid + '.json');
+      const r = await tw(env, 'DELETE', '/IncomingPhoneNumbers/' + e.number_sid + '.json', null, await (await import('./twacct.js')).accountOf(env, e.client_id));
       if (r.ok || r.status === 404) {
         await env.DB.batch([
           env.DB.prepare("UPDATE provision SET status = 'released', updated = ?1 WHERE client_id = ?2").bind(new Date(now).toISOString(), e.client_id),

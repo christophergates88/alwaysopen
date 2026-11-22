@@ -80,7 +80,8 @@ export async function saveRecording(env, rec, h) {
     env.DB.prepare("UPDATE hear_max_arm SET status = 'saved' WHERE k = 'arm'"),
     env.DB.prepare('DELETE FROM hear_max WHERE current = 0 AND at < ?1').bind(new Date(Date.now() - 7 * 864e5).toISOString())
   ]);
-  try { await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Recordings/' + rec.sid + '.json', { method: 'DELETE', headers: { authorization: twilioAuth(env) } }); } catch (e) { /* Twilio keeps its copy; harmless */ }
+  const ra = /\/Accounts\/(AC[0-9a-f]{32})\//.exec(String(rec.url || ''));   // the account the recording is in (twacct.js)
+  try { await f('https://api.twilio.com/2010-04-01/Accounts/' + (ra ? ra[1] : env.TWILIO_ACCOUNT_SID) + '/Recordings/' + rec.sid + '.json', { method: 'DELETE', headers: { authorization: twilioAuth(env) } }); } catch (e) { /* Twilio keeps its copy; harmless */ }
   if (h && h.ping) await h.ping('Hear Max sample saved, ' + seconds + ' seconds', 'It is live on the site now' + (lang === 'es' ? ' (the Spanish one)' : '') + '. Tap to hear it the way visitors will.', SITE + '/#hear');
   return { ok: true, seconds, bytes: bytes.length };
 }
@@ -103,7 +104,8 @@ export async function hearMaxCron(env, now, h) {
   }
   if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN) return { skipped: 'no Twilio keys' };
   const f = (h && h.fetch) || fetch;
-  const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/Calls/' + a.call_sid + '/Recordings.json', { headers: { authorization: twilioAuth(env) } });
+  const acct = await (await import('./twacct.js')).accountOfCall(env, a.call_sid, f);
+  const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + acct + '/Calls/' + a.call_sid + '/Recordings.json', { headers: { authorization: twilioAuth(env) } });
   const j = await r.json().catch(() => ({}));
   const rec = (j.recordings || []).find(x => x.status === 'completed');
   if (!rec) return { skipped: 'no recording yet' };
