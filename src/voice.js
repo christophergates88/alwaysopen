@@ -3336,7 +3336,7 @@ async function rehearseOne(env) {
       for (const o of (Array.isArray(d.out) ? d.out : [])) { msgs.push({ r: 'u', t: String(o.said || '') }); msgs.push({ r: 'a', t: ((o.lead ? o.lead + ' ' : '') + String(o.reply || '')).trim() }); }
       const fc = await factCheck2(env, msgs, instructions).catch(e => ({ wrong: null, why: String(e) }));
       // the log's 600-character default cut 33 of the first 200 re-checks mid-JSON
-      await vlog(env, 'rehearse-recheck', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: d.id, row: +rid, old: d.facts, wrong: fc.wrong, cand: fc.cand, why: fc.wrong == null ? fc.why : undefined }), 8000);
+      await vlog(env, 'rehearse-recheck', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: d.id, row: +rid, old: d.facts, wrong: fc.wrong, cand: fc.cand, dropped: fc.dropped, why: fc.wrong == null ? fc.why : undefined }), 8000);
     }
     return true;
   }

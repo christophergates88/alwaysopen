@@ -155,7 +155,7 @@ test('v2: Sonnet finds, a skeptical Opus read keeps only real errors; the call i
   assert.equal(seen.length, 2);
   assert.equal(seen[0].model, 'claude-sonnet-5-5'); assert.deepEqual(seen[0].thinking, { type: 'between_tools' });
   assert.equal(seen[1].model, 'claude-opus-5-5'); assert.equal(seen[1].thinking, undefined, 'Opus 5.5 takes no thinking setting here');
-  assert.match(seen[0].messages[0].content, /^INSTRUCTIONS\nYou are Max\.[\s\S]*\n\nCALL\nMax \[1\]: Always Open, this is Max\.\nCaller: can i pay now\nMax \[2\]: I never take card numbers\./);
+  assert.match(seen[0].messages[0].content, /^INSTRUCTIONS\nYou are Max\.[\s\S]*RULES MAX FOLLOWS[^\n]*\n\nCALL\nMax \[1\]: Always Open, this is Max\.\nCaller: can i pay now\nMax \[2\]: I never take card numbers\./);
   assert.match(seen[1].messages[0].content, /CLAIMS\n1\. Max \[1\]: "I never take card numbers\." \(flagged because: not in facts\)\n2\. Max \[2\]/);
   // nothing found: no second read
   seen.length = 0;

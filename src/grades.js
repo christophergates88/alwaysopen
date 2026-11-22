@@ -261,10 +261,12 @@ export async function factCheck(env, msgs, L, f) {
 // trade. v2 reads the exact instructions Max had on the call, and a second, skeptical read keeps only real errors.
 const FIND2 = 'You check what Max, an automated phone assistant, told a caller, against INSTRUCTIONS: the exact instructions Max had on this call (his facts and his rules). ' +
   'List only statements by Max that would leave the caller believing something false: a wrong price or plan, a feature put on the wrong plan, saying something can be done that INSTRUCTIONS say cannot (or the reverse), a wrong time promise, an invented feature, policy or promise, or claiming an action that did not happen (for example "I am checking with Chris right now" when he cannot be). ' +
+  // v2.1 (Nov 22, 2026): what v2 missed on the 200 calls the answer key covers
+  'Check these closely: how fast or when he answers (calls reach him only when the owner does not pick up, so not "on the first ring"); how long setup takes; a price said as the whole cost when minutes past the included ones cost extra; a feature described as something it is not (Shoulder Tap is texting the owner a question while the caller holds, nothing else); which offices are messages only (only insurance, medical and legal); what a regulated office gets. ' +
   'Not errors: anything INSTRUCTIONS state, support or allow (his rules included), a supported feature illustrated with an example from the caller\'s trade, paraphrase, rounding, small talk, jokes, opinions, deferring to Chris, and harmless details consistent with INSTRUCTIONS. When unsure, leave it out. ' +
   'Max\'s replies are numbered. Return ONLY JSON: {"wrong":[{"turn":<Max reply number>,"quote":"<his exact words, under 25 words>","why":"<what INSTRUCTIONS say, under 25 words>","kind":"price|plan|feature|policy|timing|promise|action|other"}]}. An accurate call returns {"wrong":[]}.';
 const VERIFY2 = 'You are a strict second reader of a fact check on a phone call. For each numbered CLAIM, read Max\'s words in the CALL and the INSTRUCTIONS he had. ' +
-  'Answer "error" only if INSTRUCTIONS clearly contradict what he said, or he invented a price, plan, feature, policy, time promise or action that would mislead the caller. Answer "ok" if INSTRUCTIONS state it, support it or allow it, or it is a paraphrase, an example, a deferral or harmless. ' +
+  'Answer "error" only if INSTRUCTIONS clearly contradict what he said, or he invented a price, plan, feature, policy, time promise or action, AND a caller who believed it would expect or decide something differently (what it costs, which plan, what it can do for them, how fast, what happened on this call). Answer "ok" if INSTRUCTIONS state it, support it or allow it, if it is a paraphrase, an example, a deferral or harmless, or if it is a small invented detail that changes nothing for the caller. ' +
   'Return ONLY JSON: {"verdicts":[{"i":<claim number>,"v":"error|ok","why":"<under 20 words>"}]}.';
 async function askClaude(env, model, system, text, maxTokens, f) {
   const thinking = /haiku/.test(model) ? { thinking: { type: 'disabled' } } : /sonnet/.test(model) ? { thinking: { type: 'between_tools' } } : {};
@@ -287,7 +289,8 @@ export function callText(msgs) {
 export async function factCheck2(env, msgs, instructions, f) {
   if (!env.ANTHROPIC_API_KEY) return { wrong: null, why: 'no key' };
   if (!(msgs || []).some(m => m.r === 'u')) return { wrong: [], cand: 0 };
-  const base = 'INSTRUCTIONS\n' + String(instructions || '').slice(0, 40000) + '\n\nCALL\n' + callText(msgs);
+  // v2.1: his built-in rules with them (v2 flagged "I can pick up every one of those calls at once", which is true)
+  const base = 'INSTRUCTIONS\n' + String(instructions || '').slice(0, 40000) + '\n' + MAX_RULES + '\n\nCALL\n' + callText(msgs);
   try {
     // 1,500 tokens ran out mid-answer on 5 of 167 calls (the thinking counts against it)
     const a = await askClaude(env, env.FACT_MODEL || 'claude-sonnet-5-5', FIND2, base, 5000, f);
@@ -295,7 +298,7 @@ export async function factCheck2(env, msgs, instructions, f) {
     if (!cand.length) return { wrong: [], cand: 0 };
     const b = await askClaude(env, env.FACT_VERIFY_MODEL || 'claude-opus-5-5', VERIFY2, base + '\n\nCLAIMS\n' + cand.map((c, i) => (i + 1) + '. Max [' + c.turn + ']: "' + c.quote + '" (flagged because: ' + c.why + ')').join('\n'), 6000, f);
     const err = new Set((b && Array.isArray(b.verdicts) ? b.verdicts : []).filter(v => String(v.v) === 'error').map(v => +v.i));
-    return { wrong: cand.filter((c, i) => err.has(i + 1)), cand: cand.length };
+    return { wrong: cand.filter((c, i) => err.has(i + 1)), cand: cand.length, dropped: cand.filter((c, i) => !err.has(i + 1)).map(c => c.turn + ': ' + c.quote.slice(0, 90)) };
   } catch (e) { return { wrong: null, why: String((e && e.message) || e).slice(0, 160) }; }
 }
 
