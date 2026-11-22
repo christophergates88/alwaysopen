@@ -1989,9 +1989,19 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- When the call is complete and you have said goodbye, end your reply with [END]. Only after the caller has said they are done (that\'s all, thanks, bye); never right after answering their question or while a question of yours is open.',
     '- ' + transfer,
     ...(L.tap ? ['- ' + tapRule(L)] : []),
+    ...(V3(L) && L.own ? V3_TALK : []),
     wrapUp ? '\nThe call is running long. Wrap up now: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n'), L);
 }
+// v3, loop 3 (Nov 22, 2026): the sounds-human grader's reasons on 400 practice calls, in order: repeating (half the calls),
+// generic lines (a third), the call back with Chris pushed (a third), salesy (a fifth). Guards cut sentences and could not
+// move those; they are what gets written, so the instructions say it.
+const V3_TALK = ['', 'How you talk on this line (most important):',
+  '- Say each thing once a call. Once you have said the price, the refund, no contract, or that Chris can call, do not say it again; if they ask again, answer in a few words.',
+  '- Answer what they asked, in their words and about their business, then stop. No pitch tacked on, and no question at the end unless you need the answer.',
+  '- Offer Chris\'s call back once, when they sound interested. If they let it pass, do not bring it up again unless they ask.',
+  '- If they do not give their name or their business name when you ask, let it go.',
+  '- Sound like a sharp person who likes them, not a brochure: plain words, no "great question", no lists of features.'];
 
 // Merge the call into the alternating user/assistant turns the AI expects, starting with the caller.
 function toChat(msgs) {

@@ -130,3 +130,13 @@ test('call-back offers worded as "put you down for the callback" or in Spanish a
   assert.equal(G.callbackOffers(m('Sure. Want me to put you down for the callback with Chris?')).offered, 1);
   assert.equal(G.callbackOffers(m('Claro. ¿Quieres que Chris te llame?')).offered, 1);
 });
+
+test('v3 loop 3: the own line\'s prompt says each thing once, no pitch, the call back once; the live prompt is unchanged', async () => {
+  const V = await import('../src/voice.js');
+  const L = f => ({ business: 'Always Open', own: true, goal: 'Help business owners see what Always Open would do for them.', features: f });
+  const p3 = V.systemPrompt(L(['v3']), '+14045550187', 'en-US', false), p0 = V.systemPrompt(L([]), '+14045550187', 'en-US', false);
+  assert.match(p3, /How you talk on this line \(most important\):\n- Say each thing once a call\./);
+  assert.match(p3, /Offer Chris's call back once, when they sound interested/);
+  assert.doesNotMatch(p0, /How you talk on this line/);
+  assert.doesNotMatch(V.systemPrompt({ business: 'Lane Plumbing', features: ['v3'] }, '+14045550187', 'en-US', false), /How you talk on this line/, 'a business\'s own line is not this');
+});
