@@ -259,13 +259,15 @@ const HOWQ = /\b(how (does|do|would|will|is|can|did)|how (it|this|that|you|we) (
 const openQuote = t => { const x = String(t || ''); return (x.match(/"/g) || []).length % 2 === 1 || (x.match(/“/g) || []).length > (x.match(/”/g) || []).length; };
 // What a feature can't do, or the plan it is on, the first time it is said (Nov 21 replay: the length cut took "If your
 // tee sheet is separate software, it doesn't connect." and left "I can." for a golf shop; it took "Yelp isn't covered,
-// though." and "It's on Growth and Pro." too). A short sentence only, and never past 55 words in all.
+// though." and "It's on Growth and Pro." too). Up to 30 words, and never past 65 in all: on the third replay the caveat
+// came as one 24-word sentence ("Tee sheet software is different: it doesn't connect, so I'd take the time ...") and
+// was cut again, after "Yep, I can book it right on the call.".
 const LIMIT = /\b(doesn'?t|does not|don'?t|do not|won'?t|will not|can'?t|cannot|isn'?t|is not|aren'?t|are not)\s+(connect|sync|link|covered|cover|included|include|work with)\b|\bnot (covered|included|connected)\b|\b(on|in) (growth|pro)( and pro)?\b|\b(growth|pro) plan\b|\bnot on (starter|growth)\b/;
 function shortReply(s, ctx) {
   if (isQ(s) || SAFETY.test(s)) return false;
   if (MORE.test(lc(ctx.said))) return false;
   if (openQuote(ctx.spoken)) return false;
-  if (LIMIT.test(lc(s)) && words(s) <= 18 && words(ctx.spoken || '') + words(s) <= 55) {
+  if (LIMIT.test(lc(s)) && words(s) <= 30 && words(ctx.spoken || '') + words(s) <= 65) {
     const said = (ctx.msgs || []).filter(m => m.r === 'a').flatMap(m => sentencesOf(m.t)).map(norm);
     if (!said.includes(norm(s))) return false;
   }

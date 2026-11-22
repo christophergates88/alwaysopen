@@ -79,7 +79,7 @@ test('replay: a limit or a plan, said the first time, is not cut for length', ()
   const again = call('does fill my week work with vagaro', 'Fill my week reads Google Calendar. Vagaro doesn\'t connect.', 'ok so what else');
   assert.doesNotMatch(run('Calls get answered at any hour. Reviews get a reply, with your OK first. Vagaro doesn\'t connect.', again).text, /Vagaro/);
   // and a reply that is long already stays short
-  const long = 'Calls get answered at any hour of the day or night, weekends and holidays included, whether your whole crew is up on a roof or under a house in the heat, and every caller gets a real answer and a booked visit instead of a voicemail box that nobody checks until Monday morning. ';
+  const long = 'Calls get answered at any hour of the day or night, weekends and holidays included, whether your whole crew is up on a roof or under a house in the heat, and every caller gets a real answer, a booked visit and a text to your phone instead of a voicemail box that nobody checks until Monday morning, when it is already too late to win the job. ';
   assert.doesNotMatch(run(long + 'Storm Desk is on Growth.', call('what do you do')).text, /Storm Desk/);
 });
 
@@ -144,4 +144,11 @@ test('replay 2: after two offers of the call back that were let pass, the model 
   assert.match(V.callerNotes(s(audit), audit.at(-1).t), /Do not offer it again, unless they ask for a call\./, 'the number for the audit can still be confirmed');
   // a business's own line: the call back is the job there
   assert.doesNotMatch(V.callerNotes({ line: { own: false, features: [] }, msgs: twice }, twice.at(-1).t), /call back twice/);
+});
+
+test('replay 3: the tee-sheet caveat in one long sentence is kept after "I can book it"', () => {
+  const golf = call('Shop out of course. I\'m down in Atlanta.', 'A golf shop, nice. When your shop is busy and a call goes unanswered, I pick up and text you who called.',
+    'Okay. Appreciate it. When someone calls, can you make a tea time for them? or do I have to do that?');
+  const out = run('Yep, I can book it right on the call. I offer open times from your hours and your Google Calendar once it\'s connected, then either book it or pencil it in for you to confirm. Tee sheet software is different: it doesn\'t connect, so I\'d take the time they want and check it with you by text while they wait.', golf);
+  assert.match(out.text, /Tee sheet software is different: it doesn't connect/, out.text);
 });
