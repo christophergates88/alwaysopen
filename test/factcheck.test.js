@@ -227,3 +227,54 @@ test('Always Open\'s line runs v3 for every caller (Nov 23, 2026): the 10-minute
   assert.equal(await V.syncOwnLine(env), false, 'a second sync changes nothing');
   assert.match((await import('node:fs')).readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8'), /\nFACTCHECK_LIVE = "1"\n/, 'real-call slips are sent to Christopher');
 });
+
+// ---------- callers that react (Nov 23, 2026) ----------
+test('callerTurn: the caller speaks from their persona and agenda, reacting to the call so far', async () => {
+  const V = await import('../src/voice.js');
+  const seen = [];
+  const f = async (url, o) => { seen.push(JSON.parse(o.body)); return { json: async () => ({ content: [{ type: 'thinking', thinking: '..' }, { type: 'text', text: '{"say":"ok but what does it cost me","hangup":false}' }] }) }; };
+  const msgs = [{ r: 'a', t: 'Always Open, this is Max.' }, { r: 'u', t: 'hi i run a bakery' }, { r: 'a', t: 'A bakery, nice. What can I do for you?' }];
+  const r = await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, { persona: 'a bakery owner, busy, skeptical' }, ['hi i run a bakery', 'how much is it', 'is there a contract'], msgs, 2, f);
+  assert.deepEqual(r, { say: 'ok but what does it cost me', hangup: false });
+  assert.equal(seen[0].model, 'claude-sonnet-5-5'); assert.deepEqual(seen[0].thinking, { type: 'between_tools' });
+  assert.match(seen[0].system, /You play a real person phoning the sales line of Always Open/);
+  assert.match(seen[0].messages[0].content, /^PERSONA: a bakery owner, busy, skeptical\nAGENDA:\n1\. hi i run a bakery\n2\. how much is it\n3\. is there a contract\nThis is turn 2 of at most 10\.\n\nTHE CALL SO FAR\nMax: Always Open, this is Max\.\nYou: hi i run a bakery\nMax: A bakery, nice\./);
+  const bad = async () => ({ json: async () => ({ content: [{ type: 'text', text: 'sure' }] }) });
+  assert.equal(await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, bad), null);
+});
+
+test('a reactive practice call: the first line is scripted, then the caller answers Max until they hang up', async () => {
+  const V = await import('../src/voice.js');
+  const H = await import('./rehearsal/harness.js');
+  const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
+  H.installFetch(world, env);
+  await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, town, updated, facts) VALUES ('+17064602226', 'always-open', 'Always Open', 1, 'answering service', 'Eatonton, GA', '2026-11-22', ?1)").bind(JSON.stringify({ prices: 'Starter is $149 a month.' })).run();
+  world.aiScript = ['A bakery, nice. Mornings must be busy. What made you call?', 'Starter is $149 a month, no contract.', 'Thanks for calling, take care.'];
+  let n = 0;
+  world.aiNote = b => /play a real person phoning/.test(b.system) ? (n++ === 0 ? { say: 'how much is it, roughly', hangup: false } : { say: 'ok thanks, bye', hangup: true }) : { score: 6, why: 'ok' };
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T12:00:00Z', 'rehearse-request', ?1)").bind(JSON.stringify({ number: '+17064602226', reactive: true, tag: 'rx', calls: [{ id: 'd-1', persona: 'a bakery owner', turns: ['hi i run a bakery', 'how much', 'contract?', 'what about reviews'] }] })).run();
+  await V.rehearse(env);
+  const r = JSON.parse((await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse'").first()).detail);
+  assert.deepEqual(r.out.map(o => o.said), ['hi i run a bakery', 'how much is it, roughly', 'ok thanks, bye'], 'scripted first line, then the caller\'s own words, then goodbye');
+  assert.equal(n, 2, 'no more caller turns after the goodbye');
+  // a scripted call (no "reactive") is unchanged
+  world.aiScript = ['One.', 'Two.']; n = 0;
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T12:01:00Z', 'rehearse-request', ?1)").bind(JSON.stringify({ number: '+17064602226', tag: 'sx', calls: [{ id: 'd-2', turns: ['first', 'second'] }] })).run();
+  await V.rehearse(env);
+  const s = (await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse'").all()).results.map(x => JSON.parse(x.detail)).find(x => x.tag === 'sx');
+  assert.deepEqual(s.out.map(o => o.said), ['first', 'second']); assert.equal(n, 0);
+});
+
+test('v5 (practice only): the own line\'s prompt carries the example answers; v3 and the live line do not', async () => {
+  const V = await import('../src/voice.js');
+  const F = await import('../src/facts.js');
+  const L = feat => Object.assign({ business: 'Always Open', own: true, features: feat }, F.ownLineFacts());
+  const p5 = V.systemPrompt(L(['v5']), '+14045550187', 'en-US', false), p3 = V.systemPrompt(L(['v3']), '+14045550187', 'en-US', false);
+  assert.match(p5, /This is how you sound on this line\. Match the length and the tone; the facts in them are true:\nCaller: so what is this, what do you guys do\nYou: We answer a business's calls/);
+  assert.match(p5, /How you talk on this line \(most important\)/, 'v5 carries v3');
+  assert.doesNotMatch(p3, /This is how you sound on this line/);
+  assert.equal(V.V5_EXAMPLES.length, 15);
+  // every price in the examples is a real price
+  for (const [, m] of V.V5_EXAMPLES) for (const d of m.match(/\$\d+/g) || []) assert.ok(['$149', '$299', '$499'].includes(d), d);
+  assert.doesNotMatch(V.systemPrompt({ business: 'Lane Plumbing', features: ['v5'] }, '+14045550187', 'en-US', false), /This is how you sound/, 'a business\'s line is not this');
+});

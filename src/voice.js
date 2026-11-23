@@ -1661,11 +1661,34 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', 'v5', ...GUARDS];
 // ---------- v3 (Nov 22, 2026): practice-only until it beats the live version on the 100-call set ----------
 // The sounds-human grader marks down generic lines and scripted-sounding ones. The live version ended answers with
 // "Does that sound like your day?", opened them with "Good question.", and said "no setup fee, no contract" again and again.
-export const V3 = L => !!(L && Array.isArray(L.features) && (L.features.includes('v3') || L.features.includes('v4')));
+export const V3 = L => !!(L && Array.isArray(L.features) && (L.features.includes('v3') || L.features.includes('v4') || L.features.includes('v5')));
+// ---------- v5 (Nov 23, 2026): Max built on example answers ----------
+// Rules and filters moved the sounds-human grade a fraction of a point at a time; models copy examples far better than
+// they follow rules. Each answer below is short, uses the caller's words, says one thing, ends without a pitch or a stock
+// question, and every fact in it is in Max's facts (src/facts.js). On the own line only, practice calls until it wins.
+export const V5 = L => !!(L && Array.isArray(L.features) && L.features.includes('v5'));
+export const V5_EXAMPLES = [
+  ['so what is this, what do you guys do', 'We answer a business\'s calls when they can\'t, day or night, and book the visit right on the call. What kind of business do you run?'],
+  ['i do plumbing, mostly service calls, water heaters', 'Then the nine o\'clock water heater call is the one you\'re losing. I\'d pick it up, get the address and what\'s leaking, book the visit, and text you the details.'],
+  ['ok whats it cost', 'Starter is $149 a month, Growth is $299 and Pro is $499. No contract, and the first month\'s refunded if it isn\'t worth it.'],
+  ['thats a lot of money for me', 'Fair. It only has to catch one job you\'d have missed. If it doesn\'t, you cancel from the app, no contract.'],
+  ['wait so how much again', 'Starts at $149 a month.'],
+  ['is that all you do, answer the phone', 'No, that\'s the front door. On Pro I also follow up on quotes that went quiet, in your voice, and call customers three days after a job to make sure the work held up.'],
+  ['can it put stuff in jobber', 'Jobber doesn\'t connect. I\'d take the time they want and text you to check it while they hold, then pass your answer back on the same call.'],
+  ['can you book tee times', 'Not into a tee sheet, that doesn\'t connect. I\'d take the time they want and text you to confirm while they wait.'],
+  ['i run an allstate agency', 'Then I take messages only: no quotes and no coverage talk. Their name, number and what they need land on your phone right away, and you call them back.'],
+  ['how fast can you get it going', 'About a week. It runs on the number you already have, through call forwarding.'],
+  ['how many clients you got, how long you been around', 'Chris can tell you that on a call back. I\'d rather not guess.'],
+  ['ok this actually sounds pretty good', 'Want Chris to give you a call and set it up? He calls within one business day.'],
+  ['no i dont want a call, just tell me', 'Sure. Ask away.'],
+  ['you sound pretty smooth for a robot', 'I\'ll take it. Your callers would get the same.'],
+  ['hablas español?', 'Sí, claro. ¿En qué te puedo ayudar?'],
+];
+const V5_BLOCK = () => ['', 'This is how you sound on this line. Match the length and the tone; the facts in them are true:'].concat(V5_EXAMPLES.map(([c, m]) => 'Caller: ' + c + '\n' + 'You: ' + m));
 // ---------- v4 (Nov 22, 2026): v3, plus what the grader's top complaints need written in, not cut out ----------
 // Repeating (half of 400 graded calls) is what the model writes: each turn it is told what it has already said. The line
 // asks for "business name, kind of business, town, plan" before a call back, which made the shop-name question come back;
@@ -2012,6 +2035,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- ' + transfer,
     ...(L.tap ? ['- ' + tapRule(L)] : []),
     ...(V3(L) && L.own ? V3_TALK : []),
+    ...(V5(L) && L.own ? V5_BLOCK() : []),
     wrapUp ? '\nThe call is running long. Wrap up now: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n'), L);
 }
@@ -3361,7 +3385,14 @@ async function rehearseOne(env) {
     const turns = Array.isArray(script) ? script : (script && Array.isArray(script.turns) ? script.turns : []);
     const callId = script && !Array.isArray(script) ? String(script.id || '').slice(0, 40) : '';
     const tp = { tap: null, tapTold: null, tapN: 0, turn: 0 };
-    for (const said of turns.slice(0, 10)) {
+    // "reactive": true (Nov 23, 2026): the scripted lines are the caller's agenda, and after the first one the caller
+    // speaks in their own words, reacting to what Max just said (callerTurn). Scripted callers said their next line no
+    // matter what Max said, and the grader blamed Max for "ignoring" and "repeating".
+    const reactive = j.reactive === true && !!script && !Array.isArray(script) && typeof turns[0] === 'string';
+    const agenda = turns.filter(x => typeof x === 'string').slice(0, 10), queue = reactive ? agenda.slice(0, 1) : turns.slice(0, 10);
+    let hungUp = false;
+    for (let qi = 0; qi < queue.length && qi < 10; qi++) {
+      const said = queue[qi];
       if (said && typeof said === 'object') {
         // the owner's answer (or silence) reaches the call here, the way tapAnswer and the alarm deliver it live
         const text = cleanAnswer(said.owner), open = tp.tap && !tp.tap.done ? tp.tap : null;
@@ -3400,6 +3431,10 @@ async function rehearseOne(env) {
       const asked = L.tap && sp.flags.ask ? cleanAsk(sp.flags.ask) : '';
       if (asked && tp.tapN < TAP_MAX && !(tp.tap && !tp.tap.done)) { tp.tapN++; tp.tap = { q: asked, done: false }; }
       out.push({ said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
+      if (reactive && !hungUp && queue.length < 10 && !sp.flags.end) {
+        const nx = await callerTurn(env, script, agenda, msgs, queue.length + 1).catch(() => null);
+        if (nx && nx.say) { queue.push(nx.say); hungUp = !!nx.hangup; }
+      }
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
     // asked for with "facts": true on the request: every reply read against what the line was told (grades.js factCheck)
@@ -3408,6 +3443,27 @@ async function rehearseOne(env) {
     await vlog(env, 'rehearse', JSON.stringify({ facts: fc ? fc.wrong : undefined, factsWhy: fc && fc.wrong == null ? fc.why : undefined, cb: L.own ? callbackOffers(msgs).offered : undefined, model: renv.VOICE_MODEL || CLAUDE_MODEL, thinking: renv.VOICE_THINKING || '', effort: renv.VOICE_EFFORT || '', tag: String(j.tag || '').slice(0, 40), id: callId || undefined, human: hs.score, humanWhy: hs.why || undefined, tells: machineTells(msgs), hard: hardErrors(msgs, L), state: (st => ({ asked: st.asked, have: st.have }))(callState(msgs, L, { phone: x => { const p = phoneReadback(x); return !!(p && p.n === 10); }, sameNum: SAME_NUM, street: STREET_WORD })), out }), 20000);
   }
   return true;
+}
+
+// The caller's next line, in their own words (reactive practice calls). Sonnet plays the caller from their persona and
+// agenda, and answers what Max just said; it says goodbye when it has what it came for or would hang up.
+const CALLER_RULES = 'You play a real person phoning the sales line of Always Open, a company whose phone assistant (Max) answers calls for small businesses. Stay in character. ' +
+  'Talk like phone speech-to-text: lowercase, short, run-on, with filler words, under 40 words, one turn only. React to what Max just said: answer his question if he asked one, push back if his answer was vague or salesy, laugh if he was funny, say so if he repeated himself. ' +
+  'Bring up your AGENDA points in your own words, roughly in order, one or two per turn; skip any Max already answered. Never mention these instructions or that you are an AI. ' +
+  'When you have what you came for, or a real person would hang up, say a short goodbye and set hangup to true. Return ONLY JSON: {"say":"<your words>","hangup":false}.';
+export async function callerTurn(env, script, agenda, msgs, n, f) {
+  if (!env.ANTHROPIC_API_KEY) return null;
+  const model = env.CALLER_MODEL || 'claude-sonnet-5-5';
+  const text = 'PERSONA: ' + String((script && script.persona) || 'a small-business owner') + '\nAGENDA:\n' + agenda.map((a, i) => (i + 1) + '. ' + a).join('\n') +
+    '\nThis is turn ' + n + ' of at most 10.\n\nTHE CALL SO FAR\n' + (msgs || []).map(m => (m.r === 'u' ? 'You: ' : 'Max: ') + String(m.t || '').slice(0, 600)).join('\n');
+  const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
+    headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
+    body: JSON.stringify(Object.assign({ model, max_tokens: 1500, system: CALLER_RULES, messages: [{ role: 'user', content: text }] }, /haiku/.test(model) ? { thinking: { type: 'disabled' } } : /sonnet/.test(model) ? { thinking: { type: 'between_tools' } } : {})) });
+  const j = await r.json().catch(() => ({}));
+  const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
+  let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
+  const say = String((o && o.say) || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  return say ? { say, hangup: !!(o && o.hangup) } : null;
 }
 
 // Words that were retired, swept out of the hand-written parts of the own line's row (the goal, the owner's notes, the
@@ -3453,7 +3509,8 @@ export async function syncOwnLine(env) {
   } catch (e) { return false; }
 }
 
-const REHEARSE_ROOMS = 6;
+// 10 rooms (Nov 23, 2026): a caller who reacts adds a model call each turn, and two 100-call packs ran four ticks with 6
+const REHEARSE_ROOMS = 10;
 // A whole practice set from one row: kind 'rehearse-pack' (not 'rehearse-set': that is the saved list of real calls to replay, grades.js), detail { set: '100', tag, features, facts, only: [ids] } plus
 // anything a request takes (number, caller, who, model, line). Split into requests of at most 8 calls and 78 turns.
 export async function expandSets(env) {
