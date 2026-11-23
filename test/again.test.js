@@ -143,3 +143,12 @@ test('lead-late on a live call: no "Okay," before an answer that is ready in tim
   assert.ok(s.leads.includes(last.lead), 'it counts toward the recent reactions');
   world.aiDelayMs = 0; delete env.VOICE_LEAD_WAIT;
 });
+
+test('reask: the own line\'s instructions end with the rule for a question asked again, exactly as it was tested', () => {
+  const F = { business: 'Always Open', own: true };
+  const p = V.systemPrompt(Object.assign({ features: ['v5', 'reask'] }, F), '+14045550187', 'en-US', false);
+  assert.ok(p.trimEnd().endsWith(V.REASK_RULE), 'said last');
+  assert.match(V.REASK_RULE, /^Repeating yourself \(this outranks anything above\): when the caller asks again about something you already answered/);
+  assert.doesNotMatch(V.systemPrompt(Object.assign({ features: ['v5'] }, F), '+14045550187', 'en-US', false), /Repeating yourself \(this outranks/);
+  assert.doesNotMatch(V.systemPrompt({ business: 'Lane Plumbing', features: ['v5', 'reask'] }, '+14045550187', 'en-US', false), /Repeating yourself/, 'a business\'s line is not this');
+});

@@ -1687,7 +1687,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', 'v5', 'lead-late', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', 'v5', 'lead-late', 'reask', ...GUARDS];
 // ---------- v3 (Nov 22, 2026): practice-only until it beats the live version on the 100-call set ----------
 // The sounds-human grader marks down generic lines and scripted-sounding ones. The live version ended answers with
 // "Does that sound like your day?", opened them with "Good question.", and said "no setup fee, no contract" again and again.
@@ -2062,9 +2062,16 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     ...(L.tap ? ['- ' + tapRule(L)] : []),
     ...(V3(L) && L.own ? V3_TALK : []),
     ...(V5(L) && L.own ? V5_BLOCK() : []),
+    ...(REASK(L) && L.own ? ['', REASK_RULE] : []),
     wrapUp ? '\nThe call is running long. Wrap up now: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n'), L);
 }
+// "reask" (Nov 23, 2026): the same answer given again at full length when a caller asks again was what the grader called
+// repeating (on 100 practice calls, 51 complaints; a guard that cut repeated points made it worse). Said last, so it
+// outranks the rest, as it was tested (practice "rules"). Practice only: on its run (R5, 90 calls) the repeat complaints
+// went 43 to 50 and sounds-human 5.78 to 5.58, so it is not on any line.
+export const REASK = L => !!(L && Array.isArray(L.features) && L.features.includes('reask'));
+export const REASK_RULE = 'Repeating yourself (this outranks anything above): when the caller asks again about something you already answered on this call (a discount, the price, who calls back, what you do), don\'t give the same answer again at the same length. Say it in one short sentence that shows you remember ("Same as before: no discounts.") and add the one thing you haven\'t said yet, if there is one. Never explain the plans, the call back or what we do a second time unless they ask for it again in so many words.';
 // v3, loop 3 (Nov 22, 2026): the sounds-human grader's reasons on 400 practice calls, in order: repeating (half the calls),
 // generic lines (a third), the call back with Chris pushed (a third), salesy (a fifth). Guards cut sentences and could not
 // move those; they are what gets written, so the instructions say it.
@@ -3638,7 +3645,9 @@ export function sweepRetired(t, who) {
 // v5 since Nov 23, 2026 (Christopher's OK, the morning of Nov 23): v3 plus the 15 example answers. On his own blind pick page he chose
 // v5 over v3 14 times in 20; the side-by-side judge picked it 60 to 48 on 141 moments; on 200 practice calls with callers
 // who react the two tied (sounds-human 5.69 vs 5.67, fact slips 19 vs 22). Back to v3: put 'v3' first here instead.
-export const OWN_VERSION = { features: ['v5', 'g-closer', 'g-stock', 'g-ask3'], off: ['tap'], testFeatures: [] };
+// lead-late since Nov 23, 2026 (Christopher: "Fix this please"): the grader's complaints about canned openers went from 29
+// to 20, 21 and 18 on three runs of 100 calls, with sounds-human and fact slips unchanged. Off: take 'lead-late' out.
+export const OWN_VERSION = { features: ['v5', 'g-closer', 'g-stock', 'g-ask3', 'lead-late'], off: ['tap'], testFeatures: [] };
 export async function syncOwnLine(env) {
   try {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();

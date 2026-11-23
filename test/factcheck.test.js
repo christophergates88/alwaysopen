@@ -214,14 +214,15 @@ test('v2: an answer cut off mid-JSON keeps the items it finished', async () => {
   assert.deepEqual(r.wrong.map(w => w.quote), ['Fill my week is on Growth.']); assert.equal(r.cand, 1);
 });
 
-test('Always Open\'s line runs v5 for every caller (Nov 23, 2026): the 10-minute sync sets it, Shoulder Tap off, no test-only extras', async () => {
+test('Always Open\'s line runs v5 with lead-late for every caller (Nov 23, 2026): the 10-minute sync sets it, Shoulder Tap off, no test-only extras', async () => {
   const V = await import('../src/voice.js');
   const H = await import('./rehearsal/harness.js');
   const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
   await DB.prepare("INSERT INTO voice_lines (number, client_id, business, on_air, industry, town, updated, facts) VALUES ('+17064602226', 'always-open', 'Always Open', 1, 'answering service', 'Eatonton, GA', '2026-11-22', ?1)").bind(JSON.stringify({ testFeatures: ['tap'], notes: 'x' })).run();
   await V.syncOwnLine(env);
   const f = JSON.parse((await DB.prepare("SELECT facts FROM voice_lines WHERE client_id = 'always-open'").first()).facts);
-  assert.deepEqual(f.features, ['v5', 'g-closer', 'g-stock', 'g-ask3']); assert.deepEqual(f.off, ['tap']); assert.deepEqual(f.testFeatures, []);
+  assert.deepEqual(f.features, ['v5', 'g-closer', 'g-stock', 'g-ask3', 'lead-late']); assert.deepEqual(f.off, ['tap']); assert.deepEqual(f.testFeatures, []);
+  assert.ok(V.leadLate(V.lineView({ number: '+17064602226', client_id: 'always-open', business: 'Always Open', facts: JSON.stringify(f) })), 'a plain reaction waits on the own line');
   const L = V.lineView({ number: '+17064602226', client_id: 'always-open', business: 'Always Open', facts: JSON.stringify(f) });
   assert.ok(V.V5(L), 'v5 on'); assert.ok(V.V3(L), 'v5 carries v3'); assert.equal(V.V4(L), false);
   // the live prompt carries the example answers
