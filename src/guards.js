@@ -317,6 +317,9 @@ function askThird(s, ctx) {
 // them: what we do, the prices, the refund, the call back. g-stock only catches the same sentence. Always Open's own line
 // only; a sentence is cut when every point it makes was already made on this call and the caller did not just ask about
 // any of them or ask to hear it again. Questions, safety steps and sentences about what they just said always stay.
+// Practice only. First run (R4, 100 calls each, Nov 23): the grader's complaints about repeating went 51 to 60, not down,
+// and 4 of 14 cuts read back were wrong (a price asked for in words, the refund on a money question, the answer itself
+// cut as a repeat). What the grader calls repeating is mostly the same answer given again when a caller asks again.
 // Each point: [name, Max saying it, the caller asking about it].
 export const POINTS = [
   ['answers calls', /\b(answer|answers|answering|pick up|picks up|picking up|catch|catches)\b[^.?!]{0,24}\b(calls?|phones?)\b|\bday or night\b|\b(when|while) you can'?t (pick up|get to (it|the phone)|answer|grab)\b/i,

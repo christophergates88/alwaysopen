@@ -49,7 +49,8 @@ export const leadLate = L => !!(L && Array.isArray(L.features) && L.features.inc
 export const leadWait = env => { const n = Number(env && env.VOICE_LEAD_WAIT); return Number.isFinite(n) && n >= 0 && n <= 3000 && String(env.VOICE_LEAD_WAIT) !== '' ? n : LEAD_WAIT_MS; };
 // The plain reactions a stock one ("Good question.") is said as, never the same one twice in a row (lead-late): v3 said
 // every one as "Okay.", 284 of 1,520 turns on the Nov 23 practice calls.
-const PLAIN_LEADS = ['Okay.', 'Sure.', 'Right.', 'Alright.', 'Mm-hm.'];
+// No "Mm-hm.": the grader called it stiff on the first lead-late run (R4, Nov 23).
+const PLAIN_LEADS = ['Okay.', 'Sure.', 'Right.', 'Alright.'];
 const BRIDGES = ['Let\'s see.', 'One sec.', 'Let me think.'];
 const LATE_MS = 450;             // an interrupt this soon after a reply starts is about the reply before it (the caller cannot have heard this one yet)
 const HEAD_CHARS = 40;           // how much of the AI's answer is looked at before speaking it, to drop a repeated "Got it"

@@ -58,6 +58,7 @@ test('lead-late: a stock reaction turns into a plain one that was not said in th
   assert.equal(V.trimLead(lead, L(['v3']), msgs, ['Okay.']).text, 'Okay.', 'v3 alone: always "Okay."');
   assert.equal(V.trimLead(lead, L(['v3', 'lead-late']), msgs, ['Okay.']).text, 'Sure.');
   assert.equal(V.trimLead(lead, L(['v3', 'lead-late']), msgs, ['Okay.', 'Sure.', 'Right.']).text, 'Alright.');
+  assert.equal(V.trimLead(lead, L(['v3', 'lead-late']), msgs, ['Sure.', 'Right.', 'Alright.']).text, 'Okay.', 'never "Mm-hm."');
   assert.equal(V.leadWait({}), 700); assert.equal(V.leadWait({ VOICE_LEAD_WAIT: '0' }), 0); assert.equal(V.leadWait({ VOICE_LEAD_WAIT: 'x' }), 700);
 });
 
