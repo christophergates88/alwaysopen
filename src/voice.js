@@ -42,6 +42,14 @@ export function thinkingFor(env, model) {
 const CF_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const BACKUP_NOTE = '\n\nRight now: answer in one short sentence, in the same warm manner as the examples above. Use only what is written here. Ask at most one question.';
 const FILLER_MS = 2200;          // if the AI is unusually slow and has said nothing by then, Max bridges the gap ("Let's see.")
+// "lead-late" (Nov 23, 2026): a plain quick reaction ("Okay.", "Got it.") waits this long and is said only if the answer
+// has not started by then. Real calls' first words came 0.5 to 1.5 seconds into a turn (the Nov 21 golf call: 0.84 to 1.57).
+const LEAD_WAIT_MS = 700;
+export const leadLate = L => !!(L && Array.isArray(L.features) && L.features.includes('lead-late'));
+export const leadWait = env => { const n = Number(env && env.VOICE_LEAD_WAIT); return Number.isFinite(n) && n >= 0 && n <= 3000 && String(env.VOICE_LEAD_WAIT) !== '' ? n : LEAD_WAIT_MS; };
+// The plain reactions a stock one ("Good question.") is said as, never the same one twice in a row (lead-late): v3 said
+// every one as "Okay.", 284 of 1,520 turns on the Nov 23 practice calls.
+const PLAIN_LEADS = ['Okay.', 'Sure.', 'Right.', 'Alright.', 'Mm-hm.'];
 const BRIDGES = ['Let\'s see.', 'One sec.', 'Let me think.'];
 const LATE_MS = 450;             // an interrupt this soon after a reply starts is about the reply before it (the caller cannot have heard this one yet)
 const HEAD_CHARS = 40;           // how much of the AI's answer is looked at before speaking it, to drop a repeated "Got it"
@@ -863,23 +871,37 @@ export class CallRoom extends DurableObject {
     // Shoulder Tap: the owner's answer came in while the caller was talking. It is the first thing they hear now, in
     // place of the quick reaction, and the AI carries on from it.
     { const tl = s.mode === 'interview' ? '' : this.tapTake(s); if (tl) lead = { kind: 'tap', text: tl }; }
-    // what the caller just heard from Max: this reaction, or the one they kept talking after
+    // lead-late (Nov 23, 2026): a plain reaction ("Okay.", "Got it.") waits, and is said only if the answer has not started
+    // by then. One that means something (bad news, "Are you a real person?", goodbye, "Are you there?") and the owner's
+    // Shoulder Tap answer still go out at once.
+    const late = !!(lead && lead.kind !== 'tap' && !KEEP_LEADS.has(lead.kind) && leadLate(s.line));
+    // what the caller just heard from Max: this reaction, or the one they kept talking after (the AI is told a late one too,
+    // so its answer never opens with a reaction of its own)
     const heardNow = lead ? lead.text : (skipLead ? prev.lead : '');
     const kind = lead ? lead.kind : (skipLead && prev.kind ? prev.kind : 'said');
-    const mine = { turn: my, cut: null, sp: null, lead: lead ? lead.text : '', kind: lead ? lead.kind : '', t0: Date.now(), first: null, held: [], started: false, resumed: 0, resumedOff: 0, ctl: null };
+    const mine = { turn: my, cut: null, sp: null, lead: lead && !late ? lead.text : '', kind: lead ? lead.kind : '', t0: Date.now(), first: null, held: [], started: false, resumed: 0, resumedOff: 0, ctl: null };
     mine.sp = new Speaker(o => this.send(mine, o), s.lang, { chunk: this.env.VOICE_CHUNK });
     const sp = mine.sp;
     this.live = mine; this.cur = mine;
     if (opts && opts.early) { const n = qNorm(said); this.early = { L: mine, norm: n, words: n.split(' ').length, cancelled: false }; }
     if (lead && lead.kind === 'tap') { this.out(textMsg(lead.text, true, s.lang)); this.mark('L', lead.text); }
-    else if (lead) { this.out(textMsg(leadSpoken(lead.text), true, s.lang)); s.leads = (s.leads || []).concat(lead.text).slice(-12); this.mark('L', lead.text); }
+    else if (lead && !late) { this.out(textMsg(leadSpoken(lead.text), true, s.lang)); s.leads = (s.leads || []).concat(lead.text).slice(-12); this.mark('L', lead.text); }
+    // the late reaction goes out only if the answer's first sentence is not in by then (begin() is the answer starting)
+    let leadT = late ? setTimeout(guardT('lead', () => {
+      leadT = null;
+      if (mine.began || this.cur !== mine || mine.cut != null) return;
+      this.out(textMsg(leadSpoken(lead.text), true, s.lang)); mine.lead = lead.text; mine.leadSaid = true; this.mark('L', lead.text);
+    }), leadWait(this.env)) : null;
+    const begin = () => { if (mine.began) return; mine.began = true; if (leadT) { clearTimeout(leadT); leadT = null; this.mark('L-', lead.text); } };
+    // what the caller actually heard before the answer: a late reaction that never went out is not part of it
+    const heardLead = () => late ? mine.lead : heardNow;
     s.last = Date.now() + 60000; // the AI is thinking: no "are you still there" while it does
     await this.keep(s);
     // The start of the answer is held until its first sentence is in (or enough of a long one), so a repeated "Got it" or
     // "Sure" after the reaction can be dropped.
     // the start of every answer is held until its first sentence is in, so a repeated reaction or a third "Fair," can go
     let heard = false, head = '', raw = '';
-    const fix = h => P6(s.line) ? h : dropFair(heardNow ? dropRepeat(h, kind) : h, s.msgs, heardNow);
+    const fix = h => P6(s.line) ? h : dropFair(heardLead() ? dropRepeat(h, kind) : h, s.msgs, heardLead());
     // Once Max has asked what kind of business they run, that question is cut from later replies: the AI keeps asking it
     // whatever it is told. Replies then go out a sentence at a time; a lone question is still said if it is all there is.
     const askedQ = askedBiz(s.msgs), wrapQ = !P6(s.line) && wrappingUp(said);
@@ -918,11 +940,11 @@ export class CallRoom extends DurableObject {
     const onTok = t => {
       raw += t;
       if (!heard) { heard = true; if (mine.first == null) { mine.first = Date.now() - mine.t0; this.mark('F', mine.first); } }
-      if (head === null) return say(t);
+      if (head === null) { begin(); return say(t); }
       head += t;
-      if (head.length >= HEAD_CHARS || /[.!?]["')\]]?\s+\S\S/.test(head)) { const h = head; head = null; say(fix(h)); }
+      if (head.length >= HEAD_CHARS || /[.!?]["')\]]?\s+\S\S/.test(head)) { const h = head; head = null; begin(); say(fix(h)); }
     };
-    const flushHead = () => { if (head) { const h = head; head = null; say(fix(h)); } flushSay(); };
+    const flushHead = () => { if (head) { const h = head; head = null; begin(); say(fix(h)); } flushSay(); };
     const filler = setTimeout(guardT('filler', () => {
       if (heard || this.cur !== mine || mine.cut != null || (mine.resumed && !mine.resumedOff)) return;
       const es = s.lang === 'es-US', b = es ? 'Un momento.' : BRIDGES[Math.floor(Math.random() * BRIDGES.length)];
@@ -960,15 +982,18 @@ export class CallRoom extends DurableObject {
     if (!(sp.spoken + sp.pending).trim() && !sp.flags.end && !sp.flags.transfer && mine.cut == null && this.cur === mine && !mine.timedOut) {
       this.mark('E', { stop: r ? r.stop || '' : 'error', raw: raw.slice(0, 160) });
       await vlog(this.env, 'empty-reply', JSON.stringify({ sid: s.sid, stop: r ? r.stop || '' : 'error', raw: raw.slice(0, 200), lead: mine.lead }));
-      raw = ''; head = heardNow ? '' : null; sent = ''; heldQ = '';
-      r2 = await ask(heardNow ? justSaid(heardNow) + ' Now answer what they said.' : 'Answer what the caller just said.');
+      raw = ''; head = heardLead() ? '' : null; sent = ''; heldQ = '';
+      r2 = await ask(heardLead() ? justSaid(heardLead()) + ' Now answer what they said.' : 'Answer what the caller just said.');
       flushHead();
     }
     clearTimeout(filler);
+    if (leadT) { clearTimeout(leadT); leadT = null; }
     const spoken = sp.end();
     if (this.live === mine) this.live = null; // never clear a newer turn's answer
     this.mark('D', raw.slice(0, 240));
     const cur = (await this.load()) || s;
+    // a late reaction that did go out counts toward the recent ones, so the next turn picks another
+    if (mine.leadSaid && lead) cur.leads = (cur.leads || []).concat(lead.text).slice(-12);
     if (cur.done || cur.turn !== my || mine.dead) {   // dead: the alarm gave up on this answer and already said sorry
       // talked over and already on their next turn: if they heard Max say he would check, the question still goes out
       const askQ = sp.flags.ask || ((/\[\s*ASK\s*:?\s*([^\]]{1,200})\]/i.exec(raw) || [])[1] || '').trim();
@@ -1661,7 +1686,7 @@ export function closedToday(line, now) {
 // shorter talk rules), "examples" (the per-trade "How it sounds" turns), "mentioned" (the note on what they just named),
 // "cutoff" (the note on what they heard before cutting Max off). Off unless a practice request or the line's facts name
 // it; style "v2" means all four.
-export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', 'v5', ...GUARDS];
+export const FEATURES = ['talk2', 'examples', 'mentioned', 'cutoff', 'v7', 'g-leads', 'prompt6', 'tap', 'v3', 'v4', 'v5', 'lead-late', ...GUARDS];
 // ---------- v3 (Nov 22, 2026): practice-only until it beats the live version on the 100-call set ----------
 // The sounds-human grader marks down generic lines and scripted-sounding ones. The live version ended answers with
 // "Does that sound like your day?", opened them with "Good question.", and said "no setup fee, no contract" again and again.
@@ -1735,14 +1760,14 @@ export function trimLead(lead, L, msgs, used) {
   // live for every call since Nov 5: won its blind test 25 to 17, human 5.7 vs 5.5, tells 16 vs 21
   if (!lead) return lead;
   // v3: a stock reaction ("Good question.") is said as a plain one, or not at all after the first answer
-  if (V3(L) && STOCK_LEADS.has(lead.text)) lead = Object.assign({}, lead, { text: 'Okay.' });
+  if (V3(L) && STOCK_LEADS.has(lead.text)) lead = Object.assign({}, lead, { text: leadLate(L) ? (PLAIN_LEADS.find(x => !(used || []).slice(-3).includes(x)) || 'Okay.') : 'Okay.' });
   // Nov 6 test calls (three testers): callers heard the bolted-on reaction ("Okay.", "Sure.", "Right.",
   // "Got it. Alright.", "Mm-hm.") on every reply and asked why Max talks like that. Only the first answer gets one now.
   return (msgs || []).filter(m => m.r === 'u').length >= 2 && !KEEP_LEADS.has(lead.kind) && !long ? null : lead;
 }
 // What a guard needs from the call, built the same way for live calls and practice calls.
 // What the owner sees in the call's transcript when a guard held something back, in plain words (Brief 3, Part 5).
-export const HELD_LABEL = { 'g-audit': 'offering the audit again', 'g-callback': 'offering the call back a third time', 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
+export const HELD_LABEL = { 'g-audit': 'offering the audit again', 'g-callback': 'offering the call back a third time', 'g-sales': 'a longer pitch than they asked for', 'g-stock': 'saying the same thing twice', 'g-again': 'saying again what he already told them', 'g-ask2': 'asking for something again', biz: 'asking again what kind of business they run', wrap: 'a question after they said goodbye', 'g-safety': 'asking for their details in the middle of a safety step', 'g-once': 'asking for something again', 'g-town': 'guessing their town', 'g-history': 'a routine question during an emergency', 'g-promise': 'something he couldn\'t promise', 'g-short': 'a few extra words' };
 function heldBack(s, g) { if (!s || !HELD_LABEL[g]) return; s.held = (s.held || []).concat({ i: (s.msgs || []).length, g }).slice(-20); }
 // The transcript the owner sees: what was said, plus a quiet line after any reply where Max held something back.
 export function transcriptOf(msgs, held) {
@@ -3347,9 +3372,10 @@ async function practiceTurn(renv, L, j, msgs, said, st, tp) {
   // the same switch to Spanish a live call makes (a Spanish line, a caller speaking Spanish)
   if (st.rlang === 'en-US' && L.spanish && (looksSpanish(said) || (msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) st.rlang = 'es-US';
   const lead = trimLead(leadIn(said, callLang(st.rlang, msgs.slice(0, -1), said), st.leads), L, msgs, st.leads);
-  if (lead) st.leads = st.leads.concat(lead.text).slice(-12);
-  let raw = '', r = null, err = '';
+  let raw = '', r = null, err = '', firstAt = null;
   const t0 = Date.now();
+  // when the answer's first sentence was in, as the live call holds it (HEAD_CHARS, or a sentence end): lead-late decides by it
+  const tok = t => { raw += t; if (firstAt == null && (raw.length >= HEAD_CHARS || /[.!?]["')\]]?\s+\S\S/.test(raw))) firstAt = Date.now() - t0; };
   // Claude itself, never the fallback model: a rehearsal checks Claude's replies, and a failure here is not a live
   // call failing, so it is written down instead of alarming anyone.
   // The same per-turn notes a live call gets (urgent, number already read back, upset, asked for a person).
@@ -3358,17 +3384,22 @@ async function practiceTurn(renv, L, j, msgs, said, st, tp) {
   // tried on the same moments as the version live now, side by side, before any of it is written into the code
   const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', st.rlang, false) + practiceRules(j) + (st.rlang === 'es-US' && !st.esTold ? (st.esTold = true, '\n\n' + ES_DISCLOSE) : ''), extra = turnNote(lead ? lead.text : '', msgs, L) + callerNotes(rs, said);
   const fixed = fixedReply(L, lead, msgs);
-  if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
-  else try { r = renv.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
+  if (fixed) { raw = fixed; r = { stop: 'fixed' }; firstAt = 0; }
+  else try { r = renv.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), tok, 200, extra) : await brain(renv, sys, toChat(msgs), tok, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
+  if (firstAt == null) firstAt = Date.now() - t0;
+  // lead-late: a plain reaction is part of the call only if the first sentence took longer than the wait, as on a live call
+  const late = !!(lead && lead.kind !== 'tap' && !KEEP_LEADS.has(lead.kind) && leadLate(L));
+  const said1 = lead && (!late || firstAt >= leadWait(renv)) ? lead : null;
+  if (said1) st.leads = st.leads.concat(said1.text).slice(-12);
   const sp = new Speaker(() => {}, st.rlang);
   const gctx = guardCtx(L, msgs, said, rs);
-  const g = gctx.on.size ? guardText(cutBizQ(lead && !P6(L) ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), !P6(L) && wrappingUp(said)), gctx) : { text: cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)), cuts: [] };
+  const g = gctx.on.size ? guardText(cutBizQ(said1 && !P6(L) ? dropRepeat(raw, said1.kind) : raw, askedBiz(msgs), !P6(L) && wrappingUp(said)), gctx) : { text: cutBizQ(said1 ? dropRepeat(raw, said1.kind) : raw, askedBiz(msgs), wrappingUp(said)), cuts: [] };
   sp.push(g.text);
   const spoken = sp.end();
-  msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
+  msgs.push({ r: 'a', t: ((said1 ? said1.text + ' ' : '') + spoken).trim(), lead: said1 ? said1.text : undefined });
   const asked = L.tap && sp.flags.ask ? cleanAsk(sp.flags.ask) : '';
   if (asked && tp.tapN < TAP_MAX && !(tp.tap && !tp.tap.done)) { tp.tapN++; tp.tap = { q: asked, done: false }; }
-  return { end: !!sp.flags.end, item: { said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: st.rlang !== 'en-US' ? st.rlang : undefined } };
+  return { end: !!sp.flags.end, item: { said, lead: said1 ? said1.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, first: firstAt, late: late ? (said1 ? 'said' : 'held') : undefined, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((said1 ? said1.text + ' ' : '') + spoken) || undefined, lang: st.rlang !== 'en-US' ? st.rlang : undefined } };
 }
 // Where a duel's moment comes from: its own words (msgs, with "open" to put the greeting first), a practice call already
 // run (row: its voice_log rowid; upto: which of the caller's lines to answer, counted from 0), or a real call on the line

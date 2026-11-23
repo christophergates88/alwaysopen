@@ -196,6 +196,8 @@ export function installFetch(world, env) {
         return json({ model: b.model, content: [{ type: 'text', text: txt }], usage: { input_tokens: 300, output_tokens: 80 }, stop_reason: 'end_turn' });
       }
       world.aiSeen.push(b);
+      // a slow model (lead-late tests): the answer starts this many ms after it was asked for
+      if (world.aiDelayMs) await new Promise(res => realSetTimeout(res, world.aiDelayMs));
       const next = world.aiScript.length > 1 ? world.aiScript.shift() : (world.aiScript[0] || 'Okay, got it.');
       const text = typeof next === 'function' ? next(b) : next;
       return new Response(sseBody(text, b.model), { status: 200, headers: { 'content-type': 'text/event-stream' } });

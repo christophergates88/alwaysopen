@@ -12,7 +12,7 @@
 // A reply is never cut to nothing: if every sentence would go, it is said as written (dead air is worse than a flaw).
 import { hardErrors } from './grades.js';
 
-export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback', 'g-closer', 'g-ask3'];
+export const GUARDS = ['g-safety', 'g-once', 'g-town', 'g-history', 'g-promise', 'g-short', 'g-ask2', 'g-stock', 'g-sales', 'g-audit', 'g-canned', 'g-callback', 'g-closer', 'g-ask3', 'g-again'];
 
 const lc = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'");
 const norm = t => lc(t).replace(/[^a-z0-9'áéíóúñü]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -312,7 +312,48 @@ function askThird(s, ctx) {
   if (d.length >= 7) return mine.some(t => isQ(sentencesOf(t).slice(-1)[0] || '') && digitsOf(t).includes(d));
   return [NAME_ASK, TOWN_ASK].some(k => k.test(s) && (mine.filter(t => k.test(t)).length >= 2 || (mine.length > 0 && k.test(mine[mine.length - 1]))));
 }
-const ORDER = [['g-canned', cannedLine], ['g-closer', stockCloser], ['g-ask3', askThird], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
+// g-again (Nov 23, 2026): the same point said again in other words. On 200 practice calls with callers who react, the
+// sounds-human grader's most common complaint (83 of 168 calls) was Max telling a caller again what he had already told
+// them: what we do, the prices, the refund, the call back. g-stock only catches the same sentence. Always Open's own line
+// only; a sentence is cut when every point it makes was already made on this call and the caller did not just ask about
+// any of them or ask to hear it again. Questions, safety steps and sentences about what they just said always stay.
+// Each point: [name, Max saying it, the caller asking about it].
+export const POINTS = [
+  ['answers calls', /\b(answer|answers|answering|pick up|picks up|picking up|catch|catches)\b[^.?!]{0,24}\b(calls?|phones?)\b|\bday or night\b|\b(when|while) you can'?t (pick up|get to (it|the phone)|answer|grab)\b/i,
+    /\b(what (do|does|is|are) (you|it|this|that|y'?all|always open)|how (does|do|would|will) (it|this|that|you) work|what you (do|guys do)|miss(ed|ing)? (a |the )?calls?|answer|pick up)\b/i],
+  ['lands on their phone', /\b(name|number|details)\b[^.?!]*\b(on your phone|to your phone|text(s|ed)? (it |them )?to you|right away|in seconds|lands?)\b/i,
+    /\b(text|texts|notif\w*|message|how (do|will|would) i (know|find out|see|hear|get))\b/i],
+  ['the prices', /\$\s?\d|\b(149|299|499)\b|\b(a hundred|one) forty-nine\b|\b(four|two) ninety-nine\b/i,
+    /\b(how much|cost|costs|price|prices|pricing|charge|pay|paying|\$|dollars?|expensive|cheap|cheaper|afford|plan|plans|starter|growth|pro|budget|worth|\d+)\b/i],
+  ['the refund', /\brefund/i, /\b(refund|money back|guarantee|risk|trial|try it|worth it|not happy)\b/i],
+  ['no contract', /\bno contract\b|\bmonth to month\b/i, /\b(contract|commit\w*|locked|lock in|cancel\w*|month to month|stuck)\b/i],
+  ['no setup fee', /\bsetup fee\b/i, /\b(fee|fees|setup|set up|upfront|hidden)\b/i],
+  ['Shoulder Tap', /\bshoulder tap\b|\btext you the question\b/i, /\b(shoulder tap|ask me|text me|check with me|don'?t know|quote|question)\b/i],
+  ['booking', /\bbook(s|ing)?\b[^.?!]{0,30}\b(on the call|right on|calendar|on the spot)\b/i, /\b(book|booking|books|schedule|scheduling|calendar|appointment|reservation|tee times?|slots?|openings?)\b/i],
+  ['review replies', /\breview(s)? (gets?|get) (a )?(reply|replies|answered)\b|\bevery (google )?review\b|\banswer(s)? every review\b/i, /\b(review|reviews|google|yelp|stars|reputation|rating)\b/i],
+  ['the call back', /\bchris\b[^.?!]*\b(call|calls|calling|walk you through|go over)\b|\bwithin one business day\b/i,
+    /\b(chris|call me|call back|callback|calls? me back|person|human|owner|someone|somebody|sign (me )?up|get started|start)\b/i],
+  ['the free audit', /\bfree audit\b/i, /\baudit\b/i],
+  ['the email or site', /\bhello@alwaysopenoffice\.com\b|\balwaysopenoffice\.com\b/i, /\b(email|e-mail|website|site|web|online|look (you|it) up|send)\b/i],
+  ['how setup works', /\bcall forwarding\b|\bforward(s|ing)? (your|the) (calls?|number)\b|\babout a week\b/i, /\b(set ?up|start|forward\w*|how long|get going|begin|switch|my number|existing number)\b/i],
+];
+const AGAIN_ASK = /\b(again|repeat|say that|what was|what were|remind me|one more time|come again|didn'?t (catch|hear|get)|missed (that|it)|sorry\?|huh)\b/i;
+// a five-letter word in both: the sentence is about what they just said, not a repeat ("For a golf shop, ...")
+const COMMON5 = new Set(['about', 'would', 'could', 'should', 'there', 'their', 'which', 'where', "what's", 'exactly', 'really', 'thing', 'things', 'always', 'right', 'gonna', 'yeah', 'okay', 'thats', "that's", 'these', 'those', 'think', 'other', 'going', 'doing', 'every']);
+function sayAgain(s, ctx) {
+  if (!ctx.L || !ctx.L.own) return false;
+  if (isQ(s) || SAFETY.test(s)) return false;
+  const pts = POINTS.filter(([, mx]) => mx.test(s));
+  if (!pts.length) return false;
+  const said = lc(ctx.said);
+  if (AGAIN_ASK.test(said) || pts.some(([, , ask]) => ask.test(said))) return false;
+  const theirs = new Set((said.match(/[a-z']{5,}/g) || []).filter(x => !COMMON5.has(x)));
+  if ((lc(s).match(/[a-z']{5,}/g) || []).some(x => theirs.has(x))) return false;
+  // the greeting is not counted; what this reply already said is
+  const before = (ctx.msgs || []).filter(m => m.r === 'a').slice(1).map(m => String(m.t || '')).join(' ') + ' ' + (ctx.spoken || '');
+  return pts.every(([, mx]) => mx.test(before));
+}
+const ORDER = [['g-canned', cannedLine], ['g-closer', stockCloser], ['g-ask3', askThird], ['g-safety', safetyThenAsk], ['g-once', askOnce], ['g-ask2', askLess], ['g-stock', noStock], ['g-again', sayAgain], ['g-sales', salesShape], ['g-audit', auditOnce], ['g-callback', callbackTwice], ['g-town', noLeadingTown], ['g-history', noHistoryQ], ['g-promise', noPromise], ['g-short', shortReply]];
 
 export function guardOne(sentence, ctx) {
   // a control tag on its own ([END], [TRANSFER], [BOOK ...]) is never cut: the phone line acts on it
