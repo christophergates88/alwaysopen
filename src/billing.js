@@ -444,6 +444,37 @@ export async function handleBilling(req, env, url, h) {
   return new Response('Not found', { status: 404 });
 }
 
+// Started, not paid (Nov 23, 2026): an owner who fills in /start and reaches Stripe's payment page but stops there left
+// no trace on our side; their name, number and plan lived only on Stripe's session. Every 10 minutes (index.js) the
+// website's own sessions that have been open 45 minutes to a day are read back from Stripe, and Christopher gets one
+// high-priority note per session (a text by day when ntfy refuses) with who to call. Never twice for one session, and
+// not for someone who has paid since. Payment Link sessions (no plan) are left alone.
+export const CHASE_AFTER_MS = 45 * 60e3;
+export async function abandonedCheckouts(env, h, now, call) {
+  if (!env.STRIPE_KEY) return 'no stripe';
+  call = call || stripe; now = now || Date.now();
+  await ensureBilling(env);
+  // open sessions, newest first (Stripe closes one after a day); the age is checked here rather than with a filter at Stripe
+  const from = Math.floor((now - 24 * 3600e3) / 1000), to = Math.floor((now - CHASE_AFTER_MS) / 1000);
+  const list = await call(env, 'GET', 'checkout/sessions?status=open&limit=25');
+  let told = 0;
+  for (const s of ((list && list.data) || [])) {
+    const m = s.metadata || {};
+    if (!(+s.created >= from && +s.created <= to)) continue;
+    if (s.mode !== 'subscription' || !Object.hasOwn(PLANS, String(m.plan))) continue;
+    const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing_config (k, v) VALUES (?1, ?2)').bind('chased:' + s.id, new Date(now).toISOString()).run();
+    if (!(ins.meta && ins.meta.changes)) continue;
+    const email = s.customer_email || (s.customer_details && s.customer_details.email) || '';
+    const paid = await env.DB.prepare("SELECT 1 AS x FROM billing WHERE (?1 != '' AND lower(email) = lower(?1)) OR (?2 != '' AND phone = ?2) LIMIT 1").bind(email, m.phone || '').first().catch(() => null);
+    if (paid) continue;
+    const mins = s.created ? Math.max(1, Math.round((now / 1000 - s.created) / 60)) : 0;
+    if (h && h.notify) await h.notify('Started signing up, didn\u2019t pay: ' + (m.business || 'a business'),
+      (m.owner || 'Someone') + ', ' + (m.phone || 'no phone given') + (email ? ', ' + email : '') + '. ' + m.plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + (m.town ? ', ' + m.town : '') + '. They reached the payment page' + (mins ? ' ' + mins + ' minutes ago' : '') + ' and stopped. A call from you today is the best chance to win them.', 'high');
+    told++;
+  }
+  return told;
+}
+
 // The subscription id on an invoice: top level in older Stripe versions, under parent in newer ones.
 export function invoiceSub(o) {
   const v = o && (o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription));

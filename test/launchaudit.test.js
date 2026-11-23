@@ -102,3 +102,29 @@ test('the restore guide and the runbook name the business database, never Gates 
   const rb = fs.readFileSync(new URL('../docs/runbook.md', import.meta.url), 'utf8');
   assert.doesNotMatch(rb, /S\.I\. assistant, and this call/);
 });
+
+test('someone who reaches the payment page and stops: Christopher hears once, at high priority, with who to call', async () => {
+  const { DB, env, h, pings } = setup();
+  const now = Date.parse('2026-11-24T15:00:00Z'), ago = m => Math.floor((now - m * 60e3) / 1000);
+  const sessions = [
+    { id: 'cs_open1', mode: 'subscription', created: ago(50), customer_email: 'pat@example.com', metadata: { plan: 'Growth', max: '0', business: 'Oconee Heating', owner: 'Pat Lee', phone: '(706) 555-0123', town: 'Madison, GA' } },
+    { id: 'cs_link', mode: 'subscription', created: ago(60), customer_email: 'x@example.com', metadata: {} },                 // a Payment Link: not ours to chase
+    { id: 'cs_pay', mode: 'payment', created: ago(60), metadata: { plan: 'Growth' } },                                      // not a signup
+    { id: 'cs_fresh', mode: 'subscription', created: ago(20), metadata: { plan: 'Pro', business: 'Still Paying Co' } },      // still on the page
+    { id: 'cs_old', mode: 'subscription', created: ago(26 * 60), metadata: { plan: 'Pro', business: 'Day Old Co' } }         // over a day
+  ];
+  let asked = '';
+  const call = async (e, method, path) => { asked = path; return { data: sessions }; };
+  assert.equal(await B.abandonedCheckouts(env, h, now, call), 1);
+  assert.equal(asked, 'checkout/sessions?status=open&limit=25');
+  const p = pings.find(x => /^Started signing up, didn’t pay: Oconee Heating/.test(x[0]));
+  assert.ok(p);
+  assert.equal(p[2], 'high');
+  assert.match(p[1], /Pat Lee, \(706\) 555-0123, pat@example\.com\. Growth plan, Madison, GA\. They reached the payment page 50 minutes ago/);
+  assert.equal(await B.abandonedCheckouts(env, h, now + 10 * 60e3, call), 0, 'never twice for one session');
+  // someone who has paid since, under another session: nothing to chase
+  await B.createFromSession(env, { id: 'cs_paid', mode: 'subscription', payment_status: 'paid', customer: 'cus_9', subscription: 'sub_9', customer_email: 'sam@example.com', metadata: Object.assign({}, META, { business: 'Sam Plumbing', phone: '(478) 555-0199' }) }, h);
+  const later = [{ id: 'cs_open2', mode: 'subscription', created: ago(70), customer_email: 'SAM@example.com', metadata: { plan: 'Pro', business: 'Sam Plumbing', owner: 'Sam', phone: '(478) 555-0199' } }];
+  assert.equal(await B.abandonedCheckouts(env, h, now, async () => ({ data: later })), 0);
+  assert.equal(await B.abandonedCheckouts({ DB }, h, now, call), 'no stripe');
+});
