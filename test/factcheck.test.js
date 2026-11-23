@@ -238,11 +238,17 @@ test('callerTurn: the caller speaks from their persona and agenda, reacting to t
   assert.deepEqual(r, { say: 'ok but what does it cost me', hangup: false });
   assert.equal(seen[0].model, 'claude-sonnet-5-5'); assert.deepEqual(seen[0].thinking, { type: 'between_tools' });
   assert.match(seen[0].system, /You play a real person phoning the sales line of Always Open/);
+  assert.match(seen[0].system, /Reply with only the words you say, nothing else\..*end with \[hangup\]\.$/);
   assert.match(seen[0].messages[0].content, /^PERSONA: a bakery owner, busy, skeptical\nAGENDA:\n1\. hi i run a bakery\n2\. how much is it\n3\. is there a contract\nThis is turn 2 of at most 10\.\n\nTHE CALL SO FAR\nMax: Always Open, this is Max\.\nYou: hi i run a bakery\nMax: A bakery, nice\./);
-  const bad = async () => ({ json: async () => ({ content: [{ type: 'text', text: 'sure' }], stop_reason: 'end_turn', usage: { output_tokens: 3 } }) });
+  const bad = async () => ({ json: async () => ({ content: [{ type: 'text', text: '{"nope":1}' }], stop_reason: 'end_turn', usage: { output_tokens: 3 } }) });
   const no = await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, bad);
   assert.equal(no.say, ''); assert.equal(no.why.length, 3, 'tried three times');
-  assert.match(no.why[0], /^sonnet-5-5 unreadable \(end_turn, 3 out\): sure$/); assert.match(no.why[2], /^haiku-5-5 /);
+  assert.match(no.why[0], /^sonnet-5-5 unreadable \(end_turn, 3 out\): \{"nope":1\}$/); assert.match(no.why[2], /^haiku-5-5 /);
+  // plain words are the caller's line (Sonnet in character answers that way), and "[hangup]" ends the call
+  const plain = t => async () => ({ json: async () => ({ content: [{ type: 'thinking', thinking: 'hm' }, { type: 'text', text: t }] }) });
+  assert.deepEqual(await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, plain('BACK IT UP. sorry. yeah so nights, we miss calls at night')), { say: 'BACK IT UP. sorry. yeah so nights, we miss calls at night', hangup: false });
+  assert.deepEqual(await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, plain('"ok cool, thanks man, bye" [hangup]')), { say: 'ok cool, thanks man, bye', hangup: true });
+  assert.deepEqual(await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, plain('*sighs* fine. how much')), { say: 'fine. how much', hangup: false });
   // an error the first time is retried, and the reason is kept
   const tries = [];
   const flaky = async (url, o) => { const b = JSON.parse(o.body); tries.push(b); return tries.length === 1 ? { status: 429, json: async () => ({ error: { type: 'rate_limit_error', message: 'Number of request tokens has exceeded your per-minute rate limit' } }) } : { json: async () => ({ content: [{ type: 'text', text: '{"say":"sure, go on","hangup":false}' }] }) }; };

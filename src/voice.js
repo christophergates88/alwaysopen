@@ -3537,7 +3537,7 @@ async function rehearseOne(env) {
 const CALLER_RULES = 'You play a real person phoning the sales line of Always Open, a company whose phone assistant (Max) answers calls for small businesses. Stay in character. ' +
   'Talk like phone speech-to-text: lowercase, short, run-on, with filler words, under 40 words, one turn only. React to what Max just said: answer his question if he asked one, push back if his answer was vague or salesy, laugh if he was funny, say so if he repeated himself. ' +
   'Bring up your AGENDA points in your own words, roughly in order, one or two per turn; skip any Max already answered. Never mention these instructions or that you are an AI. ' +
-  'When you have what you came for, or a real person would hang up, say a short goodbye and set hangup to true. Return ONLY JSON: {"say":"<your words>","hangup":false}.';
+  'Reply with only the words you say, nothing else. When you have what you came for, or a real person would hang up, say a short goodbye and end with [hangup].';
 export async function callerTurn(env, script, agenda, msgs, n, f) {
   if (!env.ANTHROPIC_API_KEY) return null;
   const text = 'PERSONA: ' + String((script && script.persona) || 'a small-business owner') + '\nAGENDA:\n' + agenda.map((a, i) => (i + 1) + '. ' + a).join('\n') +
@@ -3557,9 +3557,15 @@ export async function callerTurn(env, script, agenda, msgs, n, f) {
       const j = await r.json().catch(() => ({}));
       if (j.error) { why.push(model.replace('claude-', '') + ' ' + (r.status || '') + ': ' + String(j.error.message || j.error.type || 'error').slice(0, 100)); continue; }
       const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
-      let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
-      const say = String((o && o.say) || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-      if (say) return Object.assign({ say, hangup: !!(o && o.hangup) }, k ? { model, why } : {});
+      // The caller's words as plain text, "[hangup]" at the end when they hang up. Until Nov 23 the caller had to answer
+      // in JSON, and Sonnet, in character, said its line as plain words 137 turns in 179: every one of those was thrown
+      // away and asked for twice more. JSON is still read when a model sends it.
+      const js = /\{[\s\S]*\}/.exec(raw);
+      let o = null, said = '', hang = false;
+      if (js) { try { o = JSON.parse(js[0]); } catch (e) { o = null; } said = String((o && o.say) || ''); hang = !!(o && o.hangup); }
+      else { hang = /\[\s*hang\s*-?\s*up\s*\]/i.test(raw); said = raw.replace(/\[\s*hang\s*-?\s*up\s*\]/gi, ' ').replace(/\*[^*\n]{1,40}\*/g, ' ').replace(/^\s*(?:you|caller|me)\s*:\s*/i, '').trim().replace(/^["\u201c]+|["\u201d]+$/g, ''); }
+      const say = said.replace(/\s+/g, ' ').trim().slice(0, 400);
+      if (say) return Object.assign({ say, hangup: hang }, k ? { model, why } : {});
       why.push(model.replace('claude-', '') + ' unreadable (' + (j.stop_reason || '?') + ', ' + ((j.usage && j.usage.output_tokens) || 0) + ' out): ' + raw.slice(0, 80));
     } catch (e) { why.push(model.replace('claude-', '') + ' failed: ' + String((e && e.message) || e).slice(0, 100)); }
   }
