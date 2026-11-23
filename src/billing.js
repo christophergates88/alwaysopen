@@ -12,6 +12,8 @@ import { queueLine, provisionLine, lineEnded } from './provision.js';
 
 import { PLANS as FACT_PLANS, MAX as FACT_MAX } from './facts.js';
 import { seal, open } from './seal.js';
+import { neonEmail } from './neonmail.js';
+import { sendNeon } from './clientmail.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 // prices and plan wording live in facts.js, the one place they are set
@@ -88,8 +90,48 @@ async function finishIfMissing(env, got, h) {
   await env.DB.prepare("INSERT OR IGNORE INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(got.client_id, await sha256hex(got.code), got.ref, got.business || '', String(got.owner || '').split(' ')[0], REGULATED.indexOf(got.type) > -1 ? 1 : 0, got.phone || '', got.plan, new Date().toISOString(), 'calls').run();
   try { await queueLine(env, got.client_id); if (h && h.later) h.later(provisionLine(env, got.client_id).catch(() => {})); } catch (e) { /* the timer picks it up */ }
-  if (h && h.notify) await h.notify('New signup: ' + (got.business || 'a business'), got.plan + ' plan. Their app is live and Max’s line is being set up on its own.');
+  if (h && h.notify) await h.notify('New signup: ' + (got.business || 'a business'), got.plan + ' plan. Their app is live and Max’s line is being set up on its own.', 'high');
+  await sendWelcome(env, got, h);
   return got;
+}
+
+// ---------- the welcome email ----------
+// Nov 23, 2026 launch audit: the private app link was shown once, on the welcome page, and never sent anywhere. An owner
+// who closed that tab lost their app, the support page already said "we send you a private link", and a bank payment
+// that clears days later was promised an email with the link that nothing sent. Now every online signup gets one
+// email with the link, once (billing_config 'welcome:<client_id>' says how it went, for the welcome page and HQ).
+export function welcomeEmail(b, link) {
+  const first = String(b.owner || '').trim().split(/\s+/)[0] || '';
+  const biz = String(b.business || '').trim() || 'your business';
+  return Object.assign({ subject: 'Your Always Open app: ' + biz }, neonEmail({
+    tone: 'ok', sign: 'YOU’RE IN', who: biz,
+    title: 'Welcome to Always Open' + (first ? ', ' + first : '') + '.',
+    preheader: 'Your private app link for ' + biz + '. Keep this email.',
+    doThis: ['Open your app and do the short first-hour checklist.', 'Forward the calls you miss to Max. His number and the steps for your phone are in the app.'],
+    button: { text: 'Open my app', url: link },
+    lines: [
+      { k: 'Plan', v: (b.plan || '') + (+b.max ? ' with 300 more Max minutes' : '') + ', month to month.' },
+      { k: 'Your link', v: link },
+      { k: 'Texting', v: 'Register in the app with your legal business name and EIN. Carriers usually approve it in a few days, sometimes a couple of weeks.' }
+    ],
+    note: 'This link opens your account without a password, so keep it to yourself and don’t forward this email. Lost it? Reply here and Chris sends a new one. Questions? Just reply.'
+  }));
+}
+async function sendWelcome(env, b, h) {
+  const key = 'welcome:' + b.client_id;
+  try {
+    if (!b.email || !b.code) return '';
+    const done = await env.DB.prepare('SELECT v FROM billing_config WHERE k = ?1').bind(key).first().catch(() => null);
+    if (done && /^sent/.test(done.v || '')) return 'sent';
+    const r = await sendNeon(env, b.email, welcomeEmail(b, SITE + '/app/' + b.code), { replyTo: 'hello@alwaysopenoffice.com' });
+    await env.DB.prepare('INSERT OR REPLACE INTO billing_config (k, v) VALUES (?1, ?2)').bind(key, String(r).slice(0, 120) + ' ' + new Date().toISOString()).run().catch(() => null);
+    if (r !== 'sent' && h && h.notify) await h.notify('Welcome email did not send: ' + (b.business || 'a new client'), 'Their app link could not be emailed to ' + b.email + ' (' + String(r).slice(0, 120) + '). They saw it on the welcome page; if they lose it, send a new link from Always Open HQ.', 'high');
+    return r;
+  } catch (e) { return 'failed'; }
+}
+async function welcomeSent(env, cid) {
+  const r = await env.DB.prepare('SELECT v FROM billing_config WHERE k = ?1').bind('welcome:' + cid).first().catch(() => null);
+  return !!(r && /^sent/.test(r.v || ''));
 }
 
 // A paid checkout becomes a client with a private app link, right away. Safe to call twice (webhook and welcome page).
@@ -126,8 +168,11 @@ export async function createFromSession(env, s, h) {
   try { await noteSignup(env, { clientId: cid, ref: m.ref, email, phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
   // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
   try { await queueLine(env, cid); if (h && h.later) h.later(provisionLine(env, cid).catch(() => {})); } catch (e) { /* the timer picks it up */ }
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
-  return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  // High: a new paying client is the one push that must reach Christopher, by text if the ntfy app is refusing (push.js).
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.', 'high');
+  const row = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  if (row) await sendWelcome(env, row, h);
+  return row;
 }
 
 // A client added by hand from Always Open HQ (opshq.js): someone who paid outside the website's checkout, by a Stripe
@@ -257,11 +302,11 @@ async function welcome(env, url, h) {
   return page('Welcome', `<div><p class="mono">You're in</p><h1>Welcome to Always Open, ${esc(String(b.owner || '').split(' ')[0] || 'friend')}.</h1></div>
 <p class="sub">${esc(b.business)} is on the ${esc(b.plan)} plan${b.max ? ' with 300 more Max minutes' : ''}. A receipt is on its way to ${esc(b.email)}.</p>
 ${hero}
-<div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
+<div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.${await welcomeSent(env, b.client_id) ? ' A copy is in the welcome email we sent to ' + esc(b.email) + '.' : ''}</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
 ${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p>Max, your phone assistant, has his own number for you: <b>${esc(line.numberText)}</b>. Forward the calls you miss to it and he answers them, any hour. Your phone still rings first.</p><div class="acts"><a class="btn" href="${esc(link)}/help/forwarding">Show me how to forward</a></div><p class="fine">The steps for Verizon, AT&amp;T, T-Mobile and landlines are also in your app, under Your first hour.</p></div>` : `<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. His number is being set up right now and shows up in your app within the hour, with the steps to forward the calls you miss to him.</p></div>`}
-<div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
+<div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, sometimes a couple of weeks, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
 <div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
 <li>Choose your business, then <b>More → Business Profile settings → People and access → Add</b>.</li>

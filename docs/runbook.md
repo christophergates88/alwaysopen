@@ -9,7 +9,7 @@ done from the Mac in the GatesHQ folder, the Cloudflare dashboard, or the GitHub
 | Thing | Where | What it does |
 | --- | --- | --- |
 | The Worker | Cloudflare, `alwaysopenoffice.com` | The website, the owner app (`/app/<code>`), Max's webhooks, every check and cron |
-| The database | Cloudflare D1, `alwaysopen` | Everything. 30 days of point-in-time restore built in |
+| The database | Cloudflare D1, `alwaysopen-biz` (binding `DB`) | Every business table. 30 days of point-in-time restore built in. The old `alwaysopen` database (binding `HQDB`) is Gates HQ's since the Nov 21, 2026 split: never restore it for an Always Open problem |
 | Max's calls | Twilio ConversationRelay, one CallRoom (Durable Object) per live call | Speech in and out; Claude thinks, Workers AI is the backup |
 | The iPhone app | App Store (Always Open Office), source in `alwaysopen-ios` | Talks to the Worker with the owner's link code |
 | Deploys | GitHub Actions on every push to `main` | Tests, phone check, deploy, live check, rollback, alert-email check |
@@ -138,7 +138,7 @@ still take the tab and at most one more tap, and Max stays under 4,200 px closed
 
 ## What Max says about himself
 
-Every call opens with the disclosure in `src/disclosure.js` ("I'm an S.I. assistant, and this call may be recorded."),
+Every call opens with the disclosure in `src/disclosure.js` ("I'm an automated assistant, and this call may be recorded."),
 the one place that sentence lives: the line and the owner's app both read it. An owner's own greeting is played as they
 wrote it when it already says both things (an assistant of some kind, and that calls are recorded); otherwise the
 disclosure goes in after their first sentence. A greeting that says Max is not an AI, claims to be a person, or says
@@ -421,3 +421,20 @@ either way), and the web wording differs in small places (for example "Gap betwe
 
 Found on the way (Nov 12): the ntfy account is a free one, 250 pushes a day, and it reached 0 left on the night of
 Nov 11 (push_meta `account`). That, not a bad token, was the 429. Pushes then wait for the Mac relay or the next day.
+
+## Launch audit, Nov 23, 2026
+
+What changed: every online signup now gets a welcome email with the private app link (`sendWelcome` in billing.js,
+`billing_config` row `welcome:<client_id>`), and the new-signup push is high priority so it reaches Christopher by text
+when ntfy refuses. The app's Settings has a "Your plan" row that opens the plan page (`/app/<code>/billing`). The weekly
+jobs (Rate-Shock Radar, the weekly board email, silence checks, Max's weekly grade) run on Monday: the cron is now
+`17 12 * * MON`, because Cloudflare counts weekday 1 as Sunday and they had been running every Sunday. The deploy checks
+customer email (SEND_MAIL, to any address) once a day by sending to a `+customer-check` copy of `MAIL_TO`; a failure is
+a warning and an alert, not a rollback (`customerMailCheck` in index.js, row `customer-mail-check`).
+
+Found and left for Christopher (the report has the steps): Twilio's balance was $18.99, under the $25 warning, with
+first clients about to buy numbers and texting registrations; the ntfy account is the free one (250 pushes a day, shared
+with Gates HQ) and was at 0 left by 8 AM; the National Do Not Call list has never been loaded and the Outreach switch is
+off, so Outreach (sold on Pro) cannot place a call; the "Always Open check" scheduled task stopped on Nov 18 (HQ heartbeat);
+R2 is not turned on, so the weekly backup goes by email.
+

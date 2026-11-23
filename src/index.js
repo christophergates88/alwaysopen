@@ -394,7 +394,13 @@ async function serve(req, env, ctx) {
       if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       const { mailOwner } = await import('./app.js');
       const r = await mailOwner(env, 'Always Open deployed', 'A new version of the site and Worker is live. This email is the deploy’s check that alert emails still arrive from ' + (env.MAIL_FROM || 'the sending address') + '.');
-      return json({ ok: r === 'sent', result: r, from: env.MAIL_FROM || '' }, r === 'sent' ? 200 : 500);
+      // Customer email (free audits, follow-ups, welcome emails, owner reminders) goes out a different way: SEND_MAIL, to
+      // any address. Until Nov 23, 2026 nothing ever checked it, and no customer email had ever been sent. Once a day the
+      // deploy sends one through it to a "+customer-check" copy of MAIL_TO, an address Email Routing has never verified,
+      // so it only arrives if the site can email anyone.
+      let customer = 'off';
+      try { customer = await customerMailCheck(env); } catch (e) { customer = 'failed: ' + String((e && e.message) || e).slice(0, 120); }
+      return json({ ok: r === 'sent', result: r, from: env.MAIL_FROM || '', customer }, r === 'sent' ? 200 : 500);
     }
     if (path === '/ops/deploy-failed') {
       const k = req.headers.get('x-key') || '';
@@ -815,7 +821,10 @@ a.btn{justify-self:start;display:inline-block;background:var(--sign);color:var(-
 // insurance agencies on Google (Places API, New) and count recent reviews, recent low ratings and recent unhappy reviews
 // about rates. Emails COUNTS ONLY and keeps nothing: Google's terms don't allow storing Places content, so there is no
 // week-to-week table. No agency names, no reviewer names, no review text. Scoring and town handling: radar.js.
-const RADAR_CRON = '17 12 * * 1';
+// Monday 12:17 UTC (7:17 AM Eastern). Named, not numbered: Cloudflare counts weekdays from 1 = Sunday, so the old
+// '17 12 * * 1' ran every Sunday (Nov 1, 8, 15 and 22, 2026), and Rate-Shock Radar, the weekly board email, the
+// silence checks and Max's weekly grade all went out a day early (Nov 23, 2026 launch audit). wrangler.toml must match.
+const RADAR_CRON = '17 12 * * MON';
 const RADAR_FIELDS = 'places.id,places.rating,places.userRatingCount,places.reviews,nextPageToken';
 function isoWeek(d) {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -939,6 +948,29 @@ async function radarRun(req, env, url) {
 }
 
 // New signups, failed payments and cancellations: a phone push and an email to Chris.
+// The customer-email check the deploy runs (/ops/mail-test): at most one email a day, kept in billing_config
+// 'customer-mail-check'. Returns 'sent', 'checked <when>' (sent fine in the last 20 hours), 'off' or 'failed: ...'.
+export function customerCheckAddress(to) {
+  const m = /^([^@\s+]+)(?:\+[^@\s]*)?@(gmail\.com|googlemail\.com)$/i.exec(String(to || '').trim());
+  return m ? m[1] + '+customer-check@' + m[2].toLowerCase() : '';
+}
+export async function customerMailCheck(env, now) {
+  now = now || Date.now();
+  if (!env.SEND_MAIL) return 'off';
+  const to = customerCheckAddress(env.MAIL_TO);
+  if (!to) return 'off';
+  const last = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'customer-mail-check'").first().catch(() => null);
+  const m = last && /^sent (\S+)$/.exec(last.v || '');
+  if (m && now - Date.parse(m[1]) < 20 * 3600e3) return 'checked ' + m[1];
+  let r;
+  try {
+    await env.SEND_MAIL.send({ to, from: { email: 'hello@alwaysopenoffice.com', name: 'Always Open' }, subject: 'Always Open: customer email check', text: 'This is the once-a-day check that the site can email customers (free audits, follow-ups, welcome emails). It went to a +customer-check copy of your address, which Cloudflare has never verified, so getting it means customer email works. Nothing to do.' });
+    r = 'sent';
+  } catch (e) { r = 'failed: ' + oneLine((e && e.message) || e).slice(0, 150); }
+  await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('customer-mail-check', ?1)").bind(r === 'sent' ? 'sent ' + new Date(now).toISOString() : r).run().catch(() => null);
+  return r;
+}
+
 async function billingNotify(env, ctx, title, body, priority) {
   const jobs = [];
   jobs.push(phonePush(env, { title, priority: priority || 'default', tags: 'moneybag', body: String(body || '').slice(0, 2000) }));

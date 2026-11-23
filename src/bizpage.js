@@ -127,7 +127,13 @@ function setBlock(){
   if(S.fillWeek){var fs=S.fillWeek.steps||[];s3.push(S.fillWeek.on?'Fill my week on':'Fill my week '+fs.filter(function(x){return x.done;}).length+' of '+fs.length+' ready');}
   if(S.checkins)s3.push('Check-in calls '+(S.checkins.on?'on':'off'));
   if(S.handoff)s3.push('Hand-offs '+(S.handoff.give||S.handoff.take?'on':'off'));
-  return card('prefs','Your preferences',g1,s1)+card('public','What the public sees',g2,s2)+card('texting','Texting',gT,sT)+card('doing','What we do for you',g3,s3.length?esc(s3.join(', ')+'.'):'');
+  // Your plan (Nov 23, 2026 launch audit): the plan page at BASE/billing (change plan, card, invoices, pause, cancel) had
+  // no way in from the app. Owners only; staff never get S.billing.
+  var gP='',sP='';
+  if(S.billing&&S.billing.plan){var Bl=S.billing,BS={active:'Active.',past_due:'Payment failed. Update your card.',paused:'Paused'+(Bl.pausedUntil?' until '+esc(new Date(Bl.pausedUntil).toLocaleDateString('en-US',{month:'short',day:'numeric'})):'')+'.',canceling:'Ends at the end of this billing month.',canceled:'Canceled.'}[Bl.status]||'';
+    gP='<p class="note" style="margin:0"><b>'+esc(Bl.plan)+'</b>'+(Bl.max?' with 300 more Max minutes':'')+'. '+BS+'</p><div class="acts" style="margin-top:8px"><a class="btn line sm" href="'+BASE+'/billing">Change plan, card or cancel</a></div>';
+    sP=esc(Bl.plan)+(BS?', '+BS.charAt(0).toLowerCase()+BS.slice(1):'.');}
+  return card('plan','Your plan',gP,sP)+card('prefs','Your preferences',g1,s1)+card('public','What the public sees',g2,s2)+card('texting','Texting',gT,sT)+card('doing','What we do for you',g3,s3.length?esc(s3.join(', ')+'.'):'');
 }
 function mapSheet(){var m=S.map||{};
   sheet('<h2>What the map shows</h2><p class="fine">Your name, trade and town. Your phone and street address show only if you add them. Changes show in about ten minutes.</p>'+
