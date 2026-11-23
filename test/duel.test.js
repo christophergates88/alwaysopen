@@ -101,3 +101,17 @@ test('a duel moment can come from a practice call already run, or from a real ca
   assert.equal(await V.duelMoment(env, { call: 'CA1', upto: 2 }), null);
   assert.equal(await V.duelMoment(env, { call: 'nope' }), null);
 });
+
+test('a practice side can carry extra rules for Max, added to the end of his instructions', async () => {
+  assert.equal(V.practiceRules({}), '');
+  assert.equal(V.practiceRules({ rules: '  Keep it under 20 words.  ' }), '\n\nKeep it under 20 words.');
+  const { world, DB, env } = await ownLine();
+  const seen = [];
+  world.aiScript = [b => { seen.push(JSON.stringify(b.system)); return 'Starter is $149 a month.'; }];
+  world.aiNote = () => ({ better: 'same', why: 'x' });
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T13:00:00Z', 'rehearse-request', ?1)").bind(JSON.stringify({ tag: 'R1', a: { features: ['v3'] }, b: { features: ['v3'], rules: 'Never more than two sentences.' }, duel: [{ id: 'm', open: true, msgs: [{ r: 'u', t: 'how much' }] }] })).run();
+  await V.rehearse(env);
+  assert.equal(seen.length, 2);
+  assert.doesNotMatch(seen[0], /Never more than two sentences/);
+  assert.match(seen[1], /Never more than two sentences\./);
+});

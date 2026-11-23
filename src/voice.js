@@ -3336,6 +3336,7 @@ function rehearsalLine(line, j) {
 function practiceEnv(env, j) {
   return j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
 }
+export const practiceRules = j => j && typeof j.rules === 'string' && j.rules.trim() ? '\n\n' + j.rules.trim().slice(0, 4000) : '';
 // One of Max's turns on a practice call, run the way a live turn is: the caller's words, the quick reaction, the per-turn
 // notes, Claude, then the same clean-up. msgs gets both lines; st carries the call's leads and language, tp its Shoulder
 // Tap state. Returns what the transcript keeps of the turn, and whether Max ended the call. Practice calls and duels
@@ -3353,7 +3354,9 @@ async function practiceTurn(renv, L, j, msgs, said, st, tp) {
   // call failing, so it is written down instead of alarming anyone.
   // The same per-turn notes a live call gets (urgent, number already read back, upset, asked for a person).
   const rs = { msgs, line: L, urgent: msgs.some(m => m.r === 'u' && activeProblem(m.t)), upset: msgs.some(m => m.r === 'u' && UPSET.test(m.t.toLowerCase())), wantPerson: msgs.filter(m => m.r === 'u' && WANT_PERSON.test(m.t.toLowerCase())).length, tap: tp.tap, tapTold: tp.tapTold, tapN: tp.tapN, turn: tp.turn };
-  const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', st.rlang, false) + (st.rlang === 'es-US' && !st.esTold ? (st.esTold = true, '\n\n' + ES_DISCLOSE) : ''), extra = turnNote(lead ? lead.text : '', msgs, L) + callerNotes(rs, said);
+  // "rules" (practice only, Nov 23, 2026): words added to the end of Max's instructions, so a change to how he talks is
+  // tried on the same moments as the version live now, side by side, before any of it is written into the code
+  const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', st.rlang, false) + practiceRules(j) + (st.rlang === 'es-US' && !st.esTold ? (st.esTold = true, '\n\n' + ES_DISCLOSE) : ''), extra = turnNote(lead ? lead.text : '', msgs, L) + callerNotes(rs, said);
   const fixed = fixedReply(L, lead, msgs);
   if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
   else try { r = renv.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
