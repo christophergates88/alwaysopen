@@ -3603,7 +3603,10 @@ export function sweepRetired(t, who) {
 // 2026). v3 beat the version before it on 100 practice calls twice (sounds-human 5.73 vs 5.38 and 5.44 vs 5.08, calls
 // with the call back pushed twice 13 vs 49 and 11 vs 43); it was tested without Shoulder Tap on this line, which kept
 // producing "let me check with Chris right now ... still waiting on him".
-export const OWN_VERSION = { features: ['v3', 'g-closer', 'g-stock', 'g-ask3'], off: ['tap'], testFeatures: [] };
+// v5 since Nov 23, 2026 (Christopher's OK, the morning of Nov 23): v3 plus the 15 example answers. On his own blind pick page he chose
+// v5 over v3 14 times in 20; the side-by-side judge picked it 60 to 48 on 141 moments; on 200 practice calls with callers
+// who react the two tied (sounds-human 5.69 vs 5.67, fact slips 19 vs 22). Back to v3: put 'v3' first here instead.
+export const OWN_VERSION = { features: ['v5', 'g-closer', 'g-stock', 'g-ask3'], off: ['tap'], testFeatures: [] };
 export async function syncOwnLine(env) {
   try {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
