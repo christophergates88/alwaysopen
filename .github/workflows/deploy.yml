@@ -124,6 +124,13 @@ jobs:
           [ -n "$OPS_KEY" ] || exit 0
           m=$(curl -sS -m 30 -X POST -H "x-key: $OPS_KEY" https://alwaysopenoffice.com/ops/mail-test || echo '{"ok":false,"result":"no answer"}')
           echo "$m"
+          # Customer email (free audits, welcome emails, reminders) goes out another way; checked at most once a day
+          # (Nov 23, 2026 launch audit). A failure here is a warning and a note to Christopher, not a failed deploy.
+          if echo "$m" | grep -q '"customer":"failed\|"customer":"off'; then
+            c=$(printf '%s' "$m" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(String(JSON.parse(s).customer).slice(0,160))}catch(e){console.log("unreadable")}})')
+            echo "::warning::Customer emails are not sending: $c"
+            curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"why\":\"the site is live, but customer emails (free audits, welcome emails) are not sending: $(echo "$c" | tr -d '"\\' | cut -c1-160)\"}" https://alwaysopenoffice.com/ops/deploy-failed || true
+          fi
           echo "$m" | grep -q '"ok":true' && exit 0
           curl -sS -m 20 -X POST -H "x-key: $OPS_KEY" -H "content-type: application/json" -d "{\"why\":\"the site is live, but the alert email test failed: $(echo "$m" | tr -d '"\\' | cut -c1-200)\"}" https://alwaysopenoffice.com/ops/deploy-failed || true
           exit 1

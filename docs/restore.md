@@ -1,5 +1,9 @@
 # Restoring the Always Open database
 
+Since the Nov 21, 2026 split, Always Open's data is in the D1 database `alwaysopen-biz` (binding `DB`). The database
+named `alwaysopen` (binding `HQDB`) is Gates HQ's: never rewind it for an Always Open problem, or Gates HQ loses its data
+and Always Open's stays broken.
+
 Two ways back, in the order to try them.
 
 ## 1. Point-in-time restore (D1 Time Travel, any moment in the last 30 days)
@@ -10,13 +14,13 @@ table), not for a Worker problem.
 From the Mac, in `GatesHQ/alwaysopen`:
 
 ```
-npx wrangler@4 d1 time-travel info alwaysopen --timestamp="2026-10-28T20:00:00Z"
+npx wrangler@4 d1 time-travel info alwaysopen-biz --timestamp="2026-10-28T20:00:00Z"
 ```
 
 That prints the bookmark for that moment. Then:
 
 ```
-npx wrangler@4 d1 time-travel restore alwaysopen --bookmark=<the bookmark>
+npx wrangler@4 d1 time-travel restore alwaysopen-biz --bookmark=<the bookmark>
 ```
 
 Everything written after that moment is gone, including calls and leads, so pick the latest moment before the
@@ -27,8 +31,8 @@ damage and tell the owners whose data moved. The Worker keeps running; no deploy
 The weekly file is `alwaysopen-<date>.jsonl.gz`: one JSON object per line, `{ "table": "...", "row": { ... } }`, for
 every data table (never tokens or keys). To load it into a fresh database:
 
-1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen`, put the new database id in
-   `wrangler.toml`, then create the tables (deploying the Worker is not enough: it never creates `app_clients`,
+1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen-biz`, put the new database id in
+   `wrangler.toml` (the `DB` binding), then create the tables (deploying the Worker is not enough: it never creates `app_clients`,
    `voice_lines`, `app_calls`, `leads`, `app_items` and a few others on its own):
 
 ```

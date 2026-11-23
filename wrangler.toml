@@ -39,7 +39,8 @@ name = "SEND_MAIL"
 
 # Storm Desk: check National Weather Service warnings every 10 minutes (free).
 [triggers]
-crons = ["*/10 * * * *", "17 12 * * 1"]
+# The weekly jobs run Monday at 12:17 UTC. "MON", not "1": Cloudflare counts 1 as Sunday (src/index.js RADAR_CRON).
+crons = ["*/10 * * * *", "17 12 * * MON"]
 
 [vars]
 RADAR_TOWNS = "Eatonton, GA|Madison, GA|Greensboro, GA|Milledgeville, GA|Monticello, GA|Gray, GA|Sparta, GA|Macon, GA"
