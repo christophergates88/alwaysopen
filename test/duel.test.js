@@ -85,3 +85,19 @@ test('a duel: two versions answer exactly the same call so far, and the judge re
   assert.equal(js[0].row, rid); assert.equal(js[0].id, 'm-1'); assert.equal(js[0].pick, 'same'); assert.equal(js[0].model, 'claude-sonnet-5-5'); assert.deepEqual(js[0].why, ['noted', 'noted']);
   assert.equal(seenMax.length, 2, 'Max was not asked again');
 });
+
+test('a duel moment can come from a practice call already run, or from a real call on the line', async () => {
+  const { DB, env } = await ownLine();
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T11:00:00Z', 'rehearse', ?1)").bind(JSON.stringify({ tag: 'L6v3-1', out: [{ said: 'hi i run a bakery', lead: 'Got it.', reply: 'A bakery, nice.' }, { owner: 'yes', relay: 'Chris says yes.' }, { said: 'how much', lead: '', reply: 'Starter is $149.' }, { said: 'ok bye', reply: 'Bye.' }] })).run();
+  const rid = (await DB.prepare("SELECT rowid AS id FROM voice_log WHERE kind = 'rehearse'").first()).id;
+  assert.deepEqual(await V.duelMoment(env, { row: rid, upto: 0 }), { msgs: [{ r: 'u', t: 'hi i run a bakery' }], open: true });
+  const m2 = await V.duelMoment(env, { row: rid, upto: 2 });
+  assert.deepEqual(m2.msgs.map(m => m.r + ':' + m.t), ['u:hi i run a bakery', 'a:Got it. A bakery, nice.', 'u:how much', 'a:Starter is $149.', 'u:ok bye']);
+  assert.equal(m2.msgs[1].lead, 'Got it.', 'the quick reaction is kept, so it is not said again');
+  assert.equal(await V.duelMoment(env, { row: rid, upto: 3 }), null, 'past the end');
+  await DB.prepare("INSERT INTO app_calls (id, at, client_id, outcome, transcript) VALUES ('CA1', '2026-11-20T15:00:00Z', 'always-open', 'message', ?1)").bind(JSON.stringify([{ w: 'ai', t: 'This system uses AI. Thanks for calling Always Open, I\'m Max.' }, { w: 'caller', t: 'what is this' }, { w: 'ai', t: 'We answer the calls you miss.' }, { w: 'caller', t: 'how much' }, { w: 'ai', t: 'Starter is $149.' }])).run();
+  assert.deepEqual((await V.duelMoment(env, { call: 'CA1', upto: 1 })).msgs.map(m => m.r), ['a', 'u', 'a', 'u']);
+  assert.equal((await V.duelMoment(env, { call: 'CA1', upto: 1 })).open, false, 'a real call already has its greeting');
+  assert.equal(await V.duelMoment(env, { call: 'CA1', upto: 2 }), null);
+  assert.equal(await V.duelMoment(env, { call: 'nope' }), null);
+});

@@ -3367,6 +3367,31 @@ async function practiceTurn(renv, L, j, msgs, said, st, tp) {
   if (asked && tp.tapN < TAP_MAX && !(tp.tap && !tp.tap.done)) { tp.tapN++; tp.tap = { q: asked, done: false }; }
   return { end: !!sp.flags.end, item: { said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: st.rlang !== 'en-US' ? st.rlang : undefined } };
 }
+// Where a duel's moment comes from: its own words (msgs, with "open" to put the greeting first), a practice call already
+// run (row: its voice_log rowid; upto: which of the caller's lines to answer, counted from 0), or a real call on the line
+// (call: its id; upto: the same count in its transcript, which starts with the greeting). Returns { msgs, open } or null.
+export async function duelMoment(env, d) {
+  if (Array.isArray(d.msgs)) return { msgs: d.msgs, open: !!d.open };
+  const upto = Math.max(0, Math.floor(+d.upto || 0));
+  if (d.row) {
+    const row = await env.DB.prepare("SELECT detail FROM voice_log WHERE rowid = ?1 AND kind = 'rehearse'").bind(+d.row || 0).first().catch(() => null);
+    const out = ((row && parse(row.detail)) || {}).out;
+    const turns = Array.isArray(out) ? out.filter(o => o && typeof o.said === 'string' && o.said) : [];
+    if (upto >= turns.length) return null;
+    const msgs = [];
+    for (const o of turns.slice(0, upto)) { msgs.push({ r: 'u', t: o.said }); msgs.push({ r: 'a', t: ((o.lead ? o.lead + ' ' : '') + String(o.reply || '')).trim(), lead: o.lead || undefined }); }
+    msgs.push({ r: 'u', t: turns[upto].said });
+    return { msgs, open: true };
+  }
+  if (d.call) {
+    const c = await env.DB.prepare('SELECT transcript FROM app_calls WHERE id = ?1').bind(String(d.call)).first().catch(() => null);
+    const tr = (c && parse(c.transcript)) || [], msgs = [];
+    let n = -1;
+    for (const x of Array.isArray(tr) ? tr : []) { const r = x && x.w === 'caller' ? 'u' : 'a'; msgs.push({ r, t: String((x && x.t) || '') }); if (r === 'u' && ++n === upto) break; }
+    return n === upto ? { msgs, open: false } : null;
+  }
+  return null;
+}
 // The call so far, as a duel row keeps it: the last 24 lines, each cut to 500 characters.
 const duelMsgs = msgs => msgs.slice(-24).map(m => ({ r: m.r, t: String(m.t || '').slice(0, 500) }));
 async function rehearseOne(env) {
@@ -3406,7 +3431,8 @@ async function rehearseOne(env) {
     return true;
   }
   // A duel (Nov 23, 2026): one moment of a call answered by two versions of Max, for the side-by-side judge and for
-  // Christopher's own picks. detail { duel: [{ id, msgs: [{ r: 'u'|'a', t, lead }], open }], a: { features, ... },
+  // Christopher's own picks. detail { duel: [{ id, msgs: [{ r: 'u'|'a', t, lead }], open } or { id, row|call, upto }
+  // (duelMoment)], a: { features, ... },
   // b: { features, ... }, tag, judge, judgeModel, guide }. Each moment ends on the caller's words, and both versions get
   // exactly that call so far ("open": true puts the line's greeting first, as a practice call starts). Sounds-human
   // scores of whole calls moved 2 to 3 points between runs of the same call; two answers to the same words do not.
@@ -3414,7 +3440,9 @@ async function rehearseOne(env) {
     const dline = await lineFor(env, String(j.number || OWN_NUMBER_100)).catch(() => null);
     if (!dline) return true;
     for (const d of j.duel.slice(0, 8)) {
-      const prior = (Array.isArray(d && d.msgs) ? d.msgs : []).slice(-40).map(m => ({ r: m && m.r === 'u' ? 'u' : 'a', t: String((m && m.t) || '').slice(0, 600), lead: m && m.lead ? String(m.lead).slice(0, 200) : undefined })).filter(m => m.t);
+      const mo = d && typeof d === 'object' ? await duelMoment(env, d) : null;
+      if (!mo) continue;
+      const prior = mo.msgs.slice(-40).map(m => ({ r: m && m.r === 'u' ? 'u' : 'a', t: String((m && m.t) || '').slice(0, 600), lead: m && m.lead ? String(m.lead).slice(0, 200) : undefined })).filter(m => m.t);
       if (!prior.length || prior.at(-1).r !== 'u') continue;
       const said = prior.at(-1).t, sides = {};
       let before = null, FL = null;
@@ -3424,14 +3452,14 @@ async function rehearseOne(env) {
         if (dline.client_id !== OWN_ID) await addDuties(DL, dline);
         const op = rehearsalOpening(dline, js, DL);
         DL.heard2 = !!op.more;
-        const msgs = (d.open ? [{ r: 'a', t: op.opening }].concat(op.more ? [{ r: 'a', t: op.more }] : []) : []).concat(prior.slice(0, -1).map(m => Object.assign({}, m)));
+        const msgs = (mo.open ? [{ r: 'a', t: op.opening }].concat(op.more ? [{ r: 'a', t: op.more }] : []) : []).concat(prior.slice(0, -1).map(m => Object.assign({}, m)));
         if (!before) { before = duelMsgs(msgs.concat({ r: 'u', t: said })); FL = DL; }
         const st = { leads: msgs.filter(m => m.lead).map(m => m.lead).slice(-12), rlang: 'en-US', esTold: false }, tp = { tap: null, tapTold: null, tapN: 0, turn: msgs.filter(m => m.r === 'u').length };
         const t = await practiceTurn(practiceEnv(env, js), DL, js, msgs, said, st, tp).catch(e => ({ item: { said, lead: '', reply: '', error: String((e && e.message) || e).slice(0, 160) } }));
         sides[s] = { reply: ((t.item.lead ? t.item.lead + ' ' : '') + t.item.reply).trim(), cuts: t.item.cuts, ms: t.item.ms, error: t.item.error, end: t.item.end };
       }
       const judged = j.judge && sides.a.reply && sides.b.reply ? await judgePair(env, before, sides.a.reply, sides.b.reply, factsText(FL), { model: j.judgeModel, guide: j.guide }).catch(e => ({ pick: null, why: [String((e && e.message) || e).slice(0, 160)] })) : undefined;
-      await vlog(env, 'rehearse-duel', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String((d && d.id) || '').slice(0, 60), a: sides.a, b: sides.b, judge: judged, msgs: before }), 20000);
+      await vlog(env, 'rehearse-duel', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String(d.id || '').slice(0, 60), from: d.row ? 'row ' + d.row + ' @' + (+d.upto || 0) : d.call ? 'call ' + String(d.call).slice(0, 60) + ' @' + (+d.upto || 0) : undefined, a: sides.a, b: sides.b, judge: judged, msgs: before }), 20000);
     }
     return true;
   }
