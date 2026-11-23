@@ -239,8 +239,16 @@ test('callerTurn: the caller speaks from their persona and agenda, reacting to t
   assert.equal(seen[0].model, 'claude-sonnet-5-5'); assert.deepEqual(seen[0].thinking, { type: 'between_tools' });
   assert.match(seen[0].system, /You play a real person phoning the sales line of Always Open/);
   assert.match(seen[0].messages[0].content, /^PERSONA: a bakery owner, busy, skeptical\nAGENDA:\n1\. hi i run a bakery\n2\. how much is it\n3\. is there a contract\nThis is turn 2 of at most 10\.\n\nTHE CALL SO FAR\nMax: Always Open, this is Max\.\nYou: hi i run a bakery\nMax: A bakery, nice\./);
-  const bad = async () => ({ json: async () => ({ content: [{ type: 'text', text: 'sure' }] }) });
-  assert.equal(await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, bad), null);
+  const bad = async () => ({ json: async () => ({ content: [{ type: 'text', text: 'sure' }], stop_reason: 'end_turn', usage: { output_tokens: 3 } }) });
+  const no = await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, bad);
+  assert.equal(no.say, ''); assert.equal(no.why.length, 3, 'tried three times');
+  assert.match(no.why[0], /^sonnet-5-5 unreadable \(end_turn, 3 out\): sure$/); assert.match(no.why[2], /^haiku-5-5 /);
+  // an error the first time is retried, and the reason is kept
+  const tries = [];
+  const flaky = async (url, o) => { const b = JSON.parse(o.body); tries.push(b); return tries.length === 1 ? { status: 429, json: async () => ({ error: { type: 'rate_limit_error', message: 'Number of request tokens has exceeded your per-minute rate limit' } }) } : { json: async () => ({ content: [{ type: 'text', text: '{"say":"sure, go on","hangup":false}' }] }) }; };
+  const ok = await V.callerTurn({ ANTHROPIC_API_KEY: 'k' }, {}, ['x'], msgs, 2, flaky);
+  assert.equal(ok.say, 'sure, go on'); assert.equal(tries.length, 2); assert.equal(tries[0].max_tokens, 4000);
+  assert.match(ok.why[0], /^sonnet-5-5 429: Number of request tokens/);
 });
 
 test('a reactive practice call: the first line is scripted, then the caller answers Max until they hang up', async () => {
@@ -257,6 +265,16 @@ test('a reactive practice call: the first line is scripted, then the caller answ
   const r = JSON.parse((await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse'").first()).detail);
   assert.deepEqual(r.out.map(o => o.said), ['hi i run a bakery', 'how much is it, roughly', 'ok thanks, bye'], 'scripted first line, then the caller\'s own words, then goodbye');
   assert.equal(n, 2, 'no more caller turns after the goodbye');
+  // a caller that could not be read the first time is asked again, and the transcript says why
+  world.aiScript = ['A bakery, nice.', 'Starter is $149 a month.']; n = 0;
+  let k = 0;
+  env.CALLER_WAIT_MS = 0;
+  world.aiNote = b => /play a real person phoning/.test(b.system) ? (k++ === 0 ? { nope: 1 } : { say: 'bye', hangup: true }) : { score: 6, why: 'ok' };
+  await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T12:00:30Z', 'rehearse-request', ?1)").bind(JSON.stringify({ number: '+17064602226', reactive: true, tag: 'ry', calls: [{ id: 'd-3', persona: 'a bakery owner', turns: ['hi i run a bakery', 'how much'] }] })).run();
+  await V.rehearse(env);
+  const y = (await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'rehearse'").all()).results.map(x => JSON.parse(x.detail)).find(x => x.tag === 'ry');
+  assert.deepEqual(y.out.map(o => o.said), ['hi i run a bakery', 'bye']);
+  assert.match(y.out[0].callerWhy[0], /^sonnet-5-5 unreadable/);
   // a scripted call (no "reactive") is unchanged
   world.aiScript = ['One.', 'Two.']; n = 0;
   await DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES ('2026-11-23T12:01:00Z', 'rehearse-request', ?1)").bind(JSON.stringify({ number: '+17064602226', tag: 'sx', calls: [{ id: 'd-2', turns: ['first', 'second'] }] })).run();

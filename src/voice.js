@@ -18,7 +18,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { pushClient, opsPing, mailOwner, withOwner, liveCallStart, liveCallEnd } from './app.js';
 import { opsAlert } from './ops.js';
 import { ownLineFacts, PROMISES } from './facts.js';
-import { factCheck, factCheck2, gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
+import { factCheck, factCheck2, factsText, judgePair, gradeOf, saveGrade, failuresOf, queueFromCall, unsafeAdvice, machineTells, humanScore, hardErrors } from './grades.js';
 import { interviewFor, interviewById, interviewGreeting, interviewPrompt, interviewWriteUp, ensureInterviews } from './interview.js';
 import { tradeDefaults } from './trades.js';
 import { slotsFor, bookFor } from './availability.js';
@@ -3332,6 +3332,43 @@ function rehearsalLine(line, j) {
   if (j.line && j.line.industry && !j.line.urgent) L.urgent = tradeDefaults(L.industry).urgent;
   return L;
 }
+// A practice run can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
+function practiceEnv(env, j) {
+  return j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
+}
+// One of Max's turns on a practice call, run the way a live turn is: the caller's words, the quick reaction, the per-turn
+// notes, Claude, then the same clean-up. msgs gets both lines; st carries the call's leads and language, tp its Shoulder
+// Tap state. Returns what the transcript keeps of the turn, and whether Max ended the call. Practice calls and duels
+// (two versions answering the same moment) both go through here, so a duel measures exactly what a practice call does.
+async function practiceTurn(renv, L, j, msgs, said, st, tp) {
+  tp.turn++;
+  msgs.push({ r: 'u', t: String(said).slice(0, 400) });
+  // the same switch to Spanish a live call makes (a Spanish line, a caller speaking Spanish)
+  if (st.rlang === 'en-US' && L.spanish && (looksSpanish(said) || (msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) st.rlang = 'es-US';
+  const lead = trimLead(leadIn(said, callLang(st.rlang, msgs.slice(0, -1), said), st.leads), L, msgs, st.leads);
+  if (lead) st.leads = st.leads.concat(lead.text).slice(-12);
+  let raw = '', r = null, err = '';
+  const t0 = Date.now();
+  // Claude itself, never the fallback model: a rehearsal checks Claude's replies, and a failure here is not a live
+  // call failing, so it is written down instead of alarming anyone.
+  // The same per-turn notes a live call gets (urgent, number already read back, upset, asked for a person).
+  const rs = { msgs, line: L, urgent: msgs.some(m => m.r === 'u' && activeProblem(m.t)), upset: msgs.some(m => m.r === 'u' && UPSET.test(m.t.toLowerCase())), wantPerson: msgs.filter(m => m.r === 'u' && WANT_PERSON.test(m.t.toLowerCase())).length, tap: tp.tap, tapTold: tp.tapTold, tapN: tp.tapN, turn: tp.turn };
+  const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', st.rlang, false) + (st.rlang === 'es-US' && !st.esTold ? (st.esTold = true, '\n\n' + ES_DISCLOSE) : ''), extra = turnNote(lead ? lead.text : '', msgs, L) + callerNotes(rs, said);
+  const fixed = fixedReply(L, lead, msgs);
+  if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
+  else try { r = renv.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
+  const sp = new Speaker(() => {}, st.rlang);
+  const gctx = guardCtx(L, msgs, said, rs);
+  const g = gctx.on.size ? guardText(cutBizQ(lead && !P6(L) ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), !P6(L) && wrappingUp(said)), gctx) : { text: cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)), cuts: [] };
+  sp.push(g.text);
+  const spoken = sp.end();
+  msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
+  const asked = L.tap && sp.flags.ask ? cleanAsk(sp.flags.ask) : '';
+  if (asked && tp.tapN < TAP_MAX && !(tp.tap && !tp.tap.done)) { tp.tapN++; tp.tap = { q: asked, done: false }; }
+  return { end: !!sp.flags.end, item: { said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: st.rlang !== 'en-US' ? st.rlang : undefined } };
+}
+// The call so far, as a duel row keeps it: the last 24 lines, each cut to 500 characters.
+const duelMsgs = msgs => msgs.slice(-24).map(m => ({ r: m.r, t: String(m.t || '').slice(0, 500) }));
 async function rehearseOne(env) {
   let req = null;
   // claimed in one statement, so the rooms running side by side never take the same request. The claim stamps the time,
@@ -3368,6 +3405,50 @@ async function rehearseOne(env) {
     }
     return true;
   }
+  // A duel (Nov 23, 2026): one moment of a call answered by two versions of Max, for the side-by-side judge and for
+  // Christopher's own picks. detail { duel: [{ id, msgs: [{ r: 'u'|'a', t, lead }], open }], a: { features, ... },
+  // b: { features, ... }, tag, judge, judgeModel, guide }. Each moment ends on the caller's words, and both versions get
+  // exactly that call so far ("open": true puts the line's greeting first, as a practice call starts). Sounds-human
+  // scores of whole calls moved 2 to 3 points between runs of the same call; two answers to the same words do not.
+  if (Array.isArray(j.duel)) {
+    const dline = await lineFor(env, String(j.number || OWN_NUMBER_100)).catch(() => null);
+    if (!dline) return true;
+    for (const d of j.duel.slice(0, 8)) {
+      const prior = (Array.isArray(d && d.msgs) ? d.msgs : []).slice(-40).map(m => ({ r: m && m.r === 'u' ? 'u' : 'a', t: String((m && m.t) || '').slice(0, 600), lead: m && m.lead ? String(m.lead).slice(0, 200) : undefined })).filter(m => m.t);
+      if (!prior.length || prior.at(-1).r !== 'u') continue;
+      const said = prior.at(-1).t, sides = {};
+      let before = null, FL = null;
+      for (const s of ['a', 'b']) {
+        const js = Object.assign({}, j, j[s] && typeof j[s] === 'object' ? j[s] : {});
+        const DL = rehearsalLine(dline, js);
+        if (dline.client_id !== OWN_ID) await addDuties(DL, dline);
+        const op = rehearsalOpening(dline, js, DL);
+        DL.heard2 = !!op.more;
+        const msgs = (d.open ? [{ r: 'a', t: op.opening }].concat(op.more ? [{ r: 'a', t: op.more }] : []) : []).concat(prior.slice(0, -1).map(m => Object.assign({}, m)));
+        if (!before) { before = duelMsgs(msgs.concat({ r: 'u', t: said })); FL = DL; }
+        const st = { leads: msgs.filter(m => m.lead).map(m => m.lead).slice(-12), rlang: 'en-US', esTold: false }, tp = { tap: null, tapTold: null, tapN: 0, turn: msgs.filter(m => m.r === 'u').length };
+        const t = await practiceTurn(practiceEnv(env, js), DL, js, msgs, said, st, tp).catch(e => ({ item: { said, lead: '', reply: '', error: String((e && e.message) || e).slice(0, 160) } }));
+        sides[s] = { reply: ((t.item.lead ? t.item.lead + ' ' : '') + t.item.reply).trim(), cuts: t.item.cuts, ms: t.item.ms, error: t.item.error, end: t.item.end };
+      }
+      const judged = j.judge && sides.a.reply && sides.b.reply ? await judgePair(env, before, sides.a.reply, sides.b.reply, factsText(FL), { model: j.judgeModel, guide: j.guide }).catch(e => ({ pick: null, why: [String((e && e.message) || e).slice(0, 160)] })) : undefined;
+      await vlog(env, 'rehearse-duel', JSON.stringify({ tag: String(j.tag || '').slice(0, 40), id: String((d && d.id) || '').slice(0, 60), a: sides.a, b: sides.b, judge: judged, msgs: before }), 20000);
+    }
+    return true;
+  }
+  // The judge again on duels already run (a new judge model, or the judging notes tuned to Christopher's picks), without
+  // asking Max again: detail { rejudge: [rowids], judgeModel, guide, tag }.
+  if (Array.isArray(j.rejudge)) {
+    const rline = await lineFor(env, String(j.number || OWN_NUMBER_100)).catch(() => null);
+    const RL = rline ? rehearsalLine(rline, j) : {};
+    for (const rid of j.rejudge.slice(0, 8)) {
+      const row = await env.DB.prepare("SELECT detail FROM voice_log WHERE rowid = ?1 AND kind = 'rehearse-duel'").bind(+rid || 0).first().catch(() => null);
+      const d = (row && parse(row.detail)) || {};
+      if (!Array.isArray(d.msgs) || !d.a || !d.b || !d.a.reply || !d.b.reply) continue;
+      const v = await judgePair(env, d.msgs, d.a.reply, d.b.reply, factsText(RL), { model: j.judgeModel, guide: j.guide }).catch(e => ({ pick: null, why: [String((e && e.message) || e).slice(0, 160)] }));
+      await vlog(env, 'rehearse-judge', JSON.stringify(Object.assign({ tag: String(j.tag || '').slice(0, 40), row: +rid, id: d.id }, v)), 4000);
+    }
+    return true;
+  }
   const line = await lineFor(env, String(j.number || ''));
   if (!line) { await vlog(env, 'rehearse', JSON.stringify({ error: 'no such line' })); return true; }
   const L = rehearsalLine(line, j);
@@ -3376,12 +3457,11 @@ async function rehearseOne(env) {
   // Max" for salons, marinas and dentists until Nov 4, 2026, and the human scorer marked the mismatch down).
   const { opening, more } = rehearsalOpening(line, j, L);
   L.heard2 = !!more;
-  // A rehearsal can name the model to try ("model"), so a switch is compared on the same calls before it goes live.
-  const renv = j.model && /^claude-[a-z0-9.-]+$/.test(String(j.model)) ? Object.assign(Object.create(env), { VOICE_MODEL: String(j.model) }, /^(omit|adaptive|disabled|between_tools)$/.test(String(j.thinking || '')) ? { VOICE_THINKING: String(j.thinking) } : {}, /^(low|medium|high)$/.test(String(j.effort || '')) ? { VOICE_EFFORT: String(j.effort) } : {}) : env;
+  const renv = practiceEnv(env, j);
   let budget = 80;
   for (const script of (Array.isArray(j.calls) ? j.calls : []).slice(0, 10)) {
     const msgs = [{ r: 'a', t: opening }].concat(more ? [{ r: 'a', t: more }] : []), out = [];
-    let leads = [], rlang = 'en-US', esTold = false;
+    const st = { leads: [], rlang: 'en-US', esTold: false };
     const turns = Array.isArray(script) ? script : (script && Array.isArray(script.turns) ? script.turns : []);
     const callId = script && !Array.isArray(script) ? String(script.id || '').slice(0, 40) : '';
     const tp = { tap: null, tapTold: null, tapN: 0, turn: 0 };
@@ -3398,7 +3478,7 @@ async function rehearseOne(env) {
         const text = cleanAnswer(said.owner), open = tp.tap && !tp.tap.done ? tp.tap : null;
         if (!L.tap || (!text && !open)) continue;
         if (open) open.done = true;
-        const q = open ? open.q : '', line2 = text ? relayLine(L.tap.who, text, rlang, q) : missLine(L.tap.who, rlang);
+        const q = open ? open.q : '', line2 = text ? relayLine(L.tap.who, text, st.rlang, q) : missLine(L.tap.who, st.rlang);
         if (text) L.owner = (String(L.owner || '') + ' During this call, just now, ' + (L.tap.who || 'the owner') + (q ? ' answered the caller\'s question "' + q + '"' : ' sent word for the caller') + ': "' + text + '".').trim();
         msgs.push({ r: 'a', t: line2 });
         tp.tapTold = { q, text, miss: !text, turn: tp.turn, line: line2 };
@@ -3406,34 +3486,13 @@ async function rehearseOne(env) {
         continue;
       }
       if (budget-- <= 0) break;
-      tp.turn++;
-      msgs.push({ r: 'u', t: String(said).slice(0, 400) });
-      // the same switch to Spanish a live call makes (a Spanish line, a caller speaking Spanish)
-      if (rlang === 'en-US' && L.spanish && (looksSpanish(said) || (msgs.filter(m => m.r === 'u').length < 2 && spanishOpener(said)))) rlang = 'es-US';
-      const lead = trimLead(leadIn(said, callLang(rlang, msgs.slice(0, -1), said), leads), L, msgs, leads);
-      if (lead) leads = leads.concat(lead.text).slice(-12);
-      let raw = '', r = null, err = '';
-      const t0 = Date.now();
-      // Claude itself, never the fallback model: a rehearsal checks Claude's replies, and a failure here is not a live
-      // call failing, so it is written down instead of alarming anyone.
-      // The same per-turn notes a live call gets (urgent, number already read back, upset, asked for a person).
-      const rs = { msgs, line: L, urgent: msgs.some(m => m.r === 'u' && activeProblem(m.t)), upset: msgs.some(m => m.r === 'u' && UPSET.test(m.t.toLowerCase())), wantPerson: msgs.filter(m => m.r === 'u' && WANT_PERSON.test(m.t.toLowerCase())).length, tap: tp.tap, tapTold: tp.tapTold, tapN: tp.tapN, turn: tp.turn };
-      const sys = systemPrompt(L, E164.test(j.caller || '') ? j.caller : '', rlang, false) + (rlang === 'es-US' && !esTold ? (esTold = true, '\n\n' + ES_DISCLOSE) : ''), extra = turnNote(lead ? lead.text : '', msgs, L) + callerNotes(rs, said);
-      const fixed = fixedReply(L, lead, msgs);
-      if (fixed) { raw = fixed; r = { stop: 'fixed' }; }
-      else try { r = env.ANTHROPIC_API_KEY ? await claude(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra) : await brain(renv, sys, toChat(msgs), t => { raw += t; }, 200, extra); } catch (e) { r = null; err = String((e && e.message) || e).slice(0, 160); }
-      const sp = new Speaker(() => {}, rlang);
-      const gctx = guardCtx(L, msgs, said, rs);
-      const g = gctx.on.size ? guardText(cutBizQ(lead && !P6(L) ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), !P6(L) && wrappingUp(said)), gctx) : { text: cutBizQ(lead ? dropRepeat(raw, lead.kind) : raw, askedBiz(msgs), wrappingUp(said)), cuts: [] };
-      sp.push(g.text);
-      const spoken = sp.end();
-      msgs.push({ r: 'a', t: ((lead ? lead.text + ' ' : '') + spoken).trim(), lead: lead ? lead.text : undefined });
-      const asked = L.tap && sp.flags.ask ? cleanAsk(sp.flags.ask) : '';
-      if (asked && tp.tapN < TAP_MAX && !(tp.tap && !tp.tap.done)) { tp.tapN++; tp.tap = { q: asked, done: false }; }
-      out.push({ said, lead: lead ? lead.text : '', reply: spoken, ask: asked || undefined, raw: raw === spoken ? undefined : raw.slice(0, 300), ms: Date.now() - t0, stop: r ? r.stop || '' : 'error', error: err || undefined, end: sp.flags.end || undefined, cuts: g.cuts.length ? g.cuts : undefined, unsafe: unsafeAdvice((lead ? lead.text + ' ' : '') + spoken) || undefined, lang: rlang !== 'en-US' ? rlang : undefined });
-      if (reactive && !hungUp && queue.length < 10 && !sp.flags.end) {
-        const nx = await callerTurn(env, script, agenda, msgs, queue.length + 1).catch(() => null);
+      const t = await practiceTurn(renv, L, j, msgs, said, st, tp);
+      out.push(t.item);
+      if (reactive && !hungUp && queue.length < 10 && !t.end) {
+        const nx = await callerTurn(env, script, agenda, msgs, queue.length + 1).catch(e => ({ say: '', why: [String((e && e.message) || e).slice(0, 120)] }));
         if (nx && nx.say) { queue.push(nx.say); hungUp = !!nx.hangup; }
+        // why the caller had to be asked again (or could not go on), kept with the turn it followed
+        if (nx && nx.why && nx.why.length) t.item.callerWhy = nx.why;
       }
     }
     const hs = await humanScore(env, msgs).catch(() => ({ score: -1 }));
@@ -3453,17 +3512,30 @@ const CALLER_RULES = 'You play a real person phoning the sales line of Always Op
   'When you have what you came for, or a real person would hang up, say a short goodbye and set hangup to true. Return ONLY JSON: {"say":"<your words>","hangup":false}.';
 export async function callerTurn(env, script, agenda, msgs, n, f) {
   if (!env.ANTHROPIC_API_KEY) return null;
-  const model = env.CALLER_MODEL || 'claude-sonnet-5-5';
   const text = 'PERSONA: ' + String((script && script.persona) || 'a small-business owner') + '\nAGENDA:\n' + agenda.map((a, i) => (i + 1) + '. ' + a).join('\n') +
     '\nThis is turn ' + n + ' of at most 10.\n\nTHE CALL SO FAR\n' + (msgs || []).map(m => (m.r === 'u' ? 'You: ' : 'Max: ') + String(m.t || '').slice(0, 600)).join('\n');
-  const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
-    headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
-    body: JSON.stringify(Object.assign({ model, max_tokens: 1500, system: CALLER_RULES, messages: [{ role: 'user', content: text }] }, /haiku/.test(model) ? { thinking: { type: 'disabled' } } : /sonnet/.test(model) ? { thinking: { type: 'between_tools' } } : {})) });
-  const j = await r.json().catch(() => ({}));
-  const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
-  let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
-  const say = String((o && o.say) || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-  return say ? { say, hangup: !!(o && o.hangup) } : null;
+  // Three tries, the last on Haiku: the first reactive run (Nov 23, 2026) lost the caller after the first line on about 3
+  // calls in 4, and nothing said why, so a failure now comes back with its reason ("why") for the transcript.
+  const models = [env.CALLER_MODEL || 'claude-sonnet-5-5', env.CALLER_MODEL || 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+  const why = [];
+  for (let k = 0; k < models.length; k++) {
+    const model = models[k];
+    try {
+      const wait = env.CALLER_WAIT_MS == null ? 1500 : +env.CALLER_WAIT_MS || 0;
+      if (k && !f && wait) await new Promise(res => setTimeout(res, wait * k));
+      const r = await (f || fetch)('https://api.anthropic.com/v1/messages', { method: 'POST',
+        headers: Object.assign({ authorization: 'Bearer ' + env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, env.ANTHROPIC_WORKSPACE ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE } : {}),
+        body: JSON.stringify(Object.assign({ model, max_tokens: 4000, system: CALLER_RULES, messages: [{ role: 'user', content: text }] }, /haiku/.test(model) ? { thinking: { type: 'disabled' } } : /sonnet/.test(model) ? { thinking: { type: 'between_tools' } } : {})) });
+      const j = await r.json().catch(() => ({}));
+      if (j.error) { why.push(model.replace('claude-', '') + ' ' + (r.status || '') + ': ' + String(j.error.message || j.error.type || 'error').slice(0, 100)); continue; }
+      const raw = (j.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('');
+      let o = null; try { o = JSON.parse((/\{[\s\S]*\}/.exec(raw) || ['null'])[0]); } catch (e) { o = null; }
+      const say = String((o && o.say) || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+      if (say) return Object.assign({ say, hangup: !!(o && o.hangup) }, k ? { model, why } : {});
+      why.push(model.replace('claude-', '') + ' unreadable (' + (j.stop_reason || '?') + ', ' + ((j.usage && j.usage.output_tokens) || 0) + ' out): ' + raw.slice(0, 80));
+    } catch (e) { why.push(model.replace('claude-', '') + ' failed: ' + String((e && e.message) || e).slice(0, 100)); }
+  }
+  return { say: '', hangup: false, why };
 }
 
 // Words that were retired, swept out of the hand-written parts of the own line's row (the goal, the owner's notes, the

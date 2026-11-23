@@ -282,6 +282,35 @@ async function askClaude(env, model, system, text, maxTokens, f) {
   if (/^\s*\{\s*"(wrong|verdicts)"\s*:\s*\[\s*$/.test(raw)) return /verdicts/.test(raw) ? { verdicts: [] } : { wrong: [] };
   throw new Error('unreadable: ' + raw.slice(0, 100));
 }
+// ---------- side-by-side judge (Nov 23, 2026) ----------
+// Sounds-human scores (1 to 10, a whole call at a time) moved 2 to 3 points between runs of the same call, too much to tell
+// two close versions of Max apart. The judge reads one moment of a call and two possible next replies and picks the better
+// one, twice, with the replies swapped: a pick that flips with the order is a split. It is tuned to Christopher's own picks
+// (his notes come in as "guide", so the judging can be tuned without a deploy).
+export const JUDGE_RUBRIC = 'You compare two possible next replies from Max, the automated phone assistant on the sales line of Always Open, a service that answers small businesses\' calls when the owner can\'t pick up and handles their Google reviews. ' +
+  'The caller hears Max\'s words spoken on the phone. You get FACTS (what is true about Always Open, and the rules Max follows), THE CALL SO FAR (ending with the caller\'s latest words), REPLY A and REPLY B. ' +
+  'Pick the reply a sharp, busy business owner on the phone would rather hear next. What matters, most first: ' +
+  '1. True: a reply that contradicts FACTS, or makes up a price, plan, feature, timing or promise, loses unless the other is worse. ' +
+  '2. It answers what the caller just said, plainly, near the start. ' +
+  '3. It fits the phone: short (one to three short sentences is usually right), no lists or menus read aloud, no filler, no hype, at most one question. ' +
+  '4. It sounds like a capable person who has been listening: it does not repeat what Max already said on this call, does not push the call back or ask for their name or number when the caller has not asked for that, and has no stock closers. ' +
+  '5. It moves the call forward, with at most one clear next step. ' +
+  'Ignore small wording differences. If neither is clearly better, answer "same". Return ONLY JSON: {"better":"A|B|same","why":"<under 25 words>"}.';
+const judgeText = (msgs, x, y, facts) => 'FACTS\n' + String(facts || '').slice(0, 24000) + '\n\nTHE CALL SO FAR\n' +
+  (msgs || []).slice(-40).map(m => (m.r === 'u' ? 'Caller: ' : 'Max: ') + String(m.t || '').slice(0, 600)).join('\n') + '\n\nREPLY A\n' + String(x || '').slice(0, 1200) + '\n\nREPLY B\n' + String(y || '').slice(0, 1200);
+export async function judgePair(env, msgs, a, b, facts, o, f) {
+  o = o || {};
+  if (!env.ANTHROPIC_API_KEY) return { pick: null, why: ['no key'] };
+  const model = /^claude-[a-z0-9.-]+$/.test(String(o.model || '')) ? String(o.model) : (env.JUDGE_MODEL || 'claude-opus-5-5');
+  const system = JUDGE_RUBRIC + (o.guide ? '\n\nWHAT THE OWNER OF ALWAYS OPEN WANTS (from his own picks; it outranks the list above where they differ)\n' + String(o.guide).slice(0, 6000) : '');
+  const ask = text => askClaude(env, model, system, text, 4000, f).catch(e => ({ err: String((e && e.message) || e).slice(0, 120) }));
+  const [r1, r2] = await Promise.all([ask(judgeText(msgs, a, b, facts)), ask(judgeText(msgs, b, a, facts))]);
+  // r1 read the replies as A = a, B = b; r2 the other way round
+  const side = (r, aIs) => { const v = String((r && r.better) || '').trim().toUpperCase(); return v === 'A' ? aIs : v === 'B' ? (aIs === 'a' ? 'b' : 'a') : v === 'SAME' ? 'same' : null; };
+  const ab = side(r1, 'a'), ba = side(r2, 'b');
+  const pick = !ab || !ba ? null : ab === ba ? ab : ab === 'same' ? ba : ba === 'same' ? ab : 'split';
+  return { pick, firm: !!ab && ab === ba, ab, ba, why: [r1 && (r1.why || r1.err), r2 && (r2.why || r2.err)].filter(Boolean).map(x => String(x).slice(0, 200)), model };
+}
 export function callText(msgs) {
   let n = 0;
   return (msgs || []).slice(0, 60).map(m => m.r === 'u' ? 'Caller: ' + String(m.t || '').slice(0, 700) : 'Max [' + (++n) + ']: ' + String(m.t || '').slice(0, 700)).join('\n');
