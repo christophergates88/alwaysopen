@@ -3434,13 +3434,18 @@ export function sweepRetired(t, who) {
 }
 // Max's own line says what facts.js says: prices, what each plan adds, who calls back and how setup goes are rewritten
 // from it whenever they differ (Nov 4, 2026: the row still said $149 for extra minutes after the site said $59).
+// The version of Max every caller on Always Open's line gets, the owner's phone included (Christopher, "Do all", Nov 23,
+// 2026). v3 beat the version before it on 100 practice calls twice (sounds-human 5.73 vs 5.38 and 5.44 vs 5.08, calls
+// with the call back pushed twice 13 vs 49 and 11 vs 43); it was tested without Shoulder Tap on this line, which kept
+// producing "let me check with Chris right now ... still waiting on him".
+export const OWN_VERSION = { features: ['v3', 'g-closer', 'g-stock', 'g-ask3'], off: ['tap'], testFeatures: [] };
 export async function syncOwnLine(env) {
   try {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
     const f = parse(row.facts) || {}, want = ownLineFacts();
     const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Booking software other than Google Calendar|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
-    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next });
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next }, OWN_VERSION);
     for (const k of Object.keys(next)) if (typeof next[k] === 'string') next[k] = sweepRetired(next[k], PROMISES.support);
     if (JSON.stringify(next) === JSON.stringify(f)) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();

@@ -52,6 +52,10 @@ OPS_TEXT_TO = "+14783652533"
 BUSINESS_ADDRESS = "103 W Sumter St, Eatonton, GA 31024"
 # Shoulder Tap for every line that is not regulated (src/tap.js tapFeature). "0" puts it back on per-line opt-in.
 TAP_LIVE = "1"
+# Real calls on Always Open's line get fact check v2.1 and the call-back limit after they end; a price, plan, timing or
+# "checking with Chris" slip is sent to Christopher (those kinds were real 15 times in 16 on the answer key). Turned on
+# with his "Do all", Nov 23, 2026.
+FACTCHECK_LIVE = "1"
 # Always Open's approved ISV reseller profile in Twilio Trust Hub (not a secret). Each client's texting registration is assigned to it.
 # Once Google approves Business Profile access, the site drafts review replies for clients it reaches through the API
 # (the Always Open check skips those). "primary" = draft an hour after a review comes in.
