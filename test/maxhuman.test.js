@@ -13,7 +13,7 @@ const line = (o) => Object.assign({ client_id: 'c1', business: 'Harbor Point Mar
 const v2 = (L) => Object.assign(L, { style: 'v2' });
 
 test('live calls get the wording that won the blind test; the rewrite only under style v2', () => {
-  const p = V.systemPrompt(V.lineView(line()), '+14785550142', 'en-US', false);
+  const p = V.systemPrompt(V.lineView(line({ transfer_to: '+14785550199', transfer_when: 'urgent' })), '+14785550142', 'en-US', false);   // Nov 24, 2026: that line only where a call can be put through
   assert.match(p, /Is the water off\? \.\.\. Good\. I'm getting the owner on this now/);
   assert.doesNotMatch(p, /Mike/, 'no example owner name a line could pick up');
   assert.match(p, /give the instruction as its own short statement and only then ask/);
@@ -119,7 +119,7 @@ test('a complete number stays complete on later turns, and a yes-or-no question 
 });
 
 test('the rewrite is four switches, each measured alone; a line or a practice run names the ones it wants', () => {
-  const L = V.lineView(line({ industry: 'plumbing' }));
+  const L = V.lineView(line({ industry: 'plumbing', transfer_to: '+14785550199', transfer_when: 'urgent' }));   // Nov 24, 2026: so the owner line is in
   assert.deepEqual(L.features, []);
   const base = V.systemPrompt(L, '', 'en-US', false);
   assert.doesNotMatch(base, /How it sounds/);

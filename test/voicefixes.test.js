@@ -172,7 +172,7 @@ test('3. rate-limited calls: no hang-up, no text to the caller, one quiet push a
   for (let i = 0; i < 5; i++) await w.DB.prepare("INSERT INTO app_calls (id, client_id, number, at, caller, outcome, status, test) VALUES (?1, 'c1', ?2, ?3, ?4, 'done', 'new', 0)").bind(sidOf(100 + i), LINE, new Date(Date.now() - (10 + i) * 60e3).toISOString(), caller).run();
   for (const n of [30, 31]) {
     const r = await w.hook('in', { CallSid: sidOf(n), To: LINE, From: caller });
-    assert.match(r.text, /We have your number and will call you back/);
+    assert.match(r.text, /<Record\b/);   // Nov 24, 2026: the voicemail, not a hang-up
     const st = await w.hook('status', { CallSid: sidOf(n), CallStatus: 'completed', CallDuration: '9' });
     assert.equal(st.status, 204, 'answered plainly (a 204 with a body threw, and alerted "A call to Max errored")');
     const row = await w.row(sidOf(n));

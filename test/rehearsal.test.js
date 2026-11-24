@@ -389,7 +389,7 @@ test('a sixth call from the same number in an hour gets a short message instead 
   for (let i = 0; i < 5; i++) await DB.prepare("INSERT INTO app_calls (id, client_id, number, at, caller, outcome, test) VALUES (?1,?2,?3,?4,?5,'done',0)").bind('CA' + String(900 + i).padStart(32, '0'), cid, lineNumber, nowIso(), caller).run();
   const { r } = await startCall(caller);
   assert.doesNotMatch(r.text, /ConversationRelay/);
-  assert.match(r.text, /call you back/);
+  assert.match(r.text, /<Record\b/);   // Nov 24, 2026: the voicemail, not a hang-up
 });
 
 test('a text to the business line: a customer’s message lands in the inbox, STOP is honored, START brings them back', async () => {
@@ -683,7 +683,7 @@ test('repeat callers: Dana is greeted as a question, a visit coming up comes fir
   assert.match(wsOf(l.sid).store.get('s').line.memory, /visit penciled in \(not confirmed yet\) for /);
   world.aiScript = ['Hi, is this about your visit?'];
   await say(l.sid, 'Hi there.');
-  assert.match(sysText(), /visit coming up. If what they say is clearly a new problem, do not bring the visit up/);
+  assert.match(sysText(), /visit coming up\. Until they confirm the name on file, do not even hint at it\. After that, if what they say is clearly a new problem, do not bring the visit up/);   // Nov 24, 2026: only once they confirm
   await hook('after', { CallSid: l.sid, SessionDuration: '20', SessionStatus: 'ended' }); await site.settle();
 });
 
