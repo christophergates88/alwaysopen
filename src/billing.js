@@ -151,8 +151,13 @@ export async function createFromSession(env, s, h) {
   const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated, terms_version, agreed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17, ?18)')
     .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', email, m.phone || '', m.town || '', m.type || '', code, ref, now, String(m.terms_version || '').slice(0, 20), String(m.agreed_at || '').slice(0, 30)).run();
   if (!(ins.meta && ins.meta.changes)) return finishIfMissing(env, await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first(), h);
-  await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
+  // Nov 24, 2026: OR IGNORE. The other request (webhook or welcome page) can slip in right here, see the billing row
+  // with no client yet, and make the client itself (finishIfMissing). A plain INSERT then threw on the unique ref, and
+  // if this request was the buyer's welcome page, the buyer's first screen after paying was an error. When the other
+  // one made it, it has also told Christopher, so this one does not tell him twice.
+  const made = await env.DB.prepare("INSERT OR IGNORE INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
+  const mine = !!(made.meta && made.meta.changes);
   // the same owner again (lost their link, say): a second number and subscription, so the push says so (Nov 10). The
   // business's name counts too (Nov 24, 2026): a second sign-up with another email and phone got through unflagged.
   const again = await env.DB.prepare("SELECT business FROM billing WHERE client_id != ?1 AND ((?2 != '' AND lower(email) = lower(?2)) OR (?3 != '' AND phone = ?3) OR (?4 != '' AND lower(trim(business)) = lower(?4))) LIMIT 1").bind(cid, email, m.phone || '', String(m.business || '').trim()).first().catch(() => null);
@@ -160,7 +165,7 @@ export async function createFromSession(env, s, h) {
   // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
   let first = null;
   try { await queueLine(env, cid); if (h && h.later) { first = provisionLine(env, cid).catch(() => null); h.later(first); } } catch (e) { /* the timer picks it up */ }
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same name, email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
+  if (mine && h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same name, email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
   const row = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
   // The welcome email, once (only the request that wrote the billing row gets here), after the first try at Max's number.
   const mail = (async () => {
