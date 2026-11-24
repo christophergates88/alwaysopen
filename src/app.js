@@ -1231,11 +1231,9 @@ export async function appCron(env, at) {
       await markNotified(env, 'app_messages', g.msgs.map(x => x.id));
     }
   } catch (e) { /* the next run tries again */ }
-  // Follow-ups due today (Eastern time) or earlier: one reminder to the owner's phone each, sent between 8 AM and 8 PM
-  try {
-    const et = eastern(now);
-    if (et.hour >= 8 && et.hour < 20) await remindFollowups(env, now, et.day);
-  } catch (e) { /* the next run tries again */ }
+  // Follow-ups due today or earlier, by each owner's own clock: one reminder to the owner's phone each, between 8 AM and 8 PM
+  // where they are (Nov 24, 2026: on Eastern time it reached Honolulu at 2 AM). Checked per client inside remindFollowups.
+  try { await remindFollowups(env, now); } catch (e) { /* the next run tries again */ }
   try {
     // Photos stay 60 days. A finished job's phone number is cleared a week after HQ has it.
     await env.DB.prepare('DELETE FROM app_photos WHERE at < ?1').bind(new Date(now - 60 * 86400000).toISOString()).run();
@@ -1244,18 +1242,18 @@ export async function appCron(env, at) {
   } catch (e) { /* ignore */ }
 }
 
-// The day and hour in Eastern time (most clients are in Georgia).
-function eastern(ms) {
-  const p = {};
-  for (const x of new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms))) p[x.type] = x.value;
-  return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour % 24 };
-}
-
-async function remindFollowups(env, now, today) {
+async function remindFollowups(env, now) {
   await ensureAuto(env);
-  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount, consent, auto_conf, auto_rem, auto_fu FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(today).all();
+  const { tzFor, local } = await import('./callbacks.js');
+  const farDay = local('Pacific/Guam', now).day;   // the furthest-ahead calendar day anywhere we serve; each client is narrowed below
+  const due = await env.DB.prepare("SELECT id, client_id, kind, name, amount, due, consent, auto_conf, auto_rem, auto_fu FROM app_followups WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded IS NULL OR reminded = '') ORDER BY due LIMIT 100").bind(farDay).all();
   const by = {};
   for (const r of (due.results || [])) (by[r.client_id] = by[r.client_id] || []).push(r);
+  for (const cid of Object.keys(by)) {
+    const l = local(await tzFor(env, cid), now);
+    by[cid] = l.hour >= 8 && l.hour < 20 ? by[cid].filter(x => x.due <= l.day) : [];
+    if (!by[cid].length) delete by[cid];
+  }
   // Customers who said yes to texts get ours (autotext.js), so the owner isn't asked to send the same one. One we
   // couldn't send (they opted out, the text failed) comes back to the owner here, and the app says why (autoFail).
   const ours = x => +x.consent && !autoFail(x);

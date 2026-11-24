@@ -89,7 +89,8 @@ export async function slotsFor(env, line, now, max, all) {   // all: every free 
   busy = busy.concat(taken.map(r => [+r.start, +r.end]));
   const len = bk.slotMin * 60000, gap = bk.bufferMin * 60000, out = [];
   for (let d = 0; d < 8 && out.length < (max || 6); d++) {
-    const day = local(tz, now + d * DAY);
+    // by calendar day, not 24-hour blocks (Nov 24, 2026: a late call the night before a clock change skipped or repeated a day)
+    const noon = new Date(Date.parse(local(tz, now).day + 'T12:00:00Z') + d * DAY), day = { day: noon.toISOString().slice(0, 10), wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][noon.getUTCDay()] };
     const hours = bk.days[day.wd];
     if (!hours) continue;
     for (let t = hours[0]; t + bk.slotMin <= hours[1] && out.length < (max || 6); t += 30) {

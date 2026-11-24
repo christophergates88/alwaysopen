@@ -197,7 +197,8 @@ export async function openSlots(env, cid, now, max, all) {   // all: every free 
     for (const t of taken) busy.push([+t.start, +t.end]); } catch (e) { /* the calendar alone */ }
   const out = [];
   for (let d = 0; d < 8 && out.length < (max || 6); d++) {
-    const lp = localParts(tz, now + d * 864e5);
+    // by calendar day, not 24-hour blocks (Nov 24, 2026: a late call the night before a clock change skipped or repeated a day)
+    const b0 = localParts(tz, now), nd = new Date(Date.UTC(b0.y, b0.m - 1, b0.d + d, 12)), lp = { y: nd.getUTCFullYear(), m: nd.getUTCMonth() + 1, d: nd.getUTCDate(), wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][nd.getUTCDay()] };
     if (lp.wd === 'Sat' || lp.wd === 'Sun') continue;
     for (let h = 9; h < 17 && out.length < (max || 6); h++) {
       const guess = Date.UTC(lp.y, lp.m - 1, lp.d, h);

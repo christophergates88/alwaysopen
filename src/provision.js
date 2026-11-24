@@ -42,14 +42,19 @@ export function industryOf(business, type) {
 // What a caller hears if our webhook ever fails: the voicemail backup, served by Twilio itself so it works when we are
 // down (voicemail.js). It never rings the owner's cell: at 3 AM that woke them because our server was down.
 import { voicemailTwiml, fallbackUrl } from './voicemail.js';
-import { ensureLineTz, lineZone } from './callbacks.js';
+import { ensureLineTz, lineZone, stateOfTown, zonesOfState, zonesOfNumber } from './callbacks.js';
 export { voicemailTwiml as fallbackTwiml, fallbackUrl };
 
 export function searches(phone, town) {
-  const d = ph10(phone), st = stateOf(town), out = [];
+  const d = ph10(phone), st = stateOf(town) || stateOfTown(town), out = [];
+  // Nov 24, 2026: a Phoenix shop whose owner kept a Georgia cell got a Georgia number. When the town's state is known and
+  // the cell's area code sits in none of that state's time zones, the town's state is searched first.
+  const zs = st ? zonesOfState(st) : [], cz = d ? zonesOfNumber(d) : [];
+  const away = !!(st && d && zs.length && cz.length && !cz.some(z => zs.indexOf(z) > -1));
+  if (away) out.push('InRegion=' + st);
   if (d) out.push('AreaCode=' + d.slice(0, 3));
   if (d) out.push('NearNumber=' + encodeURIComponent('+1' + d) + '&Distance=60');
-  if (st) out.push('InRegion=' + st);
+  if (st && !away) out.push('InRegion=' + st);
   out.push('');
   return out;
 }

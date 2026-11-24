@@ -6,6 +6,7 @@
 // recorded, "stop" or 9 ends calls for good, and regulated lines get no outbound calls at all (the owner is pushed instead).
 // Loaded late so the rules here can be tested without the worker's own imports.
 const pushClient = async (...a) => { try { return await (await import('./app.js')).pushClient(...a); } catch (e) { return 0; } };
+import { normTown } from './radar.js';
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 
 const SITE = 'https://alwaysopenoffice.com';
@@ -40,13 +41,13 @@ const ZONE_CODES = {
     '216 220 234 283 326 330 380 419 436 440 513 567 614 740 937 215 223 267 272 412 445 484 570 582 610 717 724 814 835 878 401 803 821 839 843 854 864 423 865 802 ' +
     '276 434 540 571 686 703 757 804 826 948 304 681',
   [CT]: '205 251 256 334 483 659 938 327 479 501 870 217 224 309 312 331 447 464 618 630 708 730 773 779 815 847 861 872 219 319 515 563 641 712 316 620 785 913 ' +
-    '225 318 337 504 985 218 320 507 612 651 763 924 952 228 601 662 769 235 314 417 557 573 636 660 816 975 402 531 701 405 539 572 580 918 615 629 731 901 931 ' +
+    '225 318 337 457 504 985 218 320 507 612 651 763 924 952 228 601 662 769 235 314 417 557 573 636 660 816 975 402 531 701 405 539 572 580 918 615 629 731 901 931 ' +
     '210 214 254 281 325 346 361 409 430 432 469 512 682 713 726 737 806 817 830 832 903 936 940 945 956 972 979 262 274 353 414 534 608 715 920',
-  [MT]: '303 719 720 970 983 406 505 575 385 435 801 307 915',
+  [MT]: '303 719 720 970 983 748 406 505 575 385 435 801 307 915',
   'America/Phoenix': '480 520 602 623',
   [PT]: '209 213 279 310 323 341 350 369 408 415 424 442 510 530 559 562 619 626 628 650 657 661 669 707 714 747 760 805 818 820 831 840 858 909 916 925 949 951 ' +
-    '702 725 775 458 503 541 971 206 253 360 425 509 564',
-  'America/Anchorage': '907', 'Pacific/Honolulu': '808', 'America/Puerto_Rico': '787 939'
+    '702 725 775 458 503 541 971 206 253 360 425 509 564 357 738 837',
+  'America/Anchorage': '907', 'Pacific/Honolulu': '808', 'America/Puerto_Rico': '787 939 340', 'Pacific/Guam': '671'
 };
 // Area codes that cross a time-zone line: the first zone is the usual one.
 const SPLIT_CODES = { 850: [CT, ET], 448: [CT, ET], 812: [ET, CT], 930: [ET, CT], 270: [CT, ET], 364: [CT, ET], 906: [ET, CT], 308: [CT, MT], 605: [CT, MT], 208: ['America/Boise', PT], 986: ['America/Boise', PT], 928: ['America/Phoenix', MT] };
@@ -55,20 +56,43 @@ for (const z in ZONE_CODES) for (const c of ZONE_CODES[z].split(' ')) AREA[c] = 
 for (const c in SPLIT_CODES) AREA[c] = SPLIT_CODES[c];
 const STATE_TZ = {};
 for (const [z, list] of [[ET, 'CT DE DC FL GA IN KY ME MD MA MI NH NJ NY NC OH PA RI SC VT VA WV'], [CT, 'AL AR IL IA KS LA MN MS MO NE ND OK SD TN TX WI'], [MT, 'CO MT NM UT WY'], [PT, 'CA NV OR WA'],
-  ['America/Boise', 'ID'], ['America/Phoenix', 'AZ'], ['America/Anchorage', 'AK'], ['Pacific/Honolulu', 'HI'], ['America/Puerto_Rico', 'PR']]) for (const s of list.split(' ')) STATE_TZ[s] = z;
+  ['America/Boise', 'ID'], ['America/Phoenix', 'AZ'], ['America/Anchorage', 'AK'], ['Pacific/Honolulu', 'HI'], ['America/Puerto_Rico', 'PR VI'], ['Pacific/Guam', 'GU']]) for (const s of list.split(' ')) STATE_TZ[s] = z;
 // States split by a time-zone line: there, the area code of the business's phone says which side it is on.
 const SPLIT_STATES = { FL: [ET, CT], IN: [ET, CT], KY: [ET, CT], MI: [ET, CT], TN: [CT, ET], TX: [CT, MT], KS: [CT, MT], NE: [CT, MT], ND: [CT, MT], SD: [CT, MT], ID: ['America/Boise', PT], OR: [PT, 'America/Boise'] };
 // The zones a phone number's area code may be in (none when it is not a US number we know).
 export function zonesOfNumber(p) { const d = ph10(p); return d ? (AREA[d.slice(0, 3)] || []) : []; }
-export function zoneOfState(town) { const m = /,\s*([A-Za-z]{2})\s*$/.exec(String(town || '').trim()); return m ? (STATE_TZ[m[1].toUpperCase()] || '') : ''; }
-// The business's zone from what we know at sign-up: its state (from "Town, ST"), its own phone, the number we bought.
-export function lineZone(o) {
-  o = o || {};
-  const m = /,\s*([A-Za-z]{2})\s*$/.exec(String(o.town || '').trim()), st = m ? m[1].toUpperCase() : '', sz = STATE_TZ[st] || '';
-  const byPhone = [o.phone, o.number].map(p => zonesOfNumber(p)[0]).filter(Boolean);
-  if (sz) { const alt = SPLIT_STATES[st]; const hit = alt && byPhone.find(z => alt.indexOf(z) > -1); return hit || sz; }
-  return byPhone[0] || ET;
+// The state in a typed town, read the way people type it (Nov 24, 2026: "Honolulu Hawaii", "Phoenix AZ", "Phoenix, AZ 85001"
+// all used to fall to Eastern). With a comma any two-letter state works; without one it must be a real code in capitals
+// after a longer town name ("Orlando" and "Eatonton" end in letters but are no state; "Peru in" is not read as Indiana).
+// A full state name or the old short forms ("Ariz.") come from radar.js's reader. Guam and the Virgin Islands are added here.
+const EXTRA_NAMES = { guam: 'GU', 'u.s. virgin islands': 'VI', 'us virgin islands': 'VI', 'virgin islands': 'VI' };
+export function stateOfTown(town) {
+  let s = String(town || '').replace(/\s+/g, ' ').trim().replace(/[\s,]*\b\d{5}(-\d{4})?\s*$/, '').replace(/,?\s*(usa|u\.s\.a\.?|u\.s\.?|united states)$/i, '').replace(/[\s,.;]+$/, '').trim();
+  if (!s) return '';
+  let m = /,\s*([A-Za-z]{2})$/.exec(s);
+  if (m) return STATE_TZ[m[1].toUpperCase()] ? m[1].toUpperCase() : '';
+  m = /^.+\s([A-Z]{2})$/.exec(s);
+  if (m) return STATE_TZ[m[1]] ? m[1] : '';
+  const low = s.toLowerCase();
+  for (const n in EXTRA_NAMES) if (low.endsWith(n) && low.length > n.length && /[\s,]/.test(low.charAt(low.length - n.length - 1))) return EXTRA_NAMES[n];
+  const r = normTown(s), q = /, ([A-Z]{2})$/.exec(r);
+  if (q && STATE_TZ[q[1]] && !/(^|[\s,])[A-Za-z]{2}\.?$/.test(s)) return q[1];
+  return '';
 }
+// The zones a state is in (the zones of a split state, usual one first).
+export function zonesOfState(st) { return SPLIT_STATES[st] || (STATE_TZ[st] ? [STATE_TZ[st]] : []); }
+export function zoneOfState(town) { return STATE_TZ[stateOfTown(town)] || ''; }
+// The business's zone from what we know at sign-up: its state (from the town), its own phone, the number we bought.
+// guessed is true when no state could be found: the zone then came from a phone number or the Eastern default, and
+// the operator may want to check it.
+export function zoneGuess(o) {
+  o = o || {};
+  const st = stateOfTown(o.town), sz = STATE_TZ[st] || '';
+  const byPhone = [o.phone, o.number].map(p => zonesOfNumber(p)[0]).filter(Boolean);
+  if (sz) { const alt = SPLIT_STATES[st]; const hit = alt && byPhone.find(z => alt.indexOf(z) > -1); return { tz: hit || sz, guessed: false }; }
+  return { tz: byPhone[0] || ET, guessed: true };
+}
+export function lineZone(o) { return zoneGuess(o).tz; }
 const zoneSeen = {};
 export function zoneOk(tz) {
   if (!tz || typeof tz !== 'string') return false;

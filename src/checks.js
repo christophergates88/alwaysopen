@@ -14,7 +14,9 @@
 //   delivery    Texts that carriers stopped delivering (filtering shows up only in Twilio's own records), and the
 //               email records (SPF, DMARC) that keep our audit emails out of spam.
 // Everything here runs from the 10-minute cron with its own pace, keeps its marks in checks_meta, and adds its open
-// items to the 7 AM push (morningChecks). Owner-facing reminders only go out 9 AM to 7 PM Eastern.
+// items to the 7 AM push (morningChecks). Owner-facing reminders only go out 9 AM to 7 PM on the client's own clock
+// (Nov 24, 2026: they used to run on Eastern, so Honolulu heard at 4 AM); messages to Christopher keep the Eastern clock.
+import { tzFor, local } from './callbacks.js';
 const SITE = 'https://alwaysopenoffice.com';
 const FROM = { email: 'hello@alwaysopenoffice.com', name: 'Always Open' };
 const H = 3600e3, DAY = 24 * H;
@@ -43,6 +45,8 @@ export function eastern(now) {
   return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour % 24, minute: +p.minute, wd: p.weekday };
 }
 const daytime = now => { const h = eastern(now).hour; return h >= 9 && h < 19; };
+// The same 9 to 7, in a client's own zone: for anything that makes an owner's phone sound.
+const daytimeIn = (tz, now) => { const h = local(tz, now).hour; return h >= 9 && h < 19; };
 const weekday = now => !/Sat|Sun/.test(eastern(now).wd);
 // Business hours (Mon to Fri, 9 to 5 Eastern) between two moments, in hours, counted a quarter hour at a time.
 export function businessHours(from, to) {
@@ -82,7 +86,7 @@ function nudgeWant(it, now) {
 }
 export async function approvalNudges(env, now, h) {
   now = now || Date.now(); h = h || {};
-  if (!daytime(now)) return { skipped: 'night' };
+  let held = 0;
   const items = ((await env.DB.prepare("SELECT id, client_id, kind, stars, created, nudge, nudged_at FROM app_items WHERE status = 'pending' ORDER BY created").all()).results) || [];
   const byClient = {};
   for (const it of items) if (!INTERNAL.has(it.client_id) && Date.parse(it.created)) (byClient[it.client_id] = byClient[it.client_id] || []).push(it);
@@ -91,6 +95,7 @@ export async function approvalNudges(env, now, h) {
     const all = byClient[cid];
     const due = all.filter(it => nudgeWant(it, now) > (+it.nudge || 0));
     if (!due.length) continue;
+    if (!daytimeIn(await tzFor(env, cid), now)) { held++; continue; }   // night where they are: it waits
     const lowDue = due.filter(isLow);
     const last = all.reduce((m, it) => Math.max(m, Date.parse(it.nudged_at || '') || 0), 0);
     if (!lowDue.length && last && now - last < NUDGE_GAP) continue;   // they just heard from us; this waits a little
@@ -111,13 +116,14 @@ export async function approvalNudges(env, now, h) {
     await env.DB.batch(due.map(it => env.DB.prepare("UPDATE app_items SET nudge = ?1, nudged_at = ?2 WHERE id = ?3 AND client_id = ?4 AND status = 'pending'").bind(nudgeWant(it, now), at, it.id, cid)));
     out.push({ client: r.client_id, level: want, via: via || 'none' });
   }
+  if (held && !out.length) return { skipped: 'night' };
   return { nudged: out };
 }
 
 // ---------- new clients who never got set up ----------
 export async function setupNudges(env, now, h) {
   now = now || Date.now(); h = h || {};
-  if (!daytime(now)) return { skipped: 'night' };
+  let held = 0;
   const lines = ((await env.DB.prepare("SELECT p.client_id, p.number, p.created, b.status, c.business FROM provision p JOIN app_clients c ON c.client_id = p.client_id LEFT JOIN billing b ON b.client_id = p.client_id WHERE p.status = 'live' AND c.active = 1 AND p.created > ?1")
     .bind(new Date(now - 21 * DAY).toISOString()).all().catch(() => ({ results: [] }))).results) || [];
   const out = [];
@@ -129,6 +135,8 @@ export async function setupNudges(env, now, h) {
     const want = age >= 7 ? 3 : (age >= 5 ? 2 : (age >= 2 ? 1 : 0));
     const k = 'setup:' + l.client_id, m = await getMark(env, k), done = m ? +m.v || 0 : 0;
     if (!want || want <= done) continue;
+    // the owner's reminders wait for daytime where the owner is; the day-7 note to Christopher keeps the Eastern clock
+    if (want === 3 ? !daytime(now) : !daytimeIn(await tzFor(env, l.client_id), now)) { held++; continue; }
     if (want === 3) {
       await ping(env, h, 'Always Open: ' + (l.business || 'a new client') + ' has had no calls in a week', 'Max’s line has had no calls since it went live ' + Math.floor(age) + ' days ago, so their missed calls are probably not forwarded to it yet. They got two reminders with the steps. Worth a call to walk them through it.', 'default', 'telephone');
     } else {
@@ -146,6 +154,7 @@ export async function setupNudges(env, now, h) {
     }
     await setMark(env, k, want, now);
   }
+  if (held && !out.length) return { skipped: 'night' };
   return { nudged: out };
 }
 
@@ -168,10 +177,14 @@ export function replyDue(at) {
   }
   return at + DAY;
 }
-export function replyBy(now) {
-  const due = replyDue(now), d = eastern(due);
-  const when = d.day === eastern(now).day ? 'today' : d.day === eastern(now + DAY).day ? 'tomorrow' : new Date(due).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
-  return 'Chris will reply by 6 PM ' + when + '.';
+// The deadline is 6 PM Eastern; the client reads it on their own clock and calendar day (Nov 24, 2026: Honolulu read
+// "6 PM today" for what is 1 PM there). tz is the client's zone; none means Eastern.
+export function replyBy(now, tz) {
+  tz = tz || 'America/New_York';
+  const due = replyDue(now), d = local(tz, due), n = local(tz, now);
+  const when = d.day === n.day ? 'today' : d.day === local(tz, now + DAY).day ? 'tomorrow' : new Date(due).toLocaleDateString('en-US', { weekday: 'long', timeZone: tz });
+  const h12 = d.hour % 12 || 12, clock = h12 + (d.minute ? ':' + String(d.minute).padStart(2, '0') : '') + ' ' + (d.hour < 12 ? 'AM' : 'PM');
+  return 'Chris will reply by ' + clock + ' ' + when + '.';
 }
 export async function ackMessage(env, cid, by, now) {
   now = now || Date.now();
@@ -181,7 +194,7 @@ export async function ackMessage(env, cid, by, now) {
   const who = String(by || '').trim().split(/\s+/)[0];
   // away by his Failsafe: no reply time is promised (failsafe.js)
   let isAway = false; try { isAway = await (await import('./failsafe.js')).away(env); } catch (e) { isAway = false; }
-  const text = 'Got it' + (who && !/^(owner|staff)$/i.test(who) ? ', ' + who : '') + '. ' + (isAway ? (await import('./failsafe.js')).AWAY_ACK : replyBy(now));
+  const text = 'Got it' + (who && !/^(owner|staff)$/i.test(who) ? ', ' + who : '') + '. ' + (isAway ? (await import('./failsafe.js')).AWAY_ACK : replyBy(now, await tzFor(env, cid).catch(() => '')));
   await env.DB.prepare("INSERT INTO app_messages (client_id, at, by, text, hq_synced, dir, notified) VALUES (?1, ?2, ?3, ?4, 1, 'out', 0)").bind(cid, new Date(now).toISOString(), AUTO_BY, text).run();
   return text;
 }

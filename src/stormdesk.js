@@ -9,6 +9,9 @@ const SKIP = new Set(['demo-plumbing', 'always-open']);
 import { neonEmail } from './neonmail.js';
 export const STORM_EVENTS = /^(Tornado Warning|Severe Thunderstorm Warning|Flash Flood Warning|Flood Warning|Hurricane Warning|Tropical Storm Warning|High Wind Warning|Extreme Wind Warning|Ice Storm Warning|Winter Storm Warning|Blizzard Warning|Hard Freeze Warning|Freeze Warning|Extreme Cold Warning|Excessive Heat Warning|Extreme Heat Warning|Red Flag Warning|Storm Surge Warning)$/;
 export function stormGroup(ev) {
+  // Nov 24, 2026: heat and fire weather used to land in 'severe' and got "Storm damage?" wording
+  if (/Heat/.test(ev)) return 'heat';
+  if (/Red Flag/.test(ev)) return 'fire';
   if (/Flood|Surge/.test(ev)) return 'flood';
   if (/Freeze|Cold|Ice|Winter|Blizzard/.test(ev)) return 'freeze';
   return 'severe';
@@ -30,17 +33,23 @@ const ugcOf = url => String(url || '').split('/').pop();
 export const TEMPLATES = {
   general: { flood: 'Flooding in our area today. Please stay off flooded roads and stay safe. We will post any changes to our hours here, and you can reach us at {phone}.',
     freeze: 'Freezing temperatures tonight. Stay warm and check on your neighbors. We will post any changes to our hours here, and you can reach us at {phone}.',
-    severe: 'Severe weather in our area today. Please stay safe. We will post any changes to our hours here, and you can reach us at {phone}.' },
+    severe: 'Severe weather in our area today. Please stay safe. We will post any changes to our hours here, and you can reach us at {phone}.',
+    heat: 'Extreme heat in our area today. Drink water, stay out of the sun when you can, and check on your neighbors. We will post any changes to our hours here, and you can reach us at {phone}.',
+    fire: 'Fire weather in our area today: dry, windy and a high risk of fires. Please no outdoor burning, and be ready to leave if you are told to. We will post any changes to our hours here, and you can reach us at {phone}.' },
   insurance: { flood: 'Turn around, don\'t drown: never drive through water on the road. If water gets into your home or car, take photos before you clean up and call our office at {phone} with any questions.',
     freeze: 'Hard freeze tonight. Let faucets on outside walls drip, open the cabinet doors under sinks, and know where your main water shut-off is. If a pipe bursts, shut off the water, take photos and call our office at {phone}.',
-    severe: 'Stay safe today. If your home or car is damaged in this storm, take photos and video before you clean up, keep receipts for emergency repairs, and call our office at {phone}. We are here to help.' },
+    severe: 'Stay safe today. If your home or car is damaged in this storm, take photos and video before you clean up, keep receipts for emergency repairs, and call our office at {phone}. We are here to help.',
+    heat: 'Extreme heat today. Drink water, stay cool, and check on your neighbors, especially older ones. Never leave children or pets in a parked car. Call our office at {phone} with any questions.',
+    fire: 'Fire weather today: dry and windy. No outdoor burning, keep dry brush and leaves away from your home, and know your way out. Call our office at {phone} with any questions.' },
   trades: { flood: 'If water got in, we are taking calls at {phone}. Stay out of standing water near outlets, take photos, and we will help you sort out next steps.',
     freeze: 'Freezing temperatures tonight. Let faucets on outside walls drip and open the cabinet doors under sinks. If a pipe bursts, shut off your main water valve and call us at {phone}.',
-    severe: 'Storm damage? We are taking calls at {phone}. Stay clear of downed power lines, take photos of any damage, and we will get to you as fast as we safely can.' }
+    severe: 'Storm damage? We are taking calls at {phone}. Stay clear of downed power lines, take photos of any damage, and we will get to you as fast as we safely can.',
+    heat: 'Extreme heat today. Drink water, stay out of the sun when you can, and check on your neighbors. If something at your place stops working in this heat, you can reach us at {phone}.',
+    fire: 'Fire weather today: dry and windy. Please no outdoor burning and no sparks near dry grass, and be ready to leave if you are told to. You can reach us at {phone}.' }
 };
-export const LABELS = { flood: 'Flooding', freeze: 'Freeze', severe: 'Severe weather' };
+export const LABELS = { flood: 'Flooding', freeze: 'Freeze', severe: 'Severe weather', heat: 'Extreme heat', fire: 'Fire weather' };
 // The neon email for a new warning (to Christopher). Pure, so it can be tested. s: the storms row from stormRun.
-export const SIGN = { flood: 'FLOOD WARNING', freeze: 'FREEZE TONIGHT', severe: 'STORM WARNING' };
+export const SIGN = { flood: 'FLOOD WARNING', freeze: 'FREEZE TONIGHT', severe: 'STORM WARNING', heat: 'EXTREME HEAT', fire: 'FIRE WEATHER' };
 export function stormEmail(s) {
   const when = (() => { const t = Date.parse(s.ends || ''); return t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' ET' : ''; })();
   const biz = String(s.businesses || '').split(',').map(x => x.trim()).filter(Boolean);
