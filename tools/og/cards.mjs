@@ -10,7 +10,7 @@ const CALL = { label: 'CALL MAX. WE DARE YOU.', number: '(706) 460-2226' };
 export const PAGES = [
   { slug: 'insurance', kick: 'For insurance agencies', who: 'Your agency,', line: 'Calls after hours answered, messages only.<br>Every reply checked by Compliance Guard.<br><b>Nothing goes out until you approve it.</b>',
     guard: ['No claim details mentioned', 'No rates, discounts or promises', 'Approved wording only'],
-    title: 'Always Open for insurance agencies', desc: 'Every review answered in wording your compliance contact approved, Compliance Guard on every reply, Rate-Shock Radar, and an after-hours line that only takes messages. Nothing goes out until you approve it.' },
+    title: 'Always Open for insurance agencies', desc: 'Every review answered from a cautious, pre-written wording library your compliance contact can review, Compliance Guard on every reply, Rate-Shock Radar, and an after-hours line that only takes messages. Nothing goes out until you approve it.' },
   { slug: 'dental', kick: 'For dental practices', who: 'Your practice,', line: 'Calls the front desk misses, answered.<br>No treatment details, ever. Replies checked.<br>' + ASK, call: { label: 'CALL MAX ANY TIME', number: CALL.number }, title: 'Always Open for dental practices' },
   { slug: 'plumbing', kick: 'For plumbers', who: 'Your business,', line: 'Every call answered, day and night.<br>Estimates followed up. Slow days filled.<br>' + ASK, title: 'Always Open for plumbers' },
   { slug: 'hvac', kick: 'For heating and air', who: 'Your business,', line: 'Every call answered, day and night.<br>Maintenance and estimates followed up.<br>' + ASK, title: 'Always Open for heating and air companies' },

@@ -219,7 +219,12 @@ const css =
   '@media (max-width:1000px){.yg{columns:2}}' +
   '@media (max-width:760px){.yours{padding-block:52px}.yg{columns:1;margin-top:20px}.yg section{margin-bottom:12px}.yg li,.yg p.yn,.yfoot p{font-size:16px}.yfoot .btn{flex:1 1 auto}}';
 
-const li = t => { const m = /^(Pro|Growth): (.*)$/.exec(t); return '<li>' + (m ? '<i>' + m[1] + '</i>' + esc(m[2]) : esc(t)) + '</li>'; };
+// Nov 24, 2026: marking you closed on Google needs Google's approval, so it wears the Coming soon label until that comes
+// (src/launch.js takes it off by itself). Only the English line matches.
+const li = t => { const m = /^(Pro|Growth): (.*)$/.exec(t); return '<li>' + (m ? '<i>' + m[1] + '</i>' + esc(m[2]) : esc(t)) + (/closed on Google\.$/.test(t) ? '<span class="soon" data-launch="google">Coming soon</span>' : '') + '</li>'; };
+// Nov 24, 2026: no truck at a salon, a restaurant or an office, so those pages' QR card is for the counter only
+const COUNTER = ['insurance', 'salons', 'restaurants', 'dental'];
+const forPage = (key, g) => COUNTER.includes(key) ? [g[0], g[1].map(t => t.replace('a card to print for the counter or the truck.', 'a card to print for the counter.')), g[2]] : g;
 const groupHtml = g => '<section><h3>' + esc(g[0]) + '</h3><ul>' + g[1].map(li).join('') + '</ul>' + (g[2] ? '<p class="yn">' + esc(g[2]) + '</p>' : '') + '</section>';
 
 export function section(key) {
@@ -230,7 +235,7 @@ export function section(key) {
   <style>${css}</style>
   <div class="inner">
     <div class="head"><p class="eyebrow">${esc(c.eyebrow)}</p><h2 id="yours-h">${esc(c.h)}</h2><p class="lead">${esc(c.lead)}</p></div>
-    <div class="yg">${c.groups.map(groupHtml).join('')}</div>
+    <div class="yg">${c.groups.map(g => groupHtml(forPage(key, g))).join('')}</div>
     <div class="yfoot"><p>${esc(c.foot)}</p><a class="btn primary" href="${go}">${esc(c.go)}</a>${OFFICE_PAGES.includes(key) ? '' : '<a class="btn line ydemo" href="/demo" rel="nofollow">' + esc(c.demo) + '</a>'}</div>
   </div>
 </section>

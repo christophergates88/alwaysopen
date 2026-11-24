@@ -68,11 +68,11 @@ PAGES = {
                  cells=[('4', 'jobs booked', '1 lift repair the same day'), ('3', 'reviews replied to', 'Rating 4.5 to 4.7'),
                         ('3', 'quotes followed up', '1 new dock said yes'), ('2', 'posts on Google', '1 storm-day post')],
                  worth=('What it was worth', 'about $24,800', 'in quotes that said yes')),
-  'salons': dict(check=(9, 1), biz='Larkspur Salon', who='a salon', hero=('38', 'calls answered', '15 while your hands were busy'),
+  'salons': dict(held='the visit went well', check=(9, 1), biz='Larkspur Salon', who='a salon', hero=('38', 'calls answered', '15 while your hands were busy'),
                  cells=[('16', 'appointments booked', '6 from open chairs filled'), ('9', 'reviews replied to', 'Rating 4.6 to 4.8'),
                         ('5', 'clients back', 'due for a visit, and came'), ('4', 'posts on Google', 'from your photos')],
                  worth=('What it was worth', 'about $2,700', 'in booked visits')),
-  'restaurants': dict(check=(3, 0), biz='Brickyard Kitchen', who='a restaurant', hero=('64', 'calls answered', '41 during the dinner rush'),
+  'restaurants': dict(held='the order was right', check=(3, 0), biz='Brickyard Kitchen', who='a restaurant', hero=('64', 'calls answered', '41 during the dinner rush'),
                       cells=[('6', 'catering requests', '2 booked'), ('11', 'reviews replied to', 'Rating 4.3 to 4.5'),
                              ('4', 'quotes followed up', 'lunch for 40 said yes'), ('5', 'posts on Google', 'specials and holiday hours')],
                       worth=('What it was worth', 'about $3,100', 'in catering and large orders')),
@@ -80,9 +80,9 @@ PAGES = {
                  cells=[('7', 'visit requests', 'taken any hour'), ('6', 'reviews replied to', 'Rating 4.5 to 4.7'),
                         ('6', 'replies checked', 'by Compliance Guard, 1 rewritten'), ('2', 'posts on Google', 'holiday hours, a weather closure')],
                  worth=None, foot='No patient names, visits or treatment anywhere on this page. Every reply and post is on file with it.'),
-  'insurance': dict(biz='Haskell Insurance', who='an agency', hero=('8', 'reviews replied to', 'all from your approved wording'),
-                    cells=[('8', 'replies checked', 'by Compliance Guard, 2 rewritten'), ('1', 'rate wave flagged', 'by Rate-Shock Radar, a week early'),
-                           ('22', 'after-hours messages', 'taken by Max, none about policies'), ('3', 'posts on Google', 'that teach, never sell')],
+  'insurance': dict(biz='Haskell Insurance', who='an agency', hero=('8', 'reviews replied to', 'all from the wording library'),
+                    cells=[('8', 'replies checked', 'by Compliance Guard, 2 rewritten'), ('1', 'rate wave flagged', 'by Rate-Shock Radar, the weekly count'),
+                           ('22', 'after-hours messages', 'taken by Max'), ('3', 'posts on Google', 'that teach, never sell')],
                     worth=None, foot='Every public word, on file with this page, for your compliance contact.'),
 }
 MONTH, SENT = 'October', 'Nov 2'
@@ -99,7 +99,7 @@ def render(key):
         ('; three-day check-ins: ' + str(r['check'][0]) + ' held up, ' + str(r['check'][1]) + ' told the owner first' if r.get('check') else '') + '.'
     cells = ''.join('<div><b>' + e(c[0]) + '</b><span>' + e(c[1]) + '</span><small>' + e(c[2]) + '</small></div>' for c in r['cells'])
     ck = r.get('check')
-    check = ('<p class="rp-check"><b>' + str(ck[0]) + '</b> customers said the job held up on the three-day check-in' + (', and <b>' + str(ck[1]) + '</b> told you about a problem first.' if ck[1] else '.') + '</p>') if ck else ''
+    check = ('<p class="rp-check"><b>' + str(ck[0]) + '</b> customers said ' + r.get('held', 'the job held up') + ' on the three-day check-in' + (', and <b>' + str(ck[1]) + '</b> told you about a problem first.' if ck[1] else '.') + '</p>') if ck else ''
     if r['worth']:
         # money leads; the calls are the supporting line
         hero = ('<p class="rp-hero"><span class="rp-lab">' + e(r['worth'][0]).replace('What it was worth', 'What ' + MONTH + ' was worth') + '</span><b>' + e(r['worth'][1]) + '</b><small>' + e(r['worth'][2]) + '</small></p>\n'

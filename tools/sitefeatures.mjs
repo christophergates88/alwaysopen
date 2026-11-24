@@ -49,10 +49,22 @@ const rivalsFor = p => { const [plural, a, b, c] = WHO[p] || WHO.plumbing; retur
 // Max's Monday text, as an iMessage thread.
 let step = 0;   // the thread plays in order: dots, bubble, your question, dots, bubble
 const bubble = (t, mine) => (mine ? '' : '<div class="w-typ w-s' + (++step) + '"><i></i><i></i><i></i></div>') + '<div class="w-bub w-s' + (++step) + (mine ? ' w-mine' : '') + '" style="max-width:88%;margin:' + (mine ? '6px 0 6px auto' : '6px 0') + ';padding:10px 14px;border-radius:18px;background:' + (mine ? '#2F7CF6' : '#26262B') + ';color:#fff;font:15px/1.35 -apple-system,Instrument Sans,system-ui,sans-serif;white-space:pre-line">' + esc(t) + '</div>';
-const timecard = '<div style="background:#000;min-height:560px;padding:14px 12px;font-family:-apple-system,system-ui,sans-serif">' +
+// Nov 24, 2026: Max's answer lists what that trade's calls were about (the plumbing one was on every page). The thread plays
+// in order, so the step count starts over for each page.
+const AFTER = {
+  plumbing: '6 water heaters, 2 clogs, 1 leak under a sink, 1 asked for a quote. 4 of the 10 booked on the call. The leak was urgent; you took it at 11:12 PM.',
+  hvac: '4 no-cool calls, 3 tune-ups, 2 thermostat problems, 1 asked for a quote. 4 of the 10 booked on the call. One no-cool call was urgent; you took it at 11:12 PM.',
+  builders: '5 asked for an estimate, 2 wanted a site visit, 2 asked about timing, 1 storm-damage call. 4 of the 10 booked on the call. The storm-damage call was urgent; you took it at 11:12 PM.',
+  'auto-repair': '4 brake jobs, 3 oil changes, 2 check-engine lights, 1 car that would not start. 4 of the 10 booked on the call. The no-start was urgent; you took it at 11:12 PM.',
+  marine: '4 dock repairs, 3 boat lift problems, 2 asked for a quote, 1 boat loose at the dock. 4 of the 10 booked on the call. The loose boat was urgent; you took it at 11:12 PM.',
+  marinas: '4 slip questions, 3 rental requests, 2 fuel dock questions, 1 boat adrift at the dock. 4 of the 10 booked on the call. The boat adrift was urgent; you took it at 11:12 PM.',
+  salons: '5 haircut appointments, 3 color bookings, 1 asked about prices, 1 wanted to move a visit. 7 of the 10 booked on the call. Nothing was urgent; the last call came in at 11:12 PM.',
+  restaurants: '4 table requests, 3 catering questions, 2 asked about hours, 1 asked about a private party. 5 of the 10 booked on the call. Nothing was urgent; the last call came in at 11:12 PM.'
+};
+const timecardFor = p => { step = 0; return '<div style="background:#000;min-height:560px;padding:14px 12px;font-family:-apple-system,system-ui,sans-serif">' +
   '<div style="text-align:center;color:#8E8E93;font-size:12px;margin:4px 0 10px">Monday 8:04 AM</div>' + bubble(tcText) +
   bubble('What did the after hours calls come from', true) +
-  bubble('6 water heaters, 2 clogs, 1 leak under a sink, 1 asked for a quote. 4 of the 10 booked on the call. The leak was urgent; you took it at 11:12 PM.') + '</div>';
+  bubble(AFTER[p] || AFTER.plumbing) + '</div>'; };
 
 // Compliance Guard: a reply being checked before it can be approved.
 const guard = '<div style="font-family:Instrument Sans,system-ui,sans-serif;color:#ECEEF3;padding:18px 16px;background:#0F131B;min-height:560px">' +
@@ -84,18 +96,18 @@ const push = '<div class="w-push" style="padding:12px 14px;border-radius:16px;ba
 const radar = card('RATES RISING', '#FF6A5E', 'Unhappy reviews about rate increases are piling up at agencies in your town this month.', 'YOUR GOOGLE POST · READY FOR YOUR OK', RADAR_POST.text, push);
 
 const F = {
-  storm: k => ({ k: 'storm', name: 'Storm Desk', cap: 'A weather warning hits your county. Your post is written before the rain, waiting for your OK.', body: stormFor(k), scale: 0.78, w: 372 }),
+  storm: k => ({ k: 'storm', name: 'Storm Desk', cap: 'A weather warning hits your county. Your post is written before the rain, waiting for your OK.', body: stormFor(k), scale: 0.78, w: 372, soon: 'google' }),
   radar: { k: 'radar', name: 'Rate-Shock Radar', cap: 'For insurance agencies: when rate complaints pile up in your town, a heads-up and a post, that Monday.', body: radar, scale: 0.78, w: 372 },
   rivals: p => ({ k: 'rivals', name: 'Competitor Watch', cap: 'Where you stand against the businesses nearby, and what it takes to be #1.', body: rivalsFor(p), scale: 0.78, w: 372 }),
   clock: { k: 'clock', name: 'Max’s clock', cap: 'Every call on one dial, and what the closed hours were worth.', body: clockFrame, scale: 0.78, w: 372 },
-  timecard: { k: 'timecard', name: 'Max’s timecard', cap: 'Every Monday morning, one text: what he did last week and what he cost.', body: timecard, scale: 0.78, w: 372 },
-  guard: { k: 'guard', name: 'Compliance Guard', cap: 'Every reply checked against the wording your compliance contact approved.', body: guard, scale: 0.78, w: 372 }
+  timecard: p => ({ k: 'timecard', name: 'Max’s timecard', cap: 'Every Monday morning, one text: what he did last week and what he cost.', body: timecardFor(p), scale: 0.78, w: 372 }),
+  guard: { k: 'guard', name: 'Compliance Guard', cap: 'Every reply checked against our cautious wording and your own do-not-use list.', body: guard, scale: 0.78, w: 372 }
 };
 // Which screens each page shows: only what that kind of business gets. Regulated pages get no booking numbers.
-const framesFor = p => p === 'index' ? [F.storm('trades'), F.rivals('plumbing'), F.clock, F.timecard, F.radar, F.guard]
+const framesFor = p => p === 'index' ? [F.storm('trades'), F.rivals('plumbing'), F.clock, F.timecard('plumbing'), F.radar, F.guard]
   : p === 'insurance' ? [F.radar, F.guard, F.storm('insurance'), F.rivals(p)]
   : p === 'dental' ? [F.guard, F.storm('general'), F.rivals(p)]
-  : [F.storm(p === 'restaurants' || p === 'salons' ? 'general' : 'trades'), F.rivals(p), F.clock, F.timecard];
+  : [F.storm(p === 'restaurants' || p === 'salons' ? 'general' : 'trades'), F.rivals(p), F.clock, F.timecard(p)];
 const H = 560;
 const css = CLOCK_CSS + '.wallclk{--clk-ink:#fff;--clk-mute:#A3ACBF;--clk-line:rgba(255,255,255,.07);--clk-night:rgba(255,90,77,.18);--clk-ok:#5CC9A4;--clk-sign:#FF6A5E}.wallclk .clk{width:230px;height:auto}.wallclk .clk .clk-big{font-family:Archivo,system-ui,sans-serif}' +
   '.wall{margin:0 0 34px}.wall .head{max-width:760px}.wall h2{color:#fff}.wall .head p{color:#A3ACBF;font-size:1.12rem;margin-top:10px}' +
@@ -141,7 +153,7 @@ const sectionFor = p => { const frames = framesFor(p); return '<!-- wall:start -
   '<div class="head"><p class="eyebrow">What it looks like</p><h2 id="wall-h">Real screens. Each one is what you get.</h2><p>Not a feature list. These are the actual texts and app screens Always Open sends, filled in for made-up businesses.</p></div>' +
   '<div class="wall-rail' + (frames.length === 4 ? ' n4' : '') + '" role="list">' + frames.map(f => {
     const w = f.w, s = f.scale, fw = Math.round(w * s);
-    return '<div class="wall-item" role="listitem"><div class="wall-frame" data-w="' + f.k + '" style="max-width:' + fw + 'px" role="img" aria-label="' + esc(f.name + ': ' + f.cap) + '"><div style="width:' + w + 'px;transform:scale(' + s + ')">' + f.body + '</div></div><h3>' + esc(f.name) + '</h3><p>' + esc(f.cap) + '</p></div>';
+    return '<div class="wall-item" role="listitem"><div class="wall-frame" data-w="' + f.k + '" style="max-width:' + fw + 'px" role="img" aria-label="' + esc(f.name + ': ' + f.cap) + '"><div style="width:' + w + 'px;transform:scale(' + s + ')">' + f.body + '</div></div><h3>' + esc(f.name) + '</h3><p>' + esc(f.cap) + (f.soon ? '<span class="soon" data-launch="' + f.soon + '">Coming soon</span>' : '') + '</p></div>';
   }).join('') + '</div><script>' + WALL_JS + '</script></div>\n<!-- wall:end -->\n'; };
 
 const PAGES = ['index', 'plumbing', 'hvac', 'builders', 'auto-repair', 'marine', 'marinas', 'insurance', 'dental', 'salons', 'restaurants'];

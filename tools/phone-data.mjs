@@ -259,10 +259,10 @@ export const PAGES = {
           { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Haskell Insurance on Google · just now', 'Storm tonight in Putnam County', 'Live where people search tonight.', 'ok']] },
           { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · posted 3:15 PM']] }
         ],
-        carrier: { why: 'When a weather warning hits your county, our team drafts a storm-day post. If your company approves posts first, it goes to them first.',
+        carrier: { why: 'When a weather warning hits your county, our team drafts a storm-day post. If your company wants posts approved first, get that OK, then tap Approve.',
           choices: [
-            { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Sent to your company for approval', 'Storm tonight in Putnam County', 'Your compliance contact gets it with your OK already on it.', 'ok'], ['sys', 'Approved by your company · posted 4:40 PM']] },
-            { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · sent to your company for approval']] }
+            { label: 'Approve', then: [['sys', 'Compliance Guard passed it'], ['note', 'Waiting for your OK', 'Storm tonight in Putnam County', 'Compliance Guard passed it. Nothing posts until you approve it.', 'ok'], ['sys', 'You approved it · posted 4:40 PM']] },
+            { label: 'Edit first', then: [['sys', 'You added one line'], ['note', 'Post · edited', 'Storm tonight in Putnam County', 'Stay safe tonight. Once it passes, photos of any damage are a good first step. Our office opens at 8.'], ['sys', 'Compliance Guard passed it · waiting for your OK']] }
           ] } },
       { key: 'ai', title: 'What assistants say about you', tag: TAG.growth, why: WHY.ai,
         intro: [['sys', 'A customer asks an answer assistant'], ['in', 'What’s the number for Haskell Insurance in Eatonton?'], ['ai', '478-555-0100, according to Yelp.']],

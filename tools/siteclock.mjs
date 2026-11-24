@@ -60,15 +60,27 @@ const section = `<!-- clock:start -->
 <!-- clock:end -->
 `;
 
+// Nov 24, 2026: the dial was Mike's Plumbing on every page. Each trade's made-up business (the same names as its sample report)
+// and what its 2:47 AM call was about. The plumbing page and the home page keep Mike's.
+const OWN = {
+  hvac: ['Tolliver Heating and Air', 'no heat in the house, and it was 29 degrees out'],
+  builders: ['Brannock Builders', 'a tree limb through the roof of a house you are working on'],
+  'auto-repair': ['Pickard Auto', 'a customer’s truck stuck on the highway shoulder and needing a tow'],
+  marine: ['Kessler Marine', 'a boat stuck halfway up its lift'],
+  marinas: ['Harbor Point Marina', 'a boat taking on water at its slip'],
+  insurance: ['Haskell Insurance', 'a caller whose basement had flooded, asking the agency to call back']
+};
 for (const f of ['public/index.html', 'public/plumbing.html', 'public/hvac.html', 'public/builders.html', 'public/auto-repair.html', 'public/marine.html', 'public/marinas.html', 'public/insurance.html']) {
   let s = readFileSync(f, 'utf8');
   // "Get yours" opens the free-audit form with this page's kind of business picked (?from=plumbing)
   // On the home page the dial comes right after A day with Always Open (Nov 14, 2026): what that day was worth, and it carries
   // the "An example report." caption the hero's sample report used to.
-  const key = f.replace(/^public\/|\.html$/g, ''), sec = key === 'index'
+  const key = f.replace(/^public\/|\.html$/g, '');
+  let sec = key === 'index'
     ? section.replace('data-label="On the clock"', 'data-label="What it was worth"').replace('<p class="eyebrow">On the clock</p>', '<p class="eyebrow">What it was worth</p>')
       .replace('<p class="clockcap">Mike’s Plumbing, October. A made-up business; the dial is drawn the same way from yours.</p>', '<p class="clockcap">An example report. Mike’s Plumbing in October, a made-up business; the dial is drawn the same way from yours.</p>')
     : section.replace('href="/#contact">Get yours', 'href="/?from=' + key + '#contact">Get yours');
+  if (OWN[key]) sec = sec.replace('Mike’s Plumbing, October.', OWN[key][0] + ', October.').replace('water coming up through the basement floor drain', OWN[key][1]);
   if (s.includes('<!-- clock:start -->')) s = s.replace(/<!-- clock:start -->[\s\S]*?<!-- clock:end -->\n?/, sec);
   else {
     // right after "Tap to try it" (its grade check has to stay on the first three phone screens, tools/phonecheck.mjs);
