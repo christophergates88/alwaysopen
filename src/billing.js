@@ -8,7 +8,7 @@
 
 import { noteSignup, expireCredits, REF_RE } from './referral.js';
 import { firstLook } from './firstlook.js';
-import { queueLine, provisionLine, lineEnded } from './provision.js';
+import { queueLine, provisionLine, lineEnded, forwardingOff, industryOf } from './provision.js';
 
 import { PLANS as FACT_PLANS, MAX as FACT_MAX } from './facts.js';
 import { seal, open } from './seal.js';
@@ -24,14 +24,38 @@ const MAX = { cents: FACT_MAX.moreCents, blurb: FACT_MAX.blurb };
 export const HEALTH_TYPE = 'Medical or dental office';
 const TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Salon, spa or fitness', 'Restaurant or shop', 'Insurance agency', 'Law office', HEALTH_TYPE, 'Other'];
 const REGULATED = ['Insurance agency', 'Law office', 'Medical, dental or legal', HEALTH_TYPE];
-const HEALTH_NAME = /\b(dental|dentists?|dentistry|orthodont\w*|endodont\w*|periodont\w*|oral surgery|pediatrics?|pediatricians?|dermatolog\w*|optometr\w*|ophthalmolog\w*|chiropract\w*|urgent care|family medicine|family practice|physicians?|medical (center|clinic|group|practice|office|associates)|health center)\b/i;
+const HEALTH_NAME = /\b(dental|dentists?|dentistry|orthodont\w*|endodont\w*|periodont\w*|oral surgery|pediatrics?|pediatricians?|dermatolog\w*|optometr\w*|ophthalmolog\w*|chiropract\w*|urgent care|family medicine|family practice|physicians?|medical (center|clinic|group|practice|office|associates)|health center|physical therap\w*|occupational therap\w*|speech therap\w*|counsel(ing|ling|ors?|lors?)|mental health|behavioral health|psychiatr\w*|psycholog\w*|psychotherap\w*|pharmac(y|ies|ists?)|home health|hospice|med ?spa|medical spa|botox|hearing aids?|audiolog\w*|podiatr\w*|orthop(a)?ed\w*|eye care|nursing)\b/i;
+// Nov 24, 2026 audit: the name decided almost nothing, so physical therapy, counseling, pharmacies, home health and med
+// spas signed up as ordinary clients. Looser words (a clinic, therapy, a doctor, or provision.js reading the name as
+// medical) count too, except where the rest of the name says it is not a patient's: a car or phone repair "clinic", the
+// "lawn doctor", a massage therapist (not a HIPAA office in the ordinary case). Vets and animal hospitals never are, and
+// neither are counselors at law. ("psych" alone is left out: it would catch a psychic.)
+const HEALTH_LOOSE = /\b(clinics?|therap\w*|doctors?)\b/i;
+const NOT_PATIENT = /\b(vets?|veterinar\w*|animals?|pets?|equine|law|legal|attorneys?|lawyers?)\b/i;
+const NOT_HEALTH_LOOSE = /\b(cars?|auto\w*|trucks?|phones?|computers?|repairs?|lawn|trees?|massage|golf|bikes?|small engine|drains?|rooter|dent|dryer|vents?|appliances?|plumb\w*|roof\w*|pools?|glass|ac)\b/i;
+const TRADE_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Restaurant or shop'];   // a trade's "Drain Doctor" is no doctor
+// Nov 24, 2026 audit: an insurance agency, law firm or financial adviser signed up as "Other" came out unregulated (Max
+// booking, outbound calls, the map listing). Tax preparers, accountants and mortgage brokers are left out on purpose:
+// facts.js tells prospects they get booking on the call, like any other business.
+const FINANCE_NAME = /\b(financial advis\w*|wealth|investment advis\w*|credit unions?|(?<!food |blood )bank|banking)\b/i;
+const LAW_NAME = /\b(law|legal|attorneys?|lawyers?|LLP)\b|(&|\band\b).*\bP\.?\s?C\.?$/i;
 export const HEALTH_NOTE = 'We aren’t set up to handle patient health information yet, so medical and dental offices can’t sign up online. Call (706) 460-2226 and we’ll tell you when we are.';
 // The old combined choice from a page cached before Nov 21: a law office stays a law office, the rest are health offices.
 function fixType(type, business) {
   if (type === 'Medical, dental or legal' || type === 'Medical, dental or vet') return /\b(law|legal|attorneys?|lawyers?)\b/i.test(business || '') ? 'Law office' : HEALTH_TYPE;
   return TYPES.includes(type) ? type : 'Other';
 }
-export function isHealthOffice(type, business) { return fixType(type, business) === HEALTH_TYPE || HEALTH_NAME.test(String(business || '')); }
+export function isHealthOffice(type, business) {
+  const n = String(business || ''), t = fixType(type, n);
+  if (t === HEALTH_TYPE) return true;
+  if (NOT_PATIENT.test(n)) return false;
+  return HEALTH_NAME.test(n) || (!TRADE_TYPES.includes(t) && (HEALTH_LOOSE.test(n) || industryOf(n, t) === 'medical') && !NOT_HEALTH_LOOSE.test(n));
+}
+// Regulated (insurance, legal, financial): Max only takes messages, no outbound calls, no map listing by default.
+export function isRegulated(type, business) {
+  const n = String(business || '').trim(), t = fixType(type, n);
+  return REGULATED.includes(t) || /^(insurance|legal)$/.test(industryOf(n, t)) || FINANCE_NAME.test(n) || LAW_NAME.test(n);
+}
 export const EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'invoice.payment_failed', 'invoice.paid', 'customer.subscription.updated', 'customer.subscription.deleted', 'charge.dispute.created', 'charge.dispute.closed'];
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,11 +95,19 @@ export async function verifyStripe(secret, header, body, now) {
 }
 
 // ---------- storage ----------
+// Nov 24, 2026: the terms tick box was required but nothing recorded it. The version is the date printed on the public
+// terms page (public/terms.html, "Last updated"): change it with that page. It and the time of the tick go into the
+// Stripe session and the billing row, so a disputed agreement has its proof.
+export const TERMS_VERSION = '2026-11-21';
+const colsDone = new WeakSet();
 export async function ensureBilling(env) {
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS billing (client_id TEXT PRIMARY KEY, session_id TEXT UNIQUE, customer TEXT, sub TEXT, plan TEXT, max INTEGER DEFAULT 0, status TEXT, business TEXT, owner TEXT, email TEXT, phone TEXT, town TEXT, type TEXT, code TEXT, ref TEXT, created TEXT, updated TEXT, paused_until TEXT, hq_synced INTEGER DEFAULT 0)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS billing_config (k TEXT PRIMARY KEY, v TEXT)')
   ]);
+  if (colsDone.has(env.DB)) return;
+  for (const col of ["terms_version TEXT DEFAULT ''", "agreed_at TEXT DEFAULT ''"]) { try { await env.DB.prepare('ALTER TABLE billing ADD COLUMN ' + col).run(); } catch (e) { /* already there */ } }
+  colsDone.add(env.DB);
 }
 const rnd = (n, abc) => { abc = abc || 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; const b = crypto.getRandomValues(new Uint8Array(n * 2)); let o = ''; for (const x of b) { if (x < abc.length * Math.floor(256 / abc.length)) o += abc[x % abc.length]; if (o.length === n) break; } return o.length === n ? o : o + rnd(n - o.length, abc); };
 const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 14).replace(/-+$/, '') || 'client';
@@ -86,7 +118,7 @@ async function sha256hex(s) { return [...new Uint8Array(await crypto.subtle.dige
 async function finishIfMissing(env, got, h) {
   if (!got || await env.DB.prepare('SELECT 1 AS x FROM app_clients WHERE client_id = ?1').bind(got.client_id).first()) return got;
   await env.DB.prepare("INSERT OR IGNORE INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
-    .bind(got.client_id, await sha256hex(got.code), got.ref, got.business || '', String(got.owner || '').split(' ')[0], REGULATED.indexOf(got.type) > -1 ? 1 : 0, got.phone || '', got.plan, new Date().toISOString(), 'calls').run();
+    .bind(got.client_id, await sha256hex(got.code), got.ref, got.business || '', String(got.owner || '').split(' ')[0], isRegulated(got.type, got.business) ? 1 : 0, got.phone || '', got.plan, new Date().toISOString(), 'calls').run();
   try { await queueLine(env, got.client_id); if (h && h.later) h.later(provisionLine(env, got.client_id).catch(() => {})); } catch (e) { /* the timer picks it up */ }
   if (h && h.notify) await h.notify('New signup: ' + (got.business || 'a business'), got.plan + ' plan. Their app is live and Max’s line is being set up on its own.');
   return got;
@@ -113,21 +145,52 @@ export async function createFromSession(env, s, h) {
   const cid = 'c-' + rnd(10, 'abcdefghjkmnpqrstuvwxyz23456789');
   const code = rnd(32), ref = slug(m.business) + '-' + rnd(4, 'abcdefghjkmnpqrstuvwxyz23456789');
   const now = new Date().toISOString();
-  const reg = REGULATED.indexOf(m.type) > -1 ? 1 : 0;
+  const reg = isRegulated(m.type, m.business) ? 1 : 0;
   // The billing row first, and only the request that wrote it goes on: the webhook and the welcome page often arrive
   // together, and only one of them may make the client and buy the number.
-  const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)')
-    .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', email, m.phone || '', m.town || '', m.type || '', code, ref, now).run();
+  const ins = await env.DB.prepare('INSERT OR IGNORE INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated, terms_version, agreed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17, ?18)')
+    .bind(cid, s.id, s.customer || '', s.subscription || '', plan, m.max === '1' ? 1 : 0, 'active', m.business || '', m.owner || '', email, m.phone || '', m.town || '', m.type || '', code, ref, now, String(m.terms_version || '').slice(0, 20), String(m.agreed_at || '').slice(0, 30)).run();
   if (!(ins.meta && ins.meta.changes)) return finishIfMissing(env, await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first(), h);
   await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
-  // the same owner again (lost their link, say): a second number and subscription, so the push says so (Nov 10)
-  const again = await env.DB.prepare("SELECT business FROM billing WHERE client_id != ?1 AND ((?2 != '' AND lower(email) = lower(?2)) OR (?3 != '' AND phone = ?3)) LIMIT 1").bind(cid, email, m.phone || '').first().catch(() => null);
+  // the same owner again (lost their link, say): a second number and subscription, so the push says so (Nov 10). The
+  // business's name counts too (Nov 24, 2026): a second sign-up with another email and phone got through unflagged.
+  const again = await env.DB.prepare("SELECT business FROM billing WHERE client_id != ?1 AND ((?2 != '' AND lower(email) = lower(?2)) OR (?3 != '' AND phone = ?3) OR (?4 != '' AND lower(trim(business)) = lower(?4))) LIMIT 1").bind(cid, email, m.phone || '', String(m.business || '').trim()).first().catch(() => null);
   try { await noteSignup(env, { clientId: cid, ref: m.ref, email, phone: m.phone, business: m.business, source: 'link' }); } catch (e) { /* the signup stands without it */ }
   // Max's line is bought and connected on its own (provision.js); the timer retries if this first try can't finish.
-  try { await queueLine(env, cid); if (h && h.later) h.later(provisionLine(env, cid).catch(() => {})); } catch (e) { /* the timer picks it up */ }
-  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
-  return await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  let first = null;
+  try { await queueLine(env, cid); if (h && h.later) { first = provisionLine(env, cid).catch(() => null); h.later(first); } } catch (e) { /* the timer picks it up */ }
+  if (h && h.notify) await h.notify('New signup: ' + (m.business || 'a business'), plan + ' plan' + (m.max === '1' ? ' + extra Max minutes' : '') + ', ' + (m.town || '') + '. ' + (m.owner || '') + ', ' + (m.phone || '') + '. Paid by card.' + (again ? ' Already a client as ' + (again.business || 'another business') + ' (same name, email or phone): check this is not a second sign-up by mistake.' : '') + ' Their app is live and Max’s line is being set up on its own.');
+  const row = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
+  // The welcome email, once (only the request that wrote the billing row gets here), after the first try at Max's number.
+  const mail = (async () => {
+    const r = await welcomeMail(env, row, first ? await first : null).catch(e => 'failed: ' + String((e && e.message) || e).slice(0, 120));
+    if (r !== 'sent') { try { await (await import('./ops.js')).opsAlert(env, 'mail-send', cid, 'The welcome email to ' + (m.business || 'a new client') + ' did not go out (' + r + '). They have no copy of their private app link: send it to them from Always Open HQ.'); } catch (e) { /* the welcome page showed it */ } }
+  })();
+  if (h && h.later) h.later(mail); else await mail;
+  return row;
+}
+
+// Nov 24, 2026: the private app link was shown once on /welcome and never sent, so a buyer who closed the tab (or whose
+// bank was still clearing) had no way in until the day-2 nudge, and none at all if the number purchase failed.
+export const SUPPORT_PHONE = '(706) 460-2226';
+async function welcomeMail(env, b, line) {
+  if (!b || !b.email) return 'failed: no email on the signup';
+  const { sendNeon } = await import('./clientmail.js'), { neonEmail } = await import('./neonmail.js');
+  const link = SITE + '/app/' + b.code, firstName = String(b.owner || '').split(' ')[0], p = PLANS[b.plan] || {};
+  const num = line && line.status === 'live' && line.numberText;
+  return sendNeon(env, b.email, Object.assign({ subject: 'Your Always Open app' + (b.business ? ' for ' + b.business : '') }, neonEmail({
+    tone: 'ok', sign: 'YOU’RE IN', title: (firstName ? 'Welcome, ' + firstName + '.' : 'Welcome.') + ' This is your app.', who: b.business || '',
+    preheader: 'Your private app link. Keep this email.',
+    doThis: ['Tap the button and save the app to your phone. The link opens your account without a password, so keep it to yourself.'],
+    lines: [
+      { k: 'Plan', v: b.plan + ', ' + money(p.cents || 0) + ' a month' + (+b.max ? ', plus 300 more Max minutes' : '') },
+      num ? { k: 'Max’s number', v: num, ok: true } : { k: 'Max’s number', v: 'Being set up now. It shows up in your app when it is ready.' },
+      { k: 'Send calls to Max', v: link + '/help/forwarding' },
+      { k: 'Our promise', v: 'Try it for a month. If it’s not worth it, tell us within 30 days and we refund that month.' },
+      { k: 'Questions', v: 'Text or call Chris: ' + SUPPORT_PHONE }],
+    button: { text: 'Open my app', url: link }
+  })));
 }
 
 // A client added by hand from Always Open HQ (opshq.js): someone who paid outside the website's checkout, by a Stripe
@@ -147,7 +210,7 @@ export async function createByHand(env, o) {
   const dup = await env.DB.prepare("SELECT client_id, business FROM billing WHERE lower(business) = lower(?1) AND COALESCE(status, '') != 'canceled'").bind(business).first().catch(() => null);
   if (dup) return { ok: false, error: (dup.business || business) + ' is already a client.' };
   const cid = 'c-' + rnd(10, 'abcdefghjkmnpqrstuvwxyz23456789'), code = rnd(32), ref = slug(business) + '-' + rnd(4, 'abcdefghjkmnpqrstuvwxyz23456789');
-  const now = new Date().toISOString(), reg = REGULATED.indexOf(type) > -1 ? 1 : 0, line = o.line === true && !reg;
+  const now = new Date().toISOString(), reg = isRegulated(type, business) ? 1 : 0, line = o.line === true && !reg;
   await env.DB.prepare("INSERT INTO billing (client_id, session_id, customer, sub, plan, max, status, business, owner, email, phone, town, type, code, ref, created, updated, hq_synced) VALUES (?1, ?2, '', '', ?3, 0, 'active', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, 1)")
     .bind(cid, 'hand:' + cid, plan, business, owner, email, phone, town, type, code, ref, now).run();
   await env.DB.prepare("INSERT INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
@@ -215,7 +278,7 @@ async function checkout(req, env) {
   if (!env.STRIPE_KEY) return startPage(v, 'Online signup is not open yet. Call (706) 460-2226 or request the free audit, and we will set you up.');
   const items = [{ price_data: { currency: 'usd', unit_amount: PLANS[v.plan].cents, recurring: { interval: 'month' }, product_data: { name: 'Always Open ' + v.plan } }, quantity: 1 }];
   if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'More Max minutes' } }, quantity: 1 });
-  const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type };
+  const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type, terms_version: TERMS_VERSION, agreed_at: new Date().toISOString() };
   if (REF_RE.test(v.ref || '')) meta.ref = v.ref;
   try {
     const s = await stripe(env, 'POST', 'checkout/sessions', {
@@ -224,7 +287,11 @@ async function checkout(req, env) {
       success_url: SITE + '/welcome?s={CHECKOUT_SESSION_ID}', cancel_url: SITE + '/start?plan=' + encodeURIComponent(v.plan) + (meta.ref ? '&ref=' + encodeURIComponent(meta.ref) : '')
     });
     return Response.redirect(s.url, 303);
-  } catch (e) { return startPage(v, 'Payment could not start: ' + String(e.message || e).slice(0, 160)); }
+  } catch (e) {
+    // Nov 24, 2026: the buyer saw Stripe's own error text and nobody heard. Now Chris does, and the buyer gets a plain line.
+    try { await (await import('./ops.js')).opsAlert(env, 'stripe-checkout', '', 'A buyer could not start paying (' + v.plan + ' plan, ' + v.business + '): Stripe said ' + String(e.message || e).slice(0, 200)); } catch (x) { /* the page still answers */ }
+    return startPage(v, 'Payment could not start. Try again in a minute, or call ' + SUPPORT_PHONE + '.');
+  }
 }
 
 async function welcome(env, url, h) {
@@ -260,7 +327,7 @@ ${hero}
 <div class="card"><h2>1. Open your app</h2><p>This is your private link. It opens your account without a password, so keep it to yourself. Save it now.</p><div class="link">${esc(link)}</div>
 <div class="acts"><a class="btn" href="${esc(link)}">Open my app</a></div><p class="fine">On an iPhone, the Always Open app opens this link too. On other phones, tap Share, then Add to Home Screen.</p></div>
 <div class="card"><h2>2. Your first hour</h2><p>Your app opens with a short checklist: share your request link, add your hours, and send your missed calls to Max. Your request link and your app work from the first minute. Each step ticks itself when it’s done.</p></div>
-${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p>Max, your phone assistant, has his own number for you: <b>${esc(line.numberText)}</b>. Forward the calls you miss to it and he answers them, any hour. Your phone still rings first.</p><div class="acts"><a class="btn" href="${esc(link)}/help/forwarding">Show me how to forward</a></div><p class="fine">The steps for Verizon, AT&amp;T, T-Mobile and landlines are also in your app, under Your first hour.</p></div>` : `<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. His number is being set up right now and shows up in your app within the hour, with the steps to forward the calls you miss to him.</p></div>`}
+${line && line.status === 'live' ? `<div class="card"><h2>3. Max is ready</h2><p>Max, your phone assistant, has his own number for you: <b>${esc(line.numberText)}</b>. Forward the calls you miss to it and he answers them, any hour. Your phone still rings first.</p><div class="acts"><a class="btn" href="${esc(link)}/help/forwarding">Show me how to forward</a></div><p class="fine">The steps for Verizon, AT&amp;T, T-Mobile and landlines are also in your app, under Your first hour.</p></div>` : (line && line.status === 'failed' ? `<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. His number is taking longer than usual to set up. We keep trying on our own, and it shows up in your app as soon as it’s ready, with the steps to forward the calls you miss to him. Nothing for you to do.</p></div>` : `<div class="card"><h2>3. Max</h2><p>Max, your phone assistant, comes with your plan. His number is being set up right now and shows up in your app in a few minutes, with the steps to forward the calls you miss to him.</p></div>`)}
 <div class="card"><h2>4. Texting under your business name</h2><p>Phone carriers require every business that texts customers to be registered. One short form, with your legal business name and EIN, and we handle the rest. Approval usually takes a few days, and calls, Max and email work in the meantime.</p><div class="acts"><a class="btn" href="${esc(link)}/texting">Register for texting</a></div></div>
 <div class="card"><h2>Optional: invite us to your Google profile</h2><ol>
 <li>Open <a href="https://business.google.com" target="_blank" rel="noopener">business.google.com</a> and sign in.</li>
@@ -282,13 +349,20 @@ export async function billingPage(env, c, base, req, url, h) {
   const b = await env.DB.prepare('SELECT * FROM billing WHERE client_id = ?1').bind(c.client_id).first();
   if (!b || !b.sub) return page('Your plan', '<h1>Your plan</h1><p class="sub">Your billing is handled directly with us. To change or cancel, message us in Ask us or email hello@alwaysopenoffice.com.</p><div class="acts"><a class="btn line" href="' + esc(base) + '">Back to the app</a></div>');
   const step = url.searchParams.get('step') || '';
-  let note = url.searchParams.get('done') ? '<p class="ok">' + esc({ paused: 'Paused. Your next month is free and nothing else changes.', resumed: 'Welcome back. Billing picks up on your next date.', changed: 'Done. Your new plan starts now. The difference for the rest of this month was charged, or credited to your next bill.', canceled: 'Your plan ends at the end of this billing month. You can undo that here until then.', undone: 'Cancellation undone. Nothing changes.' }[url.searchParams.get('done')] || '') + '</p>' : '';
+  // Nov 24, 2026: "try it for a month, and if it's not worth it we refund it" was dropped at cancel: inside the first 30
+  // days the screen, the confirmation and Chris's push say so. The refund itself stays Chris's to make.
+  const startMs = Date.parse(b.created || ''), refundable = startMs > 0 && Date.now() - startMs < 30 * 864e5;
+  const REFUND_LINE = 'You are within your first 30 days, so your first month is refundable. Chris refunds it within one business day.';
+  let note = url.searchParams.get('done') ? '<p class="ok">' + esc({ paused: 'Paused. Your next month is free and nothing else changes.', resumed: 'Welcome back. Billing picks up on your next date.', changed: 'Done. Your new plan starts now. The difference for the rest of this month was charged, or credited to your next bill.', canceled: 'Your plan ends at the end of this billing month. You can undo that here until then.' + (refundable ? ' ' + REFUND_LINE : ''), undone: 'Cancellation undone. Nothing changes.' }[url.searchParams.get('done')] || '') + '</p>' : '';
   if (req.method === 'POST') {
     const f = await req.formData(), a = String(f.get('a') || '');
     try {
       if (a === 'card') {
         const cfg = await env.DB.prepare("SELECT v FROM billing_config WHERE k = 'portal_id'").first();
-        const ps = await stripe(env, 'POST', 'billing_portal/sessions', { customer: b.customer, return_url: SITE + base + '/billing', configuration: cfg ? cfg.v : undefined });
+        const open = id => stripe(env, 'POST', 'billing_portal/sessions', { customer: b.customer, return_url: SITE + base + '/billing', configuration: id || undefined });
+        let ps;
+        try { ps = await open(cfg ? cfg.v : ''); }
+        catch (e) { if (!(cfg && /no such configuration/i.test(String(e.message || '')))) throw e; ps = await open(await makePortal(env)); }   // made with another key: made again, tried once more
         return Response.redirect(ps.url, 303);
       }
       if (a === 'pause') {
@@ -323,9 +397,23 @@ export async function billingPage(env, c, base, req, url, h) {
         return Response.redirect(SITE + base + '/billing?done=changed', 303);
       }
       if (a === 'cancel') {
-        await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'true' });
+        const cs = await stripe(env, 'POST', 'subscriptions/' + b.sub, { cancel_at_period_end: 'true' });
         await env.DB.prepare("UPDATE billing SET status = 'canceling', updated = ?1 WHERE client_id = ?2").bind(new Date().toISOString(), c.client_id).run();
-        if (h && h.notify) await h.notify((c.business || 'A client') + ' canceled', 'Ends at the end of their billing month. Reason: ' + String(f.get('why') || 'not given').slice(0, 300), 'high');
+        const why = 'Reason: ' + String(f.get('why') || 'not given').slice(0, 300);
+        if (h && h.notify) {
+          if (refundable) {
+            const plan = (PLANS[b.plan] || {}).cents || 0, add = +b.max ? MAX.cents : 0;
+            const by = new Date(startMs + 30 * 864e5).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+            await h.notify('REFUND DUE: ' + (c.business || 'A client') + ' canceled in the first month', (c.business || 'A client') + ' canceled within the 30 days, so the first month is theirs back: ' + money(plan) + ' for ' + b.plan + (add ? ' + ' + money(add) + ' for more Max minutes, ' + money(plan + add) + ' in all' : '') + ' (check the first invoice in Stripe). The 30 days end ' + by + '. They were told you refund it within one business day: Stripe, Payments, the first payment, Refund. ' + why, 'high');
+          } else await h.notify((c.business || 'A client') + ' canceled', 'Ends at the end of their billing month. ' + why, 'high');
+        }
+        // the owner: turn forwarding off when the plan ends (Stripe's period end, else the next monthly date from signup)
+        try {
+          const it0 = cs && cs.items && cs.items.data && cs.items.data[0];
+          let endMs = (+(cs && cs.current_period_end) || +(it0 && it0.current_period_end) || 0) * 1000;
+          if (!endMs) { const e = new Date(startMs > 0 ? startMs : Date.now()); while (e.getTime() <= Date.now()) e.setUTCMonth(e.getUTCMonth() + 1); endMs = e.getTime(); }
+          await forwardingOff(env, c.client_id, 'cancel', endMs + 60 * 864e5, endMs);
+        } catch (e) { /* told again when the plan ends */ }
         return Response.redirect(SITE + base + '/billing?done=canceled', 303);
       }
       if (a === 'undo') {
@@ -343,7 +431,7 @@ export async function billingPage(env, c, base, req, url, h) {
     return page('Before you go', `<h1>Before you go.</h1><p class="sub">Most people who cancel just need a break or a smaller plan. Either is one tap.</p>
 ${pausable ? `<div class="card"><h2>Take a month off, free</h2><p>Pause billing for one month. Your reviews, records and app stay put, and everything picks up after.</p><div class="acts">${btn('pause', 'Pause for a month', '')}</div></div>` : ''}
 ${lower ? `<div class="card"><h2>Switch to ${lower}, ${money(PLANS[lower].cents)}/mo</h2><p>${esc(PLANS[lower].blurb)}</p><div class="acts">${btn('plan', 'Switch to ' + lower, 'line', '<input type="hidden" name="plan" value="' + lower + '">')}</div></div>` : ''}
-<div class="card"><h2>Still want to cancel?</h2><form method="post" style="display:grid;gap:10px"><input type="hidden" name="a" value="cancel"><label>What could we have done better? (optional)<input name="why" maxlength="300"></label><button class="btn quiet" type="submit">Cancel at the end of this month</button></form><p class="fine">No fee. You keep everything through the end of the month you paid for. Your Google profile, reviews and phone numbers stay yours.</p></div>
+<div class="card"><h2>Still want to cancel?</h2><form method="post" style="display:grid;gap:10px"><input type="hidden" name="a" value="cancel"><label>What could we have done better? (optional)<input name="why" maxlength="300"></label><button class="btn quiet" type="submit">Cancel at the end of this month</button></form>${refundable ? '<p><b>' + esc(REFUND_LINE) + '</b></p>' : ''}<p class="fine">No fee. You keep everything through the end of the month you paid for. Your Google profile and reviews stay yours. Max’s number stops answering when the plan ends and is let go 60 days later.</p></div>
 <div class="acts"><a class="btn line" href="${esc(base)}/billing">Keep my plan</a></div>`);
   }
   return page('Your plan', `<div><p class="mono">${esc(c.business || '')}</p><h1>Your plan</h1></div>${note}
@@ -372,7 +460,13 @@ export async function handleBilling(req, env, url, h) {
     await ensureBilling(env);
     const body = await req.text();
     const secret = await webhookSecret(env, 'billing');
-    if (!secret || !(await verifyStripe(secret, req.headers.get('stripe-signature'), body))) return new Response('bad signature', { status: 400 });
+    if (!secret || !(await verifyStripe(secret, req.headers.get('stripe-signature'), body))) {
+      // Nov 24, 2026: a 400 raises nothing in index.js, so a secret that no longer opens (STRIPE_KEY replaced) turned
+      // away every paid signup in silence. With a sealed secret on file, a refusal is said (opsAlert holds repeats back).
+      const sealed = await env.DB.prepare("SELECT 1 AS x FROM billing_config WHERE k = 'webhook_secret_sealed'").first().catch(() => null);
+      if (sealed) { try { await (await import('./ops.js')).opsAlert(env, 'stripe-webhook', '', !secret ? 'Stripe events are being refused: the saved webhook signing secret will not open, so STRIPE_KEY was probably replaced. The 10-minute job makes a new endpoint and catches up paid signups; check Stripe, Webhooks, recent deliveries.' : 'A Stripe event was refused for a bad signature. If Stripe shows failed deliveries, the webhook signing secret no longer matches.'); } catch (e) { /* the 400 still goes */ } }
+      return new Response('bad signature', { status: 400 });
+    }
     const ev = JSON.parse(body), o = ev.data && ev.data.object || {};
     const bySub = async (sub, set, msg) => {
       if (!sub || typeof sub !== 'string') return;
@@ -484,7 +578,7 @@ export async function saveWebhook(env, which, w) {
 }
 // The signing secret of one endpoint ('billing' or 'connect'), or '' when there is none or it can't be opened. Then
 // sealWebhooks makes a new endpoint within 10 minutes, and what was missed meanwhile is caught up anyway: a new
-// signup by its welcome page, a status change by the daily Stripe check (checks.js payingServed).
+// signup by catchUp (then, and daily) or its welcome page, a status change by the daily Stripe check (checks.js payingServed).
 export async function webhookSecret(env, which) {
   const h = HOOKS[which || 'billing'];
   const rows = ((await env.DB.prepare('SELECT k, v FROM billing_config WHERE k IN (?1, ?2)').bind(h.secret + '_sealed', h.secret).all().catch(() => ({}))).results) || [];
@@ -506,7 +600,7 @@ export async function sealWebhooks(env, call, now) {
   const cfg = Object.fromEntries((got.results || []).map(r => [r.k, r.v]));
   const del = k => env.DB.prepare('DELETE FROM billing_config WHERE k = ?1').bind(k).run();
   const out = [];
-  let any = false;
+  let any = false, rekeyed = false;
   for (const [which, h] of Object.entries(HOOKS)) {
     // an old endpoint Stripe didn't delete last time (it was down): it is still signing with the old secret
     if (cfg[h.id + '_old']) {
@@ -526,6 +620,7 @@ export async function sealWebhooks(env, call, now) {
       if (fresh) { await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('seal_seen', ?1)").bind(String(now)).run(); cfg.seal_seen = String(now); }
       if (fresh || now - seen < SEAL_WAIT_MS) { out.push(which + ': waiting to replace'); continue; }
     }
+    if (which === 'billing' && sealed) rekeyed = true;   // the sealed secret stopped opening: STRIPE_KEY was replaced
     // the new endpoint copies the old one's settings (address, events, description, event version)
     let cur = null;
     try { cur = await call(env, 'GET', 'webhook_endpoints/' + id); } catch (e) { if (e.status !== 404) throw e; }
@@ -546,7 +641,39 @@ export async function sealWebhooks(env, call, now) {
     }
     out.push(which + ': replaced');
   }
+  // Nov 24, 2026: while the old secret would not open, every event was refused, and Stripe's retries die with the old
+  // endpoint. A buyer who paid and never reached /welcome had no account: the paid sessions of the last 3 days are
+  // made into clients now.
+  if (rekeyed) {
+    try { await makePortal(env, call); out.push('billing: portal settings made again'); } catch (e) { out.push('billing: portal settings not made (' + (e.message || e) + '), the card page makes them'); }
+    try { const n = await catchUp(env, { notify: async (t, b, pr) => { try { await (await import('./app.js')).opsPing(env, t, b, pr || 'default', 'moneybag'); } catch (e) {} } }, call); out.push('billing: ' + n + ' paid signups caught up'); }
+    catch (e) { out.push('billing: catch-up failed (' + (e.message || e) + '), the daily check tries again'); }
+  }
   return out.join('; ') || (any ? 'sealed' : 'no endpoints');
+}
+
+// Paid checkouts of the last 3 days that have no billing row yet become clients (createFromSession claims each one
+// with INSERT OR IGNORE, so a webhook or welcome page at the same moment still makes one). Run when the webhook was
+// replaced after a key change, and once a day from checks.js payingServed whatever the cause. Returns how many.
+export async function catchUp(env, h, call) {
+  call = call || stripe; h = h || {};
+  await ensureBilling(env);
+  const since = Math.floor(Date.now() / 1000) - 3 * 86400, jobs = [];
+  const hh = Object.assign({}, h, { later: p => jobs.push(p) });
+  let after = '', pages = 0, made = 0;
+  do {
+    const j = await call(env, 'GET', 'checkout/sessions?limit=100&status=complete&created%5Bgte%5D=' + since + (after ? '&starting_after=' + encodeURIComponent(after) : ''));
+    const list = (j && j.data) || [];
+    for (const s of list) {
+      if (!s || s.mode !== 'subscription' || (s.payment_status && !/^(paid|no_payment_required)$/.test(s.payment_status))) continue;
+      if (!Object.hasOwn(PLANS, String((s.metadata || {}).plan))) continue;   // a Payment Link: pushed once by its own event, set up by hand
+      if (await env.DB.prepare('SELECT 1 AS x FROM billing WHERE session_id = ?1').bind(s.id).first()) continue;
+      if (await createFromSession(env, s, hh)) made++;
+    }
+    after = j && j.has_more && list.length ? list[list.length - 1].id : '';
+  } while (after && ++pages < 5);
+  await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
+  return made;
 }
 
 // The webhook endpoint listens for every event in EVENTS. One set up before an event was added gets it here (checks.js
@@ -562,6 +689,19 @@ export async function ensureEvents(env, call) {
   return 'added';
 }
 
+// The customer portal's settings ("Update card or see invoices"). Stripe keeps them per key and mode, so after STRIPE_KEY
+// changes (a rotation, test to live) the saved id answers "No such configuration": they are made again then (Nov 24, 2026).
+export async function makePortal(env, call) {
+  const pc = await (call || stripe)(env, 'POST', 'billing_portal/configurations', {
+    business_profile: { headline: 'Always Open billing', privacy_policy_url: SITE + '/privacy', terms_of_service_url: SITE + '/terms' },
+    features: { invoice_history: { enabled: 'true' }, payment_method_update: { enabled: 'true' }, customer_update: { enabled: 'true', allowed_updates: ['email', 'address'] }, subscription_cancel: { enabled: 'false' } },
+    default_return_url: SITE
+  });
+  if (!pc || !pc.id) throw new Error('Stripe gave no portal settings');
+  await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('portal_id', ?1)").bind(pc.id).run();
+  return pc.id;
+}
+
 // One-time Stripe setup (webhook + portal settings). Runs by itself the first time the signup page loads.
 export async function setupStripe(env) {
     await ensureBilling(env);
@@ -572,15 +712,7 @@ export async function setupStripe(env) {
       await saveWebhook(env, 'billing', w);
       out.webhook = 'created';
     } else out.webhook = 'already set up';
-    try {
-      const pc = await stripe(env, 'POST', 'billing_portal/configurations', {
-        business_profile: { headline: 'Always Open billing', privacy_policy_url: SITE + '/privacy', terms_of_service_url: SITE + '/terms' },
-        features: { invoice_history: { enabled: 'true' }, payment_method_update: { enabled: 'true' }, customer_update: { enabled: 'true', allowed_updates: ['email', 'address'] }, subscription_cancel: { enabled: 'false' } },
-        default_return_url: SITE
-      });
-      await env.DB.prepare("INSERT OR REPLACE INTO billing_config (k, v) VALUES ('portal_id', ?1)").bind(pc.id).run();
-      out.portal = 'set up';
-    } catch (e) { out.portal = 'error: ' + e.message; }
+    try { await makePortal(env); out.portal = 'set up'; } catch (e) { out.portal = 'error: ' + e.message; }
     const acct = await stripe(env, 'GET', 'account').catch(() => ({}));
     out.account = acct.settings && acct.settings.dashboard && acct.settings.dashboard.display_name || acct.business_profile && acct.business_profile.name || '';
     out.live = /^sk_live_|^rk_live_/.test(env.STRIPE_KEY);

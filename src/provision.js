@@ -3,10 +3,12 @@
 // Always Open has to do anything. If Twilio can't do it right then, the 10-minute timer keeps trying, and Christopher
 // hears about it only if it still fails.
 // When a client cancels, Max stops answering at once; the number is released 60 days later (terms say so), with a
-// heads-up to Christopher a week before, unless the client is active again by then.
+// heads-up to Christopher and the owner a week before, unless the client is active again by then.
 const SITE = 'https://alwaysopenoffice.com';
 const TW = 'https://api.twilio.com/2010-04-01/Accounts/';
-const MAX_TRIES = 6, RELEASE_DAYS = 60;
+// Nov 24, 2026: after the six quick tries (about 50 minutes) it used to stop for good, with the owner told nothing. Now it
+// keeps trying once an hour; Christopher still gets his two pushes, and the owner hears once.
+const MAX_TRIES = 6, SLOW_MS = 55 * 60e3, RELEASE_DAYS = 60;
 
 let ready = false;
 export async function ensureProvision(env) {
@@ -82,14 +84,15 @@ export async function provisionLine(env, cid) {
     return { status: 'live', number: have.number, numberText: pretty(have.number) };
   }
   const now = new Date().toISOString();
-  const claim = await env.DB.prepare("UPDATE provision SET status = 'working', tries = tries + 1, updated = ?1 WHERE client_id = ?2 AND (status IN ('queued', 'failed') OR (status = 'working' AND updated < ?3)) AND tries < ?4")
-    .bind(now, cid, new Date(Date.now() - 5 * 60e3).toISOString(), MAX_TRIES).run();
+  const claim = await env.DB.prepare("UPDATE provision SET status = 'working', tries = tries + 1, updated = ?1 WHERE client_id = ?2 AND (status IN ('queued', 'failed') OR (status = 'working' AND updated < ?3)) AND (tries < ?4 OR updated < ?5)")
+    .bind(now, cid, new Date(Date.now() - 5 * 60e3).toISOString(), MAX_TRIES, new Date(Date.now() - SLOW_MS).toISOString()).run();
   if (!(claim.meta && claim.meta.changes)) { const r = await row(env, cid); return { status: (r && r.status) || 'queued', number: (r && r.number) || '', numberText: pretty(r && r.number) }; }
   const fail = async why => {
     await env.DB.prepare("UPDATE provision SET status = 'failed', error = ?1, updated = ?2 WHERE client_id = ?3").bind(String(why).slice(0, 300), new Date().toISOString(), cid).run().catch(() => null);
     const r = await env.DB.prepare('SELECT tries FROM provision WHERE client_id = ?1').bind(cid).first().catch(() => null);
     const tries = r ? +r.tries : 0;
-    if (tries === 2 || tries === MAX_TRIES) { try { await (await import('./app.js')).opsPing(env, 'Always Open: could not set up Max’s line', 'For ' + ((b && b.business) || cid) + ': ' + why + (tries >= MAX_TRIES ? ' It stopped trying. Fix it in Twilio, then set the line up by hand.' : ' It keeps trying every 10 minutes.'), 'high', 'warning'); } catch (e) {} }
+    if (tries === 2 || tries === MAX_TRIES) { try { await (await import('./app.js')).opsPing(env, 'Always Open: could not set up Max’s line', 'For ' + ((b && b.business) || cid) + ': ' + why + (tries >= MAX_TRIES ? ' It keeps trying once an hour, and the owner was told it is taking longer than usual. Fix it in Twilio, or set the line up by hand.' : ' It keeps trying every 10 minutes.'), 'high', 'warning'); } catch (e) {} }
+    if (tries === MAX_TRIES && c) await slowNote(env, cid, b).catch(() => null);
     return { status: 'failed', number: '', numberText: '', error: why };
   };
   const b = await env.DB.prepare('SELECT business, phone, town, type, email FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
@@ -145,22 +148,79 @@ export async function provisionLine(env, cid) {
   return { status: 'live', number: bought.number, numberText: text };
 }
 
+// The six quick tries failed: the owner hears once (app push and email) that it is in hand, so the welcome page's
+// promise isn't left hanging.
+async function slowNote(env, cid, b) {
+  const words = 'Max’s number is taking longer than usual. Chris has been told. Nothing for you to do.';
+  try { await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Max’s number is taking longer than usual', body: 'Chris has been told. Nothing for you to do. It shows up in your app when it is ready.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the email still goes */ }
+  if (!b || !b.email) return 'no email';
+  const { sendNeon } = await import('./clientmail.js'), { neonEmail } = await import('./neonmail.js');
+  return sendNeon(env, b.email, Object.assign({ subject: 'Max’s number is taking longer than usual' }, neonEmail({
+    tone: 'info', sign: 'IN HAND', title: words, who: b.business || '', preheader: words,
+    lines: [{ v: 'It shows up in your app as soon as it is ready, with the steps to forward the calls you miss to Max. Your app and your request link work in the meantime.' }],
+    note: 'Questions? Text or call Chris: (706) 460-2226.'
+  })));
+}
+
 // The owner ended their plan: Max stops answering now; the number is kept 60 days in case they come back.
 export async function lineEnded(env, cid) {
   await ensureProvision(env);
   const at = new Date().toISOString();
+  const was = await env.DB.prepare('SELECT status, ended FROM provision WHERE client_id = ?1').bind(cid).first().catch(() => null);
   await env.DB.batch([
     env.DB.prepare('UPDATE voice_lines SET on_air = 0, updated = ?1 WHERE client_id = ?2').bind(at, cid),
     env.DB.prepare("UPDATE provision SET ended = ?1, warned = '', updated = ?1 WHERE client_id = ?2 AND status = 'live'").bind(at, cid)
   ]);
+  // told once per ending: the cancellation webhook and the daily Stripe check can both get here
+  if (was && was.status === 'live' && !was.ended) await forwardingOff(env, cid, 'ended', Date.parse(at) + RELEASE_DAYS * 864e5).catch(() => null);
+}
+
+// Nov 24, 2026: after a cancel the owner was never told to turn call forwarding off, and the number was released 60 days
+// later without a word, so their own customers reached a dead line. They hear at the cancel (stage 'cancel', with the
+// day the plan ends), when the plan ends ('ended') and a week before the number goes ('week'): app push and email. The
+// off steps are read from the forwarding help page (onboard.js), so they are the same codes we gave them to turn it on.
+const dayOf = ms => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+export async function forwardingOff(env, cid, stage, goneMs, endMs) {
+  const line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null);
+  if (!line) return 'no number';
+  const b = await env.DB.prepare('SELECT business, email, plan FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  const num = pretty(line.number), gone = dayOf(goneMs);
+  const plain = x => String(x).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  const steps = [];
+  try {
+    const html = await (await import('./onboard.js')).helpPage(env, { client_id: cid }, 'forwarding', '/');
+    for (const m of String(html || '').matchAll(/<h2>([^<]+)<\/h2><ol>([\s\S]*?)<\/ol>/g)) {
+      const off = [...m[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map(x => plain(x[1])).find(x => /turn (it|them) off/i.test(x));
+      if (off) steps.push({ k: plain(m[1]), v: off });
+    }
+  } catch (e) { /* the plain line below still goes */ }
+  steps.push({ k: steps.length ? 'Any other phone' : 'Your phone', v: 'Call your carrier and ask them to turn off call forwarding.' });
+  // a Pro client's customers were texted from this number: it is theirs to keep if they ask in time
+  let texted = false;
+  if (b && b.plan === 'Pro') { try { texted = !!(await env.DB.prepare("SELECT 1 AS x FROM sms_log WHERE client_id = ?1 AND COALESCE(status, '') NOT IN ('failed', 'undelivered') LIMIT 1").bind(cid).first()); } catch (e) { texted = false; } }
+  const title = stage === 'cancel' ? 'Your plan ends ' + dayOf(endMs) + '.' : (stage === 'week' ? 'Max’s number goes away in a week.' : 'Your plan has ended, so Max no longer answers.');
+  const first = 'Turn off call forwarding so your callers reach you.' + (stage === 'cancel' ? ' Do it when the plan ends. Max answers until then.' : '');
+  const lines = steps.concat([{ k: 'Max’s number', v: num + ' goes away on ' + gone + '.' }]);
+  if (texted) lines.push({ k: 'Keep it', v: 'Want to keep this number? Tell Chris before ' + gone + '.' });
+  try {
+    await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you. Max’s number ' + num + ' goes away on ' + gone + '. The steps are in your email.' }, sound: 'default' }, screen: 'home' });
+  } catch (e) { /* the email still goes */ }
+  if (!b || !b.email) return 'no email';
+  const { sendNeon } = await import('./clientmail.js'), { neonEmail } = await import('./neonmail.js');
+  const r = await sendNeon(env, b.email, Object.assign({ subject: 'Turn off call forwarding' + (b.business ? ': ' + b.business : '') }, neonEmail({
+    tone: 'bad', sign: 'FORWARDING', title, who: b.business || '', preheader: first,
+    doThis: [first], lines, note: 'Questions? Text or call Chris: (706) 460-2226.'
+  }))).catch(e => 'failed: ' + String((e && e.message) || e).slice(0, 120));
+  if (r !== 'sent') { try { await (await import('./ops.js')).opsAlert(env, 'mail-send', cid, 'The turn-off-forwarding email (' + stage + ') to ' + ((b && b.business) || cid) + ' did not go out (' + r + '). Tell them to turn off call forwarding before ' + gone + '.'); } catch (e) {} }
+  return r;
 }
 
 // Every 10 minutes: retry lines that failed, and release numbers 60 days after a plan ended.
 export async function provisionCron(env, at) {
   await ensureProvision(env);
   const now = at || Date.now(), out = { tried: 0, live: 0, released: 0 };
-  const queued = ((await env.DB.prepare("SELECT p.client_id FROM provision p JOIN app_clients c ON c.client_id = p.client_id WHERE p.status IN ('queued', 'failed', 'working') AND p.tries < ?1 AND p.updated < ?2 AND c.active = 1 LIMIT 5")
-    .bind(MAX_TRIES, new Date(now - 9 * 60e3).toISOString()).all()).results) || [];
+  const queued = ((await env.DB.prepare("SELECT p.client_id FROM provision p JOIN app_clients c ON c.client_id = p.client_id WHERE p.status IN ('queued', 'failed', 'working') AND ((p.tries < ?1 AND p.updated < ?2) OR (p.tries >= ?1 AND p.updated < ?3)) AND c.active = 1 LIMIT 5")
+    .bind(MAX_TRIES, new Date(now - 9 * 60e3).toISOString(), new Date(now - 59 * 60e3).toISOString()).all()).results) || [];
   for (const q of queued) { out.tried++; const r = await provisionLine(env, q.client_id).catch(() => null); if (r && r.status === 'live') out.live++; }
   const ended = ((await env.DB.prepare("SELECT p.*, c.business, c.active FROM provision p LEFT JOIN app_clients c ON c.client_id = p.client_id WHERE p.status = 'live' AND p.ended != '' LIMIT 20").all()).results) || [];
   for (const e of ended) {
@@ -169,6 +229,7 @@ export async function provisionCron(env, at) {
     if (days >= RELEASE_DAYS - 7 && !e.warned) {
       await env.DB.prepare('UPDATE provision SET warned = ?1 WHERE client_id = ?2').bind(new Date(now).toISOString(), e.client_id).run();
       try { await (await import('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
+      await forwardingOff(env, e.client_id, 'week', Date.parse(e.ended) + RELEASE_DAYS * 864e5).catch(() => null);
     }
     if (days >= RELEASE_DAYS && e.number_sid && env.TWILIO_ACCOUNT_SID) {
       const r = await tw(env, 'DELETE', '/IncomingPhoneNumbers/' + e.number_sid + '.json');
@@ -188,7 +249,7 @@ export async function provisionCron(env, at) {
 export async function provisionBoard(env) {
   await ensureProvision(env);
   const rows = ((await env.DB.prepare("SELECT p.client_id, p.error, p.tries, COALESCE(c.business, p.client_id) AS biz FROM provision p LEFT JOIN app_clients c ON c.client_id = p.client_id WHERE p.status = 'failed' AND p.tries >= 2 LIMIT 20").all()).results) || [];
-  return rows.map(r => ({ key: 'line:' + r.client_id + ':' + r.tries, group: 'Max’s line could not be set up on its own', title: r.biz, detail: (r.error || 'Unknown error') + (r.tries >= MAX_TRIES ? '. It stopped trying' : '. Still trying every 10 minutes') }));
+  return rows.map(r => ({ key: 'line:' + r.client_id + ':' + r.tries, group: 'Max’s line could not be set up on its own', title: r.biz, detail: (r.error || 'Unknown error') + (r.tries >= MAX_TRIES ? '. Still trying once an hour' : '. Still trying every 10 minutes') }));
 }
 // For the app and the welcome page.
 export async function lineStatus(env, cid) {

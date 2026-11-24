@@ -256,6 +256,8 @@ export async function payingServed(env, now, h) {
   if (!env.STRIPE_KEY) return { off: true };
   const stripe = h.stripe || (await import('./billing.js')).stripe;
   try { await (await import('./billing.js')).ensureEvents(env, stripe); } catch (e) { /* tried again tomorrow */ }
+  // Nov 24, 2026: a paid checkout never sits without an account for more than a day, whatever stopped the webhook.
+  try { await (await import('./billing.js')).catchUp(env, { notify: (t, b, pr) => ping(env, h, t, b, pr || 'default', 'moneybag') }, stripe); } catch (e) { /* tried again tomorrow */ }
   const rows = ((await env.DB.prepare("SELECT b.client_id, b.business, b.sub, b.status, b.updated, c.active, v.on_air FROM billing b LEFT JOIN app_clients c ON c.client_id = b.client_id LEFT JOIN voice_lines v ON v.client_id = b.client_id WHERE b.sub IS NOT NULL AND b.sub != ''").all()).results) || [];
   const notes = [], fixed = [], missing = [];
   for (const r of rows) {

@@ -110,7 +110,7 @@ test('a replaced STRIPE_KEY heals by itself: the sealed secret no longer opens, 
   env.STRIPE_KEY = 'sk_test_rotated';
   assert.equal(await B.webhookSecret(env, 'billing'), '', 'can no longer be opened');
   assert.equal(await hook(env, 'whsec_rehearsal_secret', EVENT), 400);
-  assert.equal(await B.sealWebhooks(env), 'billing: replaced', 'no 15-minute wait: no rollback is involved');
+  assert.match(await B.sealWebhooks(env), /^billing: replaced(;|$)/, 'no 15-minute wait: no rollback is involved');   // Nov 24, 2026: then the paid-signup catch-up's note
   const id = (await get(DB, "SELECT v FROM billing_config WHERE k = 'webhook_id'")).v;
   assert.equal(await hook(env, world.stripeHooks.get(id).secret, EVENT), 200);
   assert.deepEqual(world.stripeHookDeletes, ['we_test1']);
