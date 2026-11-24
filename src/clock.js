@@ -16,6 +16,21 @@ export const KIND_LABEL = { call: 'call answered', checkin: 'check-in call', fol
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+// When the client signed up (ms; 0 when unknown or an internal account). Nov 24, 2026: a new account's clock and timecard start
+// here, so they never count hours from before the owner joined. billing.created, or the app_clients row's own time without one.
+export async function signedUpAt(env, cid) {
+  if (cid === 'demo-plumbing' || cid === 'always-open') return 0;
+  try {
+    const b = await env.DB.prepare('SELECT created FROM billing WHERE client_id = ?1').bind(cid).first();
+    const t = b && b.created ? Date.parse(b.created) : NaN;
+    if (isFinite(t)) return t;
+  } catch (e) { /* no billing table or row */ }
+  try {
+    const a = await env.DB.prepare('SELECT updated FROM app_clients WHERE client_id = ?1').bind(cid).first();
+    const t = a && a.updated ? Date.parse(a.updated) : NaN;
+    return isFinite(t) ? t : 0;
+  } catch (e) { return 0; }
+}
 export function hoursText(min, long) {
   min = Math.max(0, Math.round(+min || 0));
   const h = Math.floor(min / 60), m = min % 60;

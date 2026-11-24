@@ -6,7 +6,7 @@
 import { tzFor, local, fromLocal, ensureCallbacks } from './callbacks.js';
 import { isAfterHours } from './answerrate.js';
 import { figure } from './money.js';
-import { hoursText } from './clock.js';
+import { hoursText, signedUpAt } from './clock.js';
 import { PLANS, MAX } from './facts.js';
 
 export const HOURS = 168;
@@ -102,6 +102,9 @@ export async function timecardFor(env, cid, now) {
 // For the app: last week's card (the one sent, or worked out now if Monday's hasn't gone yet).
 export async function timecardState(env, cid, now) {
   try {
+    // no card for a week that ended before the client signed up (Nov 24, 2026): it would be a "quiet week" that was never theirs
+    const since = await signedUpAt(env, cid);
+    if (since && Date.parse(lastWeek(await tzFor(env, cid), now || Date.now()).to) <= since) return null;
     const tc = await timecardFor(env, cid, now);
     // What was actually sent (Monday's text, when it went, and any question back with Max's answer).
     let row = null;
@@ -183,6 +186,8 @@ export async function timecardCron(env, now, h) {
     if (l.wd !== 'Mon' || l.hour < 8 || l.hour >= 11) continue;
     stats.looked++;
     const w = lastWeek(tz, now);
+    const since = await signedUpAt(env, r.client_id);
+    if (since && Date.parse(w.to) <= since) continue;   // that week ended before they signed up
     const done = await env.DB.prepare("SELECT status FROM max_timecards WHERE client_id = ?1 AND week = ?2").bind(r.client_id, w.week).first().catch(() => null);
     if (done && done.status !== 'held') continue;
     if (!+r.on_air) {

@@ -634,7 +634,14 @@ function dayList(rows,now){
     (r.tag?'<em class="'+(r.cls==='you'?'r':r.cls==='wait'?'w':'')+'">'+esc(r.tag)+'</em>':'')+'</div></li>';}).join('')+
     (now?'<li class="now"><time>Now</time><div><b>'+esc((S.line&&S.line.name)||'Max')+' is on the clock</b><span>Anything new lands here as it happens.</span></div></li>':'')+'</ol>';
 }
+// Nov 24, 2026: a paid account whose phone number is not bought yet. Say so; never claim Max is on the clock.
+function noLine(){return !!(S&&!S.sample&&!S.line&&hasMax()&&!isTech());}
+function lineCard(){
+  if(!noLine())return '';
+  return '<div class="feature"><h3>Max’s number is being set up</h3><p>Nothing for you to do. It shows up here when it’s ready.</p>'+(S.lineSetup==='failed'?'<p>It’s taking longer than usual. Chris has been told.</p>':'')+'</div>';
+}
 function dayTimeline(){
+  if(noLine())return '';
   if(S.sample){
     var rows=DAY_SAMPLE.map(function(x){return {time:x[0],cls:x[1],title:x[2],sub:x[3],tag:x[4]};});
     // the sample's storm post may still be waiting on this screen: the timeline says the same
@@ -647,7 +654,7 @@ function dayTimeline(){
 }
 function vToday(){
   var first=(S.me&&S.me.name)||S.client.first||'';
-  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+closedBanner()+liveCard()+stormLive()+radarLive();
+  var h='<h1>'+esc(greet())+(first?', '+esc(first):'')+'</h1>'+reconnectCards()+install()+lineCard()+closedBanner()+liveCard()+stormLive()+radarLive();
   var need=needCards();
   h+='<h2>Needs you</h2>';
   if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
@@ -655,6 +662,8 @@ function vToday(){
   h+=dayTimeline();
   if(S.clock||(!isTech()&&S.monthNow))h+='<h2>Your month</h2>'+clockCard()+(isTech()?'':monthNowCard());
   var f=S.features||{};
+  // Nov 24, 2026: the first-hour checklist (forwarding steps, Google invite, QR card, texting) is drawn here while steps are left.
+  h+=bizTop();
   h+='<h2>Quick</h2><div class="quick">'+(f.jobs?qt('job',ICON.job,'Finished a job','They get one review request'):'')+(f.photos?qt('photo',ICON.cam,'Photo for a post','We write it, you approve it'):'')+
     (f.followups?qt('fu-add',ICON.cal,'Add a follow-up','Quote, invoice or appointment'):'')+qt('closed',ICON.clock,'Closed today',S.line?(S.line.name||'Max')+' tells callers':'We update Google for you')+'</div>';
   h+=flCard();
@@ -673,7 +682,8 @@ function vCustomers(){
 function vMoney(){
   var f=S.features||{};
   var h='<h1>Money</h1>'+pulseBlock()+moneyCard()+monthBlock()+insightsBlock()+(PULSE&&PULSE.lost&&PULSE.lost.n?'':lostCard())+stormRest()+radarRest()+upCard()+vReviews();
-  if(isOwner())h+='<h2>Your account</h2>'+setBlock()+teamBlock();
+  // Nov 24, 2026: the billing page (plan, card, pause, cancel) was not linked from anywhere in the app.
+  if(isOwner())h+='<h2>Your account</h2>'+setBlock()+teamBlock()+'<div class="list" style="margin-top:10px"><a class="row" style="text-decoration:none" href="'+esc(BASE+'/billing')+'">'+ICON.check+'<div><b>Your plan and card</b><span>Change, pause or cancel</span></div>'+ICON.chev+'</a></div>';
   h+=metaBlock()+guardCard();
   return h;
 }
@@ -717,8 +727,10 @@ function vHome(){
 }
 var UPALL=false;
 function upItem(u){
+  // no website on file means no data behind the score: keep the card, drop the percentage (Nov 24, 2026)
+  var nofit=u.id==='addon-website'&&/website on file/.test((u.why||[])[0]||'');
   return '<li class="up"><div class="uph"><b>'+esc(u.name)+'</b><span class="fine">'+esc(u.price)+'</span></div><p class="fine" style="margin:2px 0 6px">'+esc(u.what)+'</p>'+
-    '<div class="fitrow"><div class="fitbar" role="img" aria-label="Fit for your business: '+u.fit+' percent"><i style="width:'+u.fit+'%"></i></div><b>'+u.fit+'%</b></div><p class="fine" style="margin:2px 0 0">Fit for your business</p>'+
+    (nofit?'':'<div class="fitrow"><div class="fitbar" role="img" aria-label="Fit for your business: '+u.fit+' percent"><i style="width:'+u.fit+'%"></i></div><b>'+u.fit+'%</b></div><p class="fine" style="margin:2px 0 0">Fit for your business</p>')+
     '<ul class="why">'+u.why.map(function(w){return '<li>'+esc(w)+'</li>';}).join('')+'</ul>'+
     '<div class="acts"><button class="btn line small" type="button" data-a="up-ask" data-id="'+esc(u.id)+'">Add it</button></div></li>';
 }
@@ -1008,7 +1020,7 @@ function radarRest(){
 }
 // Max's clock: this month on one dial (server-drawn, clock.js), the two numbers, the one call, and the list behind it.
 function clockCard(){
-  var K=S.clock;if(!K)return '';
+  var K=S.clock;if(!K||noLine())return '';
   var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
   // The website's four numbers under the dial: caught closed, on the clock, calls, to you.
   var cell=function(b,l,red){return '<div><b'+(red?' class="r"':'')+'>'+b+'</b><span>'+l+'</span></div>';};
@@ -1053,9 +1065,11 @@ function tileSheet(k,month){
   else body='<p class="fine">'+(k==='clicks'?'People who tapped your website from your Google profile in '+lab+'.':'People who asked Google for directions to you in '+lab+'.')+' Google reports it; we can\\u2019t see who they were.</p>';
   sheet('<h2>'+esc((TILES.filter(function(t){return t[0]===k;})[0]||['',''])[1])+' \\u00b7 '+lab+'</h2>'+body+'<div class="acts"><button class="btn ghost" type="button" data-close="1">Close</button></div>');
 }
+// the live month page the Today card links to (Nov 24, 2026: the empty states used to say the numbers come next month)
+function monthLive(){return '<a class="btn line sm" href="'+esc(BASE+((S.monthNow&&S.monthNow.page)||'/month/now'))+'">See this month so far</a>';}
 function monthBlock(){
   var ms=S.months||[];
-  if(!ms.length)return '<h2>Your month</h2><div class="empty slim"><b>Your first month is on its way</b><span>Your numbers show up here in the first days of next month.</span></div>';
+  if(!ms.length)return '<h2>Your month</h2><div class="empty slim"><b>Your month so far is live now</b><span>It is also sent to you on the 2nd.</span>'+monthLive()+'</div>';
   var m=ms.filter(function(x){return x.month===MONTH;})[0]||ms[0];
   var h='<h2>Your month</h2>';
   if(S.answer&&S.answer.line)h+='<p class="note" style="margin:-4px 2px 6px">'+esc(S.answer.line)+(S.answer.lastLine?' Last month: '+esc(S.answer.lastLine.replace(/^After hours \\w+: /,''))+'':'')+'</p>';
@@ -1183,7 +1197,7 @@ function vReviews(){
   if((S.features||{}).competitors)h+=rivalCard();
   var rs=(S.months||[]).filter(function(m){return m.record;});
   h+='<h2>Monthly records</h2><p class="note" style="margin:-4px 2px 10px">Every public review, reply and post for a month, with who approved it. Open one and tap Save as PDF to keep it.</p>';
-  h+=rs.length?'<div class="recs">'+rs.map(function(m){return '<a class="rec" href="'+esc(BASE+'/record/'+m.month)+'"><div><b>'+esc(m.label)+'</b><span>Record of public communications</span></div>'+ICON.chev+'</a>';}).join('')+'</div>':'<div class="empty slim"><b>No records yet</b><span>Your first record is made in the first days of next month.</span></div>';
+  h+=rs.length?'<div class="recs">'+rs.map(function(m){return '<a class="rec" href="'+esc(BASE+'/record/'+m.month)+'"><div><b>'+esc(m.label)+'</b><span>Record of public communications</span></div>'+ICON.chev+'</a>';}).join('')+'</div>':'<div class="empty slim"><b>No records yet</b><span>Your month so far is live now. Your first record is also sent on the 2nd.</span>'+monthLive()+'</div>';
   return h;
 }
 
@@ -1206,20 +1220,23 @@ function foldH(k,html,sum,open){
   return fold(k,html.slice(a+1,b),sum,html.slice(b+5),open);
 }
 function nOf(n,all,word){return n+' of '+all+' '+word+'.';}
+// Always one tap from the Max tab: the steps for sending missed calls to Max (the first-look card is gone after Got it).
+function fwdRow(){return '<div class="list" style="margin-top:10px"><a class="row" style="text-decoration:none" href="'+esc(BASE+'/help/forwarding')+'">'+ICON.phone+'<div><b>Send my calls to Max</b><span>The steps for your phone. About two minutes.</span></div>'+ICON.chev+'</a></div>';}
 function vMax(){
   var L=S.line,f=S.features||{};
   var h='<h1>'+esc(L?L.name:'Calls')+'</h1>';
   if(L&&isTech()){return h+'<p class="lede">Calls '+esc(L.name)+' answered.</p>'+(f.calls?callsList():'');}
   if(!L){
-    h+='<p class="lede">Calls your phone line answered.</p>'+textbackCard();
+    h+=lineCard()+'<p class="lede">Calls your phone line answered.</p>'+textbackCard();
     if(f.calls)h+='<h2>Calls</h2>'+callsList();
     return h;
   }
   h+='<p class="lede">Your phone line answers '+esc(L.numberText)+'. Changes here apply to the next call.</p>'+'';
   {
-    h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?' is answering':' is off')+'</b><span>'+(L.onAir?'Every call, day and night.':(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
+    h+='<div class="card'+(L.onAir?' glow':'')+'"><div class="sw"><div><b>'+esc(L.name)+(L.onAir?(S.realCall?' is answering':' is on'):' is off')+'</b><span>'+(L.onAir?(S.realCall?'Every call, day and night.':esc(L.name)+' answers at '+esc(L.numberText)+'. Your own number reaches him once you forward your missed calls.'):(L.transferTo?'Calls ring through to '+esc(L.transferText)+'.':'Callers hear a short message to call back later.'))+'</span></div>'+
       '<button class="switch" type="button" role="switch" aria-checked="'+(L.onAir?'true':'false')+'" data-a="line-toggle" aria-label="'+esc(L.name)+' on or off"'+(L.paused?' disabled':'')+'><i></i></button></div>'+(L.paused?'<p class="fine">Paused on our side. Message us in Ask us to turn it back on.</p>':'')+
       '<div class="acts"><a class="btn line" href="tel:'+esc(L.number)+'">'+ICON.phone.replace('<svg','<svg width="20" height="20"')+'Call '+esc(L.name)+' to try it</a></div></div>';
+    h+=fwdRow();
     if(S.maxStats&&S.maxStats.calls)h+='<p class="fine" style="margin:8px 2px 0">Last 30 days: '+S.maxStats.calls+(S.maxStats.calls===1?' call':' calls')+', '+S.maxStats.booked+' booked, '+S.maxStats.hungUp+' hung up early.</p>';
     h+=timecardCard();
     h+=tapCard(L);

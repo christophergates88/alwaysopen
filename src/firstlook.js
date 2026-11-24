@@ -39,8 +39,10 @@ export async function firstLook(env, c, opts) {
   const b = await env.DB.prepare('SELECT town, created FROM billing WHERE client_id = ?1').bind(c.client_id).first().catch(() => null);
   if (!(opts && opts.force) && b && b.created && Date.now() - Date.parse(b.created) > SHOW_DAYS * 864e5) return null;
   const line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 AND on_air = 1 LIMIT 1').bind(c.client_id).first().catch(() => null);
+  // a first real call means forwarding works, even if they never opened the steps page (Nov 24, 2026)
+  const real = await env.DB.prepare("SELECT id FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'spam', 'limited', 'interview', 'failed') LIMIT 1").bind(c.client_id).first().catch(() => null);
   const d10 = line ? String(line.number).replace(/\D/g, '').slice(-10) : '';
-  const base = { line: !!line, lineText: d10 ? '(' + d10.slice(0, 3) + ') ' + d10.slice(3, 6) + '-' + d10.slice(6) : '', forwarded: !!flags.forward, qr: /^https:\/\//.test(c.review_link || ''), quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '' };
+  const base = { line: !!line, lineText: d10 ? '(' + d10.slice(0, 3) + ') ' + d10.slice(3, 6) + '-' + d10.slice(6) : '', forwarded: !!flags.forward || !!real, qr: /^https:\/\//.test(c.review_link || ''), quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '' };
   let audit = null;
   const day = new Date().toISOString().slice(0, 10);
   const used = await env.DB.prepare('SELECT n FROM firstlook_runs WHERE client_id = ?1 AND day = ?2').bind(c.client_id, day).first().catch(() => null);

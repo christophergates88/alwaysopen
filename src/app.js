@@ -469,6 +469,9 @@ async function apiState(env, c, ctx) {
   if (tech) results = results ? { calls: results.calls, requests: results.requests, reviews: results.reviews } : null;
   let called = false;
   try { called = !!(await env.DB.prepare('SELECT id FROM app_calls WHERE client_id = ?1 LIMIT 1').bind(cid).first()); } catch (e) {}
+  // a first real call (not a test one) has arrived: the owner's forwarding is working, so the day-one wording can go (Nov 24, 2026)
+  let realCall = false;
+  try { realCall = !!(await env.DB.prepare("SELECT id FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'spam', 'limited', 'interview', 'failed') LIMIT 1").bind(cid).first()); } catch (e) {}
   const out = {
     ok: true,
     now: new Date().toISOString(),
@@ -557,6 +560,7 @@ async function apiState(env, c, ctx) {
   try { out.autoText = f.followups ? await autoReady(env, c) : false; } catch (e) { out.autoText = false; }
   try { out.aiCheck = (c.tier === 'Growth' || c.tier === 'Pro') ? await (await import('./aicheck.js')).aiCheckState(env, cid) : null; } catch (e) { out.aiCheck = null; }
   try { const ls = line ? null : await lineStatus(env, cid); out.lineSetup = ls ? ls.status : ''; } catch (e) { out.lineSetup = ''; }
+  out.realCall = realCall;
   out.onboarding = c.staff ? null : finishOnboarding(Object.assign({ __called: called }, out), bprefs);
   return aj(out);
 }
@@ -1070,9 +1074,12 @@ export async function monthWindow(env, c, ym, mtd, now) {
   const { tzFor, local, fromLocal } = await import('./callbacks.js');
   const tz = await tzFor(env, c.client_id);
   ym = mtd ? local(tz, now).day.slice(0, 7) : ym;
-  const start = new Date(fromLocal(tz, ym + '-01', 0, 0)).toISOString();
+  let start = new Date(fromLocal(tz, ym + '-01', 0, 0)).toISOString();
   const nextYm = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 1)).toISOString().slice(0, 7);
   const end = mtd ? new Date(now).toISOString() : new Date(fromLocal(tz, nextYm + '-01', 0, 0)).toISOString();
+  // the clock starts at the later of the month's start and signup, so a new account never shows hours from before it joined (Nov 24)
+  const since = await (await import('./clock.js')).signedUpAt(env, c.client_id);
+  if (since > Date.parse(start)) start = new Date(Math.min(since, Date.parse(end))).toISOString();
   let name = 'Max';
   try { const l = await env.DB.prepare('SELECT owner_set, facts FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first(); const o = parse(l && l.owner_set) || {}, f = parse(l && l.facts) || {}; name = String(o.name || f.name || 'Max').trim() || 'Max'; } catch (e) { name = 'Max'; }
   return { tz, ym, start, end, name };
@@ -1093,7 +1100,7 @@ export async function monthFor(env, c, which, now) {
   let a = d.a || null, money = null;
   if (!a) {
     try { money = mtd ? (await (await import('./money.js')).moneyState(env, c.client_id, now)).thisMonth : await (await import('./money.js')).caughtFor(env, c.client_id, Date.parse(ym + '-15T12:00:00Z')); } catch (e) { money = null; }
-    a = await monthAnalytics(env, c.client_id, start, end, { tz, prev: await storedA(env, c.client_id, prevYm(ym)), money, regulated: !!+c.regulated });
+    a = await monthAnalytics(env, c.client_id, start, end, { tz, prev: await storedA(env, c.client_id, prevYm(ym)), money, regulated: !!+c.regulated, plan: c.tier || '' });
   }
   // a tech's month has no dollars anywhere: the worth, the won amounts, and any line of the write-up that names a figure
   const noMoney = x => !/\$\s?\d/.test(String((x && x.t) || x || ''));

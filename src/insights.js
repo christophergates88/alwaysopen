@@ -155,6 +155,8 @@ export function nextStep(a, ctx) {
   const t = a.lost.top[0];
   if (!ctx.regulated && a.lost.n >= 3 && t && t.r === 'price') return 'Most callers who didn’t book said price. Ask us to add “free estimates” to your Google profile and to Max’s answers.';
   if (!ctx.regulated && a.calls.after >= 3 && !(ctx.money && ctx.money.avgJob)) return 'Put your average job in Settings, and next month this page shows what after-hours calls were worth in dollars.';
+  // Starter has no "Finished a job" button (the route answers 403), so its tip is one it can act on (Nov 24, 2026).
+  if (!ctx.regulated && ctx.plan === 'Starter' && a.reviews.n < 3 && a.work.jobsLogged < 5) return 'Forward your missed calls to Max and keep your hours up to date with him. Every call he answers is written up in your app.';
   if (!ctx.regulated && a.reviews.n < 3 && a.work.jobsLogged < 5) return 'Tap “Finished a job” after each one. Every customer who agrees gets one review request, and steady reviews move you up on Google.';
   if (a.reviews.replyHrs != null && a.reviews.replyHrs > 24) return 'Approve replies within a day. Fast replies are the ones future customers notice.';
   if (!ctx.regulated && a.calls.n >= 10 && !a.work.fill.offers) return 'Turn on Fill my week. When a day is wide open, past customers who are due get first pick.';
