@@ -17,7 +17,7 @@ function pastBlock(){
 function pcReload(then){
   return api('state').then(function(res){if(res.j&&res.j.ok){S=res.j;render();}if(then)then();});
 }
-function pcWhen(i){return i.status==='sent'?'Sent':(i.status==='queued'?((i.result.indexOf('waiting')>-1||i.result.indexOf('after hours')>-1)?'Held until morning':'Queued'):(i.status==='copied'?'You’re sending it yourself':'Skipped'));}
+function pcWhen(i){return i.status==='sent'?'Sent':(i.status==='queued'?(i.result.indexOf('no business address')>-1?'Waiting for your business address':((i.result.indexOf('waiting')>-1||i.result.indexOf('after hours')>-1)?'Held until morning':'Queued')):(i.status==='copied'?'You’re sending it yourself':'Skipped'));}
 function reviveSheet(){
   var rv=(S.past&&S.past.revive)||{items:[]},all=rv.items||[];
   var pend=all.filter(function(i){return i.status==='pending';}),done=all.filter(function(i){return i.status!=='pending';});

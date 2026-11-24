@@ -294,6 +294,17 @@ export async function healthStatus(env, now, mode) {
   }
   // The 'email' check only proves the operator-only binding. Every prospect and client email goes through SEND_MAIL.
   if (mode === false || mode === undefined) jobs.push({ name: 'send-mail', ok: !!env.SEND_MAIL, why: 'The email connection for prospects and clients (SEND_MAIL) is missing, so audits, follow-ups and reports are not being emailed' });
+  // ...and whether real sends are getting through (Nov 24, 2026): the last send to a prospect or a client failed and none
+  // has succeeded since. The record is kept by leadmail.js send() and clientmail.js sendNeon (mailSendState).
+  if (mode === false || mode === undefined) {
+    try {
+      const st = await (await import('./clientmail.js')).mailSendState(env);
+      for (const [k, label] of [['leads', 'prospects'], ['clients', 'clients']]) {
+        const v = st[k] || {};
+        if (v.errAt && (!v.okAt || v.errAt > v.okAt)) jobs.push({ name: 'mail-delivery', ok: false, why: 'The last email to ' + label + ' failed (' + String(v.err || 'no reason given').slice(0, 120) + ') and none has gone through since' });
+      }
+    } catch (e) { /* no record yet */ }
+  }
   const all = mode === true ? res : res.concat([cron], jobs);
   return { ok: all.every(c => c.ok), checks: all, cronAge: age };
 }

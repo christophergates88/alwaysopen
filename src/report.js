@@ -99,7 +99,7 @@ async function oneClient(env, c, m, now) {
   try {
     const I = await import('./insights.js');
     let prevA = null; try { const p = JSON.parse((prevRow && prevRow.data) || 'null'); prevA = p && p.a ? Object.assign({ label: p.label || '' }, p.a) : null; } catch (e) {}
-    an = await I.monthAnalytics(env, c.client_id, m.start, m.end, { tz: m.tz || await tzFor(env, c.client_id), prev: prevA, money, regulated: !!+c.regulated });
+    an = await I.monthAnalytics(env, c.client_id, m.start, m.end, { tz: m.tz || await tzFor(env, c.client_id), prev: prevA, money, regulated: !!+c.regulated, plan: c.tier || '' });
   } catch (e) { an = null; }
   const data = buildMonth(c, m, { reviews, posts, posted, calls: calls && calls.n, money, a: an }, prev, now);
   const json = JSON.stringify(data);
@@ -122,7 +122,7 @@ export async function monthReportCron(env, at) {
   const m = monthOf(now);
   const { DEMO_ID } = await import('./demo.js');
   await ensureRuns(env);
-  const clients = ((await env.DB.prepare("SELECT c.client_id, c.business, c.regulated, c.owner_first, (SELECT email FROM billing b WHERE b.client_id = c.client_id LIMIT 1) AS email, m.data, m.hash, r.result AS run FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND (r.client_id IS NULL OR r.result LIKE 'email retry %') LIMIT 200").bind(m.key, DEMO_ID).all()).results) || [];
+  const clients = ((await env.DB.prepare("SELECT c.client_id, c.business, c.regulated, c.tier, c.owner_first, (SELECT email FROM billing b WHERE b.client_id = c.client_id LIMIT 1) AS email, m.data, m.hash, r.result AS run FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND (r.client_id IS NULL OR r.result LIKE 'email retry %') LIMIT 200").bind(m.key, DEMO_ID).all()).results) || [];
   const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
   let made = 0, handled = 0;
   for (const c of clients) {
