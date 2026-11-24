@@ -5,11 +5,14 @@
 //   google: needs Always Open's own Google account (the manager on client profiles) connected once from the HQ board.
 //           The check reads that account's business accounts: Google refuses with a quota error until access is approved.
 //   meta:   reads the app's approved permissions with the app's own token; on once pages_manage_posts is live.
+//   outreach: Max calling other businesses for Pro clients. Not a vendor's approval, so nothing is stored and nobody is told:
+//           it is on only while Outreach can really place a call, read fresh from the operator's switch and the Do Not Call
+//           copy (the same two questions src/outreach.js asks before every call). It drops back off if either goes away.
 // GBP_ON or META_ON in the worker's settings force a switch on, for testing or if a check ever misreads.
 const pushOps = async (...a) => { try { return await (await import('./app.js')).opsPing(...a); } catch (e) { return 0; } };
 const mailOps = async (env, subject, text, neon) => { try { return await (await import('./app.js')).mailOwner(env, subject, text, neon, 'Always Open launch watch'); } catch (e) { return 'off'; } };
 
-export const FEATURES = ['google', 'meta'];
+export const FEATURES = ['google', 'meta', 'outreach'];
 const HOUR = 3600e3;
 const truthy = v => /^(1|true|on|yes)$/i.test(String(v || '').trim());
 
@@ -18,6 +21,18 @@ async function ensure(env) {
   if (ready) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS launch (k TEXT PRIMARY KEY, on_ INTEGER DEFAULT 0, at TEXT DEFAULT '', state TEXT DEFAULT '', detail TEXT DEFAULT '', checked TEXT DEFAULT '')").run();
   ready = true;
+}
+
+// Nov 24, 2026: Outreach can call only when the operator's switch is on AND the Do Not Call copy is loaded and fresh.
+// Both answers come from src/outreach.js, so the site's "Coming soon" labels and the dialer can never disagree.
+export async function readOutreach(env) {
+  try {
+    const O = await import('./outreach.js');
+    if (!O.OUTREACH_LIVE) return { on: false, state: 'off', detail: 'Outreach is switched off on our side.' };
+    if (!(await O.killSwitchOn(env))) return { on: false, state: 'off', detail: 'Outreach is switched off on our side.' };
+    if (!(await O.dncReady(env))) return { on: false, state: 'waiting', detail: 'The Do Not Call list is not loaded yet.' };
+    return { on: true, state: 'live', detail: '' };
+  } catch (e) { return { on: false, state: 'off', detail: 'Outreach is switched off on our side.' }; }
 }
 
 // Read the switches. Cached for a minute per worker instance so serving pages stays cheap.
@@ -32,6 +47,7 @@ export async function launchState(env) {
     const rows = ((await env.DB.prepare('SELECT k, on_, at, state, detail, checked FROM launch').all()).results) || [];
     for (const r of rows) if (out[r.k]) out[r.k] = { on: !!+r.on_, at: r.at || '', state: r.state || '', detail: r.detail || '', checked: r.checked || '' };
   } catch (e) { /* the forced switches below still apply */ }
+  out.outreach = { ...(await readOutreach(env)), at: '', checked: new Date().toISOString() };
   if (truthy(env.GBP_ON)) out.google.on = true;
   if (truthy(env.META_ON)) out.meta.on = true;
   cache = out; cacheAt = Date.now();
@@ -133,6 +149,7 @@ export async function launchCron(env, opts) {
   try { await askToConnect(env, st); } catch (e) { /* the HQ board shows the link too */ }
   const out = {};
   for (const k of FEATURES) {
+    if (k === 'outreach') { out[k] = st[k].on ? 'on' : st[k].state; continue; }   // read fresh in launchState; nothing stored, nobody told
     if (st[k].on && st[k].state === 'live') { out[k] = 'on'; continue; }
     const gap = st[k].state === 'error' ? 9 * 60e3 : HOUR - 5 * 60e3;   // a failed check is tried again on the next pass
     if (!(opts && opts.force) && st[k].checked && Date.now() - Date.parse(st[k].checked) < gap) { out[k] = 'checked lately'; continue; }
@@ -153,6 +170,7 @@ export async function launchLines(env) {
   const say = s => ({ live: 'approved and on', waiting: 'applied, waiting for approval', needs_connect: 'waiting; connect Always Open’s Google account so the worker can watch', api_off: 'approved, but an API needs turning on', no_keys: 'keys not set', error: 'the last check failed' })[s.state] || (s.on ? 'on' : 'not checked yet');
   return {
     google: (st.google.on ? 'on' : say(st.google)) + (st.google.detail && !st.google.on ? '. ' + st.google.detail : '') + (st.google.checked ? ' (checked ' + st.google.checked.slice(0, 16).replace('T', ' ') + ' UTC)' : ''),
+    outreach: st.outreach.on ? 'on' : st.outreach.detail,
     meta: (st.meta.on ? 'on' : say(st.meta)) + (st.meta.detail && !st.meta.on ? '. ' + st.meta.detail : '') + (st.meta.checked ? ' (checked ' + st.meta.checked.slice(0, 16).replace('T', ' ') + ' UTC)' : '')
   };
 }

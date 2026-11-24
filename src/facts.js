@@ -5,7 +5,7 @@
 export const PLANS = {
   Starter: { cents: 14900, perDay: 5, blurb: 'Every review answered, your Google profile kept current, Max answering your calls (300 minutes a month), a booking and quote page, a monthly report and your own app.' },
   Growth: { cents: 29900, perDay: 10, blurb: 'Starter, plus review requests after every job, posts from your photos, every lead logged, competitor watch and Storm Desk.' },
-  Pro: { cents: 49900, perDay: 16, blurb: 'Growth, plus your own business number, missed-call text-back, reminders for quotes, appointments and invoices, and Outreach calls to businesses.' }
+  Pro: { cents: 49900, perDay: 16, blurb: 'Growth, plus your own business number, missed-call text-back, reminders for quotes, appointments and invoices, and Outreach calls to businesses (coming soon).' }
 };
 export const MAX = { includedMinutes: 300, moreMinutes: 300, moreCents: 5900, overCentsPerMinute: 25, blurb: '300 more minutes of Max a month, for when your phone rings more than the 300 that come with every plan.' };
 export const ADDONS = {
@@ -71,6 +71,7 @@ export function ownLineFacts() {
       'Pro adds the three-day check-in: three days after a job, Max calls the customer (only customers who said a call is fine) to ask if the work held up; a no reaches the owner right away, and every customer gets the review request either way. ' +
       'Pro adds Fill my week: when the owner\'s Google Calendar has an open day coming up, past customers who said yes to texts get one text offering it, and the first yes is booked on the calendar. ' +
       'Pro adds call-backs with a time on them (if the owner misses it, Max calls the customer to set a new one) and hand-offs to nearby Always Open businesses for work the owner does not do. ' +
-      'Pro adds Outreach too: Max calls a list of businesses the owner gives him, on their business landlines only, never cell phones or homes, and asks if they want a call from the owner; the owner signs Outreach terms in the app first. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
+      // Nov 24, 2026: Outreach cannot place a call yet (the operator's switch is off and no Do Not Call list is loaded), so Max says "coming soon" and gives no date. Take "coming soon" out of this line and the Pro blurb above by hand the day Outreach is switched on and its list is loaded (the site's labels lift by themselves).
+      'Pro adds Outreach too, but it is coming soon and not switched on yet, so never say it works today and never give a date; once it is on, Max calls a list of businesses the owner gives him, on their business landlines only, never cell phones or homes, and asks if they want a call from the owner; the owner signs Outreach terms in the app first. A client cancels from the app, any month, with no fee; ' + PROMISES.support + ' from our team can help with that too.'
   };
 }

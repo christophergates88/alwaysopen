@@ -1348,15 +1348,17 @@ function afterCard(L){
 function outreachCard(){
   var R=S.outreach;if(!R)return '';
   var c=R.counts||{};
-  return foldH('outreach',outreachBody(),!R.pro?'Comes with Pro.':(!R.attested?'Read and sign the terms to start.':(R.on?'On':'Off')+', '+(c.ready||0)+' ready to call.'+(R.live?'':' Not calling yet.')));
+  return foldH('outreach',outreachBody(),!R.pro?'Comes with Pro.':(!R.attested?'Read and sign the terms to start.':(R.on?'On':'Off')+', '+(c.ready||0)+' ready to call.'+(R.live&&R.switchOn!==false?'':' Not calling yet.')));
 }
 function outreachBody(){
   var R=S.outreach;if(!R)return '';
   var c=R.counts||{},mx=esc((S.line&&S.line.name)||'Max');
   var h='<h2>'+esc(R.label)+'</h2>';
   // Not on Pro: what it does, and how to get it.
-  if(!R.pro)return h+'<div class="feature locked"><h3>'+mx+' calls businesses for you</h3><p>Give '+mx+' a list of businesses and one sentence about what you offer. '+mx+' calls their business landlines on weekdays, says who the call is for, and asks if they want to hear from you. Every yes lands in your leads. Comes with Pro.</p><div class="acts"><button class="btn line" type="button" data-a="ask-outreach">Ask about Pro</button></div></div>';
+  if(!R.pro)return h+'<div class="feature locked"><h3>'+mx+' calls businesses for you</h3><p>Give '+mx+' a list of businesses and one sentence about what you offer. '+mx+' calls their business landlines on weekdays, says who the call is for, and asks if they want to hear from you. Every yes lands in your leads. Comes with Pro'+(R.switchOn===false?', and is coming soon':'')+'.</p><div class="acts"><button class="btn line" type="button" data-a="ask-outreach">Ask about Pro</button></div></div>';
   h+='<div class="card form">';
+  // Nov 24, 2026: the operator's switch is off, so nothing is dialed yet even once the terms are signed and a list is in
+  if(R.switchOn===false)h+='<p class="note" style="margin-top:0"><b>Outreach is not switched on yet on our side.</b> You can get your list ready now. Calls start when it is on.</p>';
   if(!R.live)h+='<p class="note" style="margin-top:0"><b>Not calling yet.</b> This is being reviewed before it goes live. You can set it up now, and nothing is dialed until then.</p>';
   h+='<p class="fine">'+esc(R.sub)+'</p>';
   // The terms come first: Outreach only turns on once the owner has read and signed them (the current version).

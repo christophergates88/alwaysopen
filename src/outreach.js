@@ -786,7 +786,8 @@ export async function outreachState(env, c) {
   const line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(c.client_id).first().catch(() => null);
   const skippedList = ((((await env.DB.prepare("SELECT business, phone, status FROM outreach_lists WHERE client_id = ?1 AND status LIKE 'skipped%' ORDER BY id DESC LIMIT 8").bind(c.client_id).all()).results) || [])).map(x => ({ b: x.business || '', p: x.phone, why: String(x.status).replace(/^skipped: /, '') }));
   const cbDefault = p && p.callback ? p.callback : (ph10(c.phone) && (!line || ph10(line.number) !== ph10(c.phone)) ? '+1' + ph10(c.phone) : '');
-  return { live: OUTREACH_LIVE, pro: outreachAllowed(c), label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: !!signed, signed: signed ? { name: signed.name, at: signed.at } : null,
+  // switchOn: the operator's kill switch (Nov 24, 2026), so the app can say calls are not going out yet while it is off
+  return { live: OUTREACH_LIVE, switchOn: await killSwitchOn(env), pro: outreachAllowed(c), label: KIND.label, sub: KIND.sub, attest: ATTEST, attested: !!signed, signed: signed ? { name: signed.name, at: signed.at } : null,
     terms: { version: TERMS_VERSION, title: TERMS_TITLE, parts: TERMS.map(([h, t]) => ({ h, t })) }, pitch: p ? p.text : '', on: !!(p && +p.on_),
     legal: (p && p.legal) || '', callback: cbDefault, sentenceHeld: !!(p && p.review === 'held'), sentenceRejected: !!(p && p.review === 'rejected'),
     states: Object.values(STATE_NAMES), dailyCap: DAILY_CAP, skippedList, dncReady: await dncReady(env), sources: Object.entries(SOURCES).map(([k, t]) => ({ k, t })),

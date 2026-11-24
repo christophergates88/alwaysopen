@@ -393,7 +393,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #7cc0
   <div style="margin-top:14px;min-height:56px"><span class="pill" data-at="2.0">First yes, booked</span></div>
  </div>
  <div class="pn" id="or_c" style="top:1035px" data-at="2.7" data-fx="up">
-  <div class="row"><span class="mono c-warn sz22">Outreach</span><span class="tagx">Pro</span></div>
+  <div class="row"><span class="mono c-warn sz22">Outreach</span><span class="tagx">Pro</span><span class="tagx" data-launch="outreach">Coming soon</span></div>
   <div class="og" id="or_g"></div>
   <div class="ptext"><span id="or_n">0</span> of 12 want to hear from you.</div>
  </div>
@@ -894,7 +894,7 @@ const CAPS={
  s_comp:'Competitor watch shows where you rank nearby and what it takes to be #1. For insurance agencies, Rate-Shock Radar spots rate complaints in town.',
  s_follow:'Quotes and invoices get followed up on the day you pick, so work doesn’t go quiet.',
  s_check:'Three days after every job, Max calls to make sure it held up. A no comes straight to you. Everyone gets the review request.',
- s_fill:'An open day is offered to past customers who are due, and the first yes is booked. On Pro, Max calls the businesses on your list.',
+ s_fill:'An open day is offered to past customers who are due, and the first yes is booked.'+(document.querySelector('[data-launch="outreach"]')?' On Pro, Max calling the businesses on your list is coming soon.':' On Pro, Max calls the businesses on your list.'),
  s_map:'Every Always Open business is on one map, closest first, and nobody pays to be on it. On Pro, callers who need another trade get handed off, and work comes back.',
  s_ads:'Add-ons our team runs: Google Ads that put you in front of people searching right now, and a fast website whose requests reach you right away.',
  r1:'On the 2nd, you get one page. First line: what the month was worth. This one is an example.',

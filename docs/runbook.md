@@ -295,6 +295,8 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   "health:outreach-dnc" alert goes out once a day. From day 24 a "health:outreach-dnc-due" reminder goes out once a
   day while Outreach has numbers waiting. The paid DNCScrub check (state lists, known litigators) is still wired in and
   runs on top only if the Worker secret `DNC_LOGIN_ID` is ever set; Christopher passed on paying for it (Nov 10, 2026).
+- Nov 24, 2026: while the switch is off and no list is loaded, every public claim (site, `/start`, Max's own line) says "Coming soon". The site's labels (`data-launch="outreach"`, src/launch.js) lift by themselves once the switch is on and the Do Not Call list is loaded and fresh; nothing is sent.
+  The words "(coming soon)" in src/facts.js (the Pro blurb and the Pro Outreach sentence Max reads) are NOT automatic: take them out by hand that day, then deploy.
 - Every call is in `outreach_calls` (sid, exact words, every check and when, who answered, the outcome, seconds). Keep
   it: the Telemarketing Sales Rule wants five years of records.
 - A machine (or an answer Twilio can't place) hears only "a telemarketing call ... on behalf of <legal name>, press 9 or

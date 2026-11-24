@@ -29,7 +29,7 @@ function line(l) {
 function card(c, i, n) {
   const tagCls = /Pro/.test(c.tag) ? 'p' : /Growth/.test(c.tag) ? 'g' : 'e';
   return '<article class="aos-card" id="aos-' + c.key + '" aria-roledescription="slide" aria-label="' + (i + 1) + ' of ' + n + ': ' + esc(c.title) + '">' +
-    '<div class="aos-top"><h3>' + esc(c.title) + '</h3><span class="aos-tag ' + tagCls + '">' + esc(c.tag) + '</span>' + (c.key === 'storm' ? '<span class="soon" data-launch="google">Coming soon</span>' : '') + '</div>' +
+    '<div class="aos-top"><h3>' + esc(c.title) + '</h3><span class="aos-tag ' + tagCls + '">' + esc(c.tag) + '</span>' + (c.key === 'storm' ? '<span class="soon" data-launch="google">Coming soon</span>' : c.key === 'outreach' ? '<span class="soon" data-launch="outreach">Coming soon</span>' : '') + '</div>' +
     '<div class="aos-scn" aria-live="polite">' + c.intro.map(line).join('') +
       c.choices.map((ch, j) => '<div class="aos-path" data-p="' + j + '"' + (j ? ' hidden' : '') + '>' + ch.then.map(line).join('') + '</div>').join('') +
       (c.carrier ? c.carrier.choices.map((ch, j) => '<div class="aos-path aos-alt" data-p="' + j + '" hidden>' + ch.then.map(line).join('') + '</div>').join('') : '') +
