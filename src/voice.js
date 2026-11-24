@@ -163,6 +163,7 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'after') return await afterRelay(env, ctx, form);
     if (kind === 'dial') return await afterDial(env, ctx, form);
     if (kind === 'whisper') return await whisper(env, url);
+    if (kind === 'screen') return await screen(env, url, form);
     if (kind === 'status') return await callStatus(env, ctx, form);
   } catch (e) {
     // Never leave a caller in silence. A caller still on the line gets the voicemail backup (voicemail.js), so their
@@ -327,6 +328,9 @@ async function afterRelay(env, ctx, f) {
 }
 
 // What the owner hears when they pick up a transferred call, before the caller is connected.
+// Nov 24, 2026: a call screen. The owner's voicemail, or Max's own number when the owner forwards missed calls to it,
+// also "answers" the dial, and Twilio calls that completed: it read as "Max put them through to you", with no call-back
+// promise and no summary. Now only a 1 pressed here connects them; nothing (or another key) hangs up the owner's leg.
 async function whisper(env, url) {
   const sid = url.searchParams.get('c') || '';
   const row = SID_RE.test(sid) ? await env.DB.prepare('SELECT caller_name, reason FROM app_calls WHERE id = ?1').bind(sid).first() : null;
@@ -334,12 +338,29 @@ async function whisper(env, url) {
   // The note is written after the dial now, so while the owner's phone rings the reason comes from the call itself.
   let about = row && row.reason ? ', about ' + row.reason : '';
   if (!about && SID_RE.test(sid) && env.CALLROOM) { try { const b = await env.CALLROOM.get(env.CALLROOM.idFromName(sid)).brief(); if (b) about = '. They said: ' + b; } catch (e) { /* the name alone */ } }
-  return twiml(say('Always Open call from ' + who + about + '. Connecting you now.'));
+  return twiml('<Gather numDigits="1" timeout="6" action="' + xa(SITE + '/voice/screen/' + env.VOICE_KEY + '?c=' + sid) + '" method="POST">' + say('Always Open call from ' + who + about + '. Press 1 to take this call.') + '</Gather><Hangup/>');
+}
+// The key the owner pressed on the call screen. A 1 is noted for afterDial and the whisper ends, so Twilio connects the
+// two; anything else hangs up the owner's leg, and the dial reads as not answered.
+const screened = new WeakSet();
+async function ensureScreen(env) {
+  if (screened.has(env.DB)) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS dial_taken (sid TEXT PRIMARY KEY, at TEXT)').run();
+  screened.add(env.DB);
+}
+async function screen(env, url, form) {
+  const sid = url.searchParams.get('c') || '';
+  if (String(form.get('Digits') || '') !== '1' || !SID_RE.test(sid)) return twiml('<Hangup/>');
+  await ensureScreen(env);
+  await env.DB.prepare('INSERT OR IGNORE INTO dial_taken (sid, at) VALUES (?1, ?2)').bind(sid, new Date().toISOString()).run();
+  return twiml(say('Connecting you now.'));
 }
 
 async function afterDial(env, ctx, f) {
   const sid = f.get('CallSid') || '', st = f.get('DialCallStatus') || '';
-  const ok = st === 'completed' || st === 'answered';
+  // answered, and the owner pressed 1 on the call screen (see whisper)
+  let ok = st === 'completed' || st === 'answered';
+  if (ok && SID_RE.test(sid)) { try { await ensureScreen(env); ok = !!(await env.DB.prepare('SELECT 1 AS x FROM dial_taken WHERE sid = ?1').bind(sid).first()); } catch (e) { /* as Twilio said */ } }
   if (SID_RE.test(sid)) {
     await env.DB.prepare("UPDATE app_calls SET transfer_seconds = ?1, transferred = ?2, outcome = CASE WHEN ?2 = 1 THEN 'transferred' ELSE outcome END, hq_synced = 0 WHERE id = ?3")
       .bind(parseInt(f.get('DialCallDuration') || '0', 10) || 0, ok ? 1 : 0, sid).run();

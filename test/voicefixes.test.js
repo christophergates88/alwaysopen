@@ -113,7 +113,8 @@ test('2. a caller put through to the owner is written up after the dial: no hang
   assert.equal((await w.row(sid)).outcome, 'live');
   assert.deepEqual(w.world.texts, []); assert.deepEqual(w.pushes(), []);
   assert.equal(w.livePushes().length, 1, 'a burst pipe alerts the owner once, live, while Max is still on the call');
-  // The owner picks up and they talk for 200 seconds.
+  // The owner picks up, presses 1 on the call screen (Nov 24, 2026), and they talk for 200 seconds.
+  await w.hook('screen', { CallSid: 'CA' + 'e'.repeat(32), Digits: '1' }, 'c=' + sid);
   await w.hook('dial', { CallSid: sid, DialCallStatus: 'completed', DialCallDuration: '200' });
   r = await w.row(sid);
   assert.equal(r.outcome, 'transferred'); assert.equal(r.transferred, 1);

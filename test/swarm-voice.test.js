@@ -250,8 +250,66 @@ test('V8: Max does not call the owner "he" or "him" to their customers', () => {
   assert.match(n, /as soon as they can to see if they can get there sooner/);
 });
 
-// From the transfer-screen change (kept on its own branch until one live test call): only this half ships now.
-test('the owner cannot set Max\'s own number as the number to put calls through to', async () => {
+// V3: the transfer is a call screen. Only the owner pressing 1 counts as "Max put them through to you".
+async function toDial(w, n) {
+  w.world.aiNote = { name: 'Lee', callback: '+14785550170', reason: 'Burst pipe', details: '', when: '', urgent: true, callback_wanted: true, callback_at: '', booked: 'yes', spam: false, summary: 'Lee has a burst pipe.' };
+  w.world.aiScript = ['Let me try to reach the owner now. [TRANSFER]'];
+  const sid = sidOf(n), x = await w.room(sid, '+14785550170');
+  await w.say(x, 'Pipe burst. Can I talk to the owner now?');
+  const real = Date.now; Date.now = () => real() + 15000; try { await x.room.alarm(); } finally { Date.now = real; }
+  await x.room.webSocketClose(x.ws, 1000);
+  const tw = await w.hook('after', { CallSid: sid, HandoffData: JSON.stringify({ reason: 'transfer' }), SessionStatus: 'ended', SessionDuration: '30' });
+  return { sid, tw };
+}
+test('V3: the owner hears who is calling and "Press 1 to take this call" inside a one-digit Gather', async () => {
+  const w = await mk();
+  const { sid, tw } = await toDial(w, 51);
+  const url = (tw.text.match(/<Number url="([^"]+)"/) || [])[1].replace(/&amp;/g, '&');
+  const path = url.replace('https://alwaysopenoffice.com', '');
+  const href = url, params = { CallSid: 'CA' + 'f'.repeat(32), From: LINE, To: CELL };
+  const r = await w.site.call(path, { form: params, headers: { 'x-twilio-signature': H.twilioSign(w.env.TWILIO_AUTH_TOKEN, href, params) } });
+  assert.match(r.text, /^<\?xml[^>]+><Response><Gather numDigits="1" timeout="6" action="https:\/\/alwaysopenoffice\.com\/voice\/screen\/[^"?]+\?c=CA0+51" method="POST"><Say>Always Open call from [^<]*Press 1 to take this call\.<\/Say><\/Gather><Hangup\/><\/Response>$/);
+  assert.equal(sid, sidOf(51));
+});
+test('V3: pressing 1 bridges the caller and the call reads as put through', async () => {
+  const w = await mk();
+  const { sid } = await toDial(w, 52);
+  const r = await w.hook('screen', { CallSid: 'CA' + 'e'.repeat(32), Digits: '1' }, 'c=' + sid);
+  assert.doesNotMatch(r.text, /Hangup/, 'no hang-up: the whisper ends and Twilio connects the two');
+  assert.match(r.text, /Connecting you now/);
+  await w.hook('dial', { CallSid: sid, DialCallStatus: 'completed', DialCallDuration: '200' });
+  const row = await w.row(sid);
+  assert.equal(row.outcome, 'transferred'); assert.equal(row.transferred, 1);
+  assert.match(w.pushes()[0].aps.alert.body, /Max put them through to you/);
+});
+test('V3: no digit (voicemail, or forwarded back to Max) hangs up that leg and the caller gets the missed-transfer line and a call back', async () => {
+  const w = await mk();
+  const { sid } = await toDial(w, 53);
+  const none = await w.hook('screen', { CallSid: 'CA' + 'e'.repeat(32), Digits: '' }, 'c=' + sid);
+  assert.match(none.text, /<Hangup\/>/);
+  const two = await w.hook('screen', { CallSid: 'CA' + 'e'.repeat(32), Digits: '2' }, 'c=' + sid);
+  assert.match(two.text, /<Hangup\/>/);
+  // the owner's voicemail answered the Dial: Twilio says "completed", but nobody pressed 1
+  const d = await w.hook('dial', { CallSid: sid, DialCallStatus: 'completed', DialCallDuration: '35' });
+  assert.match(d.text, /<Say>/, 'the caller hears the missed-transfer line');
+  const row = await w.row(sid);
+  assert.notEqual(row.outcome, 'transferred'); assert.equal(row.transferred, 0);
+  const p = w.pushes();
+  assert.match(p[0].aps.alert.body, /nobody picked up/);
+  assert.doesNotMatch(p[0].aps.alert.body, /Max put them through to you/);
+  assert.equal((await w.DB.prepare('SELECT id FROM callbacks WHERE call_sid = ?1').bind(sid).all()).results.length, 1, 'the usual call-back promise');
+});
+test('V3: the screen route answers only with a valid Twilio signature', async () => {
+  const w = await mk();
+  const { sid } = await toDial(w, 54);
+  const bad = await w.site.call('/voice/screen/' + w.env.VOICE_KEY + '?c=' + sid, { form: { Digits: '1' }, headers: { 'x-twilio-signature': 'nope' } });
+  assert.equal(bad.status, 403);
+  const none = await w.site.call('/voice/screen/' + w.env.VOICE_KEY + '?c=' + sid, { form: { Digits: '1' } });
+  assert.equal(none.status, 403);
+  await w.hook('dial', { CallSid: sid, DialCallStatus: 'completed', DialCallDuration: '200' });
+  assert.notEqual((await w.row(sid)).outcome, 'transferred', 'a forged press of 1 counts for nothing');
+});
+test('V3: the owner cannot set Max\'s own number as the number to put calls through to', async () => {
   const w = await mk();
   const r = await w.site.call('/app/' + CODE + '/api/line', { json: { transferTo: LINE.slice(2), transferWhen: 'urgent', by: 'Dana' } });
   assert.equal(r.status, 422);
