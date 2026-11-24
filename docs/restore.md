@@ -1,5 +1,9 @@
 # Restoring the Always Open database
 
+There are two databases. The business data (clients, calls, leads, billing, every check) is `alwaysopen-biz` (binding `DB`):
+that is the one these steps restore. Gates HQ's own data is a separate database, `alwaysopen` (binding `HQDB`). It is not
+in the weekly copy; its only safety net is its own 30 days of Time Travel.
+
 Two ways back, in the order to try them.
 
 ## 1. Point-in-time restore (D1 Time Travel, any moment in the last 30 days)
@@ -10,13 +14,13 @@ table), not for a Worker problem.
 From the Mac, in `GatesHQ/alwaysopen`:
 
 ```
-npx wrangler@4 d1 time-travel info alwaysopen --timestamp="2026-10-28T20:00:00Z"
+npx wrangler@4 d1 time-travel info alwaysopen-biz --timestamp="2026-10-28T20:00:00Z"
 ```
 
 That prints the bookmark for that moment. Then:
 
 ```
-npx wrangler@4 d1 time-travel restore alwaysopen --bookmark=<the bookmark>
+npx wrangler@4 d1 time-travel restore alwaysopen-biz --bookmark=<the bookmark>
 ```
 
 Everything written after that moment is gone, including calls and leads, so pick the latest moment before the
@@ -25,9 +29,12 @@ damage and tell the owners whose data moved. The Worker keeps running; no deploy
 ## 2. From the weekly copy (when the account itself is gone)
 
 The weekly file is `alwaysopen-<date>.jsonl.gz`: one JSON object per line, `{ "table": "...", "row": { ... } }`, for
-every data table (never tokens or keys). To load it into a fresh database:
+the business tables listed in `src/backup.js` (never tokens or keys). It does NOT hold: the big log tables (call audio and
+voice logs, texts, photos, `billing_config`), Gates HQ's database (`alwaysopen`), the Worker's secrets (keep them where
+the runbook says), or live call state (calls in progress live in the Worker's call rooms). If a table could not be read
+that week, the backup email and the alert name it. To load it into a fresh database:
 
-1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen`, put the new database id in
+1. Create the database and the tables: `npx wrangler@4 d1 create alwaysopen-biz`, put the new database id in
    `wrangler.toml`, then create the tables (deploying the Worker is not enough: it never creates `app_clients`,
    `voice_lines`, `app_calls`, `leads`, `app_items` and a few others on its own):
 
@@ -63,4 +70,4 @@ Run it once a quarter. Each run's table of counts is on the run's summary page.
 
 | Date | Result |
 | --- | --- |
-| 2026-10-28 | First run, see the note below once it finishes |
+| 2026-10-28 | First run. Check its summary page in GitHub Actions for the result |

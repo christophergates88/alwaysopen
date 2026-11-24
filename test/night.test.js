@@ -59,7 +59,7 @@ test('problem alerts: silent and listed for the morning at night, loud only when
 
 test('the outside monitor sees the site, the database, the jobs and the phone lines; not a late backup', async () => {
   const DB = H.makeDB();
-  const env = { DB, STRIPE_KEY: '', EMAIL: {}, MAIL_FROM: 'a@b.c', MAIL_TO: 'd@e.f', TWILIO_ACCOUNT_SID: 'x', TWILIO_AUTH_TOKEN: 'y', CALLROOM: {}, VOICE_KEY: 'k', AI: {} };
+  const env = { DB, STRIPE_KEY: '', EMAIL: {}, MAIL_FROM: 'a@b.c', MAIL_TO: 'd@e.f', TWILIO_ACCOUNT_SID: 'x', TWILIO_AUTH_TOKEN: 'y', CALLROOM: {}, VOICE_KEY: 'k', AI: {}, SEND_MAIL: {} };
   await DB.prepare('CREATE TABLE IF NOT EXISTS health_slow (name TEXT PRIMARY KEY, at TEXT, ok INTEGER, why TEXT)').run();
   const at = new Date().toISOString();
   await DB.prepare("INSERT INTO health_slow (name, at, ok, why) VALUES ('backup', ?1, 0, 'late'), ('google-connections', ?1, 0, 'one owner'), ('twilio-numbers', ?1, 1, '')").bind(at).run();

@@ -9,7 +9,7 @@ done from the Mac in the GatesHQ folder, the Cloudflare dashboard, or the GitHub
 | Thing | Where | What it does |
 | --- | --- | --- |
 | The Worker | Cloudflare, `alwaysopenoffice.com` | The website, the owner app (`/app/<code>`), Max's webhooks, every check and cron |
-| The database | Cloudflare D1, `alwaysopen` | Everything. 30 days of point-in-time restore built in |
+| The databases | Cloudflare D1: `alwaysopen-biz` (binding `DB`) and `alwaysopen` (binding `HQDB`) | The business tables (clients, calls, leads, billing, every check) are in `alwaysopen-biz`. Gates HQ's own data is in `alwaysopen`. See `wrangler.toml`. Each has 30 days of point-in-time restore built in |
 | Max's calls | Twilio ConversationRelay, one CallRoom (Durable Object) per live call | Speech in and out; Claude thinks, Workers AI is the backup |
 | The iPhone app | App Store (Always Open Office), source in `alwaysopen-ios` | Talks to the Worker with the owner's link code |
 | Deploys | GitHub Actions on every push to `main` | Tests, phone check, deploy, live check, rollback, alert-email check |
@@ -20,7 +20,7 @@ done from the Mac in the GatesHQ folder, the Cloudflare dashboard, or the GitHub
 Set on the Worker with `wrangler secret put <NAME>` from the Mac, or with the `Set ... key.command` files in GatesHQ.
 `LEADS_KEY` (the ops key: /health detail, /ops routes, the deploy's checks; also a GitHub Actions secret), `VOICE_KEY`
 (Max's webhook addresses), `NTFY_URL` (your phone), `IP_SALT`, `ANTHROPIC_API_KEY`, `TWILIO_ACCOUNT_SID`,
-`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `LOB_KEY` (mailed letters, set with `Set Lob key.command`), `NTFY_TOKEN` (the paid ntfy account's access token, set with `Set ntfy token.command`), `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SID`, `LOB_KEY` (mailed letters, set with `Set Lob key.command`), `NTFY_TOKEN` (the ntfy account's access token, set with `Set ntfy token.command`), `STRIPE_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `PLACES_KEY`, `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `META_*`. GitHub holds
 `CLOUDFLARE_API_TOKEN` and `LEADS_KEY`. Plain settings (towns, counties, renewals, the sending address) are in
 `wrangler.toml`.
@@ -107,7 +107,7 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 | `cron:missed-texts` | The sweep for texts that missed the site could not read Twilio | Twilio status; it tries again in 10 minutes |
 | `drill` | The 4 AM test call to Max failed twice | The call on the ops board (calls from the test number on Always Open's line); Claude's status; the voice log |
 | `max-backup` | Claude failed two checks in a row, so every call is on the backup model | console.anthropic.com (credits, status); it switches back by itself when Claude answers |
-| `line-cap:<client>` | 120 minutes in a day on one line | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
+| `line-cap:<client>` | 120 minutes or 80 calls in a day on one line | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
 | `quiet-line:<client>` | A busy line had no calls for a week | Twilio number webhook, then ask the owner about forwarding |
 | `quiet-profile:<client>` | A profile's reviews stopped | The owner's reconnect card, then the profile's managers in Google |
 | `deploy` | A deploy failed or rolled back | The Actions tab; the alert says which check failed |
@@ -118,10 +118,10 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 | `hear-max` | The Hear Max call left no recording, or saving it failed | Open the Hear Max page from the ops board and call again |
 | `photo-post` | A client’s photo could not be turned into a post after 3 tries | Open the photo link in the alert and write the post by hand in HQ |
 
-The same problem alerts at most once every 3 hours, with a count of the ones held back. From 10 PM to 7 AM Eastern
+A problem that stays broken (`health:`, `cron:` and `crash:` alerts) alerts at most once a day, with a count of the ones held back; once its check passes again, a new break can alert after 3 hours. Things that happen (a dispute, a failed text, a line cap) alert at most once every 3 hours, counted separately for each client (`src/ops.js`). From 10 PM to 7 AM Eastern
 every push arrives silently (no sound, no buzz) and the 7 AM push lists what came overnight; the email goes either way.
 Loud at night only: a number that no longer reaches us (`health:twilio-numbers`) and Twilio about to run out of money.
-A 7 AM push says "all good" every morning; if it does not arrive, that is itself the alarm, and the outside monitor
+The 7 AM push says "all good" only when the checks are green, last night's test call passed, no background job is failed or stalled, and Max is not on his backup model; otherwise its title names the first thing wrong and it comes at high priority. It arrives every morning; if it does not arrive, that is itself the alarm, and the outside monitor
 backs it up. Plain `/health` (what the outside monitor reads) only goes red for the site, the database, the keys, the
 10-minute jobs and the phone numbers; `/health?all=1` shows everything, as the ops board does.
 
@@ -138,7 +138,7 @@ still take the tab and at most one more tap, and Max stays under 4,200 px closed
 
 ## What Max says about himself
 
-Every call opens with the disclosure in `src/disclosure.js` ("I'm an S.I. assistant, and this call may be recorded."),
+Every call opens with the disclosure in `src/disclosure.js` ("I'm an automated assistant, and this call may be recorded."),
 the one place that sentence lives: the line and the owner's app both read it. An owner's own greeting is played as they
 wrote it when it already says both things (an assistant of some kind, and that calls are recorded); otherwise the
 disclosure goes in after their first sentence. A greeting that says Max is not an AI, claims to be a person, or says
@@ -306,7 +306,7 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   policy at `/do-not-call` (public/do-not-call.html). Its promise of training means: read it before working on Outreach.
 - Never: cell phones, home lines, unknown or unlisted caller IDs, toll-free, hospitals, clinics, doctors, care homes,
   schools, police, fire, 911 and other emergency lines (`SENSITIVE`), area codes in California, Florida, Indiana,
-  Minnesota and Oklahoma, and in the eight states with their own do-not-call lists (Colorado, Louisiana, Massachusetts,
+  Minnesota, Oklahoma and Washington, and in the eight states with their own do-not-call lists (Colorado, Louisiana, Massachusetts,
   Missouri, Pennsylvania, Tennessee, Texas, Wyoming) (`BLOCKED_STATES`), weekends, outside 9 to 5 where the number is, a number this client called
   in the last 30 days, a number any client called in the last 7, anyone who said stop (for every client, including a
   business that calls the line back and says "take us off your list"), an ended client or a paused line.
@@ -316,6 +316,23 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
   gets one push with a link to `/ops/outreach-review?id=...` (ops board token or cookie): Approve lets it call, Reject
   calls nobody. `/ops/outreach-review` with no id lists what is waiting.
 - Stop everything now: `UPDATE billing_config SET v = '0' WHERE k = 'outreach_enabled'`.
+
+## Before about 30 clients
+
+Every 10-minute tick runs all the jobs in one invocation, and they share one budget of calls to the database and to
+outside services. The Nov 24, 2026 audit measured about 13 database queries per client per tick, on top of a base of
+about 220 to 470. So past roughly 35 to 60 clients, jobs start being dropped without a failure row. The `jobs` check
+in the full health, the ops board and the 7 AM push will show a job that stopped being stamped, but only after the fact.
+What to do then: split the job list across two cron triggers (in `wrangler.toml` and the `scheduled()` handler), and
+replace the per-client queries with one query per job.
+
+## After changing STRIPE_KEY
+
+Run the Stripe setup route (`POST /billing/setup` with the ops key in `x-key`) so the customer portal settings are made
+again under the new key, then watch for a `stripe-webhook` alert. The route keeps the webhook it already has on record
+(`billing_config` `webhook_id`) and only makes a new one when none is recorded. So if the new key belongs to a different
+Stripe account, the webhook there must be made too, and `STRIPE_WEBHOOK_SECRET` updated to match, or `stripe-webhook`
+alerts will follow.
 
 ## How to roll back a deploy
 
@@ -337,7 +354,7 @@ Tightened the same afternoon, after Christopher asked whether it met the commerc
 
 Push a commit that makes `serve()` in `src/index.js` return `crashResponse(path)` first thing for everything except
 `/voice/`, `/health` and `/app/`. Visitors see "Something went wrong on our side, call (706) 460-2226"; callers still
-get Max or the fallback. The deploy's live check looks for page text on `/` and `/insurance`, so it WILL roll this back:
+get Max or the fallback. The deploy's live check reads `/health?core=1` and looks for page text on `/`, `/insurance`, the demo app page, `/dental` and `/start`, so it WILL roll this back:
 run the deploy with that check's page list emptied in `.github/workflows/deploy.yml` (same commit), and put it back when
 you revert.
 
@@ -352,13 +369,15 @@ ran; `POST` runs one now. How to restore, and the drill that proves it, is in `d
 Cloudflare (the Worker, D1, Email Routing; domain `alwaysopenoffice.com` renews Oct 24, 2027), Twilio (prepaid
 balance: auto-recharge on, the Worker warns at $25 and $10), Anthropic (API credits: the Worker warns when a call is
 refused for credit), Apple Developer Program (Oct 7, 2027), Google Cloud (Places key, OAuth: keep the consent screen
-published), Stripe (nothing to renew), ntfy (paid plan), Lob (mailed letters: pay per letter, card on file), the outside uptime monitor (free account, watches
+published), Stripe (nothing to renew), ntfy (check in the ntfy app which plan the account is on; on the free plan pushes stop at 250 a day), Lob (mailed letters: pay per letter, card on file), the outside uptime monitor (free account, watches
 `/health`). The Worker reminds you 30, 7 and 1 days before each date in `RENEWALS` in `wrangler.toml`.
 
 ## If you cannot be reached
 
 Email alerts go to `MAIL_TO` in `wrangler.toml`. Add a second address there if someone else should get them, and
 give them this file.
+
+A high-priority push that has not reached your phone within 10 minutes also goes as a text to `OPS_TEXT_TO`, between 8 AM and 9 PM Eastern only (a loud one, Max unreachable or money out, goes at any hour). See `src/push.js`.
 
 ## What you control, on the website (Nov 11, 2026)
 
@@ -419,5 +438,5 @@ either way), and the web wording differs in small places (for example "Gap betwe
    the first owner who taps Connect finds out, and if it is not, the app shows "Coming soon" for a day. The website's
    What you control list leaves card payments out until that is confirmed.
 
-Found on the way (Nov 12): the ntfy account is a free one, 250 pushes a day, and it reached 0 left on the night of
-Nov 11 (push_meta `account`). That, not a bad token, was the 429. Pushes then wait for the Mac relay or the next day.
+Found on the way (Nov 12): the ntfy account looked like a free one, 250 pushes a day, and it reached 0 left on the night of
+Nov 11 (push_meta `account`). Which plan the account is on needs checking in the ntfy app; on the free plan pushes stop at 250 a day. That, not a bad token, was the 429. Pushes then wait for the Mac relay or the next day.

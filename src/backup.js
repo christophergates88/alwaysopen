@@ -10,14 +10,17 @@ export const TABLES = ['app_clients', 'app_staff', 'app_locations', 'voice_lines
   'sms_brands', 'a2p_reg', 'biz_stripe', 'app_settings', 'biz_msgs', 'mail_suppress', 'lead_keys', 'audit_sends',
   // Outreach: who signed what, every do-not-call request and every call (the Telemarketing Sales Rule wants five years).
   // Not the copy of the national Do Not Call list (dnc_slices): it is reloaded from the FTC, and never leaves the database.
-  'outreach_terms', 'outreach_optout', 'outreach_webstop', 'outreach_calls', 'outreach_lists', 'outreach_pitch', 'outreach_review'];
+  'outreach_terms', 'outreach_optout', 'outreach_webstop', 'outreach_calls', 'outreach_lists', 'outreach_pitch', 'outreach_review',
+  // Nov 24, 2026: business tables an owner would miss (the big log tables, billing_config, voice_log, sms_log, app_photos, line_audio and hear_max stay out).
+  'outcalls', 'outcall_prefs', 'answer_prefs', 'app_jobs', 'max_timecards', 'fullmax', 'social_posts', 'mail_queue', 'provision', 'rival_list', 'rival_profile'];
 // Columns that open something (an owner's app link) never leave the database, even in a backup. A restored client
 // gets a new link from HQ; the app keeps only a hash of the code anyway (app_clients.code_hash).
-export const SECRET_COLUMNS = { billing: ['code'], a2p_reg: ['form'] };   // the texting form can hold an EIN for a moment
+export const SECRET_COLUMNS = { billing: ['code'], a2p_reg: ['form'], mail_queue: ['token'] };   // the texting form can hold an EIN for a moment
 const ready = new WeakSet();
 async function ensure(env) {
   if (ready.has(env.DB)) return;
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS backup_runs (week TEXT PRIMARY KEY, at TEXT, bytes INTEGER, where_ TEXT, tables INTEGER, rows INTEGER)').run();
+  try { await env.DB.prepare("ALTER TABLE backup_runs ADD COLUMN failed TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
   ready.add(env.DB);
 }
 export function isoWeek(now) {
@@ -25,17 +28,17 @@ export function isoWeek(now) {
   const y = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
   return d.getUTCFullYear() + '-W' + String(1 + Math.round(((d - y) / 864e5 - 3 + ((y.getUTCDay() + 6) % 7)) / 7)).padStart(2, '0');
 }
-// Every table as JSON lines: one {table, row} per line, so a restore can stream it. Tables that don't exist are skipped.
+// Every table as JSON lines: one {table, row} per line, so a restore can stream it. A table that does not exist yet (the code makes many on first use) is skipped; one whose SELECT fails any other way is listed in `failed`.
 export async function dump(env) {
-  const parts = []; let tables = 0, rows = 0;
+  const parts = [], failed = []; let tables = 0, rows = 0;
   for (const t of TABLES) {
     let res;
-    try { res = await env.DB.prepare('SELECT * FROM ' + t).all(); } catch (e) { continue; }
+    try { res = await env.DB.prepare('SELECT * FROM ' + t).all(); } catch (e) { if (!/no such table/i.test(String((e && e.message) || e))) failed.push(t); continue; }
     tables++;
     const drop = SECRET_COLUMNS[t] || [];
     for (const r of (res.results || [])) { rows++; for (const c of drop) delete r[c]; parts.push(JSON.stringify({ table: t, row: r })); }
   }
-  return { text: parts.join('\n') + '\n', tables, rows };
+  return { text: parts.join('\n') + '\n', tables, rows, failed };
 }
 export async function gzip(text) {
   const cs = new CompressionStream('gzip');
@@ -47,6 +50,7 @@ export async function runBackup(env, now, h) {
   now = now || Date.now();
   await ensure(env);
   const d = await dump(env);
+  const failed = (d.failed || []).join(', ');
   const gz = await gzip(d.text);
   const name = 'alwaysopen-' + new Date(now).toISOString().slice(0, 10) + '.jsonl.gz';
   let where = '';
@@ -59,7 +63,7 @@ export async function runBackup(env, now, h) {
       'Message-ID: <' + crypto.randomUUID() + '@' + (env.MAIL_FROM.split('@')[1] || 'localhost') + '>', 'Date: ' + new Date(now).toUTCString(), 'MIME-Version: 1.0',
       'Content-Type: multipart/mixed; boundary="' + boundary + '"', '', '--' + boundary, 'Content-Type: multipart/alternative; boundary="' + boundary + 'a"', '',
       '--' + boundary + 'a', 'Content-Type: text/plain; charset=utf-8', '',
-      'The weekly copy of the Always Open data: ' + d.tables + ' tables, ' + d.rows + ' rows, ' + Math.round(gz.length / 1024) + ' KB. Keep this email. How to restore from it is in docs/restore.md in the repo. Turn on R2 in Cloudflare and these go to a bucket instead.', '',
+      'The weekly copy of the Always Open data: ' + d.tables + ' tables, ' + d.rows + ' rows, ' + Math.round(gz.length / 1024) + ' KB. Keep this email. How to restore from it is in docs/restore.md in the repo. Turn on R2 in Cloudflare and these go to a bucket instead.' + (failed ? ' NOT IN THIS COPY (could not be read): ' + failed + '.' : ''), '',
       '--' + boundary + 'a', 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '',
       b64(new TextEncoder().encode(neonEmail({ tone: 'ok', sign: 'BACKED UP', title: 'This week\'s copy of the Always Open data is attached', who: 'backups',
         doThis: ['Keep this email. Nothing else to do.'], stats: [{ n: String(d.tables), label: 'tables' }, { n: String(d.rows), label: 'rows' }, { n: Math.round(gz.length / 1024) + ' KB', label: 'size' }],
@@ -72,8 +76,10 @@ export async function runBackup(env, now, h) {
   } else {
     where = 'nowhere: no R2 bucket bound and no email';
   }
-  await env.DB.prepare('INSERT OR REPLACE INTO backup_runs (week, at, bytes, where_, tables, rows) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(isoWeek(now), new Date(now).toISOString(), gz.length, where, d.tables, d.rows).run();
-  return { week: isoWeek(now), bytes: gz.length, where, tables: d.tables, rows: d.rows };
+  await env.DB.prepare('INSERT OR REPLACE INTO backup_runs (week, at, bytes, where_, tables, rows, failed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(isoWeek(now), new Date(now).toISOString(), gz.length, where, d.tables, d.rows, failed).run();
+  // The copy still went out; but a table left out is said out loud, and the backup health check goes red until a full one runs.
+  if (failed) { try { await (h && h.alert ? h.alert('backup', '', 'The weekly backup left out: ' + failed) : (await import('./ops.js')).opsAlert(env, 'backup', '', 'The weekly backup left out these tables because they could not be read: ' + failed + '. The rest was saved.')); } catch (e) { /* the run is marked */ } }
+  return { week: isoWeek(now), bytes: gz.length, where, tables: d.tables, rows: d.rows, failed: d.failed || [] };
 }
 // Sundays between 3 and 5 AM Eastern (7 to 9 UTC in summer, 8 to 10 in winter): once a week.
 export async function backupCron(env, now, h) {
@@ -87,5 +93,5 @@ export async function backupCron(env, now, h) {
 }
 export async function lastBackup(env) {
   await ensure(env);
-  return env.DB.prepare('SELECT week, at, bytes, where_, tables, rows FROM backup_runs ORDER BY at DESC LIMIT 1').first();
+  return env.DB.prepare('SELECT week, at, bytes, where_, tables, rows, failed FROM backup_runs ORDER BY at DESC LIMIT 1').first();
 }

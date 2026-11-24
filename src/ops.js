@@ -92,12 +92,34 @@ export async function ensureRuns(env) {
 export async function noteRun(env, name, ok, ms, note) {
   try { await ensureRuns(env); await env.DB.prepare('INSERT OR REPLACE INTO cron_runs (name, at, ms, ok, note) VALUES (?1, ?2, ?3, ?4, ?5)').bind(name, new Date().toISOString(), Math.round(ms || 0), ok ? 1 : 0, scrub(one(note)).slice(0, 200)).run(); } catch (e) { /* the run still counts */ }
 }
-export function watched(env, name, p) {
+// Nov 24, 2026: a job that never settles used to leave no trace (its old good row stayed). Now it is raced against a timer.
+export const JOB_TIMEOUT_MS = 4 * 60000;
+export function watched(env, name, p, timeoutMs) {
   const t0 = Date.now();
-  return Promise.resolve(p)
+  let timer, over = false;
+  const late = new Promise((_, no) => { timer = setTimeout(() => { over = true; no(new Error('timed out')); }, timeoutMs || JOB_TIMEOUT_MS); });
+  return Promise.race([Promise.resolve(p), late])
     // A good run clears the job's alert, so a later new break is said after 3 hours, not held a day.
-    .then(r => noteRun(env, name, true, Date.now() - t0, '').then(() => clearAlert(env, 'cron:' + name)).then(() => r))
-    .catch(e => noteRun(env, name, false, Date.now() - t0, (e && e.message) || e).then(() => opsAlert(env, 'cron:' + name, '', (e && e.message) || e)));
+    .then(r => { clearTimeout(timer); return noteRun(env, name, true, Date.now() - t0, '').then(() => clearAlert(env, 'cron:' + name)).then(() => r); })
+    .catch(e => { clearTimeout(timer); return noteRun(env, name, false, Date.now() - t0, (e && e.message) || e).then(() => opsAlert(env, 'cron:' + name, '', over ? 'timed out after ' + Math.round((timeoutMs || JOB_TIMEOUT_MS) / 60000) + ' minutes' : (e && e.message) || e)); });
+}
+// Jobs stamped only on Sundays (the weekly cron); every other job is stamped by every 10-minute tick.
+export const WEEKLY_JOBS = new Set(['silence', 'rivals', 'maxweek', 'radar', 'board']);
+export const JOB_STALE_MS = 40 * 60000, WEEKLY_STALE_MS = 9 * 864e5;
+// Jobs that need a look: the last run failed, or the row stopped being stamped while its neighbours are fresh (a job that
+// hung or was starved leaves its old good row behind). If nothing at all is fresh, the "cron" check says so, not this one.
+export function jobsProblems(runs, now) {
+  now = now || Date.now();
+  const rows = (runs || []).filter(r => r && r.name);
+  const age = r => now - Date.parse(r.at);
+  const ticking = rows.some(r => !WEEKLY_JOBS.has(r.name) && age(r) < JOB_STALE_MS);
+  const out = [];
+  for (const r of rows) {
+    const weekly = WEEKLY_JOBS.has(r.name);
+    if (!r.ok) out.push({ name: r.name, why: 'failed' + (r.note ? ': ' + one(r.note).slice(0, 80) : '') });
+    else if (weekly ? age(r) > WEEKLY_STALE_MS : (ticking && age(r) > JOB_STALE_MS)) { const m = Math.round(age(r) / 60000); out.push({ name: r.name, why: 'last ran ' + (m < 120 ? m + ' minutes' : m < 2880 ? Math.round(m / 60) + ' hours' : Math.round(m / 1440) + ' days') + ' ago' }); }
+  }
+  return out;
 }
 // The last run of every job, newest first.
 export async function cronRuns(env) {
@@ -168,10 +190,12 @@ export async function slowChecks(env, h) {
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.VOICE_KEY) {
     try {
       const lines = ((await env.DB.prepare('SELECT number, business, transfer_to FROM voice_lines WHERE on_air = 1').all()).results) || [];
-      const wrong = [], fixed = [], unknown = [];
+      const wrong = [], fixed = [], unknown = []; let refused = false;
       for (const l of lines) {
         if (/555-?01\d\d$|55501\d\d$/.test(l.number)) continue;   // the demo's made-up number
         const r = await f('https://api.twilio.com/2010-04-01/Accounts/' + env.TWILIO_ACCOUNT_SID + '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(l.number), { headers: { authorization: 'Basic ' + btoa(env.TWILIO_ACCOUNT_SID + ':' + env.TWILIO_AUTH_TOKEN) } });
+        // Nov 24, 2026: a 401 or 403 is Twilio refusing our key (token rotated there and not here): every call would be refused. Not a hiccup.
+        if (r.status === 401 || r.status === 403) { refused = true; break; }
         if (!r.ok) { unknown.push(l.business || l.number); continue; }   // Twilio had a moment: not the number's fault
         const j = await r.json().catch(() => ({}));
         const pn = j.incoming_phone_numbers && j.incoming_phone_numbers[0];
@@ -198,13 +222,19 @@ export async function slowChecks(env, h) {
         const ping = h.ping || (async (t, b) => (await import('./app.js')).opsPing(env, t, b, 'default', 'wrench'));
         await ping('Always Open: pointed ' + (fixed.length === 1 ? 'a number' : fixed.length + ' numbers') + ' back at Max', 'Found pointing somewhere else and fixed: ' + fixed.join(', ') + '. Nothing for you to do. If you changed it on purpose in the Twilio console, take that line off the air first, or the hourly check will put it back.');
       }
-      out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : (unknown.length ? 'Twilio did not answer for ' + unknown.length + (unknown.length === 1 ? ' number' : ' numbers') + '; checked again next hour' : '') });
+      if (refused) out.push({ name: 'twilio-numbers', ok: false, why: 'Twilio refused our key. Calls will not be answered until the Twilio token on the Worker is updated.' });
+      else out.push({ name: 'twilio-numbers', ok: !wrong.length, why: wrong.length ? 'Max is not reachable the usual way on: ' + wrong.join(', ') : (unknown.length ? 'Twilio did not answer for ' + unknown.length + (unknown.length === 1 ? ' number' : ' numbers') + '; checked again next hour' : '') });
     } catch (e) { out.push({ name: 'twilio-numbers', ok: false, why: 'could not read the numbers from Twilio' }); }
   }
   // Backups: one in the last 8 days (backup.js), once the first one has run.
   try {
     const b = await (await import('./backup.js')).lastBackup(env);
-    if (b) out.push({ name: 'backup', ok: Date.now() - Date.parse(b.at) < 8 * 864e5 && !/nowhere/.test(b.where_ || ''), why: /nowhere/.test(b.where_ || '') ? 'the last backup had nowhere to go: no R2 bucket and no email' : 'the last backup was ' + Math.round((Date.now() - Date.parse(b.at)) / 864e5) + ' days ago' });
+    if (b) out.push({ name: 'backup', ok: Date.now() - Date.parse(b.at) < 8 * 864e5 && !/nowhere/.test(b.where_ || '') && !b.failed, why: b.failed ? 'the last backup left out these tables: ' + b.failed : /nowhere/.test(b.where_ || '') ? 'the last backup had nowhere to go: no R2 bucket and no email' : 'the last backup was ' + Math.round((Date.now() - Date.parse(b.at)) / 864e5) + ' days ago' });
+    else {
+      // Nov 24, 2026: with no backup row at all this was never red. Once the system is more than 8 days old, none yet is a failure.
+      const first = await env.DB.prepare('SELECT MIN(at) AS at FROM cron_runs').first().catch(() => null);
+      if (first && first.at && Date.now() - Date.parse(first.at) > 8 * 864e5) out.push({ name: 'backup', ok: false, why: 'no backup has ever run, and this system is more than 8 days old' });
+    }
   } catch (e) { /* not yet */ }
   // Google: no connection that Google refused is waiting on an owner (connections.js), and none has gone unchecked for two days.
   try {
@@ -256,7 +286,15 @@ export async function healthStatus(env, now, mode) {
   const age = await cronAge(env, now);
   // No tick on record yet (a fresh database, or the minute after a deploy) is not a failure; a stale one is.
   const cron = { name: 'cron', ok: age == null || age < CRON_LATE_MS, why: age == null ? 'no cron tick recorded yet' : 'the 10-minute cron last finished ' + Math.round(age / 60000) + ' minutes ago' };
-  const all = mode === true ? res : res.concat([cron]);
+  // Full health only (ops board, 7 AM push): a failed or silently stalled job. Never in plain /health or ?core=1, which the deploy and the outside monitor read.
+  let jobs = [];
+  if (mode === false || mode === undefined) {
+    let bad = []; try { bad = jobsProblems(await cronRuns(env), now); } catch (e) { bad = []; }
+    jobs = [{ name: 'jobs', ok: !bad.length, why: bad.length ? 'Needs a look: ' + bad.map(b => b.name + ' (' + b.why + ')').join(', ') : '' }];
+  }
+  // The 'email' check only proves the operator-only binding. Every prospect and client email goes through SEND_MAIL.
+  if (mode === false || mode === undefined) jobs.push({ name: 'send-mail', ok: !!env.SEND_MAIL, why: 'The email connection for prospects and clients (SEND_MAIL) is missing, so audits, follow-ups and reports are not being emailed' });
+  const all = mode === true ? res : res.concat([cron], jobs);
   return { ok: all.every(c => c.ok), checks: all, cronAge: age };
 }
 export async function healthDetail(env) {

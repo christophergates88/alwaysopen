@@ -22,7 +22,7 @@ test('sent once in the 7 AM hour, with the counts from the database', async () =
 
 test('a red check leads the message', () => {
   const t = morningText({ ok: false, checks: [{ name: 'stripe', ok: false }, { name: 'cron', ok: false }] }, { calls: 0, leads: 0, drafts: 0, booked: 2, errors: 4 });
-  assert.equal(t.title, 'Always Open: 2 things need you');
+  assert.equal(t.title, "Always Open: Payments can't be checked (and 1 more)");   // Nov 24: the title names the first thing wrong
   assert.equal(t.body, "Needs you: Payments can't be checked; Always Open's background jobs stopped. Yesterday: 0 calls, 0 leads, 2 jobs booked, 4 errors. 0 drafts waiting for owners.");
   assert.deepEqual(eastern(Date.parse('2026-12-15T12:05:00Z')), { day: '2026-12-15', hour: 7 }, 'standard time: 12:05 UTC is 7:05 AM Eastern');
 });
