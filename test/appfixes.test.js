@@ -308,7 +308,7 @@ test('12. the booking page texts nobody until that number texts in; a business h
     assert.deepEqual((await all("SELECT consent, auto_conf FROM app_followups WHERE by = 'Booking page' ORDER BY id")).map(r => [r.consent, r.auto_conf]), [[0, 'wait:text'], [0, 'wait:text']]);
     await inbound(env, '+14783655555', 'YES', 50);
     assert.deepEqual(world.texts.map(t => t.To), ['+14783655555'], 'confirmed once they texted in');
-    assert.match(world.texts[0].Body, /^Hi Pat, this is Sinclair Plumbing\. You’re set for /);
+    assert.match(world.texts[0].Body, /^Hi Pat, this is Sinclair Plumbing\. You're set for /);
     await AUTO.autoCron(env);
     assert.equal(world.texts.length, 1, 'the stranger’s number still gets nothing');
     assert.equal((await all("SELECT 1 FROM biz_msgs WHERE thread = '4783655555'")).length, 1, 'their YES is in the inbox too');
@@ -318,7 +318,7 @@ test('12. the booking page texts nobody until that number texts in; a business h
     await q("INSERT INTO fillweek_runs (id, client_id, day, created) VALUES (1, 'c1', ?1, ?2)", fday, new Date().toISOString());
     await q("INSERT INTO fillweek_offers (run_id, client_id, phone10, name, day, status, at) VALUES (1, 'c1', '4783657000', 'Lee Fill', ?1, 'sent', ?2)", fday, new Date().toISOString());
     await inbound(env, '+14783657000', 'Yes', 60);
-    assert.deepEqual(world.texts.filter(t => t.To === '+14783657000').map(t => t.Body.slice(0, 40)), ['Hi Lee, this is Sinclair Plumbing. You’r']);
+    assert.deepEqual(world.texts.filter(t => t.To === '+14783657000').map(t => t.Body.slice(0, 40)), ["Hi Lee, this is Sinclair Plumbing. You'r"]);
   } finally { globalThis.fetch = harness; }
   // A day's ceiling per business on automatic texts (an hour's ceiling already existed); what the owner types still goes.
   const earlier = new Date(Date.now() - 3 * 3600e3).toISOString();

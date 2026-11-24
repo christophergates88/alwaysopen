@@ -308,7 +308,32 @@ async function callOptedOut(env, cid, phone) {
   const a = await env.DB.prepare('SELECT 1 AS x FROM call_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, p10).first().catch(() => null);
   if (a) return true;
   const b = await env.DB.prepare('SELECT 1 AS x FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 AND optout = 1').bind(cid, p10).first().catch(() => null);
-  return !!b;
+  if (b) return true;
+  // Nov 24, 2026: a STOP text stops Max's calls too (it used to leave the confirm call going). A START text later never
+  // clears this: stopBoth wrote the call list as well.
+  const c = await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, p10).first().catch(() => null);
+  return !!c;
+}
+// Nov 24, 2026: a stop in one channel is a stop in both. A STOP text left Max's calls going, and "stop" said on a call left
+// the reminder texts going (customers added by booking have no biz_customers row to carry it). Either stop writes both
+// lists and closes the consent on that number's open follow-ups, so nothing already queued goes out. A START text
+// re-opens texts only (sms.js); nothing a customer texts clears the call list.
+export async function stopBoth(env, cid, phone, at) {
+  const p10 = ph10(phone), t = at || new Date().toISOString();
+  if (!cid || !p10) return;
+  for (const tb of ['call_optout', 'sms_optout']) {
+    try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS ' + tb + ' (client_id TEXT NOT NULL, phone10 TEXT NOT NULL, at TEXT, PRIMARY KEY (client_id, phone10))').bind().run(); } catch (e) { /* already there */ }
+    try { await env.DB.prepare('INSERT OR REPLACE INTO ' + tb + ' (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, p10, t).run(); } catch (e) { /* the other list still holds */ }
+  }
+  try { await env.DB.prepare("UPDATE app_followups SET consent = 0 WHERE client_id = ?1 AND status = 'open' AND consent = 1 AND substr(replace(replace(replace(replace(replace(replace(COALESCE(phone, ''), '(', ''), ')', ''), '-', ''), ' ', ''), '+', ''), '.', ''), -10) = ?2").bind(cid, p10).run(); } catch (e) { /* the lists above still stop it */ }
+}
+// The number a customer can call the business back on, for Max to say: the business's own phone from its map card, else
+// the line Max calls from. '' when neither is a real number.
+export async function reachPhone(env, cid) {
+  const m = await env.DB.prepare('SELECT phone FROM map_listing WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  if (m && /^[2-9]\d{2}[2-9]\d{6}$/.test(ph10(m.phone))) return ph10(m.phone);
+  const l = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null);
+  return l ? ph10(l.number) : '';
 }
 // No outbound call between 9 PM and 8 AM: in the business's zone, and in the customer's own (by their area code) when that
 // is a different one. Area codes that cross a zone line are checked on both sides.
@@ -359,16 +384,20 @@ export async function outboundTwiml(env, url, form) {
   const id = +url.searchParams.get('id') || 0, kind = url.searchParams.get('k') || 'reset', newText = String(url.searchParams.get('n') || '').slice(0, 60);
   const row = id ? await env.DB.prepare('SELECT c.*, l.business, l.regulated FROM callbacks c LEFT JOIN voice_lines l ON l.client_id = c.client_id WHERE c.id = ?1').bind(id).first() : null;
   if (!row || +row.regulated) return xml('<Hangup/>');
+  // Nov 24, 2026: every call to a customer says, once, a number to reach the business on (person or answering machine),
+  // read digit by digit the way Outreach reads its call-back number; and the owner is "the owner" or "they", never "he".
+  const rp = await reachPhone(env, row.client_id), { speakPhone } = await import('./outreach.js');
+  const reach = rp ? 'You can reach ' + xa(row.business || 'the business') + ' at ' + speakPhone(rp) + '. ' : '';
   if (String(form.get('AnsweredBy') || '').startsWith('machine')) {
     await env.DB.prepare("UPDATE callbacks SET last_result = 'voicemail' WHERE id = ?1").bind(id).run().catch(() => {});
-    return xml('<Say>Hello, this is Max, the automated assistant for ' + xa(row.business) + '. He got held up and could not call when he said. He will try you again as soon as he is free. Sorry about that. Goodbye.</Say><Hangup/>');
+    return xml('<Say>Hello, this is Max, the automated assistant for ' + xa(row.business) + '. The owner got held up and could not call when they said. They will try you again as soon as they are free. Sorry about that. ' + reach + 'Goodbye.</Say><Hangup/>');
   }
-  const first = (row.name ? 'Hi ' + xa(row.name.split(' ')[0]) + '. ' : 'Hi. ') + 'This is Max, the automated assistant for ' + xa(row.business) + '. This call may be recorded. ';
+  const first = (row.name ? 'Hi ' + xa(row.name.split(' ')[0]) + '. ' : 'Hi. ') + 'This is Max, the automated assistant for ' + xa(row.business) + '. This call may be recorded. ' + reach;
   const act = SITE + '/voice/outg/' + env.VOICE_KEY + '?id=' + id + '&k=' + kind;
   if (kind === 'later') {
-    return xml('<Gather input="dtmf speech" numDigits="1" timeout="5" action="' + xa(act) + '" method="POST"><Say>' + first + 'He needs about thirty more minutes, so he will call you at ' + xa(newText || 'the new time') + '. If that does not work, press 2. If you would rather not get calls like this, press 9. Otherwise, that is all. Thank you.</Say></Gather><Say>Thank you. Goodbye.</Say><Hangup/>');
+    return xml('<Gather input="dtmf speech" numDigits="1" timeout="5" action="' + xa(act) + '" method="POST"><Say>' + first + 'The owner needs about thirty more minutes, so they will call you at ' + xa(newText || 'the new time') + '. If that does not work, press 2. If you would rather not get calls like this, press 9. Otherwise, that is all. Thank you.</Say></Gather><Say>Thank you. Goodbye.</Say><Hangup/>');
   }
-  return xml('<Gather input="dtmf speech" numDigits="1" timeout="6" action="' + xa(act) + '" method="POST"><Say>' + first + 'He got held up and could not call when he said. Can he call you at ' + xa(newText || 'the next time he is free') + '? Press 1 or say yes if that works. Press 2 if you would rather he call as soon as he is free. Press 9 if you do not want any more calls like this.</Say></Gather><Say>Sorry, I did not catch that. He will call you as soon as he can. Goodbye.</Say><Hangup/>');
+  return xml('<Gather input="dtmf speech" numDigits="1" timeout="6" action="' + xa(act) + '" method="POST"><Say>' + first + 'The owner got held up and could not call when they said. Can they call you at ' + xa(newText || 'the next time they are free') + '? Press 1 or say yes if that works. Press 2 if you would rather they call as soon as they are free. Press 9 if you do not want any more calls like this.</Say></Gather><Say>Sorry, I did not catch that. They will call you as soon as they can. Goodbye.</Say><Hangup/>');
 }
 
 // The customer answered: /voice/outg/<key>?id=&k=
@@ -382,6 +411,7 @@ export async function outboundGather(env, url, form) {
   const who = row.name || fmtPhone(row.phone);
   if (stop) {
     await env.DB.prepare('INSERT OR REPLACE INTO call_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(row.client_id, ph10(row.phone), new Date().toISOString()).run();
+    await stopBoth(env, row.client_id, row.phone);   // no more texts either (Nov 24, 2026)
     await env.DB.prepare("UPDATE callbacks SET status = 'optout', last_result = 'asked not to be called' WHERE id = ?1").bind(id).run();
     await pushClient(env, row.client_id, { aps: { alert: { title: who + ' asked not to be called', body: 'Max will not call them again. Call them yourself if you still need to.' }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' }).catch(() => {});
     return xml('<Say>Understood. No more calls like this. Goodbye.</Say><Hangup/>');
@@ -389,20 +419,20 @@ export async function outboundGather(env, url, form) {
   if (no) {
     await env.DB.prepare("UPDATE callbacks SET status = 'asap', last_result = 'wants a call as soon as possible' WHERE id = ?1").bind(id).run();
     await pushClient(env, row.client_id, { aps: { alert: { title: who + ' wants a call as soon as you are free', body: (row.reason || 'They are waiting on you') + '. Tap to see the number.' }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' }).catch(() => {});
-    return xml('<Say>Got it. He will call you as soon as he is free. Thank you. Goodbye.</Say><Hangup/>');
+    return xml('<Say>Got it. The owner will call you as soon as they are free. Thank you. Goodbye.</Say><Hangup/>');
   }
   if (kind === 'later') return xml('<Say>Thank you. Goodbye.</Say><Hangup/>');
   if (yes) {
     await env.DB.prepare("UPDATE callbacks SET status = 'pending', nudged_at = '', last_result = 'agreed to the new time' WHERE id = ?1").bind(id).run();
     const tz = await tzFor(env, row.client_id), l = local(tz, Date.parse(row.due_at));
     await pushClient(env, row.client_id, { aps: { alert: { title: who + ' said ' + sayTime(l.hour, l.minute) + ' works', body: 'Max set it up. You will get a nudge before.' }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' }).catch(() => {});
-    return xml('<Say>Good. He will call you then. Thank you. Goodbye.</Say><Hangup/>');
+    return xml('<Say>Good. The owner will call you then. Thank you. Goodbye.</Say><Hangup/>');
   }
   if (ans === 'unclear' && url.searchParams.get('a') !== '1') {
     const act = SITE + '/voice/outg/' + env.VOICE_KEY + '?id=' + id + '&k=' + kind + '&a=1';
-    return xml('<Gather input="dtmf speech" numDigits="1" timeout="6" action="' + xa(act) + '" method="POST"><Say>Sorry, just so I have it right: press 1 if that time works, or press 2 if you would rather he call as soon as he is free.</Say></Gather><Say>Sorry, I did not catch that. He will call you as soon as he can. Goodbye.</Say><Hangup/>');
+    return xml('<Gather input="dtmf speech" numDigits="1" timeout="6" action="' + xa(act) + '" method="POST"><Say>Sorry, just so I have it right: press 1 if that time works, or press 2 if you would rather they call as soon as they are free.</Say></Gather><Say>Sorry, I did not catch that. The owner will call you as soon as they can. Goodbye.</Say><Hangup/>');
   }
-  return xml('<Say>Sorry, I did not catch that. He will call you as soon as he can. Goodbye.</Say><Hangup/>');
+  return xml('<Say>Sorry, I did not catch that. The owner will call you as soon as they can. Goodbye.</Say><Hangup/>');
 }
 
 export async function outboundStatus(env, url, form) {

@@ -346,7 +346,7 @@ test('8. a call-back time: "sure, no problem" keeps the time instead of becoming
   const w = await mk();
   const id = (await w.DB.prepare("INSERT INTO callbacks (client_id, phone, name, reason, due_at, status, created) VALUES ('c1', '+14785550151', 'Kim', 'Leak', ?1, 'missed', ?1)").bind(new Date(Date.now() + 3600e3).toISOString()).run()).meta.last_row_id;
   const r = await CB.outboundGather(w.env, new URL('https://x/voice/outg/k?id=' + id + '&k=reset'), new URLSearchParams({ SpeechResult: 'Sure, no problem' }));
-  assert.match(await r.text(), /He will call you then/);
+  assert.match(await r.text(), /The owner will call you then/);
   assert.equal((await w.DB.prepare('SELECT status FROM callbacks WHERE id = ?1').bind(id).first()).status, 'pending');
   const r2 = await CB.outboundGather(w.env, new URL('https://x/voice/outg/k?id=' + id + '&k=reset'), new URLSearchParams({ SpeechResult: 'Yes, no, I mean sooner' }));
   assert.match(await r2.text(), /<Gather[^>]*a=1/, 'mixed: asked once more');

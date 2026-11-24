@@ -3,6 +3,8 @@
 // Replies come back through /voice/sms/<key> and land in the owner's inbox; STOP is honored at once.
 // Tables create themselves on first use. Never logs a message body, only its length.
 
+import { stopBoth, callHoursOk } from './callbacks.js';   // callbacks.js imports nothing, so no cycle
+
 export const TEXTING_ON = true;   // the Twilio campaign is approved (Oct 28, 2026)
 const TWILIO = 'https://api.twilio.com/2010-04-01/Accounts/';
 // Carrier keywords count only when they are the whole text ("STOP", "stop.", " Help "), never the first word of a
@@ -64,11 +66,19 @@ function hourIn(tz, now) {
 // Daytime for the customer (8 AM to 9 PM in the business's zone): when texts that aren't an answer may go out.
 export function textDaytime(tz, now) { const h = hourIn(tz, now); return h >= 8 && h < 21; }
 
+// Daytime for the customer by their own area code as well (callHoursOk, the rule calls follow). A zone name the clock
+// can't read is taken as Eastern, as textDaytime does.
+function custDaytime(tz, to10) { try { return callHoursOk(tz || 'America/New_York', Date.now(), to10); } catch (e) { return callHoursOk('America/New_York', Date.now(), to10); } }
+
 async function optedOut(env, cid, p10) {
   const a = await env.DB.prepare('SELECT 1 AS x FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, p10).first().catch(() => null);
   if (a) return true;
   const b = await env.DB.prepare('SELECT 1 AS x FROM biz_customers WHERE client_id = ?1 AND phone10 = ?2 AND optout = 1').bind(cid, p10).first().catch(() => null);
-  return !!b;
+  if (b) return true;
+  // Nov 24, 2026: "stop" said on one of Max's calls stops texts too (the reminder texts used to keep going). A START text
+  // sent after that stop re-opens texts (its time is kept in sms_meta); the call list itself stays.
+  const c = await env.DB.prepare("SELECT 1 AS x FROM call_optout o WHERE o.client_id = ?1 AND o.phone10 = ?2 AND COALESCE(o.at, '') > COALESCE((SELECT v FROM sms_meta WHERE k = ?3), '')").bind(cid, p10, 'optin:' + cid + ':' + p10).first().catch(() => null);
+  return !!c;
 }
 
 async function fromFor(env, cid) {
@@ -98,9 +108,17 @@ export async function setBrand(env, cid, mg, status) {
   await env.DB.prepare('INSERT INTO sms_brands (client_id, messaging_sid, status, updated) VALUES (?1,?2,?3,?4) ON CONFLICT(client_id) DO UPDATE SET messaging_sid = excluded.messaging_sid, status = excluded.status, updated = excluded.updated').bind(cid, mg || '', status || 'pending', new Date().toISOString()).run();
 }
 
+// Nov 24, 2026: one curly apostrophe puts a whole text into 70-character pieces (UCS-2), so a confirmation cost 3
+// segments instead of 1 and a review ask 4 instead of 2. Typographic quotes, dashes, the ellipsis and odd spaces go out
+// as their plain forms. Accented letters are left alone: Spanish has to stay right.
+export function gsmPlain(s) {
+  return String(s == null ? '' : s).replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'").replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, '-').replace(/\u2026/g, '...').replace(/[\u00A0\u2007\u2009\u202F]/g, ' ');
+}
+
 // sendText(env, { clientId, to, body, kind, tz }) -> { ok, sid?, why? }. kind: reply | test | textback | confirm | reminder | revive | invoice | review.
 export async function sendText(env, o) {
-  const cid = String(o.clientId || ''), to10 = ph10(o.to), kind = String(o.kind || 'other'), body = String(o.body || '').trim().slice(0, 1000);
+  const cid = String(o.clientId || ''), to10 = ph10(o.to), kind = String(o.kind || 'other'), body = gsmPlain(o.body).trim().slice(0, 1000);
   // slot: the row reserved for this text under the ceilings (below); the outcome is written on it
   let slot = 0;
   const log = async (status, why, sid) => { try { await ensureSms(env); if (slot) { await env.DB.prepare('UPDATE sms_log SET status = ?1, why = ?2, sid = ?3 WHERE id = ?4').bind(status, why || '', sid || '', slot).run(); return; } await env.DB.prepare('INSERT INTO sms_log (client_id, to10, at, kind, sid, status, why, len) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)').bind(cid, to10, new Date().toISOString(), kind, sid || '', status, why || '', body.length).run(); } catch (e) {} };
@@ -109,7 +127,9 @@ export async function sendText(env, o) {
   if (!to10 || !body || !cid) return { ok: false, why: 'bad number' };
   await ensureSms(env);
   if (await optedOut(env, cid, to10)) { await log('skipped', 'opted out'); return { ok: false, why: 'opted out' }; }
-  if (!ANYTIME.has(kind) && !textDaytime(o.tz)) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; }
+  // Nov 24, 2026: and the customer's own clock, by their area code, the way calls are checked (a Georgia business's
+  // past-customer text used to reach a California cell at 5:10 AM). Held and tried again, like the business's own night.
+  if (!ANYTIME.has(kind) && !(textDaytime(o.tz) && custDaytime(o.tz, to10))) { await log('held', 'after hours'); return { ok: false, why: 'after hours', retry: true }; }
   // The hourly ceiling: something looping can't text hundreds of customers before anyone looks. What an owner types
   // (reply) and tests always go; automatic texts wait for the next hour (checks.js watches the daily totals too).
   // A day's ceiling per business as well, so nothing (a busy public page, a loop) runs one number into the ground.
@@ -228,14 +248,21 @@ export async function handleSms(req, env, form, sigOk) {
   if (key === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO sms_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(cid, from10, now).run();
     await env.DB.prepare('UPDATE biz_customers SET optout = 1, agreed = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
+    await stopBoth(env, cid, from10, now);   // and no more calls from Max, nor anything queued (Nov 24, 2026)
     mark = 'Opted out of texts';
   } else if (key === 'start') {
     await env.DB.prepare('DELETE FROM sms_optout WHERE client_id = ?1 AND phone10 = ?2').bind(cid, from10).run();
+    // texts only: the call list stays as it is (optedOut reads this time against it)
+    await env.DB.prepare('INSERT OR REPLACE INTO sms_meta (k, v) VALUES (?1, ?2)').bind('optin:' + cid + ':' + from10, now).run().catch(() => {});
     await env.DB.prepare('UPDATE biz_customers SET optout = 0, updated = ?1 WHERE client_id = ?2 AND phone10 = ?3').bind(now, cid, from10).run().catch(() => {});
     reply = '<Message>You are back on the list for ' + biz + '. Reply STOP any time to end texts.</Message>';
     mark = 'Back on texts';
   } else if (key === 'help') {
-    reply = '<Message>This is the text line for ' + biz + '. Reply STOP to end texts. Call the business for anything else.</Message>';
+    // Nov 24, 2026: HELP gives a number to reach someone on: the business's own (its map card), else Always Open's.
+    // One segment: plain characters, and the name cut so the whole reply stays inside 160.
+    const mp = await env.DB.prepare('SELECT phone FROM map_listing WHERE client_id = ?1').bind(cid).first().catch(() => null), d = ph10(mp && mp.phone);
+    const call = /^[2-9]\d{2}[2-9]\d{6}$/.test(d) ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : 'Always Open at (706) 460-2226';
+    reply = '<Message>' + gsmPlain('This is the text line for ' + biz.slice(0, 60).trim() + '. For help call ' + call + '. Reply STOP to end texts.') + '</Message>';
     mark = 'Answered automatically';
   }
   // A YES to a Fill my week offer books the time (fillweek.js pushes the owner); the text still lands in the inbox.

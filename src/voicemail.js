@@ -113,30 +113,34 @@ async function takeMissed(env, c, now, h) {
     .bind(c.sid, line.client_id, c.to, iso(Date.parse(c.start) || now), c.from || '', clean(c.name)).run();
   const fresh = now - (Date.parse(c.end || c.start) || now) < TEXTBACK_MS;
   await (h.writeUp || (await import('./voice.js')).voicemailWriteUp)(env, c.sid, said, { textback: fresh });
-  if (rec && said && !/could not be played back|no words we could make out/.test(said)) await dropRecording(env, rec.sid, h);
+  // Nov 24, 2026: deleted once the owner has what there is, the words or "no words we could make out" (a recording with
+  // no clear words used to stay on Twilio for good, though the privacy page says recordings are not kept). Kept only
+  // when it could not be played back at all, since nobody has heard it.
+  if (rec && said && !/could not be played back/.test(said)) await dropRecording(env, rec.sid, h);
   return mark(env, c.sid, 'done', rec ? 'voicemail' : 'no message', rec ? rec.sid : '', tries);
 }
 
 // A call Max had already written up as failed: the voicemail that followed goes to the owner as its own note.
 async function takeAppended(env, row, now, h) {
   const tries = await triesOf(env, row.id);
-  let rec = null, said = '';
+  let rec = null, said = '', heard = false;
   try {
     rec = await recordingOf(env, row.id, h);
     if (!rec) return mark(env, row.id, 'done', 'no voicemail after the failure');
     said = await transcribe(env, rec.sid, h);
+    heard = true;
   } catch (e) {
     if (tries + 1 < MAX_TRIES) { await mark(env, row.id, 'retry', (e && e.message) || e, rec ? rec.sid : '', tries + 1); return 'retry'; }
     said = '';
   }
-  const words = said || 'They left a voicemail that could not be played back. Call them back.';
+  const words = said || (heard ? 'They left a voicemail with no words we could make out. Call them back.' : 'They left a voicemail that could not be played back. Call them back.');
   await env.DB.prepare("UPDATE app_calls SET summary = ?1, details = TRIM(COALESCE(details, '') || ' ' || ?2), hq_synced = 0 WHERE id = ?3")
     .bind(('They left a voicemail: ' + words).slice(0, 600), ('Voicemail: ' + words).slice(0, 2000), row.id).run();
   const app = h.app || await import('./app.js');
   const who = row.caller_name || row.caller || 'a caller';
   if (row.client_id === 'always-open') await app.opsPing(env, 'Always Open: voicemail from ' + who, words.slice(0, 600), 'default', 'telephone_receiver');
   else await app.pushClient(env, row.client_id, { aps: { alert: { title: 'Voicemail from ' + who, body: (words + ' Tap to call back.').slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: row.id }).catch(() => {});
-  if (rec && said) await dropRecording(env, rec.sid, h);
+  if (rec && heard) await dropRecording(env, rec.sid, h);   // words or none: the owner has what there is (Nov 24, 2026)
   return mark(env, row.id, 'done', 'voicemail after the failure', rec ? rec.sid : '', tries);
 }
 

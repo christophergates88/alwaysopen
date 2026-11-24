@@ -1,7 +1,7 @@
 // Review replies: two more versions of a draft to pick from, and review-request emails after a finished job.
 // Every version runs through Compliance Guard before the owner sees it. Nothing is sent until the owner approves it.
 import { guard, mailTo, pushClient } from './app.js';
-import { ensurePast, ckeyOf, ph10 } from './past.js';
+import { ensurePast, ckeyOf, ph10, bizAddress } from './past.js';
 import { logAct } from './biz.js';
 
 const SITE = 'https://alwaysopenoffice.com';
@@ -117,7 +117,10 @@ export async function sendReviewRequest(env, c, it, text) {
   }
   const claim = await env.DB.prepare("UPDATE biz_reviewreq SET status = 'sending' WHERE item_id = ?1 AND status = 'pending'").bind(it.id).run();
   if (!claim.meta.changes) return 'skipped';
-  const footer = '\n\nIf you’d rather not get notes like this from ' + (c.business || 'us') + ', tell us here and we’ll stop: ' + SITE + '/u/' + cu.opt_token;
+  // Nov 24, 2026: the business's postal address at the foot when it has one on file (past.js bizAddress); a review
+  // request still goes without it.
+  const addr = await bizAddress(env, c.client_id).catch(() => '');
+  const footer = '\n\nIf you’d rather not get notes like this from ' + (c.business || 'us') + ', tell us here and we’ll stop: ' + SITE + '/u/' + cu.opt_token + (addr ? '\n' + (c.business ? c.business + ', ' : '') + addr : '');
   let r = 'failed';
   try { r = await mailTo(env, rq.email, 'A quick note from ' + (c.business || 'your service team'), one(text) ? text + footer : it.text + footer, c.business); } catch (e) { r = 'failed'; }
   await env.DB.prepare('UPDATE biz_reviewreq SET status = ?1, result = ?2, sent_at = ?3 WHERE item_id = ?4').bind(r === 'sent' ? 'sent' : 'failed', 'email:' + r, now(), it.id).run();

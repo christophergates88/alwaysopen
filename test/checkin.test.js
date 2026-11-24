@@ -19,7 +19,7 @@ test('a "no" creates an urgent call-back for the owner, a 9 opts them out', asyn
   const mk = () => db({ 'FROM checkins k': { id: 5, client_id: 'c1', phone: '+14785550142', first: 'Linda', job: 'water heater', business: 'Sinclair Plumbing', review_link: '' } });
   let env = { DB: mk() };
   let res = await checkinGather(env, new URL('https://x/voice/cig/k?id=5'), new URLSearchParams({ Digits: '2' }));
-  assert.ok((await res.text()).includes('He will call you himself'));
+  assert.ok((await res.text()).includes('The owner will call you to put it right'));
   assert.ok(env.DB.log.some(s => s.includes('INSERT INTO callbacks')));
   env = { DB: mk() };
   res = await checkinGather(env, new URL('https://x/voice/cig/k?id=5'), new URLSearchParams({ Digits: '9' }));

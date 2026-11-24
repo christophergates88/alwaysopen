@@ -10,7 +10,8 @@
 // or the OK for a call at the finished job. Nobody is asked twice. Every customer call follows the one set of rules in
 // callbacks.js (8 AM to 9 PM for them, automated-and-recorded notice first, "stop" or 9 ends calls for good, two tries,
 // never on regulated lines). Owner switches live in the app under After the call.
-import { dialOut, callOptedOut, tzFor, local, fromLocal, fmtPhone, xml, xa, ensureCallbacks, callHoursOk, readAnswer, lineLive, ph10 } from './callbacks.js';
+import { dialOut, callOptedOut, tzFor, local, fromLocal, fmtPhone, xml, xa, ensureCallbacks, callHoursOk, readAnswer, lineLive, stopBoth, reachPhone, ph10 } from './callbacks.js';
+import { speakPhone } from './outreach.js';   // the one way Max reads a phone number aloud (outreach.js does not import this file)
 const pushClient = async (...a) => { try { return await (await import('./app.js')).pushClient(...a); } catch (e) { return 0; } };
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
 
@@ -169,11 +170,14 @@ export async function outcallTwiml(env, url, form) {
       }
     } catch (e) { /* the words as queued */ }
   }
-  const first = (r.name ? 'Hi ' + xa(r.name.split(' ')[0]) + '. ' : 'Hi. ') + 'This is Max, the automated assistant for ' + biz + '. This call may be recorded. ';
+  // Nov 24, 2026: every call to a customer says, once, a number to reach the business on, to a person or a machine
+  // (the voicemail used to say only "Please call Lane Plumbing").
+  const rp = await reachPhone(env, r.client_id), reach = rp ? 'You can reach ' + biz + ' at ' + speakPhone(rp) + '. ' : '';
+  const first = (r.name ? 'Hi ' + xa(r.name.split(' ')[0]) + '. ' : 'Hi. ') + 'This is Max, the automated assistant for ' + biz + '. This call may be recorded. ' + reach;
   if (machine) {
     await env.DB.prepare("UPDATE outcalls SET result = 'voicemail' WHERE id = ?1").bind(id).run().catch(() => {});
     if (r.kind === 'onway') await env.DB.prepare("UPDATE outcalls SET status = 'done' WHERE id = ?1").bind(id).run().catch(() => {});
-    return xml('<Say>' + first + (r.kind === 'onway' ? xa(r.topic) + '.' : 'Please call ' + biz + ' when you get a chance. Thank you.') + '</Say><Hangup/>');
+    return xml('<Say>' + first + (r.kind === 'onway' ? xa(r.topic) + '.' : 'Please call them back when you get a chance. Thank you.') + '</Say><Hangup/>');
   }
   await env.DB.prepare("UPDATE outcalls SET status = CASE WHEN ?1 = 'onway' THEN 'done' ELSE status END, result = 'answered' WHERE id = ?2").bind(r.kind, id).run().catch(() => {});
   if (r.kind === 'onway') return xml('<Say>' + first + xa(r.topic) + '. Thank you. Goodbye.</Say><Hangup/>');
@@ -194,6 +198,7 @@ export async function outcallGather(env, url, form) {
   const tell = (title, body) => pushClient(env, r.client_id, { aps: { alert: { title, body }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' });
   if (ans === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO call_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(r.client_id, ph10(r.phone), now).run();
+    await stopBoth(env, r.client_id, r.phone, now);   // no more texts either, nor anything queued (Nov 24, 2026)
     await done('optout', 'asked not to be called');
     return xml('<Say>Understood. No more calls like this. Goodbye.</Say><Hangup/>');
   }

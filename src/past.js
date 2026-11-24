@@ -448,6 +448,17 @@ export async function apiRevive(req, env, c) {
   return aj({ ok: false, error: 'Bad request' }, 400);
 }
 
+// Nov 24, 2026: the business's own postal address, for the foot of its marketing email (CAN-SPAM wants a valid
+// physical postal address in every commercial email, and these go out in the client's name). It is the address the
+// owner put on their map card, used only when it reads as a whole one: a street number or box, a town, and a ZIP at
+// the end. '' otherwise: a revive email then waits (the lead audit emails do the same).
+export async function bizAddress(env, cid) {
+  const m = await env.DB.prepare('SELECT address FROM map_listing WHERE client_id = ?1').bind(cid).first().catch(() => null);
+  const a = String((m && m.address) || '').replace(/[\r\n\t<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+  return /^(?:\d|p\.?\s*o\.?\s*box\b)/i.test(a) && a.includes(',') && /\b\d{5}(?:-\d{4})?$/.test(a) ? a : '';
+}
+export const NEEDS_ADDRESS = 'Add your business address so this can go out. Every email to customers has to carry it. It goes on your map card: tap Add your phone or address.';
+
 // Sends one past-customer message (the owner's tap, or Full Max). Consent and opt-out are checked here every time.
 export async function approveRevive(env, c, row, edited) {
   const cid = c.client_id, id = row.id, ts = now();
@@ -462,14 +473,19 @@ export async function approveRevive(env, c, row, edited) {
     const claim = await env.DB.prepare("UPDATE biz_revive SET status = 'sending', updated = ?1 WHERE id = ?2 AND client_id = ?3 AND status IN ('pending', 'queued')").bind(ts, id, cid).run();
     if (!claim.meta.changes) return { status: 409, body: { ok: false, error: 'Already handled.' } };
     const res = [];
-    let sent = false;
+    let sent = false, noAddress = false;
     if (row.email && EMAIL_RE.test(row.email)) {
       const cr = await env.DB.prepare('SELECT business FROM app_clients WHERE client_id = ?1').bind(cid).first();
       const bizName = (cr && cr.business) || '';
-      const footer = '\n\nIf you’d rather not hear from ' + (bizName || 'us') + ', tell us here and we’ll stop: ' + SITE + '/u/' + cu.opt_token;
-      let r = 'failed';
-      try { r = await mailTo(env, row.email, 'A quick note from ' + (bizName || 'your service team'), text + footer, bizName, { replyTo: await replyTo(env, cid) }); } catch (e) { r = 'failed'; }
-      res.push('email:' + r); if (r === 'sent') sent = true;
+      // no postal address on file: the email waits ('queued', tried again on the timer) until the owner adds one
+      const addr = await bizAddress(env, cid);
+      if (!addr) { noAddress = true; res.push('email:held: no business address'); }
+      else {
+        const footer = '\n\nIf you’d rather not hear from ' + (bizName || 'us') + ', tell us here and we’ll stop: ' + SITE + '/u/' + cu.opt_token + '\n' + (bizName ? bizName + ', ' : '') + addr;
+        let r = 'failed';
+        try { r = await mailTo(env, row.email, 'A quick note from ' + (bizName || 'your service team'), text + footer, bizName, { replyTo: await replyTo(env, cid) }); } catch (e) { r = 'failed'; }
+        res.push('email:' + r); if (r === 'sent') sent = true;
+      }
     }
     let status = sent ? 'sent' : 'queued';
     if (ph10(row.phone) && TEXTING_ON && !textOk) res.push('text:too long since the last visit');
@@ -480,9 +496,11 @@ export async function approveRevive(env, c, row, edited) {
       const tr = await sendText(env, { clientId: cid, to: row.phone, body: text + ' Reply STOP to end texts from ' + ((cr2 && cr2.business) || 'us') + '.', kind: 'revive', tz: tz || undefined });
       res.push('text:' + (tr.ok ? 'sent' : (tr.why || 'failed'))); if (tr.ok) sent = true; status = sent ? 'sent' : (tr.retry ? 'queued' : status);
     }
-    else if (!sent) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');
+    else if (!sent && !noAddress) res.push(ph10(row.phone) ? 'waiting for texting' : 'no way to send');
     await env.DB.prepare('UPDATE biz_revive SET status = ?1, result = ?2, draft = ?3, updated = ?4 WHERE id = ?5').bind(status, res.join(','), text, now(), id).run();
     if (!c.held) await logAct(env, c, 'Approved a message to ' + cl(row.name, 60));
+    // held only for the address: the owner is told what to add (the app shows this error), and the message waits
+    if (noAddress && !sent) return { status: 409, body: { ok: false, needsAddress: true, status, result: res.join(','), error: NEEDS_ADDRESS } };
     return { status: 200, body: { ok: true, status, result: res.join(',') } };
   }
   }

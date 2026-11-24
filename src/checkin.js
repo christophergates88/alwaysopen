@@ -4,7 +4,8 @@
 // allow asking only the happy customers. A no also reaches the owner right away, so they can put it right.
 // Never on regulated lines, never while the line is paused or the client is not active.
 // Outbound rules are the same as every other call Max places: automated-and-recorded notice first, 9 or stop ends it for good.
-import { dialOut, callOptedOut, tzFor, local, fromLocal, fmtPhone, xml, xa, ensureCallbacks, callHoursOk, readAnswer, lineLive } from './callbacks.js';
+import { dialOut, callOptedOut, tzFor, local, fromLocal, fmtPhone, xml, xa, ensureCallbacks, callHoursOk, readAnswer, lineLive, stopBoth, reachPhone } from './callbacks.js';
+import { speakPhone } from './outreach.js';   // the one way Max reads a phone number aloud (outreach.js does not import this file)
 import { sendText, TEXTING_ON } from './sms.js';
 const pushClient = async (...a) => { try { return await (await import('./app.js')).pushClient(...a); } catch (e) { return 0; } };
 const logAct = async (...a) => { try { return await (await import('./biz.js')).logAct(...a); } catch (e) {} };
@@ -102,16 +103,18 @@ export async function checkinTwiml(env, url, form) {
   const id = +url.searchParams.get('id') || 0, r = await row(env, id);
   if (!r) return xml('<Hangup/>');
   const biz = xa(r.business || 'the business');
+  // Nov 24, 2026: the call says, once, a number to reach the business on, to a person or a machine.
+  const rp = await reachPhone(env, r.client_id), reach = rp ? 'You can reach ' + biz + ' at ' + speakPhone(rp) + '. ' : '';
   if (String(form.get('AnsweredBy') || '').startsWith('machine')) {
     // Not reached: tomorrow's try (a second voicemail ends it).
     if (+r.attempts >= 2) await env.DB.prepare("UPDATE checkins SET status = 'noanswer', result = 'voicemail' WHERE id = ?1 AND status = 'pending'").bind(id).run();
     else await env.DB.prepare("UPDATE checkins SET result = 'voicemail', due_at = ?1 WHERE id = ?2 AND status = 'pending'").bind(nextDay(await tzFor(env, r.client_id)), id).run();
-    return xml('<Say>Hi, this is Max, the automated assistant for ' + biz + '. Just checking the recent work held up. If anything is not right, call ' + biz + ' and they will sort it out. Thank you.</Say><Hangup/>');
+    return xml('<Say>Hi, this is Max, the automated assistant for ' + biz + '. Just checking the recent work held up. If anything is not right, call them and they will sort it out. ' + reach + 'Thank you.</Say><Hangup/>');
   }
   // A person picked up: this check-in is done whatever they say (their answer, if any, is written over this).
   await env.DB.prepare("UPDATE checkins SET status = 'done', result = 'answered', done_at = ?1 WHERE id = ?2 AND status = 'pending'").bind(new Date().toISOString(), id).run();
   const first = r.first ? 'Hi ' + xa(r.first) + '. ' : 'Hi. ';
-  return xml(gather(env, id, '', first + 'This is Max, the automated assistant for ' + biz + '. This call may be recorded. Quick one: did the ' + xa(r.job || 'work') + ' hold up? Press 1 or say yes if it did. Press 2 if something is not right. Press 9 if you would rather not get calls like this.'));
+  return xml(gather(env, id, '', first + 'This is Max, the automated assistant for ' + biz + '. This call may be recorded. ' + reach + 'Quick one: did the ' + xa(r.job || 'work') + ' hold up? Press 1 or say yes if it did. Press 2 if something is not right. Press 9 if you would rather not get calls like this.'));
 }
 const SITE = () => 'https://alwaysopenoffice.com';
 // The question, with Twilio coming back to us even when they say nothing (so silence is handled like any unclear answer).
@@ -129,6 +132,7 @@ export async function checkinGather(env, url, form) {
   const who = r.first || fmtPhone(r.phone), biz = xa(r.business || 'the business'), now = new Date().toISOString();
   if (ans === 'stop') {
     await env.DB.prepare('INSERT OR REPLACE INTO call_optout (client_id, phone10, at) VALUES (?1,?2,?3)').bind(r.client_id, r.phone.replace(/\D/g, '').slice(-10), now).run();
+    await stopBoth(env, r.client_id, r.phone, now);   // no more texts either, nor anything queued (Nov 24, 2026)
     await env.DB.prepare("UPDATE checkins SET status = 'optout', result = 'asked not to be called', done_at = ?1 WHERE id = ?2").bind(now, id).run();
     return xml('<Say>Understood. No more calls like this. Goodbye.</Say><Hangup/>');
   }
@@ -139,7 +143,7 @@ export async function checkinGather(env, url, form) {
       .bind(r.client_id, r.phone, r.first || '', 'Check-in: something is not right with the ' + (r.job || 'work'), now, now, 'They told Max the work did not hold up.').run();
     await pushClient(env, r.client_id, { aps: { alert: { title: who + ' says something is not right', body: 'Max checked in on the ' + (r.job || 'job') + '. Call them before it becomes a review.' }, sound: 'default', 'thread-id': 'callbacks' }, screen: 'home' });
     await reviewText(env, r, id);
-    return xml('<Say>Sorry to hear that. He will call you himself to put it right. Thank you for telling me. Goodbye.</Say><Hangup/>');
+    return xml('<Say>Sorry to hear that. The owner will call you to put it right. Thank you for telling me. Goodbye.</Say><Hangup/>');
   }
   if (ans === 'yes') {
     await env.DB.prepare("UPDATE checkins SET status = 'yes', result = 'held up', done_at = ?1 WHERE id = ?2").bind(now, id).run();
