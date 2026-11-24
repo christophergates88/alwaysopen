@@ -249,3 +249,13 @@ test('V8: Max does not call the owner "he" or "him" to their customers', () => {
   assert.doesNotMatch(n, /\b(he|him) (is|can)\b|as soon as he|moment he/);
   assert.match(n, /as soon as they can to see if they can get there sooner/);
 });
+
+// From the transfer-screen change (kept on its own branch until one live test call): only this half ships now.
+test('the owner cannot set Max\'s own number as the number to put calls through to', async () => {
+  const w = await mk();
+  const r = await w.site.call('/app/' + CODE + '/api/line', { json: { transferTo: LINE.slice(2), transferWhen: 'urgent', by: 'Dana' } });
+  assert.equal(r.status, 422);
+  assert.match(r.text, /That is Max's own number\. Use the phone you answer yourself\./);
+  const ok = await w.site.call('/app/' + CODE + '/api/line', { json: { transferTo: '478 555 0109', transferWhen: 'urgent', by: 'Dana' } });
+  assert.equal(ok.status, 200, ok.text);
+});

@@ -784,6 +784,8 @@ async function apiLine(req, env, ctx, c) {
     const d = String(b.transferTo).replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
     if (d && !/^[2-9]\d{2}[2-9]\d{6}$/.test(d)) return aj({ ok: false, error: 'Add a 10-digit number for urgent calls, or leave it blank.' }, 422);
     const e = d ? '+1' + d : '';
+    // Nov 24, 2026: a Max number here rings Max back, and the transfer would read as the owner taking the call
+    if (e && await env.DB.prepare('SELECT 1 AS x FROM voice_lines WHERE number = ?1').bind(e).first()) return aj({ ok: false, error: 'That is Max\'s own number. Use the phone you answer yourself.' }, 422);
     if (e !== tTo) { tTo = e; changes.push('urgent calls go to: ' + (fmtNum(e) || 'nobody')); }
   }
   if (b.transferWhen != null) {
