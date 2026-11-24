@@ -17,6 +17,7 @@
 // leads.top, leads.fixes), plus Google's place ID, which may be stored.
 import { runAudit } from './audit.js';
 import { pitchFor, topThree } from './letter.js';
+import { noteMailSend } from './clientmail.js';
 
 const SITE = 'https://alwaysopenoffice.com';
 const MAX = '(706) 460-2226';
@@ -231,7 +232,10 @@ export function auditMail(lead, a, stop, env, via, go) {
   const items = fixes.map(f => es && ES[f.title] ? { title: ES[f.title][0], saw: '', fix: ES[f.title][1] } : f);
   // The subject names the business only as Google lists it, never as someone typed it into the form.
   const gname = one(b.name).slice(0, 80);
-  const subject = es ? 'Su auditoría gratis: ' + (gname ? gname + ' saca una ' : 'una ') + a.grade : 'Your free audit: ' + (gname ? gname + ' gets a ' : 'a ') + a.grade;
+  // "an A", "an F" (Nov 24, 2026: it said "gets a A"); with no business name on Google the subject says "your grade".
+  const art = /^[AF]$/.test(a.grade) ? 'an' : 'a';
+  const subject = es ? 'Su auditoría gratis: ' + (gname ? gname + ' saca una ' : 'su calificación es una ') + a.grade : 'Your free audit: ' + (gname ? gname + ' gets ' + art + ' ' : 'your grade is ' + art + ' ') + a.grade;
+  const hasName = !!(one(b.name) || plain(lead.business));
   const T = es ? {
     hi: first ? 'Hola, ' + first + ':' : 'Hola:',
     intro: via === 'letter' ? 'Aquí está su auditoría completa. Buscamos ' + name + ' en Google ahora mismo y la comparamos con los negocios como el suyo con más movimiento cerca de usted.' : 'Aquí está la auditoría gratis que pidió. Buscamos ' + name + ' en Google hace un minuto y la comparamos con los negocios como el suyo con más movimiento cerca de usted.',
@@ -258,7 +262,7 @@ export function auditMail(lead, a, stop, env, via, go) {
     '<p style="margin:4px 0 0;font:400 48px/1 \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#fff;' + NEON_TXT(gc) + '">' + esc(a.grade) + ' <span style="font-size:15px;font-weight:600;color:#A3ACBF">' + a.score + (es ? ' de 100' : ' of 100') + '</span></p>' +
     (areas.length ? '<p style="margin:10px 0 0;font-size:14px">' + areas.map(x => '<b style="color:' + (GC[x.grade] || '#FF6A5E') + '">' + esc(x.grade) + '</b> ' + esc(x.label)).join(' &nbsp;·&nbsp; ') + '</p>' : '') +
     '<p style="margin:6px 0 0;font-size:14px;color:#A3ACBF">' + esc(own) + '</p></div>' +
-    '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:22px 0 8px;color:#fff;' + NEON_TXT('#FF6A5E') + '">' + esc(T.fixH) + '</h2>' +
+    (items.length ? '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:22px 0 8px;color:#fff;' + NEON_TXT('#FF6A5E') + '">' + esc(T.fixH) + '</h2>' : '<div style="margin:22px 0 0"></div>') +
     (items.length ? '<ol style="margin:0;padding-left:22px">' + items.map(f => '<li style="margin:0 0 10px"><b>' + esc(f.title) + '.</b> ' + esc(f.saw) + '<br><span style="color:#5CC9A4;font-weight:600">' + esc(f.fix) + '</span></li>').join('') + '</ol>' : '<p style="margin:0">' + esc(T.none) + '</p>') +
     ((a.fine || []).length && !es ? '<p style="margin:8px 0 0;color:#5CC9A4;font-size:14px">' + esc(T.fine + a.fine.slice(0, 4).join('; ') + '.') + '</p>' : '') +
     '<h2 style="font:400 22px \'Tilt Neon\',-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:24px 0 8px;color:#fff;' + NEON_TXT('#5CC9A4') + '">' + esc(T.doH) + '</h2><p style="margin:0">' + esc(pitchText + T.approve) + '</p>' +
@@ -267,9 +271,9 @@ export function auditMail(lead, a, stop, env, via, go) {
     '<p style="margin:0 0 14px">' + esc(T.max) + '</p><p style="margin:0">' + esc(T.q) + '</p><p style="margin:16px 0 0">Always Open</p>' +
     '<p style="margin:18px 0 0;font-size:12px;color:#7A8396">' + esc(T.src) + '</p>');
   const html = shell(inner + ft.html);
-  const text = [T.hi, '', T.intro, '', name + ': ' + a.grade + ' (' + a.score + (es ? ' de 100' : ' of 100') + '), ' + T.gradeLab + '.',
-    areas.map(x => x.label + ' ' + x.grade).join(' · '), own, '', T.fixH + ':',
-    ...(items.length ? items.map((f, i) => (i + 1) + '. ' + f.title + '. ' + (f.saw ? f.saw + ' ' : '') + f.fix) : [T.none]), '',
+  const text = [T.hi, '', T.intro, '', (hasName ? name : es ? 'Su calificación' : 'Your grade') + ': ' + a.grade + ' (' + a.score + (es ? ' de 100' : ' of 100') + '), ' + T.gradeLab + '.',
+    areas.map(x => x.label + ' ' + x.grade).join(' · '), own, '',
+    ...(items.length ? [T.fixH + ':', ...items.map((f, i) => (i + 1) + '. ' + f.title + '. ' + (f.saw ? f.saw + ' ' : '') + f.fix)] : [T.none]), '',
     T.doH + ': ' + pitchText + T.approve, '', T.page + ' ' + SITE + '/sample-report', '', T.start + ': ' + start, T.promise, '', T.max, '', T.q, '', 'Always Open', '', T.src].join('\n') + ft.text;
   return { subject, html, text, inner };
 }
@@ -327,7 +331,13 @@ export function followMail(lead, n, stop, env, top, go) {
   const es = lead.lang === 'es', first = firstName(lead.name);
   const ft = footer(env || {}, stop, es), start = startLink(lead.plan), g = /^[A-F]$/.test(lead.grade || '') ? ' ' + lead.grade : '';
   let subject, lines;
-  if (n === 1) {
+  if (!g) {
+    // No grade: Google could not match the business, so they never got an audit, only the one-quick-question email. Say
+    // what is true: we still need the name (Nov 24, 2026: these used to ask if they had looked at an audit that never came).
+    subject = n === 1 ? (es ? 'Su auditoría gratis: el nombre en Google' : 'Your free audit: the name on Google') : (es ? 'Última nota sobre su auditoría' : 'Last note on your audit');
+    lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', n === 1 ? 'Todavía no hemos podido encontrar su negocio en Google. Responda con el nombre como aparece en Google y le mandamos la auditoría de inmediato.' : 'Última nota de nuestra parte. Responda con el nombre de su negocio como aparece en Google y le mandamos la auditoría gratis, o llame a Max al ' + MAX + '.', 'Chris contesta, normalmente el mismo día hábil.', 'Always Open']
+      : [first ? 'Hi ' + first + ',' : 'Hi,', n === 1 ? 'We still haven’t been able to find your business on Google. Reply with its name as it shows on Google and your free audit comes right back.' : 'Last note from us. Reply with your business name as it shows on Google and we’ll send your free audit, or call Max at ' + MAX + '.', 'Chris answers, usually the same business day.', 'Always Open'];
+  } else if (n === 1) {
     subject = es ? 'Su auditoría gratis: lo más rápido de arreglar' : 'Your free audit: the quickest win';
     lines = es ? [first ? 'Hola, ' + first + ':' : 'Hola:', '¿Pudo ver la auditoría? Lo más rápido que mejoraría su negocio' + (top && ES[top.title] ? ': ' + ES[top.title][1].charAt(0).toLowerCase() + ES[top.title][1].slice(1) : ' es contestar cada reseña y cada llamada.') + ' Es lo que hacemos la primera semana.',
       'Empezar: ' + start, 'O responda con una pregunta; Chris contesta, normalmente el mismo día hábil.', 'Always Open']
@@ -346,13 +356,33 @@ export function followMail(lead, n, stop, env, top, go) {
 }
 
 // Send through the site's mail service. Returns 'sent' or why not.
-async function send(env, to, m, h) {
-  if (h && h.send) return h.send(to, m);
+// stop: this message's own stop link. Marketing mail passes it, and it goes out as a one-click List-Unsubscribe header
+// (Nov 24, 2026: without it Gmail and Yahoo show no Unsubscribe button and people press Report spam instead).
+async function send(env, to, m, h, stop) {
+  if (h && h.send) return sendOne(env, to, m, h, stop);
+  const r = await sendOne(env, to, m, h, stop);
+  await noteMailSend(env, 'leads', to, r);   // the record of real sends (clientmail.js mailSendState)
+  return r;
+}
+async function sendOne(env, to, m, h, stop) {
+  const headers = /^https:\/\//.test(stop || '') ? { 'List-Unsubscribe': '<' + stop + '>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : null;
+  if (h && h.send) return h.send(to, headers ? Object.assign({}, m, { headers }) : m);
   if (!env.SEND_MAIL) return 'off';
   const msg = { to, from: FROM, replyTo: REPLY_TO, subject: one(m.subject).slice(0, 140), html: m.html, text: m.text };
+  if (headers) msg.headers = headers;
   try { await env.SEND_MAIL.send(msg); return 'sent'; } catch (e) {
     try { const t = Object.assign({}, msg); delete t.html; delete t.replyTo; await env.SEND_MAIL.send(t); return 'sent'; } catch (e2) { return 'failed: ' + one((e2 && e2.message) || e2).slice(0, 120); }
   }
+}
+
+// A problem with a lead's audit goes to Christopher through opsAlert: it is emailed, is on the 7 AM list when it happens at
+// night, and has its own once-per-lead limit. The direct phone push was silent from 10 PM to 7 AM and sent no email
+// (Nov 24, 2026). h.alert(type, who, text) stands in for it in tests.
+async function alertOps(env, h, type, id, text) {
+  try {
+    if (h && h.alert) return await h.alert(type, String(id || ''), text);
+    return await (await import('./ops.js')).opsAlert(env, type, String(id || ''), text);
+  } catch (e) { return 'off'; }
 }
 
 // Is Google's top hit the business this lead named? (mail.js's check for mailed letters.)
@@ -379,7 +409,7 @@ export async function sendAudit(env, lead, id, h) {
   if (hold === 'stopped' || hold === 'repeat') { await mark(hold); return hold; }
   if (hold === 'held: network limit') {
     await mark(hold);
-    if (h.ping) await h.ping('Audit held: ' + (plain(lead.business) || 'a request'), 'More than ' + NET_PER_DAY + ' audit requests from one network today, so this one was not emailed. If it is real, send the audit by hand.', 'low');
+    await alertOps(env, h, 'audit-failed', id, 'Audit held: ' + (plain(lead.business) || 'a request') + '. More than ' + NET_PER_DAY + ' audit requests from one network today, so this one was not emailed. If it is real, send the audit by hand.');
     return 'limited';
   }
   if (hold) { await mark(hold); if (h.ping) await h.ping('Audit emails paused for today', 'More than ' + PER_DAY + ' audit emails in 24 hours. ' + (plain(lead.business) || 'This request') + ' will need a hand-sent audit.'); return 'limited'; }
@@ -392,7 +422,7 @@ export async function sendAudit(env, lead, id, h) {
     const why = (await auditHold(env, email, net, id, now)) || 'held: daily limit';
     if (why === 'stopped' || why === 'repeat') { await mark(why); return why; }
     await mark(why);
-    if (h.ping) await h.ping('Audit held: ' + (plain(lead.business) || 'a request'), (why === 'held: network limit' ? 'More than ' + NET_PER_DAY + ' audit requests from one network today' : 'More than ' + PER_DAY + ' audit emails in 24 hours') + ', so this one was not emailed. If it is real, send the audit by hand.', 'low');
+    await alertOps(env, h, 'audit-failed', id, 'Audit held: ' + (plain(lead.business) || 'a request') + '. ' + (why === 'held: network limit' ? 'More than ' + NET_PER_DAY + ' audit requests from one network today' : 'More than ' + PER_DAY + ' audit emails in 24 hours') + ', so this one was not emailed. If it is real, send the audit by hand.');
     return 'limited';
   }
   const giveBack = () => env.DB.prepare('DELETE FROM audit_sends WHERE rowid = ?1').bind(res.meta.last_row_id).run().catch(() => {});
@@ -413,20 +443,22 @@ export async function sendAudit(env, lead, id, h) {
   }
   const found = a && a.found;
   const m = found ? auditMail(lead, a, stop, env, '', go) : missMail(lead, stop, env, go);
-  const r = await send(env, email, m, h);
+  const r = await send(env, email, m, h, stop);
   if (r !== 'sent') {
     await giveBack();
     // A send that fails is tried again by auditRetryCron, three times in all, before it becomes a job for Christopher.
     const t = await env.DB.prepare('SELECT audit_tries FROM leads WHERE id = ?1').bind(id).first().catch(() => null);
     const tries = (parseInt((t && t.audit_tries) || '0', 10) || 0) + 1;
     await env.DB.prepare('UPDATE leads SET audit_tries = ?1 WHERE id = ?2').bind(String(tries), id).run().catch(() => {});
+    // The first failure may mean the mail service itself is not delivering: say so now, not after three tries (Nov 24).
+    if (tries === 1) await alertOps(env, h, 'mail-send', id, 'An audit email could not be sent: ' + r);
     if (tries < AUDIT_TRIES) { await mark('retry'); return 'retry'; }
-    await mark('failed'); if (h.ping) await h.ping('Audit email did not send', (plain(lead.business) || 'A request') + ': ' + r + ' (tried ' + tries + ' times). Send the audit by hand.'); return r;
+    await mark('failed'); await alertOps(env, h, 'audit-failed', id, 'Audit email did not send. ' + (plain(lead.business) || 'A request') + ': ' + r + ' (tried ' + tries + ' times). Send the audit by hand.'); return r;
   }
   const f0 = found && a.findings && a.findings[0];
   await mark(found ? 'sent' : 'missed', found ? a.grade : '', f0 ? JSON.stringify({ title: f0.title, fix: f0.fix }) : '', found ? ourFixes(a) : '', found ? String(a.business.id || '') : '');
   await env.DB.prepare('DELETE FROM audit_sends WHERE at < ?1').bind(iso(now - 40 * DAY)).run().catch(() => {});
-  if (!found && h.ping) await h.ping('Audit needs a hand: ' + (plain(lead.business) || 'a request'), (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + plain(lead.business) + (lead.town ? ', ' + plain(lead.town) : '') + '". ') + 'They got an email saying Chris will send it within one business day.');
+  if (!found) await alertOps(env, h, 'audit-failed', id, 'Audit needs a hand: ' + (plain(lead.business) || 'a request') + '. ' + (err ? 'Google lookup failed (' + err + '). ' : 'Google had no match for "' + plain(lead.business) + (lead.town ? ', ' + plain(lead.town) : '') + '". ') + 'They got an email saying Chris will send it within one business day.');
   return found ? 'sent' : 'missed';
 }
 
@@ -501,6 +533,11 @@ export async function followCron(env, now, h) {
   await ensureLeadMail(env);
   const e = eastern(now);
   if (e.wd === 'Sat' || e.wd === 'Sun' || e.hour < SEND_HOURS[0] || e.hour >= SEND_HOURS[1]) return { quiet: true };
+  // No marketing email on a federal holiday or the day after Thanksgiving: it waits for the next business day (Nov 24, 2026).
+  try {
+    const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+    if ((await import('./outreach.js')).holiday(ymd)) return { quiet: true, holiday: true };
+  } catch (err) { /* no holiday list: carry on */ }
   if (!one(env.BUSINESS_ADDRESS)) return { held: 'no postal address set' };
   // Only addresses that clicked through our email: anyone can type a stranger's address into the form.
   const rows = ((await env.DB.prepare("SELECT * FROM leads WHERE status = 'new' AND audit IN ('sent', 'missed') AND (stop IS NULL OR stop = '') AND (fu2_at IS NULL OR fu2_at = '') AND engaged IS NOT NULL AND engaged != '' AND audit_at > ?1 ORDER BY id LIMIT 40")
@@ -518,7 +555,7 @@ export async function followCron(env, now, h) {
     const stop = await stopLink(env, r.id);
     let top = null; try { top = r.top ? JSON.parse(r.top) : null; } catch (e) { top = null; }
     const m = followMail(r, n, stop, env, top, { start: await goLink(env, r.id, 'start') });
-    const s = await send(env, one(r.email).toLowerCase(), m, h);
+    const s = await send(env, one(r.email).toLowerCase(), m, h, stop);
     if (s !== 'sent') continue;
     await env.DB.prepare('UPDATE leads SET ' + (n === 1 ? 'fu1_at' : 'fu2_at') + ' = ?1 WHERE id = ?2').bind(iso(now), r.id).run();
     sent++;
@@ -621,7 +658,7 @@ export async function handleAuditPage(req, env, url, h) {
     const stop = await stopLink(env, lead.id, validEmail(lead.email) && emailKey(lead.email) !== emailKey(email) ? email : ''), link = SITE + '/your-audit/' + t;
     const go = { audit: await goLink(env, lead.id, 'audit'), start: await goLink(env, lead.id, 'start'), sample: await goLink(env, lead.id, 'sample') };
     const m = lead.grade ? copyMail(lead, link, stop, env, go) : missMail(lead, stop, env, go);
-    const r = await send(env, email, m, h);
+    const r = await send(env, email, m, h, stop);
     if (r !== 'sent') {
       if (h.ping) await h.ping('Audit copy did not send: ' + one(lead.business), 'Someone asked for a copy at ' + email + ' and it failed (' + r + '). Send it by hand.');
       return say(es ? 'Enviado' : 'Sent', es ? 'No se pudo enviar ahora. Chris se la manda hoy.' : 'It didn’t send just now. Chris will send it today.');

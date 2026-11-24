@@ -4,7 +4,7 @@
 // A complete record HQ already wrote for that month is kept as it is; a partial one written mid-month is replaced.
 // The owner gets one push when it's ready.
 import { reportLine } from './money.js';
-import { fromLocal, tzFor } from './callbacks.js';
+import { fromLocal, tzFor, local } from './callbacks.js';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const PER_PASS = 10;
 
@@ -18,7 +18,8 @@ export function inZone(m, tz) {
   const nextKey = new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 1)).toISOString().slice(0, 7);
   return Object.assign({}, m, { tz, start: new Date(fromLocal(tz, m.key + '-01', 0, 0)).toISOString(), end: new Date(fromLocal(tz, nextKey + '-01', 0, 0)).toISOString() });
 }
-const day = iso => { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : ''; };
+// Dates print in the client's own zone (Eastern when none is given), the way the app shows them (Nov 24, 2026).
+const day = (iso, tz) => { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: tz || 'America/New_York' }) : ''; };
 const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
 // Was the client with us during the month? Their first sign of life (signup, first item, call or job) must come before
@@ -61,14 +62,14 @@ export function buildMonth(c, m, rows, prevStats, now) {
   const rated = reviews.filter(r => +r.stars > 0);
   const stats = { reviews: reviews.length, rating: null, count: null, replies: replied.length, posts: posts.length, calls: null, clicks: null, directions: null,
     newAvg: rated.length ? Math.round(rated.reduce((a, r) => a + +r.stars, 0) / rated.length * 10) / 10 : null };
-  const made = day(new Date(now).toISOString());
+  const tz = m.tz, made = day(new Date(now).toISOString(), tz);
   const revs = reviews.map(r => ({
-    d: day(r.created), head: (+r.stars ? r.stars + (+r.stars === 1 ? ' star' : ' stars') + ' · ' : '') + (r.title || 'A customer'),
+    d: day(r.created, tz), head: (+r.stars ? r.stars + (+r.stars === 1 ? ' star' : ' stars') + ' · ' : '') + (r.title || 'A customer'),
     q: r.context ? 'Review: ' + clip(r.context, 400) : '',
-    t: (r.status === 'approved' || r.status === 'closed') ? 'Reply ' + (posted.has(r.id) ? 'posted' : 'approved') + ' ' + day(r.decided_at) + ': ' + clip(r.decided_text || r.text, 600) : (r.status === 'skipped' ? 'No reply, by the owner’s choice.' : 'Reply waiting for approval.'),
+    t: (r.status === 'approved' || r.status === 'closed') ? 'Reply ' + (posted.has(r.id) ? 'posted' : 'approved') + ' ' + day(r.decided_at, tz) + ': ' + clip(r.decided_text || r.text, 600) : (r.status === 'skipped' ? 'No reply, by the owner’s choice.' : 'Reply waiting for approval.'),
     by: r.decided_by ? 'Approved by ' + r.decided_by + (r.decided_by === 'Always Open' ? '' : ' in the app') : ''
   }));
-  const ps = posts.map(p => ({ d: day(p.decided_at || p.created), head: 'Google post' + (p.title ? ' · ' + clip(p.title, 60) : ''), t: clip(p.decided_text || p.text, 600), by: p.decided_by ? 'Approved by ' + p.decided_by : '' }));
+  const ps = posts.map(p => ({ d: day(p.decided_at || p.created, tz), head: 'Google post' + (p.title ? ' · ' + clip(p.title, 60) : ''), t: clip(p.decided_text || p.text, 600), by: p.decided_by ? 'Approved by ' + p.decided_by : '' }));
   const calls = +rows.calls || 0;
   const bits = [];
   // What Max caught after hours leads the note, in the same words as the app's card (money.js).
@@ -106,26 +107,48 @@ async function oneClient(env, c, m, now) {
   return data;
 }
 
+// Is it the 2nd or later, where this client lives, in the month after the report's month? The report is promised on the
+// 2nd; the UTC date alone sent it at 7 PM Eastern on the 1st (Nov 24, 2026). Pure, for tests.
+export function dueFor(m, tz, now) {
+  const nextKey = new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 1)).toISOString().slice(0, 7);
+  return local(tz, now).day >= nextKey + '-02';
+}
+const EMAIL_TRIES = 3;   // a report email that fails is tried again on the next passes, three times in all
+
 export async function monthReportCron(env, at) {
   const now = at || Date.now();
-  if (new Date(now).getUTCDate() < 2) return { skipped: 'too early' };
+  // Nobody in the country can be on the 2nd before this (Hawaii, UTC-10): skip the work until then.
+  if (new Date(now - 10 * 3600e3).getUTCDate() < 2) return { skipped: 'too early' };
   const m = monthOf(now);
   const { DEMO_ID } = await import('./demo.js');
   await ensureRuns(env);
-  const clients = ((await env.DB.prepare('SELECT c.client_id, c.business, c.regulated, c.owner_first, (SELECT email FROM billing b WHERE b.client_id = c.client_id LIMIT 1) AS email, m.data, m.hash FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND r.client_id IS NULL LIMIT ?3').bind(m.key, DEMO_ID, PER_PASS).all()).results) || [];
+  const clients = ((await env.DB.prepare("SELECT c.client_id, c.business, c.regulated, c.owner_first, (SELECT email FROM billing b WHERE b.client_id = c.client_id LIMIT 1) AS email, m.data, m.hash, r.result AS run FROM app_clients c LEFT JOIN app_months m ON m.client_id = c.client_id AND m.month = ?1 LEFT JOIN report_runs r ON r.client_id = c.client_id AND r.month = ?1 WHERE c.active = 1 AND c.client_id != ?2 AND (r.client_id IS NULL OR r.result LIKE 'email retry %') LIMIT 200").bind(m.key, DEMO_ID).all()).results) || [];
   const done = (cid, result) => env.DB.prepare('INSERT OR REPLACE INTO report_runs (client_id, month, at, result) VALUES (?1, ?2, ?3, ?4)').bind(cid, m.key, new Date(now).toISOString(), result).run();
-  let made = 0;
+  let made = 0, handled = 0;
   for (const c of clients) {
-    const mz = inZone(m, await tzFor(env, c.client_id));   // the month as the business lives it
+    if (handled >= PER_PASS) break;
+    const tz = await tzFor(env, c.client_id);
+    if (!dueFor(m, tz, now)) continue;   // not the 2nd where they live yet: left for a later pass
+    handled++;
+    const mz = inZone(m, tz);   // the month as the business lives it
     let d = null; try { d = JSON.parse(c.data || 'null'); } catch (e) {}
-    if (String(c.hash || '').startsWith('auto:') || isComplete(d, m)) { await done(c.client_id, 'kept'); continue; }
-    if (!wasClient(await firstSeen(env, c.client_id), mz)) { await done(c.client_id, 'not a client yet'); continue; }   // never a report for a month before they joined
-    const data = await oneClient(env, c, mz, now);
-    made++;
-    await done(c.client_id, hasNews(data) ? 'made' : 'made, quiet month');
-    if (!hasNews(data)) continue;
-    try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: (data.stats && data.stats.afterHours ? data.note.split('. ')[0].replace(/\.$/, '') + '. ' : '') + 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
-    if (c.email) { try { const { sendNeon, reportEmail } = await import('./clientmail.js'); await sendNeon(env, c.email, reportEmail(c, m.label, data)); } catch (e) { /* the report is there either way */ } }
+    let data, prior = 0;
+    if (/^email retry /.test(c.run || '')) { data = d; prior = +String(c.run).slice(12) || 1; if (!data) { await done(c.client_id, 'made, email failed'); continue; } }   // already made: only the email is left
+    else {
+      if (String(c.hash || '').startsWith('auto:') || isComplete(d, m)) { await done(c.client_id, 'kept'); continue; }
+      if (!wasClient(await firstSeen(env, c.client_id), mz)) { await done(c.client_id, 'not a client yet'); continue; }   // never a report for a month before they joined
+      data = await oneClient(env, c, mz, now);
+      made++;
+      if (!hasNews(data)) { await done(c.client_id, 'made, quiet month'); continue; }
+      try { await (await import('./app.js')).pushClient(env, c.client_id, { aps: { alert: { title: 'Your ' + m.label.split(' ')[0] + ' report is ready', body: (data.stats && data.stats.afterHours ? data.note.split('. ')[0].replace(/\.$/, '') + '. ' : '') + 'Calls, reviews, replies and posts for the month, with a record you can save as a PDF.' }, sound: 'default' }, screen: 'home' }); } catch (e) { /* the report is there either way */ }
+    }
+    // A client with no email address is done. One whose email failed is not: it is tried again, up to three times in all,
+    // and Christopher is told each time (sendNeon), so a failed report email is never lost (Nov 24, 2026).
+    let r = 'sent';
+    if (c.email) { try { const { sendNeon, reportEmail } = await import('./clientmail.js'); r = await sendNeon(env, c.email, reportEmail(c, m.label, data), { who: c.client_id }); } catch (e) { r = 'failed: ' + String((e && e.message) || e).slice(0, 80); } }
+    if (r === 'sent' || !c.email) await done(c.client_id, 'made');
+    else if (prior + 1 >= EMAIL_TRIES) await done(c.client_id, 'made, email failed');
+    else await done(c.client_id, 'email retry ' + (prior + 1));
   }
   return { made, month: m.key };
 }

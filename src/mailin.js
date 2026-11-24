@@ -236,7 +236,9 @@ export async function reviewFromEmail(env, m, h) {
 }
 
 // A reply from someone who asked for the free audit: their automatic follow-ups stop.
-export async function leadReplied(env, addr, now, text) {
+// ping(env, title, body, priority): when given, Christopher is told at once that a lead answered (Nov 24, 2026: the reply
+// was forwarded to his inbox with no push, at exactly the moment speed matters most).
+export async function leadReplied(env, addr, now, text, ping) {
   try {
     // the same person however they wrote it (j.smith+audit@gmail.com and jsmith@gmail.com): leadmail.js emailKey;
     // any address the form accepts (o'brien@, dana&sons@, josé@: Nov 10, those replies stopped nothing)
@@ -245,10 +247,18 @@ export async function leadReplied(env, addr, now, text) {
     // "stop" (or unsubscribe, remove) at the top of the reply is for good, as the site promises: on the do-not-email list
     const first = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(l => l && !/^>/.test(l))[0] || '';
     if (/^(stop|unsubscribe|remove( me)?|no more|para|basta)\b/i.test(first)) { try { await suppress(env, addr, 'replied ' + first.slice(0, 20).toLowerCase()); } catch (e) { /* the rows below still stop */ } }
+    let who = null;
+    if (ping) { try { who = await env.DB.prepare("SELECT name, business FROM leads WHERE (lower(email) = ?1 OR email_key = ?2) AND (stop IS NULL OR stop = '') ORDER BY id DESC LIMIT 1").bind(addr, emailKey(addr)).first(); } catch (e) { who = null; } }
     let r;
     try { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE (lower(email) = ?2 OR email_key = ?3) AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr, emailKey(addr)).run(); }
     catch (e) { r = await env.DB.prepare("UPDATE leads SET stop = 'replied', stop_at = ?1 WHERE lower(email) = ?2 AND (stop IS NULL OR stop = '')").bind(new Date(now || Date.now()).toISOString(), addr).run(); }
-    return (r && r.meta && r.meta.changes) || 0;
+    const hit = (r && r.meta && r.meta.changes) || 0;
+    if (hit && ping && !/^(stop|unsubscribe|remove( me)?|no more|para|basta)\b/i.test(first)) {
+      const line = first.replace(/(https?:\/\/|www\.)\S+/gi, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      const name = String((who && (who.name || who.business)) || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'A lead';
+      try { await ping(env, name + ' replied to their audit', line || 'They wrote back. Open your inbox.', 'high'); } catch (e) { /* the forward still has it */ }
+    }
+    return hit;
   } catch (e) { return 0; }
 }
 
@@ -275,7 +285,7 @@ export async function inbound(message, env, ctx, h) {
       return { skipped: 'unverified: ' + why };
     }
     if (m.auto) return { skipped: 'auto-reply' };   // an out-of-office reply is not a lead answering
-    return { lead: await leadReplied(env, m.from, 0, m.text) };
+    return { lead: await leadReplied(env, m.from, 0, m.text, h.ping || (async (e, t, b, pr) => (await import('./app.js')).opsPing(e, t, b, pr))) };
   })();
   const out = await work;
   return Object.assign({ forwarded: fwd }, out);

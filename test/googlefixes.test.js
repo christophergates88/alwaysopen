@@ -171,7 +171,7 @@ test('6. the monthly report counts the business’s own month, not the UTC one',
   for (const [id, at] of [['c1', '2026-10-31T02:30:00Z'], ['c2', '2026-11-01T02:00:00Z'], ['c3', '2026-11-01T04:00:00Z'], ['c4', '2026-11-01T05:30:00Z'], ['sep', '2026-10-01T03:00:00Z'], ['nov', '2026-11-01T08:00:00Z']])
     await run("INSERT INTO app_calls (id, client_id, at, caller_name, reason, outcome, test) VALUES (?1, ?2, ?3, 'Pat', 'No heat', 'done', 0)", id, cid, at);
   const rep = await import('../src/report.js');
-  for (let i = 0; i < 4 && !(await get("SELECT 1 AS x FROM app_months WHERE client_id = ?1 AND month = '2026-10'", cid)); i++) await rep.monthReportCron(env, Date.parse('2026-11-02T00:10:00Z'));
+  for (let i = 0; i < 4 && !(await get("SELECT 1 AS x FROM app_months WHERE client_id = ?1 AND month = '2026-10'", cid)); i++) await rep.monthReportCron(env, Date.parse('2026-11-02T14:00:00Z'));
   const d = JSON.parse((await get("SELECT data FROM app_months WHERE client_id = ?1 AND month = '2026-10'", cid)).data);
   assert.equal(d.a.calls.n, 4, 'the four October evenings, not September’s or November’s');
   assert.equal(d.a.calls.after, 4);

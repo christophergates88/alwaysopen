@@ -10,24 +10,59 @@ const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').trim();
 export const money0 = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
 const pl = (x, a, b) => x + ' ' + (x === 1 ? a : b);
 
-// m: { subject, html, text }. Returns 'sent', 'off' or 'failed: ...'.
+// A small record of real sends to people other than the operator, one row per stream ('leads': prospect mail from
+// leadmail.js; 'clients': sendNeon) in checks_meta: when one last went out, and when and why one last failed. Nothing
+// else watches the path all of this mail depends on (the health check only sees the operator-only binding), so a health
+// check can read it with mailSendState(env) (Nov 24, 2026).
+let metaReady = new WeakSet();
+export async function noteMailSend(env, stream, to, result) {
+  try {
+    if (!env || !env.DB || !/^(sent|failed)/.test(String(result))) return;
+    if (env.MAIL_TO && one(to).toLowerCase() === one(env.MAIL_TO).toLowerCase()) return;   // the operator's own mail proves nothing
+    if (!metaReady.has(env.DB)) { await env.DB.prepare('CREATE TABLE IF NOT EXISTS checks_meta (k TEXT PRIMARY KEY, at TEXT, v TEXT)').run(); metaReady.add(env.DB); }
+    const k = 'mailsend:' + stream, now = new Date().toISOString();
+    let v = {}; try { const r = await env.DB.prepare('SELECT v FROM checks_meta WHERE k = ?1').bind(k).first(); v = JSON.parse((r && r.v) || '{}') || {}; } catch (e) { v = {}; }
+    if (result === 'sent') v.okAt = now; else { v.errAt = now; v.err = one(result).replace(/^failed:\s*/, '').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').slice(0, 160); }
+    await env.DB.prepare('INSERT OR REPLACE INTO checks_meta (k, at, v) VALUES (?1, ?2, ?3)').bind(k, now, JSON.stringify(v)).run();
+  } catch (e) { /* a record that cannot be written never stops the mail */ }
+}
+// { leads: { okAt, errAt, err }, clients: { okAt, errAt, err } }: ISO times, '' when never.
+export async function mailSendState(env) {
+  const out = {};
+  for (const stream of ['leads', 'clients']) {
+    let v = {}; try { const r = await env.DB.prepare('SELECT v FROM checks_meta WHERE k = ?1').bind('mailsend:' + stream).first(); v = JSON.parse((r && r.v) || '{}') || {}; } catch (e) { v = {}; }
+    out[stream] = { okAt: v.okAt || '', errAt: v.errAt || '', err: v.err || '' };
+  }
+  return out;
+}
+
+// m: { subject, html, text }. Returns 'sent', 'off' or 'failed: ...'. opts.who: the client's code, for the alert.
+// A failure is never silent (Nov 24, 2026: a failed month report or Monday note was swallowed): Christopher is told
+// through opsAlert('mail-send'), which says it once per client per 3 hours.
 export async function sendNeon(env, to, m, opts) {
-  opts = opts || {};
+  const r = await sendNeonRaw(env, to, m, opts || {});
+  if (r !== 'failed: bad address') await noteMailSend(env, 'clients', to, r);
+  if (/^failed/.test(r)) { try { await (await import('./ops.js')).opsAlert(env, 'mail-send', one((opts && opts.who) || ''), 'An email to a client could not be sent: ' + r.replace(/^failed:\s*/, '')); } catch (e) { /* the result is still returned */ } }
+  return r;
+}
+async function sendNeonRaw(env, to, m, opts) {
   if (!/^[^\s@<>"]+@[^\s@<>"]+\.[A-Za-z]{2,}$/.test(String(to || ''))) return 'failed: bad address';
   const subject = one(m.subject).slice(0, 140);
+  let why = '';
   if (env.SEND_MAIL) {
     const msg = { to, from: { email: FROM, name: one(opts.fromName || 'Always Open').replace(/"/g, '').slice(0, 60) }, replyTo: opts.replyTo || REPLY, subject, html: m.html, text: m.text };
     try { await env.SEND_MAIL.send(msg); return 'sent'; } catch (e) {
-      try { const t = Object.assign({}, msg); delete t.replyTo; await env.SEND_MAIL.send(t); return 'sent'; } catch (e2) { /* fall through */ }
+      why = one((e && e.message) || e).slice(0, 120);
+      try { const t = Object.assign({}, msg); delete t.replyTo; await env.SEND_MAIL.send(t); return 'sent'; } catch (e2) { why = one((e2 && e2.message) || e2).slice(0, 120) || why; }
     }
   }
-  if (!env.EMAIL || !env.MAIL_FROM) return 'off';
+  if (!env.EMAIL || !env.MAIL_FROM) return why ? 'failed: ' + why : 'off';
   try {
     const { EmailMessage } = await import('cloudflare:email');
     const raw = rawEmail({ fromName: opts.fromName || 'Always Open', from: env.MAIL_FROM, to, subject, replyTo: opts.replyTo || REPLY }, m.text, m.html);
     await env.EMAIL.send(new EmailMessage(env.MAIL_FROM, to, raw));
     return 'sent';
-  } catch (e) { return 'failed: ' + one((e && e.message) || e).slice(0, 120); }
+  } catch (e) { return 'failed: ' + (why || one((e && e.message) || e).slice(0, 120)); }
 }
 
 // ---------- the weekly note (Monday) ----------
@@ -50,7 +85,7 @@ export function weeklyEmail(c, n, lostLabels) {
   if (n.handoffs && n.handoffs.given) lines.push({ k: 'Hand-offs', v: n.handoffs.given + ' sent on to a neighbor' });
   if (n.rivals) lines.push({ k: 'Competitors', v: one(n.rivals).slice(0, 180) });
   const busy = calls + books + reqs + revs;
-  return Object.assign({ subject: 'Your week at ' + biz + ': ' + pl(calls, 'call', 'calls') + ', ' + pl(books, 'booking', 'bookings') }, neonEmail({
+  return Object.assign({ subject: 'Your week' + (one(c.business) ? ' at ' + biz : '') + ': ' + pl(calls, 'call', 'calls') + ', ' + pl(books, 'booking', 'bookings') }, neonEmail({
     tone: doThis.length ? 'bad' : 'ok', sign: doThis.length ? (doThis.length === 1 ? '1 THING' : doThis.length + ' THINGS') : (busy ? 'GOOD WEEK' : 'QUIET WEEK'),
     title: (c.owner_first ? one(c.owner_first) + ', here' : 'Here') + '’s last week at ' + biz + '.', who: biz,
     preheader: pl(calls, 'call', 'calls') + ', ' + pl(books, 'booking', 'bookings') + ' last week.',
@@ -63,7 +98,8 @@ export function weeklyEmail(c, n, lostLabels) {
 // ---------- the monthly report is ready ----------
 // data: buildMonth()'s answer (stats, note, label). Only the counts the report already shows.
 export function reportEmail(c, label, data) {
-  const biz = one(c.business) || 'your business', month = one(label).split(' ')[0] || 'Last month';
+  // With no month or business on file the words stay natural: "Your last month report is ready", not "Your Last month report is ready: your business" (Nov 24, 2026).
+  const biz = one(c.business) || 'your business', month = one(label).split(' ')[0], mon = month || 'last month';
   const s = (data && data.stats) || {};
   const stats = [];
   const add = (v, a, b) => { if (v != null && v !== '' && +v >= 0) stats.push({ n: String(v), label: +v === 1 ? a : b }); };
@@ -73,8 +109,8 @@ export function reportEmail(c, label, data) {
   if (s.caught) stats.push({ n: money0(s.caught), label: 'Max caught' });
   else add(s.posts != null ? s.posts : s.replies, 'post', 'posts');
   const note = one(data && data.note).split('. ').slice(0, 2).join('. ').replace(/\.?$/, '.');
-  return Object.assign({ subject: 'Your ' + month + ' report is ready: ' + biz }, neonEmail({
-    tone: 'info', sign: month.toUpperCase().slice(0, 12) + ' REPORT', title: 'One page: what Always Open did for ' + biz + ' in ' + month + '.', who: biz,
+  return Object.assign({ subject: 'Your ' + mon + ' report is ready' + (one(c.business) ? ': ' + biz : '') }, neonEmail({
+    tone: 'info', sign: mon.toUpperCase().slice(0, 12) + ' REPORT', title: 'One page: what Always Open did for ' + biz + ' in ' + mon + '.', who: biz,
     preheader: note, stats: stats.slice(0, 4), note: (note && note.length > 2 ? note + ' ' : '') + 'Open the Always Open app to see the page and save it as a PDF.'
   }));
 }

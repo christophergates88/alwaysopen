@@ -717,7 +717,7 @@ export function leadEmail(f, id, at) {
   if (f.referredBy) lines.push({ k: 'Referred by', v: f.referredBy, ok: true });
   if (f.notes) lines.push({ k: 'Their note', v: Array.from(String(f.notes).replace(/\s+/g, ' ')).slice(0, 220).join('') });   // whole characters, never half an emoji
   if (f.quiet || f.hold) lines.push({ k: 'Audit email', v: f.quiet || f.hold, bad: true });
-  else lines.push({ k: 'Audit email', v: 'sent automatically', ok: true });
+  else lines.push({ k: 'Audit email', v: 'sending now', ok: true });
   return { tone: f.quiet ? 'bad' : 'info', sign: 'NEW LEAD', title: (f.name || 'Someone') + (f.business ? ' from ' + f.business : '') + ' asked for the free audit', who: 'website',
     doThis: [leadStep(f)], lines, note: 'Reply to this email to answer them directly. It is also on Always Open HQ, under Requests.', preheader: leadStep(f) };
 }

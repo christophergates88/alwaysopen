@@ -58,7 +58,7 @@ test('Google can’t find it: a short email asking for the name, and Chris by ha
 test('sending: once per address a week, a miss pings Christopher, a failure pings him too', async () => {
   const DB = H.makeDB(), env = { DB, LEADS_KEY: 'k', BUSINESS_ADDRESS: ENV.BUSINESS_ADDRESS };
   const sent = [], pings = [];
-  const h = { run: async (e, q) => (q === 'Sinclair Plumbing' ? AUDIT : { found: false }), send: async (to, m) => { sent.push({ to, subject: m.subject }); return 'sent'; }, ping: async (t, b) => pings.push(t + ' | ' + b) };
+  const h = { run: async (e, q) => (q === 'Sinclair Plumbing' ? AUDIT : { found: false }), send: async (to, m) => { sent.push({ to, subject: m.subject }); return 'sent'; }, alert: async (ty, who, tx) => pings.push(ty + ' | ' + tx) };
   const add = async (email, business) => (await DB.prepare("INSERT INTO leads (at, name, email, business, town, plan, status) VALUES (?1, 'Dana Whitfield', ?2, ?3, 'Eatonton, GA', 'Growth', 'new')").bind(new Date().toISOString(), email, business).run()).meta.last_row_id;
   let id = await add('dana@example.com', 'Sinclair Plumbing');
   assert.equal(await L.sendAudit(env, Object.assign({}, LEAD), id, h), 'sent');
@@ -71,15 +71,15 @@ test('sending: once per address a week, a miss pings Christopher, a failure ping
   id = await add('al@example.com', 'Als Fixit');
   assert.equal(await L.sendAudit(env, { name: 'Al', email: 'al@example.com', business: 'Als Fixit', town: 'Gray' }, id, h), 'missed');
   assert.equal(sent.length, 2); assert.equal(sent[1].subject, 'Your free audit: one quick question');
-  assert.match(pings[0], /^Audit needs a hand: Als Fixit/);
+  assert.match(pings[0], /^audit-failed \| Audit needs a hand: Als Fixit/);
   id = await add('bo@example.com', 'Sinclair Plumbing');
   const failing = Object.assign({}, h, { send: async () => 'failed: nope' });
   assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'retry', 'a failed send is tried again, not handed to Christopher');
-  assert.equal(pings.length, 1);
+  assert.equal(pings.length, 2, 'only the first failed send tells Christopher the mail service may be down (swarm-mail C2)'); assert.match(pings[1], /^mail-send /);
   assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'retry');
   assert.equal(await L.sendAudit(env, Object.assign({}, LEAD, { email: 'bo@example.com' }), id, failing), 'failed: nope');
-  assert.match(pings[1], /^Audit email did not send/);
-  assert.match(pings[1], /tried 3 times/);
+  assert.match(pings[2], /^audit-failed \| Audit email did not send/);
+  assert.match(pings[2], /tried 3 times/);
 });
 
 test('audit retries: a failed send, or a request whose audit never started, goes out on the next pass', async () => {

@@ -41,7 +41,7 @@ test('one audit per address in 30 days (dots and +tags are the same Gmail box), 
   assert.deepEqual(s.out.map(m => m.to).slice(1), ['a@example.org', 'b@example.org', 'c@example.org']);
   const held = await s.DB.prepare("SELECT audit FROM leads WHERE email = 'd@example.org'").first();
   assert.equal(held.audit, 'held: network limit');
-  assert.ok(s.world.pushes.some(p => /Audit held/.test(p.title) && p.priority === 'low'));
+  assert.ok(await s.DB.prepare("SELECT 1 AS x FROM ops_alerts WHERE type LIKE 'audit-failed|%'").first(), 'Christopher hears through opsAlert (email and the morning list), not a silent push (swarm-mail C2)');
   // a different network the same day is fine
   await ask(s, { email: 'e@example.org' }, '203.0.114.10');
   assert.equal(s.out.at(-1).to, 'e@example.org');
