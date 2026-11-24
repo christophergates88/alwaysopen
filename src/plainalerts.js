@@ -42,6 +42,7 @@ const KINDS = [
   [/^stripe-dispute/, () => ['A client disputed a charge', 'Stripe opened a dispute.', 'Open Stripe, Disputes, and answer it before the deadline.']],
   [/^stripe-checkout/, () => ['Someone couldn\'t finish signing up', 'Checkout failed.', claude('signup checkout is failing.')]],
   [/^stripe/, () => ['A payment update from Stripe failed', 'A billing change may not have been saved.', claude('a Stripe update failed, check it.')]],
+  [/^zone-unknown/, () => ['A new client\'s time zone is a guess', 'The town they typed has no state we could read, so their clock may be wrong.', 'Open the client in Always Open HQ, check the town, and tell Claude the right state.']],
   [/^audit-failed/, () => ['A free audit did not reach a lead', 'Someone asked for their audit and it was held, could not be graded, or the email failed.', 'Open the lead in Always Open HQ and send the audit by hand, or call them.']],
   [/^max-backup/, () => ['Max switched to his backup brain', 'Calls are answered, but he sounds less natural.', claude('Max is on his backup model, why?')]],
   [/^max-call/, () => ['A call to Max went wrong', 'One call didn\'t go through cleanly.', claude('a Max call failed, check it.')]],
