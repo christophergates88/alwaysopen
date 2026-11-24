@@ -1,0 +1,42 @@
+name: Ops check
+# Run by hand (Actions tab, Ops check, Run workflow) or by Claude. It asks the live site two things that cannot be
+# asked from outside without a key or a real form, and prints no secret.
+#   stripe      is the site on Stripe's live key or its test key? (POST /billing/setup with the ops key: it also
+#               remakes the customer portal settings, which is what to run after STRIPE_KEY changes)
+#   audit-test  sends the website's own free-audit form with an outside mailbox (typed in the "to" box) as the
+#               lead's address, so the email path every prospect depends on is proven end to end. The mailbox is
+#               kept out of the log. The lead it makes is named "Chris (mail test)".
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "stripe or audit-test"
+        required: true
+        default: stripe
+      to:
+        description: "audit-test only: the outside mailbox to send the audit to"
+        required: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Stripe, live or test
+        if: inputs.what == 'stripe'
+        env:
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+        run: |
+          [ -n "$OPS_KEY" ] || { echo "The ops key secret is not set."; exit 1; }
+          curl -sS -m 40 -X POST -H "x-key: $OPS_KEY" https://alwaysopenoffice.com/billing/setup | head -c 600; echo
+      - name: Audit email to an outside mailbox
+        if: inputs.what == 'audit-test'
+        run: |
+          # read from the event file, not the template, and masked, so the mailbox never shows in this public log
+          TO=$(jq -r '.inputs.to // ""' "$GITHUB_EVENT_PATH")
+          [ -n "$TO" ] || { echo "Type a mailbox in the 'to' box."; exit 1; }
+          echo "::add-mask::$TO"
+          curl -sS -m 40 -X POST -H 'accept: application/json' -H 'origin: https://alwaysopenoffice.com' \
+            --form-string 'name=Chris (mail test)' --form-string "email=$TO" \
+            --form-string 'business=Lake Country Foam Party' --form-string 'town=Eatonton, GA' --form-string 'type=Other' \
+            --form-string 'notes=Mail test from the ops check. Ignore.' \
+            https://alwaysopenoffice.com/lead | head -c 600; echo

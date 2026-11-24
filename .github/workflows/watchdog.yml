@@ -1,0 +1,50 @@
+name: Watchdog
+# The outside monitor (Nov 24, 2026). Every 10 minutes GitHub, not Cloudflare, asks the live site how it is. Two bad
+# answers a minute apart open an issue named "Always Open is down", which GitHub emails to Christopher; the issue is
+# closed with a note when the site answers again. It needs no keys and does not depend on Cloudflare, Twilio, ntfy or
+# the Mac, so it still speaks when all of those are the problem. Plain /health is what it reads: the site, the
+# database, the keys, the 10-minute jobs and the phone numbers (docs/runbook.md).
+on:
+  schedule:
+    - cron: '3-59/10 * * * *'
+  workflow_dispatch:
+permissions:
+  issues: write
+concurrency: { group: watchdog, cancel-in-progress: false }
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Ask the site how it is
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          ask() { curl -sS -m 20 -o body.txt -w '%{http_code}' https://alwaysopenoffice.com/health 2>/dev/null || echo 000; }
+          said() { head -c 300 body.txt 2>/dev/null | tr -d '\r' | tr '\n' ' '; }
+          code=$(ask); body=$(said)
+          # one bad answer can be a blip: ask again a minute later before saying anything
+          if [ "$code" != "200" ]; then sleep 60; code=$(ask); body=$(said); fi
+          open=$(gh issue list --repo "$REPO" --label watchdog --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          now=$(TZ=America/New_York date '+%a %b %-d, %-I:%M %p Eastern')
+          if [ "$code" = "200" ]; then
+            echo "ok"
+            if [ -n "$open" ]; then gh issue close "$open" --repo "$REPO" --comment "Back up at $now. The site answered: ok."; fi
+            exit 0
+          fi
+          what="The site answered $code: ${body:-nothing}"
+          if [ "$code" = "000" ]; then what="The site did not answer at all."; fi
+          echo "DOWN: $what"
+          if [ -z "$open" ]; then
+            gh label create watchdog --repo "$REPO" --color B60205 --description "Opened by the outside monitor" 2>/dev/null || true
+            printf '%s\n\n%s\n\n%s\n\n%s\n' "$what" \
+              "Checked twice, a minute apart, from GitHub, outside Cloudflare. If only the site is down, callers still reach the voicemail backup." \
+              "First thing to check: https://alwaysopenoffice.com/health and the part of docs/runbook.md called \"The first thing to check when something is wrong\". This issue closes by itself when the site answers again." \
+              "cc @christophergates88" > issue.txt
+            gh issue create --repo "$REPO" --label watchdog --title "Always Open is down ($now)" --body-file issue.txt
+          else
+            # still down: one more line an hour, not one every 10 minutes
+            last=$(gh issue view "$open" --repo "$REPO" --json comments,createdAt --jq '(.comments | last | .createdAt) // .createdAt')
+            if [ $(( $(date +%s) - $(date -d "$last" +%s) )) -ge 3300 ]; then gh issue comment "$open" --repo "$REPO" --body "Still down at $now. $what"; fi
+          fi

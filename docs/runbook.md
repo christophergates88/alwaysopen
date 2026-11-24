@@ -369,7 +369,7 @@ ran; `POST` runs one now. How to restore, and the drill that proves it, is in `d
 Cloudflare (the Worker, D1, Email Routing; domain `alwaysopenoffice.com` renews Oct 24, 2027), Twilio (prepaid
 balance: auto-recharge on, the Worker warns at $25 and $10), Anthropic (API credits: the Worker warns when a call is
 refused for credit), Apple Developer Program (Oct 7, 2027), Google Cloud (Places key, OAuth: keep the consent screen
-published), Stripe (nothing to renew), ntfy (check in the ntfy app which plan the account is on; on the free plan pushes stop at 250 a day), Lob (mailed letters: pay per letter, card on file), the outside uptime monitor (free account, watches
+published), Stripe (nothing to renew), ntfy (the account in use is a FREE one, checked Nov 24, 2026: 250 pushes a day, then they wait; the paid Supporter plan was on the old account that was lost on Nov 4), Lob (mailed letters: pay per letter, card on file), the outside monitor (the Watchdog workflow in this repo's GitHub Actions, free and with no account; it watches
 `/health`). The Worker reminds you 30, 7 and 1 days before each date in `RENEWALS` in `wrangler.toml`.
 
 ## If you cannot be reached
@@ -440,3 +440,15 @@ either way), and the web wording differs in small places (for example "Gap betwe
 
 Found on the way (Nov 12): the ntfy account looked like a free one, 250 pushes a day, and it reached 0 left on the night of
 Nov 11 (push_meta `account`). Which plan the account is on needs checking in the ntfy app; on the free plan pushes stop at 250 a day. That, not a bad token, was the 429. Pushes then wait for the Mac relay or the next day.
+
+## The outside monitor and the ops check (Nov 24, 2026)
+
+- **Watchdog** (`.github/workflows/watchdog.yml`): GitHub, not Cloudflare, asks `https://alwaysopenoffice.com/health`
+  every 10 minutes. Two bad answers a minute apart open an issue named "Always Open is down" in this repo, and GitHub
+  emails you (turn on notifications in the GitHub phone app to get it as a push). It closes the issue when the site
+  answers again and adds one line an hour while it stays down. It needs no keys and still works when Cloudflare,
+  Twilio, ntfy and the Mac are all the problem. To stop it: Actions tab, Watchdog, the "..." menu, Disable workflow.
+- **Ops check** (`.github/workflows/ops-check.yml`): Actions tab, Ops check, Run workflow. `stripe` says whether the
+  site is on Stripe's live or test key and remakes the customer portal settings (run it after STRIPE_KEY changes).
+  `audit-test` sends the site's own free-audit form to an outside mailbox you type in, which proves the email path
+  every prospect depends on. The lead it makes is named "Chris (mail test)".
