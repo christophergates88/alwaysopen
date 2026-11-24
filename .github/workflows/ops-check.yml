@@ -35,8 +35,13 @@ jobs:
           TO=$(jq -r '.inputs.to // ""' "$GITHUB_EVENT_PATH")
           [ -n "$TO" ] || { echo "Type a mailbox in the 'to' box."; exit 1; }
           echo "::add-mask::$TO"
+          # the way the page does it: ask for the signed form time, keep the form "open" a few seconds, then send.
+          # Without it the request is held as a possible bot and no audit email goes out.
+          T=$(curl -sS -m 20 'https://alwaysopenoffice.com/lead?t=1' | jq -r '.t // ""')
+          [ -n "$T" ] || { echo "The site gave no form time."; exit 1; }
+          sleep 6
           curl -sS -m 40 -X POST -H 'accept: application/json' -H 'origin: https://alwaysopenoffice.com' \
-            --form-string 'name=Chris (mail test)' --form-string "email=$TO" \
+            --form-string 'name=Chris (mail test)' --form-string "email=$TO" --form-string "t=$T" \
             --form-string 'business=Lake Country Foam Party' --form-string 'town=Eatonton, GA' --form-string 'type=Other' \
             --form-string 'notes=Mail test from the ops check. Ignore.' \
             https://alwaysopenoffice.com/lead | head -c 600; echo
