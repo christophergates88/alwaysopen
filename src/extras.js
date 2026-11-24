@@ -2,6 +2,7 @@
 // Tables create themselves on first use. Nothing posts or sends without the owner's approval in the app.
 import { openSlots, bookSlot, gcalStatus } from './gcal.js';
 import { pushClient, sha256hex } from './app.js';
+import { senderKey } from './sender.js';
 import { langOf, langBar, t as tr } from './biz.js';
 
 const SITE = 'https://alwaysopenoffice.com';
@@ -65,9 +66,13 @@ export async function handleBooking(req, env, ctx, url) {
   const slot = open.slots.find(s => s.start === start) || (start ? (await freeNow()).slots.find(s => s.start === start) : null);
   if (!slot) return bookForm(c, open, T('taken'), v, lang, url);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, at TEXT, name TEXT, phone TEXT, need TEXT, sms_ok INTEGER DEFAULT 0, status TEXT DEFAULT 'new', done_at TEXT, ip_hash TEXT)").run();
-  const ip = (await sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
+  const ip = (await sha256hex(senderKey(req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM app_leads WHERE ip_hash = ?1 AND at > ?2').bind(ip, new Date(Date.now() - 3600e3).toISOString()).first();
   if (n && n.n >= 5) return page(429, T('thanks'), '<p>' + esc(T('alreadyBook', { b: c.business })) + '</p>', lang);
+  // Nov 24, 2026: whatever the senders, one business takes at most 5 online bookings an hour; past that the page sends them
+  // to the phone and the owner is not pushed again (a rotating address could otherwise fill a week of a calendar).
+  const nb = await env.DB.prepare("SELECT COUNT(*) AS n FROM line_bookings WHERE client_id = ?1 AND call_id = '' AND status != 'cancelled' AND created > ?2").bind(c.client_id, new Date(Date.now() - 3600e3).toISOString()).first().catch(() => null);
+  if (nb && nb.n >= 5) return page(200, T('thanks'), '<p>' + (lang === 'es' ? 'Por favor llámenos para reservar.' : 'Please call us to book.') + '</p>', lang);
   const ok = await bookSlot(env, c.client_id, slot, { name, phone, reason: reason + (email ? '\nEmail: ' + email : ''), via: 'the online booking page' });
   if (!ok) return bookForm(c, open, T('cantBook'), v, lang, url);
   const need = 'Booked ' + slot.say + (reason ? ': ' + reason : '') + (email ? ' (' + email + ')' : '');

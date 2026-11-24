@@ -47,6 +47,7 @@ import { photoPostCron } from './posts.js';
 import { boardToken } from './opsboard.js';
 import { harden, sitePolicy } from './headers.js';
 import { tryRefresh as gcalRefresh } from './gcal.js';
+import { senderKey } from './sender.js';
 import { tryRefresh as gbpRefresh } from './gbp.js';
 
 // The AI phone line keeps each live call in a CallRoom (a Durable Object), so the class is exported from here.
@@ -417,7 +418,7 @@ async function serve(req, env, ctx) {
       try { const r = await handleBilling(req, env, url, { json, sameKey, notify: (t, b, pr) => billingNotify(env, ctx, t, b, pr), later: p => ctx.waitUntil(p) }); if (r && r.status >= 500) ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', 'Checkout/billing answered ' + r.status + ' on ' + path)); return r; }
       catch (e) { ctx.waitUntil(opsAlert(env, 'stripe-checkout', '', ((e && e.message) || 'threw') + ' on ' + path)); return json({ ok: false, error: 'Something went wrong. Please try again.' }, 500); }
     }
-    if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score' || path === '/audit/letter') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash((r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
+    if (path === '/audit/tool' || path === '/audit/run' || path === '/audit/score' || path === '/audit/letter') return handleAudit(req, env, url, { json, sameKey, ipHash: (r, e) => hash(senderKey(r.headers.get('cf-connecting-ip') || '') + '|' + (e.IP_SALT || 'salt')) });
     if (path === '/radar') return radarRun(req, env, url);
     if (path === '/.well-known/apple-app-site-association') return aasa();
     if (path === '/.well-known/security.txt' || path === '/security.txt') {
@@ -447,6 +448,9 @@ async function serve(req, env, ctx) {
       // Twilio's note that the Hear Max recording is done (hearmax.js). Only the armed call is ever kept.
       if (req.method !== 'POST' || !env.VOICE_KEY || !(await sameKey(path.slice('/voice/recorded/'.length), env.VOICE_KEY))) return new Response('Not found', { status: 404 });
       const form = await req.formData().catch(() => new FormData());
+      // Nov 24, 2026: checked against Twilio's signature like every other /voice/ route (it used to be the one that was not).
+      // The address Twilio signs is the one recordingTwiml (hearmax.js) gave it: SITE + this path, no query.
+      if (env.TWILIO_AUTH_TOKEN && !(await (await import('./hearmax.js')).twilioSigOk(env.TWILIO_AUTH_TOKEN, url.href, form, req.headers.get('x-twilio-signature')))) return new Response('Forbidden', { status: 403 });
       ctx.waitUntil((await import('./hearmax.js')).recordedHook(env, form, { ping: (t, b, click) => opsPing(env, t, b, 'default', 'microphone', click) }).catch(e => opsAlert(env, 'hear-max', 'always-open', 'Saving the Hear Max recording failed: ' + String((e && e.message) || e))));
       return new Response('ok');
     }
@@ -603,9 +607,8 @@ async function lead(req, env, ctx, url) {
   const at = new Date(now).toISOString();
   const origin = clean(req.headers.get('origin') || '', 200);
   const ip = req.headers.get('cf-connecting-ip') || '';
-  // One sender: an IPv6 home or server owns a whole /64 and can use a new address for every request, so it counts as one
-  const v6 = a => { const [h, t] = a.toLowerCase().split('::'); const hg = h ? h.split(':') : [], tg = t !== undefined && t ? t.split(':') : []; return hg.concat(Array(Math.max(0, 8 - hg.length - tg.length)).fill('0'), tg).slice(0, 4).map(g => g.replace(/^0+(?=.)/, '')).join(':'); };
-  const ipHash = await hash((ip.includes(':') ? v6(ip) + '::/64' : ip) + '|' + (env.IP_SALT || 'salt'));
+  // One sender: an IPv6 home or server owns a whole /64 and can use a new address for every request, so it counts as one (sender.js)
+  const ipHash = await hash(senderKey(ip) + '|' + (env.IP_SALT || 'salt'));
   const LM = await import('./leadmail.js');
   // The sender's network (a /24), so one network can't send audit emails to a pile of strangers' addresses.
   const netHash = await hash('net:' + LM.netOf(ip) + '|' + (env.IP_SALT || 'salt'));

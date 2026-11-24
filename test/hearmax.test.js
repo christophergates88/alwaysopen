@@ -65,7 +65,8 @@ test('armed from the ops board page: only that number, once, answered as the dem
     const form = { RecordingSid: 'RE' + 'f'.repeat(32), RecordingUrl: 'https://api.twilio.com/2010-04-01/Accounts/AC' + 'a'.repeat(32) + '/Recordings/RE' + 'f'.repeat(32), RecordingStatus: 'completed', RecordingDuration: '24', CallSid: sid };
     const wrong = await site.call('/voice/recorded/wrong-key', { form });
     assert.equal(wrong.status, 404);
-    const ok = await site.call('/voice/recorded/' + env.VOICE_KEY, { form });
+    // Twilio signs this callback like every other /voice/ one (Nov 24, 2026); the test now signs it too.
+    const ok = await site.call('/voice/recorded/' + env.VOICE_KEY, { form, headers: { 'x-twilio-signature': H.twilioSign(env.TWILIO_AUTH_TOKEN, 'https://alwaysopenoffice.com/voice/recorded/' + env.VOICE_KEY, form) } });
     assert.equal(ok.status, 200);
   } finally { globalThis.fetch = before; }
   assert.ok(seen.some(s => /^DELETE .*\/Recordings\/RE/.test(s)), 'Twilio’s copy is deleted');

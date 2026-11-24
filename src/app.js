@@ -4,6 +4,7 @@
 // and reads back approvals, messages, finished jobs and photos. Approvals ping Christopher's phone right away (ntfy).
 // Every 10 minutes the cron sends iPhone notifications for new drafts and new replies from Always Open (when APNs is set up).
 import { opsAlert } from './ops.js';
+import { senderKey } from './sender.js';
 import { DISCLOSURE, contradicts } from './disclosure.js';
 import { EmailMessage } from 'cloudflare:email';
 import { apiVersions, versionsOn, queueReviewRequest, sendReviewRequest, reviewReqValid } from './reviews.js';
@@ -1534,7 +1535,7 @@ export async function sha256hex(s) {
   return [...new Uint8Array(d)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 async function ipKey(req, env) {
-  return (await sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
+  return (await sha256hex(senderKey(req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'))).slice(0, 24);
 }
 
 

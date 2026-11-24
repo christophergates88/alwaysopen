@@ -55,6 +55,19 @@ function captionFor(industry, at) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', hour: 'numeric', minute: '2-digit' }).formatToParts(new Date(at)).map(x => [x.type, x.value]));
   return who + ', ' + p.weekday + ' at ' + p.hour + ':' + p.minute + ' ' + (p.dayPeriod || '').toUpperCase();
 }
+// Twilio's request signature, copied from twilioSigOk in voice.js (not exported there) so this route checks it the same way.
+export async function twilioSigOk(token, href, form, sig) {
+  if (!sig) return false;
+  let data = href;
+  for (const k of [...new Set([...form.keys()])].sort()) for (const v of form.getAll(k)) data += k + v;
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(token), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data)));
+  let bin = ''; for (const x of mac) bin += String.fromCharCode(x);
+  const a = btoa(bin), b = String(sig);
+  if (a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
 // Fetch Twilio's MP3, keep it, delete Twilio's copy. `h.fetch` for tests.
 export async function saveRecording(env, rec, h) {
   await ensureHear(env);
@@ -67,6 +80,8 @@ export async function saveRecording(env, rec, h) {
     if (h && h.ping) await h.ping('Hear Max: that call was too short', 'The recording was ' + seconds + ' seconds. Open the Hear Max page again and make a call of 20 to 30 seconds.');
     return { ok: false, why: 'too short' };
   }
+  // Only ever fetch from Twilio: the address comes from the request, and our Twilio login goes with it.
+  if (!String(rec.url || '').startsWith('https://api.twilio.com/')) return { ok: false, why: 'not a Twilio address' };
   const r = await f(String(rec.url).replace(/\.(mp3|wav)$/, '') + '.mp3', { headers: { authorization: twilioAuth(env) } });
   if (!r.ok) return { ok: false, why: 'Twilio answered ' + r.status };
   const bytes = new Uint8Array(await r.arrayBuffer());

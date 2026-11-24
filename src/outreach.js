@@ -753,7 +753,7 @@ export async function stopPage(env, req, url) {
   if (!f || String(f.get('website') || '')) return page(form, 400);
   const d = ph10(String(f.get('phone') || ''));
   if (!d) return page('<div class="box"><b>That number didn’t look right.</b> Use the 10-digit number, with the area code.</div>' + form, 400);
-  const ip = (await import('./app.js')).sha256hex((req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'));
+  const ip = (await import('./app.js')).sha256hex((await import('./sender.js')).senderKey(req.headers.get('cf-connecting-ip') || '') + '|' + (env.IP_SALT || 'salt'));
   const iph = (await ip).slice(0, 24), since = new Date(Date.now() - 86400000).toISOString(), now = new Date().toISOString();
   const n = ((await env.DB.prepare('SELECT COUNT(*) AS n FROM outreach_webstop WHERE ip_hash = ?1 AND at > ?2').bind(iph, since).first()) || {}).n || 0;
   if (n >= 20) return page('<div class="box"><b>Too many tries from this connection today.</b> Email hello@alwaysopenoffice.com and we’ll do it for you.</div>', 429);
