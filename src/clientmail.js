@@ -109,7 +109,9 @@ export function reportEmail(c, label, data) {
   if (s.caught) stats.push({ n: money0(s.caught), label: 'Max caught' });
   else add(s.posts != null ? s.posts : s.replies, 'post', 'posts');
   const note = one(data && data.note).split('. ').slice(0, 2).join('. ').replace(/\.?$/, '.');
-  return Object.assign({ subject: 'Your ' + mon + ' report is ready' + (one(c.business) ? ': ' + biz : '') }, neonEmail({
+  // Dollars in the subject when Max caught any after hours and the owner's average job is set (money.js subjectLine)
+  const caught = s.caught && s.afterHours ? (+s.afterHours === 1 ? '1 after-hours call' : s.afterHours + ' after-hours calls') + ' caught, about ' + money0(s.caught) + ' of work' : '';
+  return Object.assign({ subject: caught ? 'Your ' + mon + ' report: ' + caught : 'Your ' + mon + ' report is ready' + (one(c.business) ? ': ' + biz : '') }, neonEmail({
     tone: 'info', sign: mon.toUpperCase().slice(0, 12) + ' REPORT', title: 'One page: what Always Open did for ' + biz + ' in ' + mon + '.', who: biz,
     preheader: note, stats: stats.slice(0, 4), note: (note && note.length > 2 ? note + ' ' : '') + 'Open the Always Open app to see the page and save it as a PDF.'
   }));

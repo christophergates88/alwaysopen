@@ -74,7 +74,7 @@ export function buildMonth(c, m, rows, prevStats, now) {
   const bits = [];
   // What Max caught after hours leads the note, in the same words as the app's card (money.js).
   const mline = rows.money && rows.money.afterHoursCalls ? reportLine(rows.money) : '';
-  if (mline) { bits.push(mline); stats.caught = rows.money.mid || 0; stats.afterHours = rows.money.afterHoursCalls; }
+  if (mline) { bits.push(mline); stats.caught = rows.money.mid || 0; stats.afterHours = rows.money.afterHoursCalls; stats.leads = rows.money.leads || 0; }
   if (calls) bits.push((mline ? 'In all, Max answered ' : 'Max answered ') + calls + (calls === 1 ? ' call.' : ' calls.'));
   if (reviews.length) bits.push(reviews.length + (reviews.length === 1 ? ' new review' : ' new reviews') + (replied.length === reviews.length ? ', every one with a reply.' : ', ' + replied.length + ' with a reply so far.'));
   if (posts.length) bits.push(posts.length + (posts.length === 1 ? ' post went up.' : ' posts went up.'));

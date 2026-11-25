@@ -126,6 +126,12 @@ async function finishIfMissing(env, got, h) {
 }
 
 // A paid checkout becomes a client with a private app link, right away. Safe to call twice (webhook and welcome page).
+// "$1,250", "350", "about 400": whole dollars, $1 to $100,000. Anything else: not given.
+export function avgJobOf(x) {
+  const d = String(x || '').replace(/\.\d*$/, '').replace(/[^\d]/g, '');
+  const n = d ? parseInt(d.slice(0, 7), 10) : 0;
+  return n >= 1 && n <= 100000 ? n : 0;
+}
 export async function createFromSession(env, s, h) {
   await ensureBilling(env);
   const have = await env.DB.prepare('SELECT * FROM billing WHERE session_id = ?1').bind(s.id).first();
@@ -159,6 +165,13 @@ export async function createFromSession(env, s, h) {
   const made = await env.DB.prepare("INSERT OR IGNORE INTO app_clients (client_id, code_hash, ref, business, owner_first, regulated, banned, phone, review_link, tier, active, updated, qr, feats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, '', ?8, 1, ?9, '', ?10)")
     .bind(cid, await sha256hex(code), ref, m.business || '', String(m.owner || '').split(' ')[0], reg, m.phone || '', plan, now, 'calls').run();
   const mine = !!(made.meta && made.meta.changes);
+  // The average job they gave at sign-up: the month report says what after-hours calls were worth from day one (Nov 25, 2026).
+  if (mine && avgJobOf(m.avg_job)) {
+    try {
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (client_id TEXT PRIMARY KEY, avg_job INTEGER DEFAULT 0, win_rate INTEGER DEFAULT 30, updated TEXT)').run();
+      await env.DB.prepare('INSERT OR IGNORE INTO app_settings (client_id, avg_job, win_rate, updated) VALUES (?1, ?2, 30, ?3)').bind(cid, avgJobOf(m.avg_job), now).run();
+    } catch (e) { /* they can set it in the app */ }
+  }
   // the same owner again (lost their link, say): a second number and subscription, so the push says so (Nov 10). The
   // business's name counts too (Nov 24, 2026): a second sign-up with another email and phone got through unflagged.
   const again = await env.DB.prepare("SELECT business FROM billing WHERE client_id != ?1 AND ((?2 != '' AND lower(email) = lower(?2)) OR (?3 != '' AND phone = ?3) OR (?4 != '' AND lower(trim(business)) = lower(?4))) LIMIT 1").bind(cid, email, m.phone || '', String(m.business || '').trim()).first().catch(() => null);
@@ -266,6 +279,8 @@ ${err ? '<p class="err">' + esc(err) + '</p>' : ''}
 <div class="row"><label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(v.email)}"></label><label>Town and state<input name="town" required maxlength="80" placeholder="Eatonton, GA" value="${esc(v.town)}"></label></div>
 <label>Kind of business<select name="type" id="type">${TYPES.map(t => `<option${t === v.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
 <p class="err" id="hnote"${v.type === HEALTH_TYPE ? '' : ' hidden'}>${esc(HEALTH_NOTE)}</p>
+<label>Your average job, roughly <span class="sub">(optional)</span><input name="avg_job" inputmode="numeric" maxlength="8" placeholder="$350" value="${esc(v.avg_job)}"></label>
+<p class="fine" style="margin-top:-6px">Your monthly report turns the calls Max catches after hours into dollars with it. Change it any time in the app.</p>
 <script>document.getElementById('type').addEventListener('change',function(){document.getElementById('hnote').hidden=this.value!==${JSON.stringify(HEALTH_TYPE)};});</script>
 ${REF_RE.test(v.ref || '') ? '<input type="hidden" name="ref" value="' + esc(v.ref) + '">' : ''}
 <label class="opt"><input type="checkbox" name="agree" value="1" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and authorize monthly charges until I cancel.</span></label>
@@ -275,7 +290,7 @@ ${REF_RE.test(v.ref || '') ? '<input type="hidden" name="ref" value="' + esc(v.r
 
 async function checkout(req, env) {
   const f = await req.formData();
-  const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree', 'ref']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
+  const v = {}; for (const k of ['plan', 'max', 'business', 'owner', 'phone', 'email', 'town', 'type', 'agree', 'ref', 'avg_job']) v[k] = String(f.get(k) || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 120);
   if (!Object.hasOwn(PLANS, String(v.plan))) v.plan = 'Growth';
   v.type = fixType(v.type, v.business);
   if (isHealthOffice(v.type, v.business)) return startPage(v, HEALTH_NOTE);
@@ -286,6 +301,7 @@ async function checkout(req, env) {
   if (v.max === '1') items.push({ price_data: { currency: 'usd', unit_amount: MAX.cents, recurring: { interval: 'month' }, product_data: { name: 'More Max minutes' } }, quantity: 1 });
   const meta = { plan: v.plan, max: v.max === '1' ? '1' : '0', business: v.business, owner: v.owner, phone: v.phone, town: v.town, type: v.type, terms_version: TERMS_VERSION, agreed_at: new Date().toISOString() };
   if (REF_RE.test(v.ref || '')) meta.ref = v.ref;
+  const avg = avgJobOf(v.avg_job); if (avg) meta.avg_job = String(avg);
   try {
     const s = await stripe(env, 'POST', 'checkout/sessions', {
       mode: 'subscription', line_items: items, customer_email: v.email, metadata: meta, subscription_data: { metadata: meta },

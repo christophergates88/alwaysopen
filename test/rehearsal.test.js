@@ -19,7 +19,7 @@ const site = H.makeClient(worker, env);
 const get = (sql, ...a) => DB.prepare(sql).bind(...a).first();
 const all = async (sql, ...a) => (await DB.prepare(sql).bind(...a).all()).results;
 
-const CUSTOMER = { plan: 'Growth', max: '1', business: 'Sinclair Plumbing', owner: 'Dana Sinclair', phone: '(478) 555-0101', email: 'dana@sinclairplumbing.example', town: 'Eatonton, GA', type: 'Contractor or trade', agree: '1' };
+const CUSTOMER = { plan: 'Growth', max: '1', business: 'Sinclair Plumbing', owner: 'Dana Sinclair', phone: '(478) 555-0101', email: 'dana@sinclairplumbing.example', town: 'Eatonton, GA', type: 'Contractor or trade', agree: '1', avg_job: '$1,250' };
 let sessionId = '', cid = '', code = '', lineNumber = '';
 const S = {};   // things carried from one step to the next
 
@@ -55,6 +55,7 @@ test('checkout sends the customer to Stripe with the right plan and nothing leak
   assert.equal(s.metadata.plan, 'Growth');
   assert.equal(s.metadata.business, 'Sinclair Plumbing');
   assert.equal(s.metadata.max, '1');
+  assert.equal(s.metadata.avg_job, '1250', 'the average job they gave, in whole dollars');
   const prices = s._items.filter(([k]) => /unit_amount/.test(k)).map(([, v]) => v);
   assert.deepEqual(prices, ['29900', '5900'], 'Growth plus the extra Max minutes');
 });
@@ -81,6 +82,7 @@ test('Stripe tells us the payment worked: the client, the app and Max’s line a
   const c = await get('SELECT * FROM app_clients WHERE client_id = ?1', cid);
   assert.equal(c.active, 1); assert.equal(c.tier, 'Growth'); assert.equal(c.owner_first, 'Dana'); assert.equal(c.regulated, 0);
   assert.equal(c.feats, 'calls', 'the phone line is on in the app from the first minute');
+  assert.deepEqual(Object.assign({}, await get('SELECT avg_job, win_rate FROM app_settings WHERE client_id = ?1', cid)), { avg_job: 1250, win_rate: 30 }, 'the month report has dollars from day one');
   const p = await get('SELECT * FROM provision WHERE client_id = ?1', cid);
   assert.equal(p.status, 'live', 'Max’s line was bought and connected: ' + (p && p.error));
   const line = await get('SELECT * FROM voice_lines WHERE client_id = ?1', cid);

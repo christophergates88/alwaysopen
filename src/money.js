@@ -36,9 +36,13 @@ export function explain(m) {
   return head + ' At your ' + m.winRate + '% win rate and ' + dollars(m.avgJob) + ' average job, that is about ' + dollars(m.mid) + ' (between ' + dollars(m.low) + ' and ' + dollars(m.high) + ').';
 }
 // The report's one line, same figures, same words.
+// Nov 25, 2026: dollars first, in the owner's words: "23 after-hours calls caught, 19 of them leads: about $8,000 of work
+// at your average job and win rate."
 export function reportLine(m) {
   if (!m || !m.afterHoursCalls) return '';
-  return 'Max answered ' + pl(m.afterHoursCalls, 'call', 'calls') + ' after hours; ' + (m.leads === m.afterHoursCalls && m.leads > 1 ? 'all ' + m.leads : m.leads) + ' became ' + (m.leads === 1 ? 'a lead' : 'leads') + (m.avgJob && m.mid ? ', worth about ' + dollars(m.mid) + ' at your numbers.' : '.');
+  const n = m.afterHoursCalls, l = m.leads || 0;
+  const leads = l === n ? (n === 1 ? 'and it became a lead' : 'all of them leads') : (l ? l + ' of them ' + (l === 1 ? 'a lead' : 'leads') : 'none of them leads yet');
+  return pl(n, 'after-hours call', 'after-hours calls') + ' caught, ' + leads + (m.avgJob && m.mid ? ': about ' + dollars(m.mid) + ' of work at your average job and win rate.' : '.');
 }
 
 // Counts for the calendar month (in the business's own time) that contains `at`.

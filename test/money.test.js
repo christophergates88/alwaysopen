@@ -46,7 +46,7 @@ test('no average job: counts only, never dollars, and the card says how to get d
   const m = await caughtFor(env, 'c1', mid);
   assert.equal(m.mid, 0); assert.equal(m.low, 0); assert.equal(m.high, 0);
   assert.equal(m.explained, '5 after-hours calls, 4 became leads (1 booked a time). Tell us your average job in Settings and this becomes dollars.');
-  assert.equal(reportLine(m), 'Max answered 5 calls after hours; 4 became leads.');
+  assert.equal(reportLine(m), '5 after-hours calls caught, 4 of them leads.');
 });
 
 test('with the owner’s numbers: the figure, the range at ± 10 points, and the same words in the report', async () => {
@@ -60,8 +60,14 @@ test('with the owner’s numbers: the figure, the range at ± 10 points, and the
   assert.equal(st.lastMonth.month, '2026-09'); assert.equal(st.lastMonth.leads, 1); assert.equal(st.lastMonth.mid, 110);
   const month = monthOf(Date.parse('2026-11-02T14:00:00Z'));
   const d = buildMonth({ business: 'Sinclair Plumbing' }, month, { reviews: [], posts: [], posted: [], calls: 7, money: m }, null, Date.parse('2026-11-02T14:00:00Z'));
-  assert.equal(d.note, 'Max answered 5 calls after hours; 4 became leads, worth about $460 at your numbers. In all, Max answered 7 calls.');
+  assert.equal(d.note, '5 after-hours calls caught, 4 of them leads: about $460 of work at your average job and win rate. In all, Max answered 7 calls.');
   assert.equal(d.stats.caught, 460); assert.equal(d.stats.afterHours, 5);
+  // the month email says the dollars in its subject (Nov 25, 2026)
+  const CL = await import('../src/clientmail.js');
+  assert.equal(CL.reportEmail({ business: 'Sinclair Plumbing' }, 'October 2026', d).subject, 'Your October report: 5 after-hours calls caught, about $460 of work');
+  assert.equal(reportLine(figure({ after: 1, leads: 1, booked: 0 }, 900, 50)), '1 after-hours call caught, and it became a lead: about $450 of work at your average job and win rate.');
+  assert.equal(reportLine(figure({ after: 3, leads: 0, booked: 0 }, 900, 50)), '3 after-hours calls caught, none of them leads yet.');
+  assert.equal(reportLine(figure({ after: 23, leads: 23, booked: 0 }, 1000, 35)), '23 after-hours calls caught, all of them leads: about $8,050 of work at your average job and win rate.');
 });
 
 test('the words for the edges', () => {
