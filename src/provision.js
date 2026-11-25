@@ -198,13 +198,10 @@ export async function forwardingOff(env, cid, stage, goneMs, endMs) {
     }
   } catch (e) { /* the plain line below still goes */ }
   steps.push({ k: steps.length ? 'Any other phone' : 'Your phone', v: 'Call your carrier and ask them to turn off call forwarding.' });
-  // a Pro client's customers were texted from this number: it is theirs to keep if they ask in time
-  let texted = false;
-  if (b && b.plan === 'Pro') { try { texted = !!(await env.DB.prepare("SELECT 1 AS x FROM sms_log WHERE client_id = ?1 AND COALESCE(status, '') NOT IN ('failed', 'undelivered') LIMIT 1").bind(cid).first()); } catch (e) { texted = false; } }
+  // Nov 24, 2026: Max's number stays Always Open's. It is never handed to the owner, so the email no longer offers it.
   const title = stage === 'cancel' ? 'Your plan ends ' + dayOf(endMs) + '.' : (stage === 'week' ? 'Max’s number goes away in a week.' : 'Your plan has ended, so Max no longer answers.');
   const first = 'Turn off call forwarding so your callers reach you.' + (stage === 'cancel' ? ' Do it when the plan ends. Max answers until then.' : '');
   const lines = steps.concat([{ k: 'Max’s number', v: num + ' goes away on ' + gone + '.' }]);
-  if (texted) lines.push({ k: 'Keep it', v: 'Want to keep this number? Tell Chris before ' + gone + '.' });
   try {
     await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you. Max’s number ' + num + ' goes away on ' + gone + '. The steps are in your email.' }, sound: 'default' }, screen: 'home' }, { evenIfEnded: true });   // the plan has usually ended by now: this is the one push that still goes
   } catch (e) { /* the email still goes */ }

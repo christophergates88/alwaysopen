@@ -200,7 +200,7 @@ test('M4: the owner is told to turn call forwarding off at cancel, when the plan
   assert.match(t, /Turn off call forwarding so your callers reach you/);
   for (const code of ['*73', '##004#', '*93#']) assert.ok(t.includes(code), code + ' in ' + t);
   assert.match(t, /goes away on \w+day, \w+ \d+/);
-  assert.match(t, /Want to keep this number\? Tell Chris before \w+day, \w+ \d+\./);
+  assert.doesNotMatch(t, /keep this number/i, 'Max\'s number stays ours: it is never offered to the owner (Nov 24, 2026)');
   assert.doesNotMatch(t, /\bAI\b|Katie/);
   assert.ok(ownerPushes().slice(push0).some(a => /call forwarding/i.test(a.title + a.body)), JSON.stringify(ownerPushes().slice(push0)));
   // the plan ends (Stripe's event, twice: told once)
@@ -217,7 +217,7 @@ test('M4: the owner is told to turn call forwarding off at cancel, when the plan
   assert.equal(mine().length, 3, 'the week-before note goes once');
 });
 
-test('M4: a Growth owner who texted nobody gets no keep-the-number line', async () => {
+test('M4: no owner is offered Max\'s number, whatever their plan', async () => {
   const { b, base } = await signup({ business: 'Plain Painting', email: 'own@plain.example' });
   await site.settle();
   await site.call(base + '/billing', { form: { a: 'cancel' } });
