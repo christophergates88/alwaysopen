@@ -90,6 +90,8 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 
 | Alert | Means | First thing to check |
 | --- | --- | --- |
+| `caller-id` | A caller-name filing (SHAKEN/STIR, Voice Integrity or CNAM) was refused or turned down; Max's calls still go out, without the name | Twilio console, Trust Hub, the trust product named in the alert; then set the `caller_id` row back to `filing` |
+| `trial-cap` | 25 "Hear Max as your business" calls in a day; more owners hear Max as Always Open until it drops | Real owners? Raise `PER_DAY` in src/trial.js. A flood? Leave it |
 | `health:cron` | The 10-minute checks stopped | Cloudflare dashboard: is the Worker deployed and the cron trigger present? Last deploy on GitHub |
 | `health:d1` | The database did not answer | Cloudflare status page, then D1 in the dashboard |
 | `health:stripe` | Stripe rejected the key or is down | Stripe dashboard, API keys |
@@ -234,6 +236,15 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   counted or texted. After each one the owner gets one email with the note Max would have sent them, and your phone
   gets "<business> just heard Max as their business" at high priority: call them while it's fresh. To switch it off,
   set `MENU_DAYS` to 0 and remove the button (or set `CALLS_EACH` to 0).
+- **Your name on Max's calls** (`src/callerid.js`, Nov 25, 2026): Max's call-backs and check-ins come from his number,
+  which customers have never seen. Once a client's texting registration gets its business profile approved (a2p.js),
+  a 10-minute job adds Max's number to that profile and files three free Trust Hub registrations: SHAKEN/STIR (calls
+  signed as really theirs), Voice Integrity (the number registered with the spam-label companies AT&T and T-Mobile use)
+  and CNAM (their name, 15 characters, e.g. "SINCLAIR PLUMB", on phones that show names). Review takes 1 to 3 days; the
+  owner gets "Your name is on Max's calls" when all three are approved, and the texting page shows where it stands.
+  Sole proprietors' starter profiles don't qualify (their calls go out with no name). Our own line is filed the same
+  way under the primary profile as "ALWAYS OPEN". Rows in `caller_id`; a refusal or a turned-down filing is a
+  `caller-id` alert: fix it in Twilio's Trust Hub, then set the row back to status `filing` at the step it names.
 - **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
   same figure in the app, the monthly report and the ops board. No average job, no dollars.
 - **Review asks for Always Open** (`src/ourreviews.js`): a month in, every client gets one text (or email) asking for a
