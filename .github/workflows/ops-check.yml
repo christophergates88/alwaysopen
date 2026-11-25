@@ -6,11 +6,17 @@ name: Ops check
 #   audit-test  sends the website's own free-audit form with an outside mailbox (typed in the "to" box) as the
 #               lead's address, so the email path every prospect depends on is proven end to end. The mailbox is
 #               kept out of the log. The lead it makes is named "Chris (mail test)".
+#   transfer-test  proves the call screen on a real call, with nobody holding a phone (the "to" box is not used). The
+#               4 AM test number calls Always Open's own line and presses 0; the line puts it through to the test
+#               number itself, which answers as a robot owner. Run 1: the robot presses 1 (must read as put through).
+#               Run 2: the robot is a voicemail box (must NOT read as put through; the caller hears the missed-transfer
+#               line). Each is judged about 3 minutes after it is placed, and the test number goes back to turning
+#               callers away. Fails if either run is not ok. Needs the 4 AM test call turned on first.
 on:
   workflow_dispatch:
     inputs:
       what:
-        description: "stripe or audit-test"
+        description: "stripe, audit-test or transfer-test"
         required: true
         default: stripe
       to:
@@ -19,7 +25,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Stripe, live or test
         if: inputs.what == 'stripe'
@@ -45,3 +51,24 @@ jobs:
             --form-string 'business=Lake Country Foam Party' --form-string 'town=Eatonton, GA' --form-string 'type=Other' \
             --form-string 'notes=Mail test from the ops check. Ignore.' \
             https://alwaysopenoffice.com/lead | head -c 600; echo
+      - name: Transfer test call (press 1, then voicemail)
+        if: inputs.what == 'transfer-test'
+        env:
+          OPS_KEY: ${{ secrets.LEADS_KEY }}
+        run: |
+          [ -n "$OPS_KEY" ] || { echo "The ops key secret is not set."; exit 1; }
+          U=https://alwaysopenoffice.com/ops/test-call
+          FAIL=0
+          for RUN in transfer transfer-vm; do
+            echo "== $RUN"
+            P=$(curl -sS -m 40 -X POST -H "x-key: $OPS_KEY" -H 'content-type: application/json' -d "{\"run\":\"$RUN\"}" "$U")
+            echo "$P" | head -c 600; echo
+            if [ "$(echo "$P" | jq -r '.placed // false')" != "true" ]; then FAIL=1; continue; fi
+            # the call runs up to about 100 seconds; the write-up and Twilio's reports come in after it
+            sleep 170
+            J=$(curl -sS -m 40 -X POST -H "x-key: $OPS_KEY" -H 'content-type: application/json' -d '{"judge":1}' "$U")
+            # the test number is ours and not a secret, but this log is public: it is shown as "set", not the number
+            echo "$J" | jq 'if (.promise | type) == "object" then .promise.callback |= (if . == "" then "" else "set" end) else . end' 2>/dev/null || { echo "The answer was not JSON:"; echo "$J" | head -c 300; echo; }
+            [ "$(echo "$J" | jq -r '.ok // false')" = "true" ] || FAIL=1
+          done
+          [ "$FAIL" = 0 ] || { echo "A transfer test call did not pass. Read 'why' above."; exit 1; }

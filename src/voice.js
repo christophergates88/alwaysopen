@@ -303,10 +303,12 @@ async function afterRelay(env, ctx, f) {
     await dialing();
     return twiml('<Dial timeout="25" action="' + SITE + '/voice/handdial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '"><Number>' + xa(hand.to) + '</Number></Dial>');
   }
-  if (hand.reason === 'transfer' && line && E164.test(line.transfer_to || '')) {
+  const tt = hand.reason === 'transfer' ? await drillTransferTo(env, line, call.caller) : '';
+  if (hand.reason === 'transfer' && line && (tt || E164.test(line.transfer_to || ''))) {
     await dialing();
-    return twiml('<Dial timeout="20" action="' + SITE + '/voice/dial/' + env.VOICE_KEY + '" callerId="' + xa(E164.test(call.caller || '') ? call.caller : call.number) + '">' +
-      '<Number url="' + xa(SITE + '/voice/whisper/' + env.VOICE_KEY + '?c=' + sid) + '">' + xa(line.transfer_to) + '</Number></Dial>');
+    // the transfer test dials the test number itself, so it shows the line's own number (not the test number calling itself)
+    return twiml('<Dial timeout="20" action="' + SITE + '/voice/dial/' + env.VOICE_KEY + '" callerId="' + xa(tt ? call.number : E164.test(call.caller || '') ? call.caller : call.number) + '">' +
+      '<Number url="' + xa(SITE + '/voice/whisper/' + env.VOICE_KEY + '?c=' + sid) + '">' + xa(tt || line.transfer_to) + '</Number></Dial>');
   }
   // The line to Max dropped mid-call (64105: the socket closed without an end; 64102/64103: Twilio could not keep it):
   // the caller gets Max back where they were, instead of a voicemail beep in the middle of a sentence (Nov 5, 2026: two
@@ -325,6 +327,22 @@ async function afterRelay(env, ctx, f) {
   if (failed) ctx.waitUntil(opsAlert(env, 'max-call', (call && call.client_id) || '', 'A Max call ended in failure (relay error ' + (f.get('ErrorCode') || f.get('SessionStatus') || '?') + ')'));
   if (failed) { const vm = await import('./voicemail.js'); return twiml(vm.voicemailInner((line && line.business) || '', vm.callbackUrl(env))); }
   return twiml('<Hangup/>');
+}
+
+// Nov 24, 2026: THE ONE HOOK for the transfer test call (drill.js SCRIPT_TRANSFER). Always Open's own line has no
+// transfer number and must never get one: a real caller is never put through to a robot. Only a call to that line from
+// its own 4 AM test number (drill_meta 'from'), while drill.js's 'transfer-test' marker is set for that number and not
+// expired (6 minutes), is handled as if the line put callers through when they ask, at any hour, to the test number.
+// Answers that number, or '' for every other call (any other tester's included). Used at the call's start (onSetup) and
+// when the dial is made (afterRelay).
+export async function drillTransferTo(env, line, from) {
+  if (!line || line.client_id !== OWN_ID || !E164.test(from || '')) return '';
+  try {
+    const rows = ((await env.DB.prepare("SELECT k, v FROM drill_meta WHERE k IN ('from', 'transfer-test')").all()).results) || [];
+    const get = k => (rows.find(r => r.k === k) || {}).v || '';
+    const m = JSON.parse(get('transfer-test') || 'null');
+    return m && get('from') === from && m.to === from && +m.until > Date.now() ? from : '';
+  } catch (e) { return ''; }
 }
 
 // What the owner hears when they pick up a transferred call, before the caller is connected.
@@ -367,14 +385,17 @@ async function afterDial(env, ctx, f) {
     // Now that the dial has a result, the call is written up (see afterRelay).
     ctx.waitUntil(env.CALLROOM.get(env.CALLROOM.idFromName(sid)).finalize(sid, 'transfer').catch(() => {}));
   }
-  if (ok) return twiml('<Hangup/>');
+  // the dial's result, for the transfer test's judge (drill.js transferJudge) and for reading a transfer afterwards
+  if (ok) { await vlog(env, 'dial', JSON.stringify({ sid, status: st, taken: true, said: '' })); return twiml('<Hangup/>'); }
   // Nobody picked up: the caller hears the business's own callback promise when it set one, never a vague "soon".
   let line = null, lang = 'en-US';
   try {
     const c = SID_RE.test(sid) ? await env.DB.prepare('SELECT number, lang FROM app_calls WHERE id = ?1').bind(sid).first() : null;
     if (c) { line = await lineFor(env, c.number); lang = c.lang || 'en-US'; }
   } catch (e) { line = null; }
-  return twiml(say(transferMissedLine(line ? lineView(line) : null, lang)) + '<Hangup/>');
+  const missed = transferMissedLine(line ? lineView(line) : null, lang);
+  await vlog(env, 'dial', JSON.stringify({ sid, status: st, taken: false, said: missed }));
+  return twiml(say(missed) + '<Hangup/>');
 }
 // The owner's job description for Max (duties.js), as rules in his instructions. Skipped quietly if it can't load.
 // A business that never opened the job description keeps the prices it wrote on the Teach tab.
@@ -656,6 +677,8 @@ export class CallRoom extends DurableObject {
     if (!iv && s.line.canTransfer && s.line.transferWhen === 'asked') {
       try { if (!callHoursOk(await tzFor(this.env, call.client_id), now)) { s.line.transferWhen = 'urgent'; s.line.transferQuiet = true; } } catch (e) { /* the owner's setting as is */ }
     }
+    // the transfer test call only (drillTransferTo): put through when asked, at any hour
+    if (!iv && await drillTransferTo(this.env, line, call.caller)) Object.assign(s.line, { canTransfer: true, canRing: true, transferWhen: 'asked', transferQuiet: false });
     if (!iv && call.client_id !== OWN_ID) await addDuties(s.line, line);
     // Shoulder Tap (tap.js): on this call Max may ask the owner a caller's question while they are still on the line.
     if (!iv) { try { const t = await tapSetup(this.env, call, line, now); if (t) s.line.tap = t; } catch (e) { /* the call goes on without it */ } }

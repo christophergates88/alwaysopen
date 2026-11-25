@@ -361,9 +361,15 @@ async function serve(req, env, ctx) {
       // Christopher's yes to the 4 AM test call (drill.js): "Turn on 4 AM test call" on the Mac posts here with the key,
       // after he types yes to the price. The next 10-minute run buys the test number; the first call is at 4 AM.
       const k = req.headers.get('x-key') || '';
-      if (req.method !== 'POST' || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
+      if ((req.method !== 'POST' && req.method !== 'GET') || !env.LEADS_KEY || !(await sameKey(k, env.LEADS_KEY))) return json({ ok: false, error: 'not allowed' }, 403);
       const D = await import('./drill.js');
       await D.ensureDrill(env);
+      // Nov 24, 2026: the transfer test call (drill.js transferRun), run by hand from the ops check: {run: "transfer" or
+      // "transfer-vm"} places it now, {judge: 1} judges it and puts the test number back, a GET reads the last result.
+      if (req.method === 'GET') return json({ ok: true, result: await D.transferResult(env) });
+      let b = {}; try { b = await req.json(); } catch (e) { b = {}; }
+      if (b && (b.run === 'transfer' || b.run === 'transfer-vm')) return json(await D.transferRun(env, b.run));
+      if (b && b.judge) { const r = await D.transferFinish(env); return json(r ? Object.assign({}, r, { ok: !!r.ok }) : { ok: false, why: 'No transfer test call has run yet.' }); }
       const have = await env.DB.prepare("SELECT v FROM drill_meta WHERE k = 'from'").first();
       if (!have) await env.DB.prepare("INSERT OR REPLACE INTO drill_meta (k, v) VALUES ('buy', 'approved')").run();
       return json({ ok: true, status: have ? 'already on: the test number is ' + have.v : 'approved: the test number is bought in the next 10 minutes, and the first test call is at 4 AM' });

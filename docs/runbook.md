@@ -192,6 +192,17 @@ down what they wanted. A failure is tried again 15 minutes later; a second one i
 says how the test went either way. The test number is bought once (about $1.15 a month), only after Christopher said
 yes: `drill_meta` row `buy` = `approved`.
 
+**Transfer test call.** Proves the call screen (Press 1 to take this call) on a real call with nobody holding a phone:
+Ops check workflow, `transfer-test`. The test number calls the line and presses 0 (asks for a person twice as a backup);
+the line puts it through to the test number itself, which for those minutes answers as a robot owner: run 1 presses 1
+(must read as `transferred`, with the 1 in `dial_taken`), run 2 is a voicemail box (must not; the caller hears the
+missed-transfer line). The line never has a transfer number: only the test number's own call, while the `drill_meta`
+`transfer-test` marker is set (6 minutes, written by `drill.js`), is put through (`voice.js` `drillTransferTo`, the
+one hook; it also lifts the after-hours rule for that call). Each run is judged about 3 minutes in (`{judge:1}` on
+`/ops/test-call`, or the 10-minute job after 3.5 minutes) and the test number goes back to rejecting callers. The
+result is `drill_meta` `transfer-result` (GET `/ops/test-call` with the key) and a `transfer-test` voice log row; every
+dial's result is a `dial` voice log row. No alert, no push.
+
 If Claude fails two of its checks in a row, every call goes to the backup model for two hours (`drill_meta`
 `backup-until`), and Claude is checked every 10 minutes until it answers again, which switches it back.
 

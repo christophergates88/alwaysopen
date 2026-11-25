@@ -33,6 +33,23 @@ const LONG_LINES = ['Hi. I run an insurance agency in Eatonton. What do you do f
   'What does it cost, and is there a contract?', 'How do I set it up with the number I already have?', 'Okay. That is everything for now. Thank you. Goodbye.'];
 export const SCRIPT_LONG = '<Response><Pause length="7"/>' + LONG_LINES.map(t => say(t) + '<Pause length="17"/>').join('') + '<Hangup/></Response>';
 const WANTED = /plumb|audit|plomer|auditor|insurance|agency/i;
+// Nov 24, 2026: the transfer test call (drill_meta now = 'requested-transfer' / 'requested-transfer-vm'). The call screen
+// (voice.js whisper/screen/afterDial) is proven on a real call with nobody holding a phone: the test number calls the
+// line, presses 0 (put me through), and the line dials the test number itself, which for these few minutes answers as a
+// robot owner (presses 1, or is a voicemail box). voice.js drillTransferTo lets only this call be put through, and only
+// while the 'transfer-test' marker below is set (6 minutes). The caller's backup, if the 0 is not heard: asking for a
+// person twice. Then it stays on about 45 seconds; the line hangs up first when the transfer works.
+export const SCRIPT_TRANSFER = '<Response><Pause length="10"/><Play digits="0"/><Pause length="12"/><Play digits="0"/><Pause length="6"/>' + say('Can I talk to a real person, please?') +
+  '<Pause length="8"/>' + say('I need to speak to a real person.') + '<Pause length="45"/><Hangup/></Response>';
+const echo = t => 'https://twimlets.com/echo?Twiml=' + encodeURIComponent(t);
+// The robot owner: answers, waits for the screen's "Press 1", presses 1 (twice, in case the first lands before the
+// screen listens), stays 20 seconds on the connected call and hangs up. Or a voicemail box that never presses anything.
+export const ROBOT = {
+  transfer: echo('<Response><Pause length="4"/><Play digits="1"/><Pause length="5"/><Play digits="1"/><Pause length="20"/><Hangup/></Response>'),
+  'transfer-vm': echo('<Response><Say voice="Polly.Joanna">You have reached the voicemail box. Please leave a message after the tone.</Say><Pause length="25"/><Hangup/></Response>')
+};
+export { REJECT };
+const TT_MS = 6 * 60e3, TT_JUDGE_MS = 3.5 * 60e3;
 
 const ready = new WeakSet();
 export async function ensureDrill(env) {
@@ -108,6 +125,100 @@ export async function judge(env, from, line, since) {
   return { ok: true, why: 'Max answered, heard the caller, replied ' + replied + (replied === 1 ? ' time' : ' times') + ' and wrote it up' + model };
 }
 
+// ---------- the transfer test call (see SCRIPT_TRANSFER) ----------
+const ttMarker = async env => { try { return JSON.parse(await getMeta(env, 'transfer-test') || 'null'); } catch (e) { return null; } };
+// The test number's own answer (its VoiceUrl): REJECT always, a robot owner only for the length of a transfer test.
+async function numberSid(env, h, num) {
+  const r = await tw(env, h, '/IncomingPhoneNumbers.json?PhoneNumber=' + encodeURIComponent(num));
+  const j = await r.json().catch(() => ({}));
+  const n = (j.incoming_phone_numbers || []).find(x => x.phone_number === num);
+  return r.ok && n && /^PN[0-9a-f]{32}$/.test(n.sid || '') ? n.sid : '';
+}
+async function setVoiceUrl(env, h, pn, url) {
+  try { const r = await tw(env, h, '/IncomingPhoneNumbers/' + pn + '.json', { VoiceUrl: url, VoiceMethod: 'GET' }); return r.ok; } catch (e) { return false; }
+}
+async function transferPlace(env, h, from, to, kind, now) {
+  const old = await ttMarker(env);
+  if (old) await transferFinish(env, h, now);   // one test at a time: the last one is judged and put back first
+  const pn = await numberSid(env, h, from);
+  if (!pn) return { error: 'Twilio did not find the test number on this account' };
+  if (!(await setVoiceUrl(env, h, pn, ROBOT[kind]))) return { error: 'Twilio would not let the test number answer as the robot owner' };
+  // Written before the call is placed, so the line knows this call may be put through (voice.js drillTransferTo).
+  const m = { kind, to: from, pn, at: now, until: now + TT_MS, sid: '' };
+  await setMeta(env, 'transfer-test', JSON.stringify(m));
+  const p = await placeCall(env, from, to, h, SCRIPT_TRANSFER, true, 150);
+  if (!p.sid) { await env.DB.prepare("DELETE FROM drill_meta WHERE k = 'transfer-test'").run(); await setVoiceUrl(env, h, pn, REJECT); return p; }
+  m.sid = p.sid;
+  await setMeta(env, 'transfer-test', JSON.stringify(m));
+  try { const t = await (await import('./callcheck.js')).drillToken(env, p.sid); await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'drill-audio', ?2)").bind(new Date(now).toISOString(), JSON.stringify({ sid: p.sid, script: 'requested-' + kind, url: 'https://alwaysopenoffice.com/voice/drill/' + p.sid + '/' + t })).run(); } catch (e) { /* the call still runs */ }
+  return p;
+}
+// Judge the last transfer test (once) and put the test number back to turning callers away. Run by hand (/ops/test-call
+// {judge:1}), or by the 10-minute job once the test is 3.5 minutes old. A failed put-back is tried again on the next run;
+// the marker has already expired by then, so the line puts nobody through meanwhile.
+export async function transferFinish(env, h, now) {
+  h = h || {}; now = now || Date.now();
+  await ensureDrill(env);
+  const m = await ttMarker(env);
+  if (!m) return null;
+  let res = null;
+  if (!m.judged) {
+    const v = await transferJudge(env, m.kind, m.sid, +m.at || now);
+    res = Object.assign({ kind: m.kind, at: new Date(now).toISOString(), sid: m.sid }, v);
+    await setMeta(env, 'transfer-result', JSON.stringify(res));
+    await env.DB.prepare("INSERT INTO voice_log (at, kind, detail) VALUES (?1, 'transfer-test', ?2)").bind(new Date(now).toISOString(), JSON.stringify(res)).run();
+    Object.assign(m, { judged: true, until: 0 });
+  }
+  if (m.pn && await setVoiceUrl(env, h, m.pn, REJECT)) await env.DB.prepare("DELETE FROM drill_meta WHERE k = 'transfer-test'").run();
+  else await setMeta(env, 'transfer-test', JSON.stringify(m));
+  return res || JSON.parse(await getMeta(env, 'transfer-result') || 'null');
+}
+// How the transfer test went: the line's write-up of the call (found by the test caller and time, as judge does), the
+// press of 1 the screen stored (dial_taken), the dial's result (voice_log 'dial', from afterDial) and the call-back
+// promise. Plain words in `why`.
+export async function transferJudge(env, kind, sid, since) {
+  const from = await getMeta(env, 'from'), line = await ownLine(env);
+  const c = line ? await env.DB.prepare('SELECT id, outcome, transferred, callback, summary, transcript FROM app_calls WHERE number = ?1 AND caller = ?2 AND at >= ?3 ORDER BY at DESC LIMIT 1')
+    .bind(line.number, from, new Date(since - 60e3).toISOString()).first().catch(() => null) : null;
+  const out = (ok, why, x) => Object.assign({ ok, why, outcome: c ? c.outcome : '', pressed: false, promise: null, call: c ? c.id : '', dial: '' }, x || {});
+  if (!c) return out(false, 'the test call never reached Max (nothing was written up)');
+  const pressed = !!(await env.DB.prepare('SELECT 1 AS x FROM dial_taken WHERE sid = ?1').bind(c.id).first().catch(() => null));
+  const dl = await env.DB.prepare("SELECT detail FROM voice_log WHERE kind = 'dial' AND detail LIKE ?1 ORDER BY at DESC LIMIT 1").bind('%' + c.id + '%').first().catch(() => null);
+  let dial = null; try { dial = dl ? JSON.parse(dl.detail) : null; } catch (e) { dial = null; }
+  let t = []; try { t = JSON.parse(c.transcript || '[]') || []; } catch (e) { t = []; }
+  const heard = t.filter(x => x.w === 'caller').length;
+  // On Always Open's own line, and on any test call, the write-up never books a call-back (callbacks.js is for clients'
+  // callers), so the promise here is what the caller was told and the number the write-up keeps to call back.
+  const cb = await env.DB.prepare('SELECT id FROM callbacks WHERE call_sid = ?1').bind(c.id).first().catch(() => null);
+  const promise = dial && dial.said ? { said: dial.said, callback: c.callback || '', booked: !!cb } : (cb ? { said: '', callback: c.callback || '', booked: true } : null);
+  const x = { pressed, promise, dial: dial ? dial.status : '' };
+  const how = heard ? ' (by voice: the 0 key was not heard, Max heard the caller ' + heard + (heard === 1 ? ' time)' : ' times)') : '';
+  if (c.outcome === 'live' && !dial) return out(false, 'Max never tried to put the call through: the 0 key and the two asks for a person did not start a transfer, or the call was still going when it was judged', x);
+  if (!dial) return out(false, 'no dial result came back from Twilio (afterDial never ran): the transfer did not start, or Twilio never reported on it', x);
+  if (kind === 'transfer') {
+    if (c.outcome === 'transferred' && pressed) return out(true, 'the line put the call through' + how + ', the robot owner pressed 1, and the call reads as put through (Twilio said ' + dial.status + ')', x);
+    if (pressed) return out(false, 'the 1 was stored, but Twilio said ' + (dial.status || 'nothing') + ', so the call was not counted as put through', x);
+    if (/^(completed|answered)$/.test(dial.status)) return out(false, 'the robot owner answered, but the call screen never got its 1 (Twilio said ' + dial.status + ')', x);
+    return out(false, 'the line dialed the test number but Twilio said ' + (dial.status || 'nothing') + ': the robot owner never answered', x);
+  }
+  if (c.outcome === 'transferred' || pressed) return out(false, 'a voicemail box answered and the call was still counted as put through', x);
+  if (!dial.said) return out(false, 'the call was not put through, but the caller never heard the missed-transfer line', x);
+  if (!promise || !/^\+1\d{10}$/.test(promise.callback || '')) return out(false, 'the caller heard the missed-transfer line, but the write-up has no number to call back', x);
+  return out(true, 'a voicemail box answered' + how + ', the call was not counted as put through (Twilio said ' + dial.status + '), and the caller heard: ' + dial.said, x);
+}
+// /ops/test-call: run one now ({run}), judge now ({judge}), or read the last result.
+export async function transferRun(env, kind, h) {
+  await ensureDrill(env);
+  if (!E164.test(await getMeta(env, 'from'))) return { ok: false, placed: false, error: 'There is no test number yet. Turn on the 4 AM test call first, then run this again.' };
+  await setMeta(env, 'now', kind === 'transfer-vm' ? 'requested-transfer-vm' : 'requested-transfer');
+  const r = await drillCron(env, Date.now(), h);
+  return { ok: !!r.sid, placed: !!r.sid, sid: r.sid || '', error: r.sid ? undefined : (r.error || r.off || 'the test call was not placed') };
+}
+export async function transferResult(env) {
+  await ensureDrill(env);
+  try { return JSON.parse(await getMeta(env, 'transfer-result') || 'null'); } catch (e) { return null; }
+}
+
 // Every 10 minutes; does something only in the 4 AM hour (Eastern) and while a test call is waiting to be judged.
 export async function drillCron(env, now, h) {
   now = now || Date.now(); h = h || {};
@@ -128,6 +239,15 @@ export async function drillCron(env, now, h) {
   const line = await ownLine(env);
   if (!line || !E164.test(line.number)) return { off: 'no line to call' };
   await listAsTester(env, from);
+  // A transfer test left unjudged (nobody asked for the judging): judged here, and the test number stops answering.
+  { const m = await ttMarker(env); if (m && (m.judged || now - (+m.at || 0) >= TT_JUDGE_MS)) await transferFinish(env, h, now); }
+  const want0 = await getMeta(env, 'now');
+  if (want0 === 'requested-transfer' || want0 === 'requested-transfer-vm') {
+    await setMeta(env, 'now', 'placing ' + new Date(now).toISOString());
+    const p = await transferPlace(env, h, from, line.number, want0 === 'requested-transfer' ? 'transfer' : 'transfer-vm', now);
+    await setMeta(env, 'now', p.sid ? 'called ' + p.sid + ' ' + new Date(now).toISOString() : 'failed ' + String(p.error || '').slice(0, 120));
+    return { placed: 'on request', sid: p.sid || '', error: p.error || undefined };
+  }
   // One test call right now, on request (drill_meta 'now' = 'requested'): used after a change to Max to hear it on a
   // real call with the real ears and voice. The call is a tester's, so it is marked a test and keeps its timeline.
   const want = await getMeta(env, 'now');
