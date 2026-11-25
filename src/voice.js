@@ -195,7 +195,14 @@ async function incoming(env, f) {
     const gone = await clientGone(env, line.client_id);
     // Nov 24, 2026: neutral, since the old carrier forwarding may still send real customers here ("not taking calls at
     // this number" sounded like the business had closed)
-    if (gone) return twiml(say('Thanks for calling ' + biz + '. Nobody can take your call right now. Please try again a little later.') + '<Hangup/>');
+    if (gone) {
+      // Nov 25, 2026: the number is now kept a year after the plan ends (provision.js), so no one else gets it. After the
+      // first 60 days it reads as out of service: <Reject> plays the carrier's not-in-service message, is not billed, and
+      // no longer speaks for a business that has left.
+      const p = await env.DB.prepare('SELECT ended FROM provision WHERE client_id = ?1').bind(line.client_id).first().catch(() => null);
+      if (p && p.ended && Date.now() - Date.parse(p.ended) >= 60 * 864e5) return twiml('<Reject reason="rejected"/>');
+      return twiml(say('Thanks for calling ' + biz + '. Nobody can take your call right now. Please try again a little later.') + '<Hangup/>');
+    }
     if (E164.test(line.transfer_to || '')) return twiml('<Dial timeout="25" callerId="' + xa(E164.test(from) ? from : to) + '"><Number>' + xa(line.transfer_to) + '</Number></Dial>');
     return twiml(say('Thanks for calling ' + biz + '. We cannot take your call right now. Please call back during business hours. Goodbye.') + '<Hangup/>');
   }

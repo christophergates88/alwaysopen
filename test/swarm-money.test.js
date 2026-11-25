@@ -199,7 +199,8 @@ test('M4: the owner is told to turn call forwarding off at cancel, when the plan
   const t = mine()[0].text;
   assert.match(t, /Turn off call forwarding so your callers reach you/);
   for (const code of ['*73', '##004#', '*93#']) assert.ok(t.includes(code), code + ' in ' + t);
-  assert.match(t, /goes away on \w+day, \w+ \d+/);
+  assert.match(t, /stops answering for you when your plan ends\. We keep it for a year in case you come back\./);
+  assert.doesNotMatch(t, /goes away on/, 'the date only comes in the last notice, a week before the number goes');
   assert.doesNotMatch(t, /keep this number/i, 'Max\'s number stays ours: it is never offered to the owner (Nov 24, 2026)');
   assert.doesNotMatch(t, /\bAI\b|Katie/);
   assert.ok(ownerPushes().slice(push0).some(a => /call forwarding/i.test(a.title + a.body)), JSON.stringify(ownerPushes().slice(push0)));
@@ -208,12 +209,14 @@ test('M4: the owner is told to turn call forwarding off at cancel, when the plan
   await subEvent('customer.subscription.deleted', { id: b.sub, status: 'canceled' });
   assert.equal(mine().length, 2);
   assert.match(mine()[1].text, /Turn off call forwarding so your callers reach you/);
-  // a week before the number is released
-  await P.provisionCron(env, Date.now() + 54 * 864e5);
+  // kept a year (Nov 25, 2026): nothing at two months, then a week before the number is released
+  await P.provisionCron(env, Date.now() + 61 * 864e5);
+  assert.equal(mine().length, 2, 'nothing at the old 60-day mark');
+  await P.provisionCron(env, Date.now() + 359 * 864e5);
   assert.equal(mine().length, 3);
-  const rel = new Date(Date.now() + 60 * 864e5).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+  const rel = new Date(Date.now() + 365 * 864e5).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
   assert.ok(mine()[2].text.includes(rel), mine()[2].text);
-  await P.provisionCron(env, Date.now() + 55 * 864e5);
+  await P.provisionCron(env, Date.now() + 360 * 864e5);
   assert.equal(mine().length, 3, 'the week-before note goes once');
 });
 
@@ -332,16 +335,16 @@ test('M8: Stripe failing at checkout shows a plain message and alerts Chris', as
 
 // ---------- M10 ----------
 test('M10: the terms version and the time they were agreed to go into Stripe and into the billing row', async () => {
-  assert.equal(B.TERMS_VERSION, '2026-11-24');
+  assert.equal(B.TERMS_VERSION, '2026-11-25');
   // the version is the date the terms page shows, so a change to the page and a change to the version go together
   const { readFileSync } = await import('node:fs');
   const shown = (readFileSync(new URL('../public/terms.html', import.meta.url), 'utf8').match(/Last updated ([A-Z][a-z]+ \d{1,2}, \d{4})/) || [])[1];
   assert.equal(new Date(shown + ' 12:00 UTC').toISOString().slice(0, 10), B.TERMS_VERSION, 'terms page says ' + shown);
   const t0 = Date.now();
   const { s, b } = await signup({ business: 'Terms Kept Tile' });
-  assert.equal(s.metadata.terms_version, '2026-11-24');
+  assert.equal(s.metadata.terms_version, '2026-11-25');
   assert.ok(Date.parse(s.metadata.agreed_at) >= t0 - 1000, s.metadata.agreed_at);
-  assert.equal(b.terms_version, '2026-11-24');
+  assert.equal(b.terms_version, '2026-11-25');
   assert.equal(b.agreed_at, s.metadata.agreed_at);
 });
 

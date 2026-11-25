@@ -99,7 +99,7 @@ export async function verifyStripe(secret, header, body, now) {
 // Nov 24, 2026: the terms tick box was required but nothing recorded it. The version is the date printed on the public
 // terms page (public/terms.html, "Last updated"): change it with that page. It and the time of the tick go into the
 // Stripe session and the billing row, so a disputed agreement has its proof.
-export const TERMS_VERSION = '2026-11-24';   // Nov 24: the AI line's number, its daily safety limits
+export const TERMS_VERSION = '2026-11-25';   // Nov 24: the AI line's number, its daily safety limits; Nov 25: the number is kept a year
 const colsDone = new WeakSet();
 export async function ensureBilling(env) {
   await env.DB.batch([
@@ -418,7 +418,7 @@ export async function billingPage(env, c, base, req, url, h) {
           const it0 = cs && cs.items && cs.items.data && cs.items.data[0];
           let endMs = (+(cs && cs.current_period_end) || +(it0 && it0.current_period_end) || 0) * 1000;
           if (!endMs) { const e = new Date(startMs > 0 ? startMs : Date.now()); while (e.getTime() <= Date.now()) e.setUTCMonth(e.getUTCMonth() + 1); endMs = e.getTime(); }
-          await forwardingOff(env, c.client_id, 'cancel', endMs + 60 * 864e5, endMs);
+          await forwardingOff(env, c.client_id, 'cancel', endMs + (await import('./provision.js')).KEEP_DAYS * 864e5, endMs);
         } catch (e) { /* told again when the plan ends */ }
         return Response.redirect(SITE + base + '/billing?done=canceled', 303);
       }

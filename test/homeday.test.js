@@ -59,7 +59,9 @@ test('Today in the app: Needs you, then today as a timeline, then the month; the
   assert.doesNotThrow(() => new Function(js));
 });
 
-test('the app state carries the business’s own date and time zone, so the timeline picks out today', async () => {
+test('the app state carries the business’s own date and time zone, so the timeline picks out today', async (t) => {
+  // midday on a fixed clock: on the real one, the minute after midnight put "a call a minute ago" on yesterday (Nov 25, 2026)
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-24T17:00:00Z') });
   const world = new H.World(), DB = H.makeDB(), env = H.makeEnv(world, DB);
   H.installFetch(world, env);
   const { default: worker } = await import('../src/index.js');

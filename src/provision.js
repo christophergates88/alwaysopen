@@ -2,13 +2,15 @@
 // put the line on the air; the welcome page shows the number and the steps to forward missed calls to it. Nobody at
 // Always Open has to do anything. If Twilio can't do it right then, the 10-minute timer keeps trying, and Christopher
 // hears about it only if it still fails.
-// When a client cancels, Max stops answering at once; the number is released 60 days later (terms say so), with a
-// heads-up to Christopher and the owner a week before, unless the client is active again by then.
+// When a client cancels, Max stops answering at once. The number stays ours and is kept a year (terms say so): parked,
+// so no one else gets it and a returning owner gets the same number back. It is released after that, with a heads-up to
+// Christopher and the owner a week before, unless the client is active again by then. (Nov 25, 2026: it was 60 days.)
 const SITE = 'https://alwaysopenoffice.com';
 const TW = 'https://api.twilio.com/2010-04-01/Accounts/';
 // Nov 24, 2026: after the six quick tries (about 50 minutes) it used to stop for good, with the owner told nothing. Now it
 // keeps trying once an hour; Christopher still gets his two pushes, and the owner hears once.
-const MAX_TRIES = 6, SLOW_MS = 55 * 60e3, RELEASE_DAYS = 60;
+const MAX_TRIES = 6, SLOW_MS = 55 * 60e3;
+export const KEEP_DAYS = 365;   // how long Max's number is kept after a plan ends
 
 let ready = false;
 export async function ensureProvision(env) {
@@ -165,7 +167,7 @@ async function slowNote(env, cid, b) {
   })));
 }
 
-// The owner ended their plan: Max stops answering now; the number is kept 60 days in case they come back.
+// The owner ended their plan: Max stops answering now; the number is kept a year in case they come back.
 export async function lineEnded(env, cid) {
   await ensureProvision(env);
   const at = new Date().toISOString();
@@ -175,7 +177,7 @@ export async function lineEnded(env, cid) {
     env.DB.prepare("UPDATE provision SET ended = ?1, warned = '', updated = ?1 WHERE client_id = ?2 AND status = 'live'").bind(at, cid)
   ]);
   // told once per ending: the cancellation webhook and the daily Stripe check can both get here
-  if (was && was.status === 'live' && !was.ended) await forwardingOff(env, cid, 'ended', Date.parse(at) + RELEASE_DAYS * 864e5).catch(() => null);
+  if (was && was.status === 'live' && !was.ended) await forwardingOff(env, cid, 'ended', Date.parse(at) + KEEP_DAYS * 864e5).catch(() => null);
 }
 
 // Nov 24, 2026: after a cancel the owner was never told to turn call forwarding off, and the number was released 60 days
@@ -183,11 +185,12 @@ export async function lineEnded(env, cid) {
 // day the plan ends), when the plan ends ('ended') and a week before the number goes ('week'): app push and email. The
 // off steps are read from the forwarding help page (onboard.js), so they are the same codes we gave them to turn it on.
 const dayOf = ms => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+const dayYear = ms => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
 export async function forwardingOff(env, cid, stage, goneMs, endMs) {
   const line = await env.DB.prepare('SELECT number FROM voice_lines WHERE client_id = ?1 ORDER BY number LIMIT 1').bind(cid).first().catch(() => null);
   if (!line) return 'no number';
   const b = await env.DB.prepare('SELECT business, email, plan FROM billing WHERE client_id = ?1').bind(cid).first().catch(() => null);
-  const num = pretty(line.number), gone = dayOf(goneMs);
+  const num = pretty(line.number), gone = dayYear(goneMs);
   const plain = x => String(x).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
   const steps = [];
   try {
@@ -201,9 +204,12 @@ export async function forwardingOff(env, cid, stage, goneMs, endMs) {
   // Nov 24, 2026: Max's number stays Always Open's. It is never handed to the owner, so the email no longer offers it.
   const title = stage === 'cancel' ? 'Your plan ends ' + dayOf(endMs) + '.' : (stage === 'week' ? 'Max’s number goes away in a week.' : 'Your plan has ended, so Max no longer answers.');
   const first = 'Turn off call forwarding so your callers reach you.' + (stage === 'cancel' ? ' Do it when the plan ends. Max answers until then.' : '');
-  const lines = steps.concat([{ k: 'Max’s number', v: num + ' goes away on ' + gone + '.' }]);
+  // Nov 25, 2026: the number is kept a year, so only the last notice (a week before it goes) gives the date.
+  const kept = stage === 'week' ? num + ' goes away on ' + gone + '.'
+    : num + (stage === 'cancel' ? ' stops answering for you when your plan ends.' : ' no longer answers for you.') + ' We keep it for a year in case you come back.';
+  const lines = steps.concat([{ k: 'Max’s number', v: kept }]);
   try {
-    await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you. Max’s number ' + num + ' goes away on ' + gone + '. The steps are in your email.' }, sound: 'default' }, screen: 'home' }, { evenIfEnded: true });   // the plan has usually ended by now: this is the one push that still goes
+    await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you.' + (stage === 'week' ? ' Max’s number ' + num + ' goes away on ' + gone + '.' : '') + ' The steps are in your email.' }, sound: 'default' }, screen: 'home' }, { evenIfEnded: true });   // the plan has usually ended by now: this is the one push that still goes
   } catch (e) { /* the email still goes */ }
   if (!b || !b.email) return 'no email';
   const { sendNeon } = await import('./clientmail.js'), { neonEmail } = await import('./neonmail.js');
@@ -211,11 +217,12 @@ export async function forwardingOff(env, cid, stage, goneMs, endMs) {
     tone: 'bad', sign: 'FORWARDING', title, who: b.business || '', preheader: first,
     doThis: [first], lines, note: 'Questions? Text or call Chris: (706) 460-2226.'
   }))).catch(e => 'failed: ' + String((e && e.message) || e).slice(0, 120));
-  if (r !== 'sent') { try { await (await import('./ops.js')).opsAlert(env, 'mail-send', cid, 'The turn-off-forwarding email (' + stage + ') to ' + ((b && b.business) || cid) + ' did not go out (' + r + '). Tell them to turn off call forwarding before ' + gone + '.'); } catch (e) {} }
+  if (r !== 'sent') { try { await (await import('./ops.js')).opsAlert(env, 'mail-send', cid, 'The turn-off-forwarding email (' + stage + ') to ' + ((b && b.business) || cid) + ' did not go out (' + r + '). Tell them to turn off call forwarding' + (stage === 'week' ? ' before ' + gone : '') + '.'); } catch (e) {} }
   return r;
 }
 
-// Every 10 minutes: retry lines that failed, and release numbers 60 days after a plan ended.
+// Every 10 minutes: retry lines that failed, put a returning client's line back on the air, and release numbers a year
+// after a plan ended.
 export async function provisionCron(env, at) {
   await ensureProvision(env);
   const now = at || Date.now(), out = { tried: 0, live: 0, released: 0 };
@@ -224,14 +231,23 @@ export async function provisionCron(env, at) {
   for (const q of queued) { out.tried++; const r = await provisionLine(env, q.client_id).catch(() => null); if (r && r.status === 'live') out.live++; }
   const ended = ((await env.DB.prepare("SELECT p.*, c.business, c.active FROM provision p LEFT JOIN app_clients c ON c.client_id = p.client_id WHERE p.status = 'live' AND p.ended != '' LIMIT 20").all()).results) || [];
   for (const e of ended) {
-    if (+e.active) { await env.DB.prepare("UPDATE provision SET ended = '', warned = '' WHERE client_id = ?1").bind(e.client_id).run(); continue; }   // they came back
+    if (+e.active) {
+      // They came back: the same number, on the air again. (Nov 25, 2026: it stayed off, and the owner's own switch said
+      // "paused on our side", so Max was silent until Christopher noticed.)
+      await env.DB.batch([
+        env.DB.prepare("UPDATE provision SET ended = '', warned = '' WHERE client_id = ?1").bind(e.client_id),
+        env.DB.prepare('UPDATE voice_lines SET on_air = 1, updated = ?1 WHERE client_id = ?2 AND number = ?3').bind(new Date(now).toISOString(), e.client_id, e.number)
+      ]);
+      try { await (await import('./app.js')).opsPing(env, 'Always Open: a client came back', (e.business || e.client_id) + ' is active again. Max answers on their old number ' + pretty(e.number) + ' again.', 'default', 'telephone_receiver'); } catch (x) {}
+      continue;
+    }
     const days = (now - Date.parse(e.ended)) / 864e5;
-    if (days >= RELEASE_DAYS - 7 && !e.warned) {
+    if (days >= KEEP_DAYS - 7 && !e.warned) {
       await env.DB.prepare('UPDATE provision SET warned = ?1 WHERE client_id = ?2').bind(new Date(now).toISOString(), e.client_id).run();
       try { await (await import('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
-      await forwardingOff(env, e.client_id, 'week', Date.parse(e.ended) + RELEASE_DAYS * 864e5).catch(() => null);
+      await forwardingOff(env, e.client_id, 'week', Date.parse(e.ended) + KEEP_DAYS * 864e5).catch(() => null);
     }
-    if (days >= RELEASE_DAYS && e.number_sid && env.TWILIO_ACCOUNT_SID) {
+    if (days >= KEEP_DAYS && e.number_sid && env.TWILIO_ACCOUNT_SID) {
       const r = await tw(env, 'DELETE', '/IncomingPhoneNumbers/' + e.number_sid + '.json');
       if (r.ok || r.status === 404) {
         await env.DB.batch([
