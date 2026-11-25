@@ -90,6 +90,7 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 
 | Alert | Means | First thing to check |
 | --- | --- | --- |
+| `fsm-push` | A booked visit could not be sent to the owner's Jobber or Housecall Pro after 3 tries (or the sign-in stopped working) | The alert says what the service answered; the owner's app shows the call, so nothing is lost. A sign-in problem: the owner reconnects from the app |
 | `caller-id` | A caller-name filing (SHAKEN/STIR, Voice Integrity or CNAM) was refused or turned down; Max's calls still go out, without the name | Twilio console, Trust Hub, the trust product named in the alert; then set the `caller_id` row back to `filing` |
 | `trial-cap` | 25 "Hear Max as your business" calls in a day; more owners hear Max as Always Open until it drops | Real owners? Raise `PER_DAY` in src/trial.js. A flood? Leave it |
 | `health:cron` | The 10-minute checks stopped | Cloudflare dashboard: is the Worker deployed and the cron trigger present? Last deploy on GitHub |
@@ -245,6 +246,21 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   Sole proprietors' starter profiles don't qualify (their calls go out with no name). Our own line is filed the same
   way under the primary profile as "ALWAYS OPEN". Rows in `caller_id`; a refusal or a turned-down filing is a
   `caller-id` alert: fix it in Twilio's Trust Hub, then set the row back to status `filing` at the step it names.
+- **Jobber and Housecall Pro** (`src/fsm.js`, Nov 25, 2026): the visits Max books go straight into the software the
+  owner runs jobs in (optionally every new lead too). Jobber: a request with the visit on its calendar (an assessment at
+  the booked time); if Jobber refuses the calendar part, the request still goes in with the time in its title. Housecall
+  Pro: a job on the schedule when the customer already has an address there, else a customer plus a lead (it lands in
+  their Job inbox once they turn on API Leads). Nothing of theirs is ever changed or deleted. The owner connects from
+  the app (Booking card, "Send Max's visits there", `/app/<code>/booking-software`). Housecall Pro needs its MAX plan
+  and an API key the owner pastes (checked, then sealed). **Jobber needs Always Open's Jobber app, made once by you**:
+  at developer.getjobber.com make a Developer Center account, then New app: name Always Open, OAuth callback URL
+  `https://alwaysopenoffice.com/fsm/jobber/callback`, scopes Clients (read and write) and Requests (read and write).
+  Copy its Client ID and Client secret into the Worker's secrets as `JOBBER_CLIENT_ID` and `JOBBER_CLIENT_SECRET`
+  (Cloudflare dashboard, Workers, alwaysopen, Settings, Variables and Secrets; never paste them anywhere else). Until
+  both are set, the app says Jobber is coming and Max on our line says Housecall Pro connects and Jobber is next. In
+  Draft the app may connect 5 paying Jobber accounts; past that, request Jobber's App Review from the Developer Center.
+  A push that fails is tried 3 times (10-minute job), then a `fsm-push` alert, and the call's note in the app says to
+  add it by hand; a sign-in Jobber or Housecall Pro stops accepting asks the owner to reconnect.
 - **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
   same figure in the app, the monthly report and the ops board. No average job, no dollars.
 - **Review asks for Always Open** (`src/ourreviews.js`): a month in, every client gets one text (or email) asking for a

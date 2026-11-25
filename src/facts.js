@@ -38,7 +38,9 @@ export const perMinute = () => 'about ' + Math.round(MAX.moreCents / MAX.moreMin
 
 // What Max says about prices and plans on Always Open's own line. Synced into its voice_lines row by the cron, so
 // his copy can never drift from this file again.
-export function ownLineFacts() {
+// o.jobber: Jobber can be connected (fsm.js: Always Open's Jobber app is set up). Housecall Pro always can, on its MAX plan.
+export function ownLineFacts(o) {
+  o = o || {};
   const p = PLANS;
   return {
     prices: 'Starter is ' + dollars(p.Starter.cents) + ' a month, Growth is ' + dollars(p.Growth.cents) + ' a month, and Pro is ' + dollars(p.Pro.cents) + ' a month, about $' + p.Starter.perDay + ', $' + p.Growth.perDay + ' and $' + p.Pro.perDay + ' a day. There is no setup fee and no contract; it is ' + PROMISES.contract + ', and if the first month isn\'t worth it, it is refunded. ' +
@@ -62,7 +64,10 @@ export function ownLineFacts() {
     // the calendar, and the caller hung up.
     plans: 'Every plan, Starter included, has a booking and quote page customers can use any hour, and Max books visits right on the call: he offers real open times from the owner\'s hours (and their Google Calendar, once connected, so he never books over their own plans), then books one or pencils it in for the owner to confirm, whichever the owner picks; our team sets it up with them. ' +
       'Every plan, Starter included, has Shoulder Tap, except at insurance, medical, legal, accounting, tax and mortgage offices. ' +
-      'Booking software other than Google Calendar (a tee sheet, a salon or restaurant booking app) does not connect, so Max never books into one; for those Max takes the time the caller wants and checks it with the owner by Shoulder Tap while they wait. ' +
+      // Nov 25, 2026: Jobber and Housecall Pro connect (fsm.js)
+      (o.jobber ? 'Jobber and Housecall Pro connect: the visits Max books go straight in (in Jobber as a request with the time on its calendar; in Housecall Pro, on its MAX plan, as a job or a lead), so nobody types them twice. '
+        : 'Housecall Pro connects, on its MAX plan: the visits Max books go straight in as a job or a lead, so nobody types them twice. Jobber is being added next; Chris can give the date. ') +
+      'Other booking software (a tee sheet, a salon or restaurant booking app) does not connect, so Max never books into one; for those Max takes the time the caller wants and checks it with the owner by Shoulder Tap while they wait. ' +
       // Nov 21 replay, both versions: "On the Growth plan, every Google review gets a reply" and "Growth and Pro add review
       // replies". Replies are on Starter; Growth's requests ask customers for new reviews.
       'Every plan, Starter included, answers every Google review (each reply waits for the owner\'s OK in the app) and keeps their Google profile current. ' +

@@ -226,6 +226,11 @@ export async function handleApp(req, env, ctx, url) {
       if (c.staff) return gone(404);
       if (meth !== 'GET' && meth !== 'POST') return gone(404);
       return await textingPage(env, c, base, req);
+    } else if (sub === '/booking-software') {
+      // Jobber or Housecall Pro (fsm.js): the owner connects the software they run their jobs in
+      if (c.staff || c.client_id === 'demo-plumbing') return gone(404);
+      if (meth !== 'GET' && meth !== 'POST') return gone(404);
+      return await (await import('./fsm.js')).fsmPage(env, c, base, req, url);
     } else if (sub === '/billing') {
       if (c.staff) return gone(404);
       return await billingPage(env, c, base, req, url, { notify: (t, b, pr) => ntfy(env, t, b, pr || 'default', 'moneybag') });
@@ -500,6 +505,7 @@ async function apiState(env, c, ctx) {
     billing: bill && !c.staff ? { plan: bill.plan || '', status: bill.status || '', max: !!+bill.max, pausedUntil: bill.paused_until || '' } : null,
     locations: c.locations || [],
     calendar: c.staff ? null : await gcalStatus(env, c.client_id),
+    fsm: c.staff || +c.regulated ? undefined : await (async () => { try { return await (await import('./fsm.js')).fsmState(env, c.client_id); } catch (e) { return null; } })(),
     quoteLink: c.ref ? SITE + '/q/' + encodeURIComponent(c.ref) : '',
     bookLink: c.ref ? SITE + '/b/' + encodeURIComponent(c.ref) : '',
     invoices: f.invoices ? inv.invoices : [],

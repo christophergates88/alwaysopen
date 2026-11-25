@@ -1620,6 +1620,10 @@ async function writeUp(env, sid, s, why) {
     : putThrough ? summary + (note ? ' Max put them through to you.' + talked : '')
       : outcome === 'hangup' ? 'They hung up before leaving a message. Tap to call them back.' : (outcome === 'failed' ? 'The phone line had a problem, so Max could not take the call. If they leave a voicemail, it comes next. Tap to call them back.' : summary + ' Tap to call back.');
   await pushClient(env, call.client_id, { aps: { alert: { title, body: body.slice(0, 600) }, sound: 'default', 'thread-id': 'calls' }, screen: 'calls', call: sid });
+  // Jobber or Housecall Pro (fsm.js): a booked visit (and, if the owner asked, every lead) goes straight in
+  if (note && !note.spam && line && !+line.regulated) {
+    try { await (await import('./fsm.js')).fsmPush(env, call, { note, summary, booked: s && s.booked }); } catch (e) { await vlog(env, 'fsm-error', String((e && e.message) || e).slice(0, 300)); }
+  }
   // The same news by text, within a minute (owner switch "Text me after every call", on by default). Not when the owner
   // already talked to them, never on regulated lines.
   if (!putThrough && line && !+line.regulated && TEXTING_ON) {
@@ -1811,7 +1815,13 @@ export const V5_EXAMPLES = [
   ['you sound pretty smooth for a robot', 'I\'ll take it. Your callers would get the same.'],
   ['hablas español?', 'Sí, claro. ¿En qué te puedo ayudar?'],
 ];
-const V5_BLOCK = () => ['', 'This is how you sound on this line. Match the length and the tone; the facts in them are true:'].concat(V5_EXAMPLES.map(([c, m]) => 'Caller: ' + c + '\n' + 'You: ' + m));
+// Nov 25, 2026: Jobber and Housecall Pro connect (fsm.js); the Jobber answer says what is true today (L.fsm, from syncOwnLine).
+export function jobberAnswer(L) {
+  return /jobber/.test(String((L && L.fsm) || '')) ? 'Yes. The visits I book go straight into Jobber as requests, with the time on your calendar, so nobody types them twice.'
+    : /hcp/.test(String((L && L.fsm) || '')) ? 'Jobber\'s being added next, Chris can give you the date. Housecall Pro already connects, and the visits I book go straight in.'
+      : V5_EXAMPLES[6][1];
+}
+const V5_BLOCK = L => ['', 'This is how you sound on this line. Match the length and the tone; the facts in them are true:'].concat(V5_EXAMPLES.map(([c, m], i) => 'Caller: ' + c + '\n' + 'You: ' + (i === 6 ? jobberAnswer(L) : m)));
 // ---------- v4 (Nov 22, 2026): v3, plus what the grader's top complaints need written in, not cut out ----------
 // Repeating (half of 400 graded calls) is what the model writes: each turn it is told what it has already said. The line
 // asks for "business name, kind of business, town, plan" before a call back, which made the shop-name question come back;
@@ -1897,7 +1907,7 @@ export function lineView(line) {
     urgent: pick('urgent') || tradeDefaults(line.industry).urgent, next: pick('next'), notes: pick('notes', 6000), website: pick('website'), address: pick('address'), pitch: oneLine(String(f.pitch || '')).slice(0, 200),
     greeting: oneLine(String(f.greeting || '')).slice(0, 320), greeting2: greetingOk(f.greeting) ? moreText(f.greeting2) : '', name: oneLine(String(f.name || '')).replace(/[^A-Za-z .'-]/g, '').slice(0, 30), goal: pick('goal'),
     aiJoke: moreText(f.aiJoke), owner: oneLine(String(f.owner || '')).replace(/[\[\]<>{}]/g, '').slice(0, 800),
-    role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80), recorded: !!f.greetAudio
+    role: oneLine(String(f.role || '')).replace(/[^A-Za-z ,.'-]/g, '').slice(0, 80), recorded: !!f.greetAudio, fsm: oneLine(String(f.fsm || '')).slice(0, 40)
   };
 }
 
@@ -2164,7 +2174,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     '- ' + transfer,
     ...(L.tap ? ['- ' + tapRule(L)] : []),
     ...(V3(L) && L.own ? V3_TALK : []),
-    ...(V5(L) && L.own ? V5_BLOCK() : []),
+    ...(V5(L) && L.own ? V5_BLOCK(L) : []),
     ...(REASK(L) && L.own ? ['', REASK_RULE] : []),
     wrapUp ? '\nThe call is running long. Wrap up now: confirm their name and number, say what happens next, and say goodbye.' : ''
   ].filter(x => x !== null).join('\n'), L);
@@ -3802,9 +3812,10 @@ export async function syncOwnLine(env) {
   try {
     const row = await env.DB.prepare('SELECT facts FROM voice_lines WHERE client_id = ?1').bind(OWN_ID).first();
     if (!row) return false;
-    const f = parse(row.facts) || {}, want = ownLineFacts();
-    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Booking software other than Google Calendar|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
-    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next }, OWN_VERSION);
+    const jobber = !!(env.JOBBER_CLIENT_ID && env.JOBBER_CLIENT_SECRET);
+    const f = parse(row.facts) || {}, want = ownLineFacts({ jobber });
+    const notes = String(f.notes || '').split(/(?<=\.)\s+/).filter(x => !/^(Every plan, Starter included|Booking software other than Google Calendar|Other booking software|Jobber and Housecall Pro connect|Housecall Pro connects|Jobber is being added next|Growth adds|Pro adds|texting starts once carriers|A client cancels from the app|Always Open is a small team|\w+ handles client support|He handles client support|Max, this phone assistant, answers for every client|Nothing else about anyone on the team)/i.test(x)).join(' ');
+    const next = Object.assign({}, f, { prices: want.prices, notes: (want.plans + ' ' + want.about + ' ' + notes).trim() }, { services: want.services, greeting2: want.greeting2, nudge: want.nudge, hours: want.hours, booking: want.booking, next: want.next, fsm: jobber ? 'jobber,hcp' : 'hcp' }, OWN_VERSION);
     for (const k of Object.keys(next)) if (typeof next[k] === 'string') next[k] = sweepRetired(next[k], PROMISES.support);
     if (JSON.stringify(next) === JSON.stringify(f)) return false;
     await env.DB.prepare('UPDATE voice_lines SET facts = ?1, updated = ?2 WHERE client_id = ?3').bind(JSON.stringify(next), new Date().toISOString(), OWN_ID).run();

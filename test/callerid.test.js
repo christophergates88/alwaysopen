@@ -109,6 +109,8 @@ test('our own line is filed under the primary profile as ALWAYS OPEN; a refusal 
   const h = t => ({ now: t, tell: async () => {}, alert: async (ty, who, tx) => alerts.push(ty + ' ' + who + ' ' + tx) });
   try {
     let t = Date.parse('2026-11-25T15:00:00Z');
+    await C.callerIdCron(env, h(t));
+    assert.equal((await row(env, 'always-open')).step, 'assign', 'a new row starts on its first pass, not an hour later');
     for (let i = 0; i < 6; i++) { t += 2 * 3600e3; await C.callerIdCron(env, h(t)); }
     const r = await row(env, 'always-open');
     assert.equal(r.status, 'in_review', r.error);

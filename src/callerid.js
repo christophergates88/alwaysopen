@@ -150,9 +150,10 @@ export async function callerIdCron(env, h) {
   await ensureCallerId(env);
   const now = h.now || Date.now();
   try {
-    await env.DB.prepare("INSERT OR IGNORE INTO caller_id (client_id, number, display, updated) SELECT p.client_id, p.number, c.business, ?1 FROM provision p JOIN app_clients c ON c.client_id = p.client_id WHERE p.status = 'live' AND p.number != '' AND c.active = 1 AND c.client_id != 'demo-plumbing'").bind(iso(now)).run();
+    // a new row has no time yet, so this same pass takes its first step (the hourly wait is only for rows already looked at)
+    await env.DB.prepare("INSERT OR IGNORE INTO caller_id (client_id, number, display, updated) SELECT p.client_id, p.number, c.business, '' FROM provision p JOIN app_clients c ON c.client_id = p.client_id WHERE p.status = 'live' AND p.number != '' AND c.active = 1 AND c.client_id != 'demo-plumbing'").run();
   } catch (e) { /* no provision table yet */ }
-  await env.DB.prepare("INSERT OR IGNORE INTO caller_id (client_id, number, display, updated) VALUES (?1, ?2, 'Always Open', ?3)").bind(OWN_ID, OWN_NUMBER, iso(now)).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO caller_id (client_id, number, display, updated) VALUES (?1, ?2, 'Always Open', '')").bind(OWN_ID, OWN_NUMBER).run();
   const rows = ((await env.DB.prepare("SELECT * FROM caller_id WHERE status NOT IN ('live', 'not_eligible', 'needs_fix') AND (status != 'in_review' OR updated < ?1) AND (status != 'waiting' OR updated < ?2) ORDER BY updated LIMIT ?3")
     .bind(iso(now - WAIT_MS), iso(now - WAIT_MS), PER_PASS).all()).results) || [];
   const out = { moved: 0, live: 0, fix: 0 };

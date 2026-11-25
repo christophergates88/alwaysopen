@@ -21,7 +21,11 @@ test('Max is told what the site sells: booking on the call, the three-day check-
   assert.match(f.plans, /^Every plan, Starter included, has a booking and quote page customers can use any hour, and Max books visits right on the call/);
   assert.match(f.plans, /Pro adds the three-day check-in: three days after a job, Max calls the customer/);
   assert.match(f.plans, /Pro adds Fill my week: when the owner's Google Calendar has an open day coming up/);
-  assert.match(f.plans, /Booking software other than Google Calendar \(a tee sheet/, 'what he cannot book into is said plainly, with what he does instead');
+  assert.match(f.plans, /Other booking software \(a tee sheet/, 'what he cannot book into is said plainly, with what he does instead');
+  // Nov 25, 2026: Jobber and Housecall Pro connect (fsm.js); Jobber only once Always Open's Jobber app is set up
+  assert.match(f.plans, /Housecall Pro connects, on its MAX plan: the visits Max books go straight in as a job or a lead, so nobody types them twice\. Jobber is being added next; Chris can give the date\./);
+  assert.match(F.ownLineFacts({ jobber: true }).plans, /Jobber and Housecall Pro connect: the visits Max books go straight in \(in Jobber as a request with the time on its calendar/);
+  assert.doesNotMatch(F.ownLineFacts({ jobber: true }).plans, /Jobber is being added next/);
   assert.match(f.plans, /Growth adds [^.]*Storm Desk/);
   assert.match(f.plans, /Every plan, Starter included, has Shoulder Tap, except at insurance, medical, legal, accounting, tax and mortgage offices\./, 'every plan: a practice call put it on Growth and Pro');
   assert.match(f.services, /^Day to day:/);
@@ -42,7 +46,7 @@ test('every sentence of the plans is one the own-line sync replaces, so two sync
   assert.equal(await V.syncOwnLine({ DB }), false, 'the second sync changes nothing');
   assert.equal(await V.syncOwnLine({ DB }), false, 'nor the third');
   const f = JSON.parse((await DB.prepare("SELECT facts FROM voice_lines WHERE client_id = 'always-open'").first()).facts);
-  for (const k of ['Every plan, Starter included, has a booking', 'Every plan, Starter included, has Shoulder Tap', 'Booking software other than', 'Pro adds the three-day check-in', 'Pro adds Fill my week', 'Pro adds Outreach', 'Always Open is a small team', 'The free audit is a one-page report'])
+  for (const k of ['Every plan, Starter included, has a booking', 'Every plan, Starter included, has Shoulder Tap', 'Other booking software', 'Housecall Pro connects', 'Pro adds the three-day check-in', 'Pro adds Fill my week', 'Pro adds Outreach', 'Always Open is a small team', 'The free audit is a one-page report'])
     assert.equal(f.notes.split(k).length - 1, 1, k + ' once');
   assert.doesNotMatch(f.notes, /and competitor watch\. Pro/, 'the old Growth sentence is gone');
 });
