@@ -23,7 +23,7 @@ test('Max is told what the site sells: booking on the call, the three-day check-
   assert.match(f.plans, /Pro adds Fill my week: when the owner's Google Calendar has an open day coming up/);
   assert.match(f.plans, /Booking software other than Google Calendar \(a tee sheet/, 'what he cannot book into is said plainly, with what he does instead');
   assert.match(f.plans, /Growth adds [^.]*Storm Desk/);
-  assert.match(f.plans, /Every plan, Starter included, has Shoulder Tap, except at insurance, medical and legal offices\./, 'every plan: a practice call put it on Growth and Pro');
+  assert.match(f.plans, /Every plan, Starter included, has Shoulder Tap, except at insurance, medical, legal, accounting, tax and mortgage offices\./, 'every plan: a practice call put it on Growth and Pro');
   assert.match(f.services, /^Day to day:/);
   assert.match(f.services, /books the visit on the owner's calendar right on the call/);
   assert.match(f.services, /never say it can't and never say yes: say Chris can go over it on the callback/);

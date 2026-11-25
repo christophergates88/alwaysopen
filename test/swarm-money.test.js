@@ -271,7 +271,7 @@ test('M6: insurance, law and financial-advice offices typed as "Other" come out 
     assert.equal(r.ok, true, business + ': ' + r.error);
     assert.equal(r.regulated, true, business + ' came out unregulated');
   }
-  for (const business of ['Banks Plumbing', 'Lawson Roofing', 'Smith & Sons Plumbing', 'Food Bank Catering', 'Oconee Tax Prep']) {
+  for (const business of ['Banks Plumbing', 'Lawson Roofing', 'Smith & Sons Plumbing', 'Food Bank Catering', 'Oconee Pressure Washing']) {
     const r = await byHand(business);
     assert.equal(r.regulated, false, business + ' came out regulated');
   }

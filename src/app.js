@@ -1344,10 +1344,13 @@ async function ensureDeviceLinks(env) {
 const LINK_OK = "c.active = 1 AND (COALESCE(d.code_hash, '') = '' OR d.code_hash = c.code_hash" +
   ' OR EXISTS (SELECT 1 FROM app_staff s WHERE s.code_hash = d.code_hash AND s.client_id = d.client_id)' +
   ' OR EXISTS (SELECT 1 FROM app_clients o JOIN app_locations lo ON lo.client_id = o.client_id JOIN app_locations ld ON ld.group_id = lo.group_id WHERE o.code_hash = d.code_hash AND o.active = 1 AND ld.client_id = d.client_id))';
-async function devicesFor(env, cid) {
+// Nov 24, 2026: evenIfEnded drops ONLY the "client is active" test (every link and device test stays). It exists for the one
+// notice an owner needs after the plan ends: "turn off call forwarding" (provision.js forwardingOff). Nothing else may use it.
+const LINK_OK_ENDED = LINK_OK.replace('c.active = 1 AND ', '');
+async function devicesFor(env, cid, evenIfEnded) {
   try {
     await ensureDeviceLinks(env);
-    return ((await env.DB.prepare('SELECT d.token, d.env FROM app_devices d JOIN app_clients c ON c.client_id = d.client_id WHERE d.client_id = ?1 AND ' + LINK_OK).bind(cid).all()).results) || [];
+    return ((await env.DB.prepare('SELECT d.token, d.env FROM app_devices d JOIN app_clients c ON c.client_id = d.client_id WHERE d.client_id = ?1 AND ' + (evenIfEnded === true ? LINK_OK_ENDED : LINK_OK)).bind(cid).all()).results) || [];
   } catch (e) { return []; }
 }
 async function liveFor(env, cid, kind, callSid) {
@@ -1389,9 +1392,10 @@ export async function liveCallEnd(env, cid, callId, name, reason, summary, outco
 }
 
 // For the AI phone line: push a note to every phone signed in to this client's app. Returns how many phones.
-export async function pushClient(env, cid, note) {
+// opts.evenIfEnded: only forwardingOff (provision.js) passes it; see devicesFor.
+export async function pushClient(env, cid, note, opts) {
   if (!(env.APNS_KEY && env.APNS_KEY_ID)) return 0;
-  const devs = await devicesFor(env, cid);
+  const devs = await devicesFor(env, cid, !!(opts && opts.evenIfEnded === true));
   for (const d of devs) await apnsSend(env, d, note);
   return devs.length;
 }

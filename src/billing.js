@@ -35,9 +35,10 @@ const NOT_PATIENT = /\b(vets?|veterinar\w*|animals?|pets?|equine|law|legal|attor
 const NOT_HEALTH_LOOSE = /\b(cars?|auto\w*|trucks?|phones?|computers?|repairs?|lawn|trees?|massage|golf|bikes?|small engine|drains?|rooter|dent|dryer|vents?|appliances?|plumb\w*|roof\w*|pools?|glass|ac)\b/i;
 const TRADE_TYPES = ['Contractor or trade', 'Dock, marine or outdoor', 'Restaurant or shop'];   // a trade's "Drain Doctor" is no doctor
 // Nov 24, 2026 audit: an insurance agency, law firm or financial adviser signed up as "Other" came out unregulated (Max
-// booking, outbound calls, the map listing). Tax preparers, accountants and mortgage brokers are left out on purpose:
-// facts.js tells prospects they get booking on the call, like any other business.
-const FINANCE_NAME = /\b(financial advis\w*|wealth|investment advis\w*|credit unions?|(?<!food |blood )bank|banking)\b/i;
+// booking, outbound calls, the map listing). Later that day the operator ruled that the terms win over what facts.js said,
+// so tax preparers, accountants, bookkeepers, mortgage and lending offices and payroll services are regulated by name too.
+// Whole words only: "Taxidermy", "Syntax", "Accountable Plumbing" and "Loan-a-Tool" are ordinary businesses.
+const FINANCE_NAME = /\b(financial advis\w*|wealth|investment advis\w*|credit unions?|tax(es)? (prep\w*|services?)|taxes|accounting|accountants?|cpas?|bookkeep\w*|mortgages?|lend(ing|ers?)|loan officers?|loans|payroll services?|(?<!food |blood )bank|banking)\b/i;
 const LAW_NAME = /\b(law|legal|attorneys?|lawyers?|LLP)\b|(&|\band\b).*\bP\.?\s?C\.?$/i;
 export const HEALTH_NOTE = 'We aren’t set up to handle patient health information yet, so medical and dental offices can’t sign up online. Call (706) 460-2226 and we’ll tell you when we are.';
 // The old combined choice from a page cached before Nov 21: a law office stays a law office, the rest are health offices.

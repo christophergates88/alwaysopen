@@ -206,7 +206,7 @@ export async function forwardingOff(env, cid, stage, goneMs, endMs) {
   const lines = steps.concat([{ k: 'Max’s number', v: num + ' goes away on ' + gone + '.' }]);
   if (texted) lines.push({ k: 'Keep it', v: 'Want to keep this number? Tell Chris before ' + gone + '.' });
   try {
-    await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you. Max’s number ' + num + ' goes away on ' + gone + '. The steps are in your email.' }, sound: 'default' }, screen: 'home' });
+    await (await import('./app.js')).pushClient(env, cid, { aps: { alert: { title: 'Turn off call forwarding', body: 'So your callers reach you. Max’s number ' + num + ' goes away on ' + gone + '. The steps are in your email.' }, sound: 'default' }, screen: 'home' }, { evenIfEnded: true });   // the plan has usually ended by now: this is the one push that still goes
   } catch (e) { /* the email still goes */ }
   if (!b || !b.email) return 'no email';
   const { sendNeon } = await import('./clientmail.js'), { neonEmail } = await import('./neonmail.js');
