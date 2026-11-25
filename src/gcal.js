@@ -12,6 +12,7 @@ export const GBP_SCOPE = 'https://www.googleapis.com/auth/business.manage';
 
 export async function ensureGcal(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS gcal_tokens (client_id TEXT PRIMARY KEY, refresh TEXT NOT NULL, tz TEXT, connected_at TEXT)').run();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS gcal_codes (hash TEXT PRIMARY KEY, at INTEGER)').run();
 }
 
 async function hmac(env, data) {
@@ -27,7 +28,58 @@ async function ownerFor(env, code) {
 
 function page(title, text, status) {
   return new Response('<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><title>' + title + '</title><body style="font:17px system-ui;background:#0a0a0a;color:#fff;padding:32px;max-width:520px;margin:auto"><h2 style="color:#ff3b3b">' + title + '</h2><p>' + text + '</p></body>',
-    { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    { status: status || 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' } });
+}
+
+// Nov 24, 2026: the calendar connect is tied to the browser that started it. /google/connect sets a short cookie holding a
+// random nonce and signs the same nonce into the state. Back at the callback, a matching cookie proves it is the same
+// browser. Without one (the app may open the page in one place and Google may finish in another) nobody is connected until
+// the person sees whose business it joins and presses the button, so a link sent to a stranger cannot quietly join their
+// calendar to someone else's account.
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const CB_COOKIE = 'ao_gcal';
+const cookieOf = (req, name) => { for (const p of String(req.headers.get('cookie') || '').split(';')) { const i = p.indexOf('='); if (i > 0 && p.slice(0, i).trim() === name) return p.slice(i + 1).trim(); } return ''; };
+const setCookie = (nonce, maxAge) => CB_COOKIE + '=' + nonce + '; Max-Age=' + maxAge + '; Path=/google/callback; Secure; HttpOnly; SameSite=Lax';
+// The client and nonce a calendar state names, or null when its signature or age fails. A state from before this change
+// (no nonce) still checks out, with an empty nonce that no cookie can match, so it always gets the confirmation page.
+async function calState(env, raw) {
+  const st = String(raw || '').split('.');
+  if (st.length !== 3 && st.length !== 4) return null;
+  const nonce = st.length === 4 ? st[2] : '';
+  if (st[st.length - 1] !== await hmac(env, st.slice(0, -1).join('.')) || !(Date.now() - +st[1] <= 3600e3)) return null;
+  return { cid: st[0], nonce };
+}
+async function confirmPage(env, cid, code, state) {
+  const c = await env.DB.prepare('SELECT business FROM app_clients WHERE client_id = ?1 AND active = 1').bind(cid).first().catch(() => null);
+  if (!c) return page('Link expired', 'Please tap Connect Google Calendar in the app again.', 400);
+  const b = esc(c.business || 'this business');
+  const r = page('Connect your calendar?', 'This will connect your Google Calendar to ' + b + ' on Always Open. Max will see when you are free and add visits to it.</p><p>Only continue if ' + b + ' is your business.</p>' +
+    '<form method="post" action="/google/callback"><input type="hidden" name="code" value="' + esc(code) + '"><input type="hidden" name="state" value="' + esc(state) + '"><input type="hidden" name="confirm" value="1">' +
+    '<button style="font:inherit;font-weight:600;padding:14px 18px;border:0;border-radius:10px;background:#ff3b3b;color:#fff;width:100%">Yes, connect it to ' + b + '</button></form>' +
+    '<p><a href="https://alwaysopenoffice.com/" style="color:#fff">No, this is not mine</a>');
+  return r;
+}
+// A Google code works once. Claim it in our own table first, so a second press or a refresh gets a plain answer, not an error.
+async function claimCode(env, code) {
+  await ensureGcal(env);
+  await env.DB.prepare('DELETE FROM gcal_codes WHERE at < ?1').bind(Date.now() - 864e5).run().catch(() => {});
+  const r = await env.DB.prepare('INSERT OR IGNORE INTO gcal_codes (hash, at) VALUES (?1, ?2)').bind(await sha256hex(code), Date.now()).run();
+  return !!(r.meta && r.meta.changes);
+}
+async function finishCalendar(env, cid, code, headers) {
+  if (!(await claimCode(env, code))) return page('Link already used', 'That link was already used. Start again from your app.', 400);
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', redirect_uri: REDIRECT, grant_type: 'authorization_code' }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.refresh_token) return page('Not connected', 'Google did not finish connecting. Please try again from the app.', 400);
+  await ensureGcal(env);
+  let tz = '';
+  try { const e = await fetch(API + '?maxResults=1', { headers: { authorization: 'Bearer ' + j.access_token } }); tz = ((await e.json()) || {}).timeZone || ''; } catch (e) { /* set on first use */ }
+  await env.DB.prepare('INSERT OR REPLACE INTO gcal_tokens (client_id, refresh, tz, connected_at) VALUES (?1, ?2, ?3, ?4)').bind(cid, await sealToken(env, 'gcal_tokens.refresh', j.refresh_token), tz, new Date().toISOString()).run();
+  try { await (await import('./connections.js')).markOk(env, cid, 'calendar'); } catch (e) { /* fine */ }
+  const ok = page('Calendar connected', 'Max can now offer open times from your Google Calendar and book them for callers. You can close this page and go back to the app.');
+  ok.headers.set('set-cookie', setCookie('', 0));
+  return ok;
 }
 
 async function gbpStart(env, kind, who) {
@@ -77,26 +129,29 @@ export async function handleGoogle(req, env, url) {
   if (path === '/google/connect') {
     const c = await ownerFor(env, url.searchParams.get('code') || '');
     if (!c) return page('Link not valid', 'Open this from the Always Open app, signed in as the owner.', 403);
-    const ts = String(Date.now());
-    const state = c.client_id + '.' + ts + '.' + await hmac(env, c.client_id + '.' + ts);
+    const ts = String(Date.now()), nonce = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+    const state = c.client_id + '.' + ts + '.' + nonce + '.' + await hmac(env, c.client_id + '.' + ts + '.' + nonce);
     const q = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID || '', redirect_uri: REDIRECT, response_type: 'code', scope: SCOPE, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state });
-    return Response.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q, 302);
+    return new Response(null, { status: 302, headers: { location: 'https://accounts.google.com/o/oauth2/v2/auth?' + q, 'set-cookie': setCookie(nonce, 600), 'cache-control': 'no-store' } });
   }
   if (path === '/google/callback') {
+    if (req.method === 'POST') {
+      // Only the button on the confirmation page: the state is checked again and the code is used here, once.
+      let f; try { f = await req.formData(); } catch (e) { f = null; }
+      const state = f ? String(f.get('state') || '') : '', code = f ? String(f.get('code') || '') : '';
+      const s2 = await calState(env, state);
+      if (!s2 || !f || f.get('confirm') !== '1') return page('Link expired', 'Please tap Connect Google Calendar in the app again.', 400);
+      if (!code) return page('Not connected', 'Google did not give access. You can try again from the app any time.', 400);
+      return finishCalendar(env, s2.cid, code);
+    }
     const st = String(url.searchParams.get('state') || '').split('.');
     if (st[0] === 'gbp' || st[0] === 'hq') return gbpCallback(env, url, st);
-    if (st.length !== 3 || st[2] !== await hmac(env, st[0] + '.' + st[1]) || Date.now() - +st[1] > 3600e3) return page('Link expired', 'Please tap Connect Google Calendar in the app again.', 400);
-    if (!url.searchParams.get('code')) return page('Not connected', 'Google did not give access. You can try again from the app any time.', 400);
-    const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code: url.searchParams.get('code'), client_id: env.GOOGLE_CLIENT_ID || '', client_secret: env.GOOGLE_CLIENT_SECRET || '', redirect_uri: REDIRECT, grant_type: 'authorization_code' }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.refresh_token) return page('Not connected', 'Google did not finish connecting. Please try again from the app.', 400);
-    await ensureGcal(env);
-    let tz = '';
-    try { const e = await fetch(API + '?maxResults=1', { headers: { authorization: 'Bearer ' + j.access_token } }); tz = ((await e.json()) || {}).timeZone || ''; } catch (e) { /* set on first use */ }
-    await env.DB.prepare('INSERT OR REPLACE INTO gcal_tokens (client_id, refresh, tz, connected_at) VALUES (?1, ?2, ?3, ?4)').bind(st[0], await sealToken(env, 'gcal_tokens.refresh', j.refresh_token), tz, new Date().toISOString()).run();
-    try { await (await import('./connections.js')).markOk(env, st[0], 'calendar'); } catch (e) { /* fine */ }
-    return page('Calendar connected', 'Max can now offer open times from your Google Calendar and book them for callers. You can close this page and go back to the app.');
+    const s2 = await calState(env, url.searchParams.get('state'));
+    if (!s2) return page('Link expired', 'Please tap Connect Google Calendar in the app again.', 400);
+    const code = url.searchParams.get('code');
+    if (!code) return page('Not connected', 'Google did not give access. You can try again from the app any time.', 400);
+    if (s2.nonce && cookieOf(req, CB_COOKIE) === s2.nonce) return finishCalendar(env, s2.cid, code);
+    return confirmPage(env, s2.cid, code, url.searchParams.get('state'));
   }
   if (path === '/google/disconnect' && req.method === 'POST') {
     let code = '';
