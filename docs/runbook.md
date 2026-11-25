@@ -223,6 +223,17 @@ If Claude fails two of its checks in a row, every call goes to the backup model 
   phone, type the number you will call from, tap Ready, and call (706) 460-2226 within 30 minutes. Max answers as the
   demo plumbing line and only that call is recorded; the MP3 is kept in D1 and Twilio's copy is deleted. A newer good
   call replaces it; "Take it down" on the same page hides the player. No customer call is ever recorded.
+- **Hear Max as your business** (`src/trial.js`, Nov 25, 2026): an owner who got the free audit calls (706) 460-2226 and
+  Max answers as *their* business, built from the audit: their name, kind of work, and their hours and address read
+  from Google during the call (only the place ID is kept; the rest is dropped when the call is written up). Two ways in:
+  the audit email's and audit page's "Hear Max" button (`/hear/<token>`: they confirm the phone they'll call from, which
+  readies the line for 30 minutes), or by caller ID for 14 days after the audit, when a call from the audit's phone
+  first hears "To hear Max answer as <business>, press 1" (nothing or any other key is Max as Always Open). Three calls
+  per audit, 25 a day for all (`CALLS_EACH`, `PER_DAY`); past the day's limit callers get Always Open and you get a
+  `trial-cap` alert. The calls are test calls (client `trial-<token>`, number `trial:<CallSid>`): nothing recorded,
+  counted or texted. After each one the owner gets one email with the note Max would have sent them, and your phone
+  gets "<business> just heard Max as their business" at high priority: call them while it's fresh. To switch it off,
+  set `MENU_DAYS` to 0 and remove the button (or set `CALLS_EACH` to 0).
 - **What Max caught** (`src/money.js`): after-hours calls that became leads × the owner's win rate × average job, the
   same figure in the app, the monthly report and the ops board. No average job, no dollars.
 - **Review asks for Always Open** (`src/ourreviews.js`): a month in, every client gets one text (or email) asking for a

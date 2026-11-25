@@ -158,6 +158,7 @@ export async function handleVoice(req, env, ctx, url) {
     if (kind === 'outg') return await outboundGather(env, url, form);
     if (kind === 'outstatus') return await outboundStatus(env, url, form);
     if (kind === 'in') return await incoming(env, form);
+    if (kind === 'trial') return await trialGather(env, url, form);
     if (kind === 'iv') return await interviewTwiml(env, url, form);
     if (kind === 'ivstatus') return await interviewStatus(env, url, form);
     if (kind === 'after') return await afterRelay(env, ctx, form);
@@ -185,6 +186,16 @@ async function incoming(env, f) {
   let sample = null;
   if (line.client_id === OWN_ID && E164.test(from)) {
     try { const hm = await import('./hearmax.js'); const got = await hm.takeArm(env, from, sid); const as = got && await lineFor(env, got.line.number); if (as) { sample = { tw: hm.recordingTwiml(env) }; line = as; } } catch (e) { sample = null; }
+  }
+  // Hear Max as your business (trial.js): an owner who got the free audit hears Max answer as their own business. Readied
+  // from the /hear page: answered as their business straight away. By caller ID alone: "press 1" first (menu below).
+  let trialOn = false, trialMenu = '';
+  if (!sample && line.client_id === OWN_ID && E164.test(from) && f.get('AoTest') !== '1') {
+    try {
+      const T = await import('./trial.js'), got = await T.trialFor(env, from, Date.now());
+      if (got && got.ready) { const tl = await T.startCall(env, got.row, sid, from, Date.now()); if (tl) { line = withOwner(tl); trialOn = true; } }
+      else if (got) trialMenu = T.menuTwiml(env, got.row);
+    } catch (e) { trialOn = false; trialMenu = ''; }
   }
   const biz = line.business || 'our office';
   if (!+line.on_air) {
@@ -229,16 +240,34 @@ async function incoming(env, f) {
   if (dayFull && !capped) await opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had ' + PER_LINE_DAY + ' calls in a day. Callers now get the voicemail. If it is a real rush, raise the limit; if it is a storm, check the callers in the app.').catch(() => {});
   if (capped) opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had over 120 minutes of calls in a day. Callers now get the voicemail, which reaches the owner like any other call. If it is a real rush, raise the cap; if it is a storm, check the callers in the app.').catch(() => {});
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', ?8, 0, ?9)")
-    .bind(sid, line.client_id, sample ? line.number : to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
+    .bind(sid, line.client_id, sample || trialOn ? line.number : to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester || trialOn ? 1 : 0).run();
   // A limited caller leaves a voicemail (voicemail.js), which reaches the owner like any other, instead of a hang-up
   // that promised "we have your number" and told nobody.
   if (limited) { const vm = await import('./voicemail.js'); return twiml(vm.voicemailInner(biz, vm.callbackUrl(env))); }
-  if (!tester && f.get('AoTest') !== '1' && line.client_id !== OWN_ID) liveCallStart(env, line.client_id, sid, line.business || '', spokenNumber(from, true)).catch(() => {});
+  if (!tester && !trialOn && f.get('AoTest') !== '1' && line.client_id !== OWN_ID) liveCallStart(env, line.client_id, sid, line.business || '', spokenNumber(from, true)).catch(() => {});
   const t = await callToken(env, sid);
   const hints = hintsFor(line);
   const vv = voiceFor(line);
   const audio = (parse(line.facts) || {}).greetAudio;
-  return twiml((sample ? sample.tw : '') + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + relayConnect(env, line, sid, t, greeting(line), 'none', hints));
+  return twiml((sample ? sample.tw : '') + trialMenu + (audio && /^[A-Za-z0-9]{32}$/.test(audio) ? '<Play>' + SITE + '/a/' + audio + '</Play>' : '') + relayConnect(env, line, sid, t, greeting(line), 'none', hints));
+}
+
+// The press-1 offer (trial.js menuTwiml): a 1 turns this call into the trial, answered as their business; any other key
+// gets Max as Always Open, the same answer as pressing nothing.
+async function trialGather(env, url, f) {
+  const sid = f.get('CallSid') || '', from = f.get('From') || '';
+  if (!SID_RE.test(sid)) return twiml('<Hangup/>');
+  const call = await env.DB.prepare('SELECT * FROM app_calls WHERE id = ?1').bind(sid).first();
+  if (!call) return twiml('<Hangup/>');
+  let line = null;
+  if (String(f.get('Digits') || '') === '1' && call.client_id === OWN_ID && call.outcome === 'live') {
+    try { const tl = await (await import('./trial.js')).startCallFor(env, url.searchParams.get('t'), sid, from, Date.now()); if (tl) line = withOwner(tl); } catch (e) { line = null; }
+    if (line) await env.DB.prepare('UPDATE app_calls SET client_id = ?1, number = ?2, test = 1 WHERE id = ?3').bind(line.client_id, line.number, sid).run();
+  }
+  if (!line) line = await lineFor(env, call.number);
+  if (!line) return twiml('<Hangup/>');
+  const t = await callToken(env, sid);
+  return twiml(relayConnect(env, line, sid, t, greeting(line), 'none', hintsFor(line)));
 }
 
 // The <Connect> that puts a caller on with Max: the first answer, and a reconnect when the line to Max dropped mid-call.
@@ -1575,6 +1604,9 @@ async function writeUp(env, sid, s, why) {
   }
   // A call Max ended as a robocall still shows up, quietly (no sound), so a customer he got wrong never vanishes (Nov 24, 2026).
   if (outcome === 'spam' && s && s.robo && !call.test && call.client_id !== OWN_ID) await pushClient(env, call.client_id, { aps: { alert: { title: 'Robocall ended: ' + (E164.test(call.caller || '') ? spokenNumber(call.caller, true) : 'a caller'), body: 'Max took it for a robocall and hung up. If it was a customer, tap to call them back.' }, 'interruption-level': 'passive', 'thread-id': 'calls' }, screen: 'calls', call: sid }).catch(() => {});
+  if (call.test && String(call.client_id || '').startsWith('trial-')) {
+    try { await (await import('./trial.js')).trialDone(env, call, { note, outcome, summary, heard, seconds: relay }); } catch (e) { await vlog(env, 'trial-error', String((e && e.message) || e).slice(0, 300)); }
+  }
   if (outcome === 'spam' || call.test) return true;
   if (call.client_id !== OWN_ID && !(s && s.voicemail)) liveCallEnd(env, call.client_id, sid, (note && note.name) || call.caller_name || '', (note && note.reason) || '', summary, outcome).catch(() => {});
   // A call-back promise only when nobody took the call: not once the owner talked to them, nor once a neighbor did.
@@ -2111,7 +2143,7 @@ export function systemPrompt(L, caller, lang, wrapUp) {
     L.neighbors ? '- Nearby businesses on Always Open that take hand-offs: ' + L.neighbors + '. If the caller needs work this business does not do and one of them does that kind of work, offer the nearest one once, plainly: "We don\'t do electrical, but Lane Electric, two miles from here, is on Always Open too. Want me to put you through?" Only on a clear yes, say "One moment, putting you through." and end that reply with [HANDOFF:Lane Electric] using the exact business name. Never name any business that is not on that list. If they say no, take a message as usual.' : null,
     L.handedFrom ? '- ' + L.handedFrom.business + ' just passed this caller over because they needed ' + (L.handedFrom.need || 'work that business does not do') + '. Open with that in one short line, then help as usual.' : null,
     L.cbSlot ? '- If the caller wants the owner to call them back, name a time rather than leaving it open. Say it plainly: "The owner is ' + L.cbBusy + '. They will call you at ' + L.cbSlot + '. Does that work?" If they want a different time during business hours, take theirs. Confirm the number to call.' : null,
-    L.own ? '- The free audit by text: once a business owner is interested and you have their business name and their town, offer it once, plainly: "I can text you a free audit of how your business looks on Google. Want it?" If they say yes, confirm the number it goes to and say it will be there as soon as you hang up. Never offer it to someone who is not a business owner, and never send it without a yes.' : null,
+    L.own ? '- The free audit by text: once a business owner is interested and you have their business name and their town, offer it once, plainly: "I can text you a free audit of how your business looks on Google. Want it?" If they say yes, confirm the number it goes to and say it will be there as soon as you hang up. Never offer it to someone who is not a business owner, and never send it without a yes. Once it is sent, they can call this line back from the same phone and press 1 to hear you answer as their own business; say so if they wonder how you would sound for them.' : null,
     (L.regulated || L.lostOff || L.own) ? null : '- If the caller says they will not go ahead (it is not for them, or work the business does not do; never at a price objection, which gets the next step first, and never after a plain thanks or bye), ask once, plainly: "Before you go, was it the price, the timing, or the drive? It helps the owner." Take whatever they say, thank them, and let them go. Never argue, never offer anything, never ask twice.',
     '- Never ask for or accept card numbers, Social Security numbers, account or policy numbers, birth dates, passwords or health details. If they start to give one, stop them kindly and say the team will take care of it on the callback.',
     '- Never share the owner\'s or staff\'s cell numbers, home addresses or schedules.',
@@ -3308,6 +3340,8 @@ async function clientGone(env, cid) {
 }
 async function lineFor(env, number) {
   if (!number) return null;
+  // Hear Max as your business (trial.js): a trial call's line is kept with the call, never in voice_lines
+  if (String(number).startsWith('trial:')) { try { return withOwner(await (await import('./trial.js')).trialLine(env, String(number).slice(6))); } catch (e) { return null; } }
   return withOwner(await env.DB.prepare('SELECT * FROM voice_lines WHERE number = ?1').bind(number).first());
 }
 // A line can pick its voice: an ElevenLabs "<voice id>", optionally "-<model>" and "-<speed>_<stability>_<similarity>"

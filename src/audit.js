@@ -48,6 +48,10 @@ async function checkSite(url, phone) {
     const d = digits(phone);
     out.phoneOnSite = d.length === 10 ? digits(html.replace(/<[^>]+>/g, ' ')).includes(d) || html.replace(/\D/g, '').includes(d) : null;
     const tm = html.match(/<title[^>]*>([^<]{0,140})/i); out.title = tm ? tm[1].trim() : '';
+    // what the business says it does, in its own words (trial.js: what Max knows on a "Hear Max as your business" call)
+    const dm = html.match(/<meta[^>]+name=["'](?:og:)?description["'][^>]*content=["']([^"']{0,400})["']/i) || html.match(/<meta[^>]+content=["']([^"']{0,400})["'][^>]*name=["'](?:og:)?description["']/i) ||
+      html.match(/<meta[^>]+property=["']og:description["'][^>]*content=["']([^"']{0,400})["']/i);
+    out.desc = dm ? dm[1].trim() : '';
   } catch (e) {
     out.ms = Date.now() - t0;
     out.error = /abort/i.test(String(e)) ? 'took longer than 9 seconds to load' : 'could not be reached';
