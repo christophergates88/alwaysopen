@@ -244,7 +244,7 @@ async function stepSpWaitBrand(env, row, f, sids) {
 
 const STEPS = { profile: stepProfile, wait_profile: stepWaitProfile, trust: stepTrust, brand: stepBrand, wait_brand: stepWaitBrand, campaign: stepCampaign, wait_campaign: stepWaitCampaign, number: stepNumber,
   sp_profile: stepSpProfile, sp_trust: stepSpTrust, sp_brand: stepSpBrand, sp_wait_brand: stepSpWaitBrand };
-const LABELS = { none: 'Not started', needs_help: 'We’ll register it with you', submitted: 'Sent, starting', in_review: 'Carriers are reviewing it', approved: 'Approved. Texting is on.', needs_fix: 'Needs a fix', failed: 'We’re looking at it' };
+const LABELS = { none: 'Not started', needs_help: 'We’ll register it with you', submitted: 'Sent, starting', in_review: 'Carriers are reviewing it', approved: 'Approved. Texting is on.', needs_fix: 'Needs a fix', failed: 'We’re looking at it', ended: 'Stopped when your plan ended' };
 
 // Advance one client by one step. Returns the new status.
 export async function advance(env, cid) {
@@ -288,6 +288,43 @@ export async function advance(env, cid) {
   if (r.wait) { await env.DB.prepare('UPDATE a2p_reg SET updated = ?1 WHERE client_id = ?2').bind(now(), cid).run(); return row.status; }
   await save('in_review', r.next, '', f);
   return 'in_review';
+}
+
+// Nov 25, 2026: a client who left. Carriers bill every approved campaign each month ($2 to $10) until it is deleted, and
+// nothing deleted them, so every client who left kept costing that for good. 60 days after a plan ends (provision.js) the
+// campaign is deleted and texting is marked ended. The brand, the profiles and the Messaging Service stay (they carry no
+// monthly fee), so a client who comes back restarts at the campaign step by itself (resumeTexting), with no new form.
+// Throws when Twilio refuses, so the caller tries again later.
+export async function endTexting(env, cid) {
+  await ensureA2p(env);
+  const row = await env.DB.prepare('SELECT * FROM a2p_reg WHERE client_id = ?1').bind(cid).first();
+  if (!row) return 'none';
+  let sids = {}; try { sids = JSON.parse(row.sids || '{}'); } catch (e) {}
+  let gone = 0;
+  if (sids.mg) {
+    // every campaign on the client's own Messaging Service: the list also finds one whose sid was never stored
+    let l = { compliance: [] };
+    try { l = await tw(env, 'GET', MSG + 'Services/' + sids.mg + '/Compliance/Usa2p'); } catch (e) { if (e.status !== 404) throw e; }
+    for (const c of l.compliance || []) {
+      if (!/^QE[0-9a-f]{32}$/i.test(String(c.sid || ''))) continue;
+      try { await tw(env, 'DELETE', MSG + 'Services/' + sids.mg + '/Compliance/Usa2p/' + c.sid); gone++; } catch (e) { if (e.status !== 404) throw e; }
+    }
+  }
+  delete sids.campaign;
+  await env.DB.prepare("UPDATE a2p_reg SET status = 'ended', step = '', sids = ?1, error = '', tries = 0, updated = ?2 WHERE client_id = ?3").bind(JSON.stringify(sids), now(), cid).run();
+  if (sids.mg) { const { setBrand } = await import('./sms.js'); await setBrand(env, cid, sids.mg, 'ended'); }
+  return gone ? 'ended' : 'nothing billed';
+}
+// A client who came back after their texting was ended: start again at the campaign step, on the brand they already have
+// (a new campaign is reviewed again, a few days). With nothing to build on, the owner fills the form again.
+export async function resumeTexting(env, cid) {
+  await ensureA2p(env);
+  const row = await env.DB.prepare("SELECT sids FROM a2p_reg WHERE client_id = ?1 AND status = 'ended'").bind(cid).first();
+  if (!row) return 'none';
+  let sids = {}; try { sids = JSON.parse(row.sids || '{}'); } catch (e) {}
+  const again = !!(sids.brand && sids.mg);
+  await env.DB.prepare('UPDATE a2p_reg SET status = ?1, step = ?2, error = \'\', tries = 0, updated = ?3 WHERE client_id = ?4').bind(again ? 'submitted' : 'none', again ? 'campaign' : '', now(), cid).run();
+  return again ? 'submitted' : 'none';
 }
 
 export async function a2pCron(env) {

@@ -108,6 +108,7 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 | `drill` | The 4 AM test call to Max failed twice | The call on the ops board (calls from the test number on Always Open's line); Claude's status; the voice log |
 | `max-backup` | Claude failed two checks in a row, so every call is on the backup model | console.anthropic.com (credits, status); it switches back by itself when Claude answers |
 | `line-cap:<client>` | 120 minutes or 80 calls in a day on one line (callers past it get the voicemail; robocall voicemails are filed as spam, no push) | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
+| (ping) `texting registration cancelled` | A client left 60 days ago: their texting campaign was deleted at Twilio so its monthly carrier fee ($2 to $10) stops; the brand stays | Nothing. If they come back, it restarts at the campaign step by itself; Max's number is kept a year |
 | `quiet-line:<client>` | A busy line had no calls for a week | Twilio number webhook, then ask the owner about forwarding |
 | `quiet-profile:<client>` | A profile's reviews stopped | The owner's reconnect card, then the profile's managers in Google |
 | `deploy` | A deploy failed or rolled back | The Actions tab; the alert says which check failed |

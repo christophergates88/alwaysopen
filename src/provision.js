@@ -11,12 +11,15 @@ const TW = 'https://api.twilio.com/2010-04-01/Accounts/';
 // keeps trying once an hour; Christopher still gets his two pushes, and the owner hears once.
 const MAX_TRIES = 6, SLOW_MS = 55 * 60e3;
 export const KEEP_DAYS = 365;   // how long Max's number is kept after a plan ends
+const TEXTING_DAYS = 60;        // when a departed client's texting registration is cancelled (its fee is monthly)
 
-let ready = false;
+const ready = new WeakSet();   // per database (one per isolate in production; tests make many)
 export async function ensureProvision(env) {
-  if (ready) return;
+  if (ready.has(env.DB)) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS provision (client_id TEXT PRIMARY KEY, status TEXT DEFAULT 'queued', number TEXT DEFAULT '', number_sid TEXT DEFAULT '', tries INTEGER DEFAULT 0, error TEXT DEFAULT '', created TEXT, updated TEXT, ended TEXT DEFAULT '', warned TEXT DEFAULT '')").run();
-  ready = true;
+  // texting_off: when the client's texting registration was cancelled after they left (Nov 25, 2026)
+  try { await env.DB.prepare("ALTER TABLE provision ADD COLUMN texting_off TEXT DEFAULT ''").run(); } catch (e) { /* already there */ }
+  ready.add(env.DB);
 }
 
 const ph10 = s => { let d = String(s || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return /^[2-9]\d{2}[2-9]\d{6}$/.test(d) ? d : ''; };
@@ -235,13 +238,23 @@ export async function provisionCron(env, at) {
       // They came back: the same number, on the air again. (Nov 25, 2026: it stayed off, and the owner's own switch said
       // "paused on our side", so Max was silent until Christopher noticed.)
       await env.DB.batch([
-        env.DB.prepare("UPDATE provision SET ended = '', warned = '' WHERE client_id = ?1").bind(e.client_id),
+        env.DB.prepare("UPDATE provision SET ended = '', warned = '', texting_off = '' WHERE client_id = ?1").bind(e.client_id),
         env.DB.prepare('UPDATE voice_lines SET on_air = 1, updated = ?1 WHERE client_id = ?2 AND number = ?3').bind(new Date(now).toISOString(), e.client_id, e.number)
       ]);
-      try { await (await import('./app.js')).opsPing(env, 'Always Open: a client came back', (e.business || e.client_id) + ' is active again. Max answers on their old number ' + pretty(e.number) + ' again.', 'default', 'telephone_receiver'); } catch (x) {}
+      let txt = 'none';
+      if (e.texting_off) try { txt = await (await import('./a2p.js')).resumeTexting(env, e.client_id); } catch (x) {}
+      try { await (await import('./app.js')).opsPing(env, 'Always Open: a client came back', (e.business || e.client_id) + ' is active again. Max answers on their old number ' + pretty(e.number) + ' again.' + (txt === 'submitted' ? ' Their texting registration restarts by itself (carriers review it again, a few days).' : txt === 'none' && e.texting_off ? ' Their texting needs the form again in the app.' : ''), 'default', 'telephone_receiver'); } catch (x) {}
       continue;
     }
     const days = (now - Date.parse(e.ended)) / 864e5;
+    // Their texting registration bills monthly until it is cancelled: cancel it once the come-back window has passed.
+    if (days >= TEXTING_DAYS && !e.texting_off && env.TWILIO_ACCOUNT_SID) {
+      try {
+        const r = await (await import('./a2p.js')).endTexting(env, e.client_id);
+        await env.DB.prepare('UPDATE provision SET texting_off = ?1 WHERE client_id = ?2').bind(new Date(now).toISOString(), e.client_id).run();
+        if (r === 'ended') try { await (await import('./app.js')).opsPing(env, 'Always Open: texting registration cancelled', (e.business || e.client_id) + ' left ' + Math.floor(days) + ' days ago, so their texting campaign is cancelled and its monthly carrier fee stops. If they come back, it restarts by itself.', 'low', 'scissors'); } catch (x) {}
+      } catch (x) { /* Twilio refused: tried again in 10 minutes */ }
+    }
     if (days >= KEEP_DAYS - 7 && !e.warned) {
       await env.DB.prepare('UPDATE provision SET warned = ?1 WHERE client_id = ?2').bind(new Date(now).toISOString(), e.client_id).run();
       try { await (await import('./app.js')).opsPing(env, 'Always Open: a Max number is released in a week', (e.business || e.client_id) + ' ended their plan ' + Math.floor(days) + ' days ago. Their number ' + pretty(e.number) + ' is released in 7 days, as the terms say. If they are coming back, mark them active before then.', 'default', 'telephone_receiver'); } catch (x) {}
