@@ -60,6 +60,15 @@ test('A2: no phone line yet says so, and never claims Max is on the clock', asyn
   assert.match(PAGE.slice(PAGE.indexOf('function clockCard()'), PAGE.indexOf('function clockSheet()')), /noLine\(\)/);
 });
 
+test('A2b: an account without Max is never told Max is on the clock (Nov 25: Lake Country Foam Party has no Max)', () => {
+  const day = PAGE.slice(PAGE.indexOf('function dayList('), PAGE.indexOf('function vToday()'));
+  assert.match(day, /hasMax\(\)\?esc\(\(S\.line&&S\.line\.name\)\|\|'Max'\):'Always Open'\)\+' is on the clock/);
+  assert.match(day, /The first reply, post or follow-up lands here\./);
+  assert.match(PAGE.slice(PAGE.indexOf('function clockCard()'), PAGE.indexOf('function clockSheet()')), /\|\|!hasMax\(\)\)return ''/);
+  const today = PAGE.slice(PAGE.indexOf('function vToday()'), PAGE.indexOf('function exampleCall()'));
+  assert.match(today, /S\.clock&&hasMax\(\)&&!noLine\(\)/);
+});
+
 test('A3: Money tab links to the billing page', () => {
   const money = PAGE.slice(PAGE.indexOf('function vMoney()'), PAGE.indexOf('function askSheet()'));
   assert.match(money, /Your plan and card/);

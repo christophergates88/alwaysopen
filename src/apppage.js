@@ -632,7 +632,7 @@ function dayRows(){
 function dayList(rows,now){
   return '<ol class="dtl">'+rows.map(function(r){return '<li class="'+esc(r.cls||'')+'"><time>'+esc(r.time)+'</time><div><b>'+esc(r.title)+'</b>'+(r.sub?'<span>'+esc(r.sub)+'</span>':'')+
     (r.tag?'<em class="'+(r.cls==='you'?'r':r.cls==='wait'?'w':'')+'">'+esc(r.tag)+'</em>':'')+'</div></li>';}).join('')+
-    (now?'<li class="now"><time>Now</time><div><b>'+esc((S.line&&S.line.name)||'Max')+' is on the clock</b><span>Anything new lands here as it happens.</span></div></li>':'')+'</ol>';
+    (now?'<li class="now"><time>Now</time><div><b>'+(hasMax()?esc((S.line&&S.line.name)||'Max'):'Always Open')+' is on the clock</b><span>Anything new lands here as it happens.</span></div></li>':'')+'</ol>';
 }
 // Nov 24, 2026: a paid account whose phone number is not bought yet. Say so; never claim Max is on the clock.
 function noLine(){return !!(S&&!S.sample&&!S.line&&hasMax()&&!isTech());}
@@ -649,7 +649,8 @@ function dayTimeline(){
     return '<h2>A day, handled</h2><p class="note dtl-note">The same day as on the website: every call, reply, post and follow-up, at the minute it happened.</p>'+dayList(rows,false);
   }
   var r=dayRows();
-  if(!r.length)return '<h2>Today, handled</h2><div class="empty slim">'+ICON.clock+'<b>Nothing yet today.</b><span>'+esc((S.line&&S.line.name)||'Max')+' is on the clock. The first call, reply or follow-up lands here.</span></div>';
+  // Nov 25, 2026: an account without Max is never told Max is on the clock
+  if(!r.length)return '<h2>Today, handled</h2><div class="empty slim">'+ICON.clock+'<b>Nothing yet today.</b><span>'+(hasMax()?esc((S.line&&S.line.name)||'Max')+' is on the clock. The first call, reply or follow-up lands here.':'The first reply, post or follow-up lands here.')+'</span></div>';
   return '<h2>Today, handled</h2>'+dayList(r,true);
 }
 function vToday(){
@@ -660,7 +661,7 @@ function vToday(){
   if(!need.length)h+='<div class="empty slim">'+ICON.check+'<b>Nothing needs you right now.</b><span>Your phone buzzes when something does.</span></div>';
   else{h+=(NEEDALL?need:need.slice(0,5)).join('');if(need.length>5)h+='<div class="acts"><button class="btn line" type="button" data-a="need-more">'+(NEEDALL?'Show fewer':(need.length-5)+' more')+'</button></div>';}
   h+=dayTimeline();
-  if(S.clock||(!isTech()&&S.monthNow))h+='<h2>Your month</h2>'+clockCard()+(isTech()?'':monthNowCard());
+  if((S.clock&&hasMax()&&!noLine())||(!isTech()&&S.monthNow))h+='<h2>Your month</h2>'+clockCard()+(isTech()?'':monthNowCard());
   var f=S.features||{};
   // Nov 24, 2026: the first-hour checklist (forwarding steps, Google invite, QR card, texting) is drawn here while steps are left.
   h+=bizTop();
@@ -1020,7 +1021,8 @@ function radarRest(){
 }
 // Max's clock: this month on one dial (server-drawn, clock.js), the two numbers, the one call, and the list behind it.
 function clockCard(){
-  var K=S.clock;if(!K||noLine())return '';
+  // Max's clock is for accounts with Max (Nov 25, 2026: a reviews-only account saw "Max is on the clock anyway")
+  var K=S.clock;if(!K||noLine()||!hasMax())return '';
   var nm=esc(K.name||'Max'),hb=function(min){min=Math.round(+min||0);var h=Math.floor(min/60),m=min%60;return h?h+'h'+(m?' '+m+'m':''):m+' min';};
   // The website's four numbers under the dial: caught closed, on the clock, calls, to you.
   var cell=function(b,l,red){return '<div><b'+(red?' class="r"':'')+'>'+b+'</b><span>'+l+'</span></div>';};
