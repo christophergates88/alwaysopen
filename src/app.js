@@ -473,6 +473,9 @@ async function apiState(env, c, ctx) {
   // a first real call (not a test one) has arrived: the owner's forwarding is working, so the day-one wording can go (Nov 24, 2026)
   let realCall = false;
   try { realCall = !!(await env.DB.prepare("SELECT id FROM app_calls WHERE client_id = ?1 AND test = 0 AND outcome NOT IN ('live', 'spam', 'limited', 'interview', 'failed') LIMIT 1").bind(cid).first()); } catch (e) {}
+  // The voicemails kept for the owner to hear (voicemail.js): call id -> link. None once they are deleted.
+  const vmAudio = {};
+  if (f.calls) { try { for (const r of ((await env.DB.prepare("SELECT id, call_id FROM line_audio WHERE client_id = ?1 AND kind = 'voicemail' AND data IS NOT NULL AND call_id != ''").bind(cid).all()).results || [])) vmAudio[r.call_id] = SITE + '/a/' + r.id; } catch (e) { /* no voicemail audio yet */ } }
   const out = {
     ok: true,
     now: new Date().toISOString(),
@@ -502,7 +505,7 @@ async function apiState(env, c, ctx) {
     invoices: f.invoices ? inv.invoices : [],
     unpaid: f.invoices ? inv.unpaid : 0,
     meta: c.staff ? null : await metaStatus(env, cid),
-    calls: f.calls ? rows(9).map(callOut) : []
+    calls: f.calls ? rows(9).map(r => callOut(r, vmAudio[r.id])) : []
   };
   const bprefs = biz.prefs; delete biz.prefs;
   Object.assign(out, biz);
@@ -567,7 +570,7 @@ async function apiState(env, c, ctx) {
 }
 
 // One AI-answered call as the client's app shows it. Numbers go out as +1XXXXXXXXXX (for tel: links) and 478-555-0142.
-function callOut(r) {
+function callOut(r, listen) {
   const num = e => /^\+1\d{10}$/.test(e || '') ? e : '';
   const fmt = e => num(e) ? e.slice(2, 5) + '-' + e.slice(5, 8) + '-' + e.slice(8) : '';
   const back = num(r.callback) || num(r.caller);
@@ -575,7 +578,7 @@ function callOut(r) {
   return {
     id: r.id, at: r.at || '', name: r.caller_name || '', number: num(r.caller), numberText: fmt(r.caller), callback: back, callbackText: fmt(back),
     reason: r.reason || '', details: r.details || '', when: r.wants || '', urgent: r.urgency === 'urgent', summary: r.summary || '',
-    outcome: r.outcome || '', status: r.status === 'handled' ? 'handled' : 'new', by: r.handled_by || '', handledAt: r.handled_at || '',
+    listen: listen || '', outcome: r.outcome || '', status: r.status === 'handled' ? 'handled' : 'new', by: r.handled_by || '', handledAt: r.handled_at || '',
     transcript: Array.isArray(t) ? t.filter(x => x && x.t).map(x => ({ w: x.w === 'caller' ? 'caller' : x.w === 'held' ? 'held' : 'ai', t: String(x.t) })) : []
   };
 }
@@ -1008,9 +1011,13 @@ async function apiGreetingAudio(req, env, c) {
 export async function audioGet(env, url) {
   const id = url.pathname.slice(3).replace(/\.(wav|mp3)$/, '');
   if (!/^[A-Za-z0-9]{32}$/.test(id)) return new Response('Not found', { status: 404 });
-  const row = await env.DB.prepare('SELECT mime, data FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null);
+  const row = await env.DB.prepare("SELECT mime, data, kind FROM line_audio WHERE id = ?1").bind(id).first().catch(() => null)
+    || await env.DB.prepare('SELECT mime, data FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null);   // no kind column yet: only greetings exist
+  // Nov 24, 2026: a voicemail the owner can hear for 14 days (voicemail.js): never cached, never indexed, and after that a plain page.
+  const vm = !!(row && row.kind === 'voicemail');
+  if (vm && !row.data) return new Response('This voicemail is no longer kept.', { status: 410, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'private, no-store', 'x-robots-tag': 'noindex' } });
   if (!row || !row.data) return new Response('Not found', { status: 404 });
-  return new Response(new Uint8Array(row.data), { headers: { 'content-type': row.mime || 'audio/wav', 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff' } });
+  return new Response(new Uint8Array(row.data), { headers: { 'content-type': row.mime || 'audio/wav', 'cache-control': vm ? 'private, no-store' : 'public, max-age=300', 'x-content-type-options': 'nosniff', ...(vm ? { 'x-robots-tag': 'noindex' } : {}) } });
 }
 async function apiPhoto(req, env, ctx, c, url) {
   if (!features(c).photos) return aj({ ok: false, error: 'Posts from your photos come with the Growth and Pro plans.' }, 403);

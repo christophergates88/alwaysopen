@@ -21,6 +21,9 @@ const STUCK_MS = 90 * 60e3;          // a call row still "live" this long after 
 const TEXTBACK_MS = 30 * 60e3;       // the missed-call text only goes while the call is this fresh
 const LOOKBACK_MS = 26 * 3600e3;     // never look further back than this, however long we were down
 const MAX_TRIES = 3, PER_RUN = 8;
+const AUDIO_MAX = 1.5 * 1024 * 1024;   // D1 cannot hold more than this in one value
+const AUDIO_KEEP_MS = 14 * 86400e3;    // a voicemail that could not be written out is kept this long for the owner to hear
+const COULD_NOT = 'They left a voicemail we could not write out. Listen to it here.';
 
 const clean = s => String(s == null ? '' : s).replace(/[<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
 const xa = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -48,8 +51,11 @@ export async function ensureVoicemail(env) {
   if (ready.has(env.DB)) return;
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS vm_seen (call_sid TEXT PRIMARY KEY, at TEXT, status TEXT DEFAULT '', tries INTEGER DEFAULT 0, rec_sid TEXT DEFAULT '', note TEXT DEFAULT '')"),
-    env.DB.prepare('CREATE TABLE IF NOT EXISTS vm_meta (k TEXT PRIMARY KEY, v TEXT)')
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS vm_meta (k TEXT PRIMARY KEY, v TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS line_audio (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, mime TEXT, data BLOB, created TEXT)')
   ]);
+  // Nov 24, 2026: voicemail audio shares the table with owners' greetings; kind '' is a greeting, 'voicemail' is kept 14 days.
+  for (const col of ["kind TEXT DEFAULT ''", "call_id TEXT DEFAULT ''"]) { try { await env.DB.prepare('ALTER TABLE line_audio ADD COLUMN ' + col).run(); } catch (e) { /* already there */ } }
   ready.add(env.DB);
 }
 
@@ -94,6 +100,28 @@ async function recordingOf(env, sid, h) {
   return (j.recordings || []).find(x => x.status === 'completed' && +x.duration >= 2 && REC_RE.test(x.sid || '')) || null;
 }
 const dropRecording = (env, rec, h) => tw(env, h, '/Recordings/' + rec + '.json', 'DELETE').catch(() => null);
+const vlog = (env, detail) => env.DB.prepare('INSERT INTO voice_log (at, kind, detail) VALUES (?1, ?2, ?3)').bind(iso(Date.now()), 'voicemail-audio', String(detail).slice(0, 600)).run().catch(() => {});
+
+// Nov 24, 2026: a recording we could not write out used to stay on Twilio for good, where the owner (who has no Twilio
+// access) could never hear it. Its audio is now kept in our own storage for 14 days, behind an unguessable link, and the
+// copy on Twilio is deleted. Returns the link, or '' when it could not be kept (the recording then stays on Twilio).
+async function keepAudio(env, clientId, callSid, rec, h) {
+  try {
+    const r = await tw(env, h, '/Recordings/' + rec + '.mp3');
+    if (!r.ok) throw new Error('Twilio answered ' + r.status + ' for the audio');
+    if (+r.headers.get('content-length') > AUDIO_MAX) throw new Error('audio is over 1.5 MB');
+    const buf = new Uint8Array(await r.arrayBuffer());
+    if (buf.length > AUDIO_MAX) throw new Error('audio is over 1.5 MB');
+    if (!buf.length) throw new Error('audio is empty');
+    const a = crypto.getRandomValues(new Uint8Array(32)), id = Array.from(a, x => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[x % 62]).join('');
+    await env.DB.prepare("INSERT INTO line_audio (id, client_id, mime, data, created, kind, call_id) VALUES (?1, ?2, 'audio/mpeg', ?3, ?4, 'voicemail', ?5)").bind(id, clientId, buf, iso(Date.now()), callSid).run();
+    await dropRecording(env, rec, h);
+    return id;
+  } catch (e) {
+    await vlog(env, 'call ' + callSid + ': voicemail audio left on Twilio (' + ((e && e.message) || e) + ')');
+    return '';
+  }
+}
 
 // A call that never got to Max (or got cut off before Max wrote it up): write it up now.
 // c: { sid, from, to, start, end, name }.
@@ -101,29 +129,33 @@ async function takeMissed(env, c, now, h) {
   const line = await env.DB.prepare('SELECT client_id FROM voice_lines WHERE number = ?1').bind(c.to).first();
   if (!line) return mark(env, c.sid, 'skipped', 'not one of our lines');
   const tries = await triesOf(env, c.sid);
-  let rec = null, said = '';
+  let rec = null, said = '', kept = '';
   try {
     rec = await recordingOf(env, c.sid, h);
     if (rec) said = (await transcribe(env, rec.sid, h)) || 'They left a voicemail with no words we could make out. Call them back.';
   } catch (e) {
     if (tries + 1 < MAX_TRIES) { await mark(env, c.sid, 'retry', (e && e.message) || e, rec ? rec.sid : '', tries + 1); return 'retry'; }
-    if (rec) said = 'They left a voicemail that could not be played back. Call them back.';
+    if (rec) {
+      kept = await keepAudio(env, line.client_id, c.sid, rec.sid, h);
+      said = kept ? COULD_NOT : 'They left a voicemail that could not be played back. Call them back.';
+    }
   }
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'live', 'new', 0, 0, 0)")
     .bind(c.sid, line.client_id, c.to, iso(Date.parse(c.start) || now), c.from || '', clean(c.name)).run();
   const fresh = now - (Date.parse(c.end || c.start) || now) < TEXTBACK_MS;
   await (h.writeUp || (await import('./voice.js')).voicemailWriteUp)(env, c.sid, said, { textback: fresh });
+  if (kept) await env.DB.prepare('UPDATE app_calls SET summary = ?1, hq_synced = 0 WHERE id = ?2').bind(COULD_NOT, c.sid).run();   // the owner's words, not a paraphrase
   // Nov 24, 2026: deleted once the owner has what there is, the words or "no words we could make out" (a recording with
   // no clear words used to stay on Twilio for good, though the privacy page says recordings are not kept). Kept only
-  // when it could not be played back at all, since nobody has heard it.
-  if (rec && said && !/could not be played back/.test(said)) await dropRecording(env, rec.sid, h);
+  // when it could not be played back at all and we could not keep the audio ourselves either (keepAudio deletes it otherwise).
+  if (rec && said && !kept && !/could not be played back/.test(said)) await dropRecording(env, rec.sid, h);
   return mark(env, c.sid, 'done', rec ? 'voicemail' : 'no message', rec ? rec.sid : '', tries);
 }
 
 // A call Max had already written up as failed: the voicemail that followed goes to the owner as its own note.
 async function takeAppended(env, row, now, h) {
   const tries = await triesOf(env, row.id);
-  let rec = null, said = '', heard = false;
+  let rec = null, said = '', heard = false, kept = '';
   try {
     rec = await recordingOf(env, row.id, h);
     if (!rec) return mark(env, row.id, 'done', 'no voicemail after the failure');
@@ -132,10 +164,11 @@ async function takeAppended(env, row, now, h) {
   } catch (e) {
     if (tries + 1 < MAX_TRIES) { await mark(env, row.id, 'retry', (e && e.message) || e, rec ? rec.sid : '', tries + 1); return 'retry'; }
     said = '';
+    if (rec) kept = await keepAudio(env, row.client_id, row.id, rec.sid, h);
   }
-  const words = said || (heard ? 'They left a voicemail with no words we could make out. Call them back.' : 'They left a voicemail that could not be played back. Call them back.');
+  const words = kept ? COULD_NOT : said || (heard ? 'They left a voicemail with no words we could make out. Call them back.' : 'They left a voicemail that could not be played back. Call them back.');
   await env.DB.prepare("UPDATE app_calls SET summary = ?1, details = TRIM(COALESCE(details, '') || ' ' || ?2), hq_synced = 0 WHERE id = ?3")
-    .bind(('They left a voicemail: ' + words).slice(0, 600), ('Voicemail: ' + words).slice(0, 2000), row.id).run();
+    .bind((kept ? words : 'They left a voicemail: ' + words).slice(0, 600), ('Voicemail: ' + words).slice(0, 2000), row.id).run();
   const app = h.app || await import('./app.js');
   const who = row.caller_name || row.caller || 'a caller';
   if (row.client_id === 'always-open') await app.opsPing(env, 'Always Open: voicemail from ' + who, words.slice(0, 600), 'default', 'telephone_receiver');
@@ -162,11 +195,24 @@ export async function voicemailHook(env, form, h) {
   return takeMissed(env, { sid, from: c.from, to: c.to, start: c.start_time, end: c.end_time || iso(now), name: c.caller_name }, now, h);
 }
 
+// Once a day: voicemail audio older than 14 days is deleted (its row stays as a note for 60 days so the link can say so).
+// Greeting audio (kind '') is never touched.
+async function sweepAudio(env, now) {
+  try {
+    const last = await env.DB.prepare("SELECT v FROM vm_meta WHERE k = 'audio_swept'").first();
+    if (last && now - Date.parse(last.v) < 86400e3) return;
+    await env.DB.prepare("UPDATE line_audio SET data = NULL WHERE kind = 'voicemail' AND data IS NOT NULL AND created < ?1").bind(iso(now - AUDIO_KEEP_MS)).run();
+    await env.DB.prepare("DELETE FROM line_audio WHERE kind = 'voicemail' AND created < ?1").bind(iso(now - 60 * 86400e3)).run();
+    await env.DB.prepare("INSERT OR REPLACE INTO vm_meta (k, v) VALUES ('audio_swept', ?1)").bind(iso(now)).run();
+  } catch (e) { /* tried again at the next sweep */ }
+}
+
 // Every 10 minutes: the calls to our numbers that have no write-up, and failed calls that may have a voicemail.
 export async function vmSweep(env, now, h) {
   now = now || Date.now(); h = h || {};
   if (!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) return { off: true };
   await ensureVoicemail(env);
+  await sweepAudio(env, now);
   // Lines on the air for callers: HQ has them on and the owner has not paused Max (as withOwner in app.js). Calls to a
   // paused line ring through to the owner's phone; they were never Max's to miss.
   const lines = new Set((((await env.DB.prepare('SELECT number, owner_set FROM voice_lines WHERE on_air = 1').all()).results) || []).filter(r => !ownerOff(r.owner_set)).map(r => r.number));

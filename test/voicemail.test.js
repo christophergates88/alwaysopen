@@ -76,7 +76,8 @@ test('a recording that cannot be read yet is tried again; after three tries the 
   assert.equal(third.delivered, 1);
   const r = await row(DB, 11);
   assert.equal(r.outcome, 'done', 'written up as a message, so the owner calls back');
-  assert.deepEqual(world.twDeleted || [], [], 'kept in Twilio: nobody has heard it yet');
+  assert.deepEqual(world.twDeleted, [rec(11)], 'Nov 24, 2026: the audio is kept in our own storage for the owner (swarm-vmail.test.js), so the copy on Twilio is deleted');
+  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM line_audio WHERE kind = 'voicemail'").first()).n, 1);
 });
 
 test('Max cut off mid-call: the voicemail that follows is added to the call and sent to the owner', async () => {
