@@ -117,8 +117,10 @@ test('Max’s month, reviewed: what went well, what slipped, one change', () => 
     lost: { n: 3, top: [{ r: 'price', label: 'said price', n: 2 }] }, work: { fill: { booked: 2 } } };
   const r = review(a, 'Max');
   assert.ok(r.good.some(x => /Answered 14 calls/.test(x)));
-  assert.ok(r.good.some(x => /Booked 5 visits/.test(x)));
+  // 3 from the 11 leads, 2 from Fill my week: 3 booked + 8 open = the 11 leads, so the page adds up
+  assert.ok(r.good.some(x => x === 'Booked 3 visits from 11 leads, and 2 more from Fill my week.'), r.good.join(' / '));
   assert.ok(r.missed.some(x => /8 leads left details/.test(x)));
+  assert.ok(review({ calls: { n: 4, leads: 2 }, work: { fill: { booked: 1 } } }).good.includes('Booked 1 visit from Fill my week.'));
   assert.ok(r.missed.some(x => /1 call-back went past/.test(x)));
   assert.match(r.change, /standard prices in Job description/);
   assert.equal(review({ calls: { n: 0 } }).any, false);

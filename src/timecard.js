@@ -218,8 +218,11 @@ export function review(a, name) {
   const n = name || 'Max', c = (a && a.calls) || {}, cb = c.callbacks || {}, w = (a && a.work) || {}, lost = (a && a.lost) || null;
   const good = [], missed = [];
   if (c.n) good.push('Answered ' + pl(c.n, 'call', 'calls') + (c.after ? ', ' + c.after + ' of them after hours or on a weekend' : '') + '.');
-  const booked = (c.booked || 0) + ((w.fill && w.fill.booked) || 0);
-  if (booked) good.push('Booked ' + pl(booked, 'visit', 'visits') + (c.leads ? ' from ' + pl(c.leads, 'lead', 'leads') : '') + '.');
+  // Visits from this month's leads, and Fill my week's (past customers) said apart, so the numbers add up: "Booked 12
+  // visits from 55 leads" beside "45 leads didn't book" read as a mistake when 2 of the 12 were Fill my week (Nov 25).
+  const fromCalls = c.booked || 0, fromFill = (w.fill && w.fill.booked) || 0;
+  if (fromCalls) good.push('Booked ' + pl(fromCalls, 'visit', 'visits') + (c.leads ? ' from ' + pl(c.leads, 'lead', 'leads') : '') + (fromFill ? ', and ' + fromFill + ' more from Fill my week' : '') + '.');
+  else if (fromFill) good.push('Booked ' + pl(fromFill, 'visit', 'visits') + ' from Fill my week.');
   if (cb.set && (cb.kept || 0) === cb.set) good.push('Kept every call-back time he promised (' + cb.set + ').');
   if (c.urgent) good.push('Caught ' + pl(c.urgent, 'urgent call', 'urgent calls') + (c.transferred ? ' and rang ' + (c.transferred === 1 ? 'it' : c.transferred) + ' through to you' : '') + '.');
   if (c.spanish) good.push('Handled ' + pl(c.spanish, 'call', 'calls') + ' in Spanish.');
