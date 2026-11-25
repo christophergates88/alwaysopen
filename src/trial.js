@@ -276,6 +276,7 @@ export async function trialDone(env, call, o, h) {
 }
 
 // ---------- the page: /hear/<token> ----------
+const nb = t => '<span style="white-space:nowrap">' + esc(t) + '</span>';   // a phone number never splits across lines
 const PAGE_EXTRA = '.call{display:block;text-align:center;margin:16px 0 4px;padding:16px;border-radius:14px;background:#5CC9A4;color:#04140E;font-weight:800;font-size:20px;text-decoration:none;box-shadow:0 0 16px rgba(92,201,164,.55)}' +
   '.try{margin:12px 0 0;padding-left:20px}.try li{margin:0 0 6px}h1{font-size:24px;line-height:1.2;margin:0 0 10px;color:#fff}';
 export async function handleHear(req, env, url, h) {
@@ -301,7 +302,7 @@ export async function handleHear(req, env, url, h) {
     const r = await readyLine(env, t, phone, now);
     if (!r.ok) return page(es ? 'Revise el número' : 'Check the number', '<div class="card"><p style="margin:0">' + (es ? 'Ese número no parece correcto. ' : 'That number doesn’t look right. ') + '<a style="color:#FF8C82" href="/hear/' + t.id + '">' + (es ? 'Volver' : 'Go back') + '</a></p></div>', es);
     return page(es ? 'Max está listo' : 'Max is ready', '<div class="card"><h1>' + (es ? 'Max está listo' : 'Max is ready') + '</h1><p style="margin:0">' +
-      (es ? 'Llame al ' + LINE_TEXT + ' desde el ' + shownPhone(r.phone) + ' en los próximos 30 minutos. Max contesta como ' + biz + '.' : 'Call ' + LINE_TEXT + ' from ' + shownPhone(r.phone) + ' in the next 30 minutes. Max answers as ' + biz + '.') +
+      (es ? 'Llame al ' + nb(LINE_TEXT) + ' desde el ' + nb(shownPhone(r.phone)) + ' en los próximos 30 minutos. Max contesta como ' + biz + '.' : 'Call ' + nb(LINE_TEXT) + ' from ' + nb(shownPhone(r.phone)) + ' in the next 30 minutes. Max answers as ' + biz + '.') +
       '</p><a class="call" href="tel:' + LINE_E164 + '">' + (es ? 'Llamar al ' : 'Call ') + LINE_TEXT + '</a>' + tryList(es, t, lead) +
       '<p class="note">' + (es ? '¿Llama desde otro teléfono? ' : 'Calling from a different phone? ') + '<a style="color:#FF8C82" href="/hear/' + t.id + '">' + (es ? 'Cambie el número' : 'Change the number') + '</a>.</p></div>', es);
   }
@@ -312,7 +313,7 @@ export async function handleHear(req, env, url, h) {
     '</p>' + tryList(es, t, lead) + '</div>' +
     '<div class="copy"><b>' + (es ? 'El teléfono desde el que va a llamar' : 'The phone you’ll call from') + '</b><form method="post"><input type="tel" name="phone" required autocomplete="tel" inputmode="tel" value="' + esc(phone) + '" placeholder="(478) 555-0100" aria-label="' + (es ? 'Su número' : 'Your phone number') + '"><button type="submit">' + (es ? 'Preparar a Max' : 'Get Max ready') + '</button></form></div>' +
     '<p class="note">' + (es ? 'Le quedan ' + left + (left === 1 ? ' llamada' : ' llamadas') + ' de prueba. Max no graba la llamada.' : left + (left === 1 ? ' trial call' : ' trial calls') + ' left. Max never records the call.') +
-    (t.phone && String(t.menu_until || '') > iso(now) ? (es ? ' También puede llamar al ' + LINE_TEXT + ' desde el ' + shownPhone(t.phone) + ' y marcar 1.' : ' You can also just call ' + LINE_TEXT + ' from ' + shownPhone(t.phone) + ' and press 1.') : '') + '</p>', es);
+    (t.phone && String(t.menu_until || '') > iso(now) ? (es ? ' También puede llamar al ' + nb(LINE_TEXT) + ' desde el ' + nb(shownPhone(t.phone)) + ' y marcar 1.' : ' You can also just call ' + nb(LINE_TEXT) + ' from ' + nb(shownPhone(t.phone)) + ' and press 1.') : '') + '</p>', es);
 }
 function tryList(es, t, lead) {
   const regulated = MESSAGE_ONLY.has(industryOf(t.business, t.type));

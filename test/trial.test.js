@@ -83,7 +83,7 @@ test('readied from /hear: the call is answered as their business, with Google\'s
   const ready = await w.site.call('/hear/' + t.id, { form: { phone: '478-555-0142' } });
   assert.match(ready.text, /Max is ready/);
   assert.match(ready.text, /href="tel:\+17064602226"/);
-  assert.match(ready.text, /from \(478\) 555-0142 in the next 30 minutes/);
+  assert.match(ready.text, /from <span style="white-space:nowrap">\(478\) 555-0142<\/span> in the next 30 minutes/);
 
   // someone else calling meanwhile gets Always Open, untouched
   const other = await w.hook('in', { CallSid: sidOf(9), To: OWN, From: '+14785550999' });
