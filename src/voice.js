@@ -524,10 +524,30 @@ export class CallRoom extends DurableObject {
     } catch (e) { /* storage not ready */ }
   }
   async fetch(req) {
-    if (this.ctx.getWebSockets().length) return new Response('Busy', { status: 409 });
+    if (!(await this.canTake())) return new Response('Busy', { status: 409 });
     const pair = new WebSocketPair();
-    this.ctx.acceptWebSocket(pair[1]);
+    this.take(pair[1]);
     return new Response(null, { status: 101, webSocket: pair[0] });
+  }
+  // A second socket while one is open is refused, except right after a dropped line. Nov 25, 2026 (a roofer's call to our
+  // line, Nov 24, 9:38 AM): Twilio said the line to Max had dropped (64105) and reconnected, but the old socket never told
+  // this room it had closed (its close came 15 minutes later), so the reconnect got "Busy" and the call died on the
+  // caller's question. Once afterRelay has asked for the reconnect (resuming), the old socket is dead: it is closed.
+  async canTake() {
+    const old = this.ctx.getWebSockets();
+    if (!old.length) return true;
+    const s = await this.load();
+    if (!s || !s.resuming || s.done) return false;
+    for (const w of old) { try { w.close(1012, 'replaced'); } catch (e) { /* already gone */ } }
+    try { this.ctx.waitUntil(vlog(this.env, 'room-replace', JSON.stringify({ sid: s.sid, old: old.length })).catch(() => {})); } catch (e) { /* it runs anyway */ }
+    return true;
+  }
+  take(ws) { this.ctx.acceptWebSocket(ws); this.sock = ws; }
+  // The socket Twilio is on now: the one that last spoke to this room, else the newest one still open.
+  sockNow() {
+    const open = this.ctx.getWebSockets().filter(w => w.readyState == null || w.readyState === 1);
+    if (this.sock && open.includes(this.sock)) return this.sock;
+    return open[open.length - 1] || null;
   }
 
   // Rehearsals run here, in a room named 'rehearsals' (see voiceCron), never alongside a call.
@@ -568,9 +588,10 @@ export class CallRoom extends DurableObject {
         .bind(s.sid, last('u'), last('a'), s.turn || 0, new Date().toISOString()).run();
     })().catch(() => {});
   }
-  out(o) { const ws = this.ctx.getWebSockets()[0]; if (ws) { try { ws.send(JSON.stringify(o)); } catch (e) { /* the caller hung up */ } } }
+  out(o) { const ws = this.sockNow(); if (ws) { try { ws.send(JSON.stringify(o)); } catch (e) { /* the caller hung up */ } } }
 
   async webSocketMessage(ws, raw) {
+    this.sock = ws;
     try { return await this.onMessage(ws, raw); } catch (e) { await this.crash('message', e); }
   }
   async crash(where, e) {
@@ -585,7 +606,7 @@ export class CallRoom extends DurableObject {
     if (m.type === 'setup') return this.onSetup(m);
     const s = await this.load();
     if (!s || s.done) return;
-    if (this.t0 == null) { this.t0 = s.started; this.testCall = !!s.test; }
+    if (this.t0 == null) { this.t0 = s.started; this.testCall = timed(s); }
     if (m.type === 'prompt') {
       const t = String(m.voicePrompt || '').slice(0, 2000);
       return m.last === false ? this.onPartial(s, t, m) : this.onFinal(s, t);
@@ -648,6 +669,11 @@ export class CallRoom extends DurableObject {
     try { ws.close(1000, 'bye'); } catch (e) { /* already closed */ }
     const s = await this.load();
     if (!s || !s.sid) return;
+    // A socket a reconnect replaced (canTake), closing late: the call goes on, on the new one (Nov 25, 2026)
+    if (this.ctx.getWebSockets().some(w => w !== ws && (w.readyState == null || w.readyState === 1))) {
+      await vlog(this.env, 'ws-close-old', JSON.stringify({ sid: s.sid, code }));
+      return;
+    }
     await vlog(this.env, 'ws-close', JSON.stringify({ sid: s.sid, code, reason: String(reason || '').slice(0, 80), secs: Math.round((Date.now() - s.started) / 1000), done: !!s.done, turn: s.turn }));
     // Mid-call, the call may come right back (afterRelay reconnects a dropped line): the alarm writes it up in 20
     // seconds if it doesn't. Twilio's status callback writes it up at once when the caller really hung up.
@@ -662,8 +688,12 @@ export class CallRoom extends DurableObject {
     // Build Brief 8: the line usually dies while Max is mid-answer (Nov 6: two testers' calls, at 1:31 and 1:02), so the caller
     // missed how it ended. Max says sorry and says the end of it again, instead of "Go ahead" to someone mid-thought.
     const talking = !!(this.live || s.agentTalking);
-    s.resumeLine = resumeLine(s.msgs, talking, s.lang);
-    this.stopLive();
+    // Nov 25, 2026 (the roofer's call): it died right after the caller asked something, before a word of the answer was
+    // heard. Max says sorry and answers it once the line is back (onSetup), instead of "Go ahead" to someone waiting on him.
+    const ask = s.robo || s.transfer || s.handoff || s.mode === 'interview' ? '' : unanswered(s.msgs);
+    s.resumeAsk = ask;
+    s.resumeLine = ask ? (s.lang === 'es-US' ? 'Perdón, se cortó un segundo.' : 'Sorry, we got cut off for a second.') : resumeLine(s.msgs, talking, s.lang);
+    this.stopLive(); this.endPartials(); this.early = null; this.lostFinal = null;
     await this.keep(s);
     return s.resumeLine;
   }
@@ -679,10 +709,16 @@ export class CallRoom extends DurableObject {
       // Back on after a dropped line: the same call, same words so far; Max picks up where it was.
       const now = Date.now();
       was.resuming = 0; was.closedAt = 0; was.callerTalking = false; was.agentTalking = false;
+      const ask = was.resumeAsk || ''; was.resumeAsk = '';
+      // the question goes back in after the sorry, and what they never heard of an answer to it comes out of the record
+      if (ask) { const iu = lastOf(was.msgs, 'u'); if (iu > -1) was.msgs.splice(iu); }
       was.msgs.push({ r: 'a', t: was.resumeLine || RESUME_PLAIN });
       was.last = now + 4000;
       await this.keep(was);
       await this.ctx.storage.setAlarm(now + TICK_MS);
+      this.mark('R', ask ? 'answer' : 'plain');
+      // Twilio says the sorry first (it is the new greeting); the answer is queued behind it (preemptible is off)
+      if (ask) return this.onPrompt(was, ask, { noLead: true });
       return;
     }
     if (was) return;
@@ -742,7 +778,7 @@ export class CallRoom extends DurableObject {
         if (n) s.line.earlier = n;
       } catch (e) { /* a first call: carry on */ }
     }
-    this.t0 = now; this.testCall = !!s.test; this.tl = [];
+    this.t0 = now; this.testCall = timed(s); this.tl = [];
     await this.keep(s);
     await this.ctx.storage.setAlarm(now + TICK_MS);
   }
@@ -960,7 +996,7 @@ export class CallRoom extends DurableObject {
     if (spec && spec.skip !== skipLead) { this.dropSpec(); spec = null; }
     // Right away, a quick reaction that fits what they said ("Got it.", "Good question.", "Oh no."), like a person gives while
     // they think. It goes out as its own short message so Twilio says it at once; the AI's answer follows it.
-    let lead = trimLead(skipLead ? null : (spec ? spec.lead : leadIn(said, callLang(s.lang, s.msgs, said), s.leads)), s.line, s.msgs, s.leads);
+    let lead = trimLead(skipLead || (opts && opts.noLead) ? null : (spec ? spec.lead : leadIn(said, callLang(s.lang, s.msgs, said), s.leads)), s.line, s.msgs, s.leads);
     // Shoulder Tap: the owner's answer came in while the caller was talking. It is the first thing they hear now, in
     // place of the quick reaction, and the AI carries on from it.
     { const tl = s.mode === 'interview' ? '' : this.tapTake(s); if (tl) lead = { kind: 'tap', text: tl }; }
@@ -1454,9 +1490,9 @@ export class CallRoom extends DurableObject {
       if (s && !s.done) await this.ctx.storage.put('s', Object.assign({}, s, { done: true }));
       await this.ctx.storage.deleteAlarm();
       for (const w of this.ctx.getWebSockets()) { try { w.close(1000, 'done'); } catch (e) { /* gone */ } }
-      if (s && s.test && this.tl && this.tl.length) await vlog(this.env, 'timeline', JSON.stringify({ sid, tl: this.tl }), 30000);
+      if (s && timed(s) && this.tl && this.tl.length) await vlog(this.env, 'timeline', JSON.stringify({ sid, tl: this.tl }), 30000);
       // Brief 6, Part 4: how it sounded (gaps) and the eight tells, counted, for every test call
-      if (s && s.test) { try { const C = await import('./callcheck.js'); await vlog(this.env, 'callcheck', JSON.stringify({ sid, gaps: C.gapsOf(this.tl || []), tells: C.tellsOf(s.msgs), features: (s.line && s.line.features) || [] }), 8000); } catch (e) { /* a check, never the call */ } }
+      if (s && timed(s)) { try { const C = await import('./callcheck.js'); await vlog(this.env, 'callcheck', JSON.stringify({ sid, gaps: C.gapsOf(this.tl || []), tells: C.tellsOf(s.msgs), features: (s.line && s.line.features) || [] }), 8000); } catch (e) { /* a check, never the call */ } }
       let ok;
       try { ok = await writeUp(this.env, sid, s, why === 'closed' || why === 'status' ? 'ended' : why); } catch (e) {
         await vlog(this.env, 'writeup-error', JSON.stringify({ sid, why, error: String((e && e.message) || e).slice(0, 300) }));
@@ -1814,6 +1850,8 @@ export const V5_EXAMPLES = [
   ['no i dont want a call, just tell me', 'Sure. Ask away.'],
   ['you sound pretty smooth for a robot', 'I\'ll take it. Your callers would get the same.'],
   ['hablas español?', 'Sí, claro. ¿En qué te puedo ayudar?'],
+  // Nov 25, 2026: a roofer tried Max with a question his own customers ask (Nov 24 call); the answer shows how Max handles it
+  ['my customers would ask, when is my roof gonna be done, how long will it take', 'I\'d say you\'ll give them the date yourself, so nobody gets a guess. Then I text you the question while they hold and pass your answer back on the same call.'],
 ];
 // Nov 25, 2026: Jobber and Housecall Pro connect (fsm.js); the Jobber answer says what is true today (L.fsm, from syncOwnLine).
 export function jobberAnswer(L) {
@@ -2367,6 +2405,21 @@ const ABBR = /\b(S\.I\.|A\.I\.|Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Ave\.|Rd\.|No\.|Jr\.|Sr
 // What Max says when a dropped line comes back (Build Brief 8). Mid-answer: sorry, then the last sentence of that answer
 // again (usually the question the caller never heard). Otherwise the plain line.
 export const RESUME_PLAIN = 'Sorry, we got cut off for a second. I\u2019m still here. Go ahead.';
+// The caller's last words when nothing of an answer to them was heard, else '': no reply after them yet, only a reply
+// they talked over before a word of it, or only the quick reaction ("Okay.") before the line went.
+export function unanswered(msgs) {
+  const m = msgs || [], iu = lastOf(m, 'u');
+  if (iu < 0) return '';
+  for (let i = iu + 1; i < m.length; i++) {
+    if (m[i].r !== 'a') continue;
+    const t = String(m[i].t || '').replace(/\s*—$/, '').trim();
+    if (t && t !== '(interrupted)' && t !== String(m[i].lead || '').trim()) return '';
+  }
+  return String(m[iu].t || '').trim();
+}
+// Calls whose minute-by-minute timing is written down (voice_log 'timeline' and 'callcheck'): test calls, and since
+// Nov 25, 2026 every call to Always Open's own line, so a sales call that went badly can be read exactly.
+export const timed = s => !!(s && (s.test || s.cid === OWN_ID));
 export function resumeLine(msgs, talking, lang) {
   if (lang === 'es-US') return 'Perdón, se cortó un segundo. Sigo aquí. Adelante.';
   const last = (msgs || []).slice().reverse().find(m => m.r === 'a');

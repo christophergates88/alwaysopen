@@ -300,7 +300,7 @@ test('v5 (practice only): the own line\'s prompt carries the example answers; v3
   assert.match(p5, /This is how you sound on this line\. Match the length and the tone; the facts in them are true:\nCaller: so what is this, what do you guys do\nYou: We answer a business's calls/);
   assert.match(p5, /How you talk on this line \(most important\)/, 'v5 carries v3');
   assert.doesNotMatch(p3, /This is how you sound on this line/);
-  assert.equal(V.V5_EXAMPLES.length, 15);
+  assert.equal(V.V5_EXAMPLES.length, 16);
   // every price in the examples is a real price
   for (const [, m] of V.V5_EXAMPLES) for (const d of m.match(/\$\d+/g) || []) assert.ok(['$149', '$299', '$499'].includes(d), d);
   assert.doesNotMatch(V.systemPrompt({ business: 'Lane Plumbing', features: ['v5'] }, '+14045550187', 'en-US', false), /This is how you sound/, 'a business\'s line is not this');
