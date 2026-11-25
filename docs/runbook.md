@@ -154,6 +154,16 @@ minutes `src/voicemail.js` asks Twilio for calls to our numbers that never got a
 like a normal Max call, with the words of the voicemail; a caller who left nothing gets the missed-call text only if
 the call was in the last 30 minutes. The recording is deleted from Twilio once its words are saved. You get one push
 ("N calls missed Max") whenever the sweep delivers something, which means the site or Max was down for a while.
+
+Nothing of a caller's voicemail stays on Twilio (privacy page, "After-hours AI line"). When the words can't be written
+out after three tries, the audio itself is moved into our database (`line_audio`, plus `line_audio_parts` for anything
+over 1 MB, so size never matters), the owner gets "Listen to the voicemail" for 14 days, and Twilio's copy is deleted.
+A recording Twilio won't hand over or won't delete waits in `vm_due` and is tried again every sweep (10 minutes, easing
+to hourly); the owner's card says it's on its way and they get a push when it comes in. At 14 days a recording that
+never came in is deleted from Twilio anyway. Once a day the sweep also reads Twilio's own list of recordings and puts
+anything on a customer's line that slipped past through the same steps; test calls, Hear Max and calls that aren't to a
+customer's line are left alone. The one alert here is "Twilio is refusing to delete a voicemail recording" (after 12
+refused deletes in a row); `voice_log` rows of kind `voicemail-audio` say what happened to each recording.
 The hourly check puts the voicemail fallback on any number that still has an old one, and points any number of ours
 whose calls or texts point somewhere else back at Max (you get a quiet push saying so). To use a number for anything
 else, take its line off the air first.

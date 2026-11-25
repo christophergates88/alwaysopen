@@ -1,4 +1,5 @@
 // A voicemail that cannot be written out is kept for the owner to hear (14 days), not left on Twilio for good.
+// Nov 24, 2026 (second pass): any size, and nothing of a caller's voicemail is left on Twilio. See also swarm-vmail-twilio.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -57,23 +58,6 @@ test('after three failed tries the audio is kept for the owner, linked, and dele
   assert.equal(got.headers.get('content-type'), 'audio/mpeg');
   const page = await site.call('/app/' + CODE);
   assert.match(page.text, /Listen to the voicemail/);
-});
-
-test('audio too big, or Twilio will not give it: it stays on Twilio with the old wording, and the log says so', async () => {
-  const NOW = Date.now();
-  for (const mode of ['big', 'gone']) {
-    const { world, DB, env } = await setup();
-    const real = globalThis.fetch;
-    const told = [];
-    const h = { writeUp: async (e, id, said) => told.push(said), fetch: (url, o) => /\.mp3$/.test(String(url)) ? (mode === 'big' ? Promise.resolve(new Response(new Uint8Array(1.6 * 1024 * 1024))) : Promise.resolve(new Response('no', { status: 500 }))) : real(url, o) };
-    const third = await threeTries(env, world, 12, NOW, h);
-    assert.equal(third.delivered, 1, mode);
-    assert.deepEqual(await vmRows(DB), [], mode);
-    assert.deepEqual(world.twDeleted || [], [], mode + ': kept on Twilio');
-    assert.deepEqual(told, ['They left a voicemail that could not be played back. Call them back.'], mode);
-    const log = await DB.prepare("SELECT detail FROM voice_log WHERE kind = 'voicemail-audio'").first();
-    assert.ok(log && log.detail.includes(sid(12)), mode + ': a voice_log row');
-  }
 });
 
 test('the daily sweep deletes voicemail audio after 14 days and leaves greeting audio alone; the link then says so', async () => {

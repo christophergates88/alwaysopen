@@ -99,7 +99,7 @@ export async function verifyStripe(secret, header, body, now) {
 // Nov 24, 2026: the terms tick box was required but nothing recorded it. The version is the date printed on the public
 // terms page (public/terms.html, "Last updated"): change it with that page. It and the time of the tick go into the
 // Stripe session and the billing row, so a disputed agreement has its proof.
-export const TERMS_VERSION = '2026-11-21';
+export const TERMS_VERSION = '2026-11-24';   // Nov 24: the AI line's number, its daily safety limits
 const colsDone = new WeakSet();
 export async function ensureBilling(env) {
   await env.DB.batch([

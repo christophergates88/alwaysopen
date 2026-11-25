@@ -1008,16 +1008,42 @@ async function apiGreetingAudio(req, env, c) {
   await env.DB.prepare('UPDATE voice_lines SET owner_set = ?1 WHERE number = ?2').bind(JSON.stringify(o), raw.number).run();
   return aj({ ok: true, line: lineOut(Object.assign({}, raw, { owner_set: JSON.stringify(o) }), c) });
 }
-export async function audioGet(env, url) {
+// A greeting or a kept voicemail, by its unguessable id. Served with byte ranges: Safari asks for bytes=0-1 first and
+// plays nothing without a 206 (Nov 24, 2026: the Listen button on a voicemail did nothing on an iPhone). A recording
+// longer than one row (voicemail.js keeps any size) has its first part here and the rest in line_audio_parts.
+export async function audioGet(env, url, req) {
   const id = url.pathname.slice(3).replace(/\.(wav|mp3)$/, '');
   if (!/^[A-Za-z0-9]{32}$/.test(id)) return new Response('Not found', { status: 404 });
-  const row = await env.DB.prepare("SELECT mime, data, kind FROM line_audio WHERE id = ?1").bind(id).first().catch(() => null)
+  const row = await env.DB.prepare('SELECT mime, data, kind, bytes, parts FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null)
+    || await env.DB.prepare('SELECT mime, data, kind FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null)   // no parts yet
     || await env.DB.prepare('SELECT mime, data FROM line_audio WHERE id = ?1').bind(id).first().catch(() => null);   // no kind column yet: only greetings exist
   // Nov 24, 2026: a voicemail the owner can hear for 14 days (voicemail.js): never cached, never indexed, and after that a plain page.
   const vm = !!(row && row.kind === 'voicemail');
   if (vm && !row.data) return new Response('This voicemail is no longer kept.', { status: 410, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'private, no-store', 'x-robots-tag': 'noindex' } });
   if (!row || !row.data) return new Response('Not found', { status: 404 });
-  return new Response(new Uint8Array(row.data), { headers: { 'content-type': row.mime || 'audio/wav', 'cache-control': vm ? 'private, no-store' : 'public, max-age=300', 'x-content-type-options': 'nosniff', ...(vm ? { 'x-robots-tag': 'noindex' } : {}) } });
+  const first = new Uint8Array(row.data), parts = Math.max(1, +row.parts || 1);
+  const total = parts > 1 ? Math.max(+row.bytes || 0, first.length) : first.length;
+  const head = { 'content-type': row.mime || 'audio/wav', 'accept-ranges': 'bytes', 'cache-control': vm ? 'private, no-store' : 'public, max-age=300', 'x-content-type-options': 'nosniff', ...(vm ? { 'x-robots-tag': 'noindex' } : {}) };
+  let start = 0, end = total - 1, status = 200;
+  const m = /^bytes=(\d*)-(\d*)$/.exec((req && req.headers.get('range')) || '');
+  if (m && (m[1] !== '' || m[2] !== '')) {
+    start = m[1] === '' ? Math.max(0, total - (+m[2] || 0)) : +m[1];
+    end = m[1] !== '' && m[2] !== '' ? Math.min(+m[2], total - 1) : total - 1;
+    if (start > end || start >= total) return new Response(null, { status: 416, headers: Object.assign({ 'content-range': 'bytes */' + total }, head) });
+    status = 206; head['content-range'] = 'bytes ' + start + '-' + end + '/' + total;
+  }
+  head['content-length'] = String(end - start + 1);
+  if (req && req.method === 'HEAD') return new Response(null, { status, headers: head });
+  if (parts === 1) return new Response(first.subarray(start, end + 1), { status, headers: head });
+  // every part but the last is the size of the first, so the rows a range touches are known without reading the others
+  const size = first.length, out = new Uint8Array(end - start + 1);
+  for (let n = Math.floor(start / size); n <= Math.floor(end / size) && n < parts; n++) {
+    let part = first;
+    if (n > 0) { const p = await env.DB.prepare('SELECT data FROM line_audio_parts WHERE id = ?1 AND n = ?2').bind(id, n).first().catch(() => null); if (!p || !p.data) return new Response('Not found', { status: 404 }); part = new Uint8Array(p.data); }
+    const from = Math.max(start, n * size), to = Math.min(end, n * size + part.length - 1);
+    if (to >= from) out.set(part.subarray(from - n * size, to - n * size + 1), from - start);
+  }
+  return new Response(out, { status, headers: head });
 }
 async function apiPhoto(req, env, ctx, c, url) {
   if (!features(c).photos) return aj({ ok: false, error: 'Posts from your photos come with the Growth and Pro plans.' }, 403);

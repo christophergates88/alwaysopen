@@ -169,13 +169,16 @@ export function installFetch(world, env) {
       // Calls and recordings, for the voicemail backup (voicemail.js): world.twCalls, world.twRecs[callSid].
       if (/\/Calls\.json$/.test(path) && method === 'GET') return json({ calls: world.twCalls || [], next_page_uri: null });
       let vm = path.match(/\/Calls\/(CA[0-9a-f]{32})\/Recordings\.json$/);
-      if (vm && method === 'GET') return json({ recordings: (world.twRecs || {})[vm[1]] || [] });
+      if (vm && method === 'GET') return json({ recordings: ((world.twRecs || {})[vm[1]] || []).filter(x => !(world.twDeleted || []).includes(x.sid)) });
+      // Twilio's whole list of recordings (the daily check in voicemail.js). A recording with no date_created is brand new.
+      if (/\/Recordings\.json$/.test(path) && method === 'GET') return json({ recordings: Object.entries(world.twRecs || {}).flatMap(([cs, list]) => list.filter(x => !(world.twDeleted || []).includes(x.sid)).map(x => Object.assign({ call_sid: cs, date_created: new Date(world.twNow || Date.now()).toUTCString() }, x))), next_page_uri: null });
       vm = path.match(/\/Calls\/(CA[0-9a-f]{32})\.json$/);
       if (vm && method === 'GET') { const c = (world.twCalls || []).find(x => x.sid === vm[1]); return c ? json(c) : json({ message: 'not found' }, 404); }
       vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.mp3$/);
-      if (vm && method === 'GET') return world.fail.recording ? json({ message: 'not ready' }, 500) : new Response(new Uint8Array([73, 68, 51, 4]));
+      if (vm && method === 'GET') return world.fail.recording ? json({ message: 'not ready' }, 500) : (world.twDeleted || []).includes(vm[1]) ? json({ message: 'not found' }, 404) : new Response(world.twAudio ? world.twAudio(vm[1]) : new Uint8Array([73, 68, 51, 4]));
       vm = path.match(/\/Recordings\/(RE[0-9a-f]{32})\.json$/);
-      if (vm && method === 'DELETE') { (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
+      if (vm && method === 'GET') { const known = Object.values(world.twRecs || {}).flat().find(x => x.sid === vm[1]); return known && !(world.twDeleted || []).includes(vm[1]) ? json(Object.assign({ status: 'completed' }, known)) : json({ message: 'not found' }, 404); }
+      if (vm && method === 'DELETE') { if (world.fail.recordingDelete) return json({ message: 'try later' }, 500); if ((world.twDeleted || []).includes(vm[1])) return json({ message: 'not found' }, 404); (world.twDeleted = world.twDeleted || []).push(vm[1]); return new Response(null, { status: 204 }); }
       if (/\/Messages\.json$/.test(path) && method === 'GET') return json({ messages: world.twMsgs || [], next_page_uri: null });
       if (/Messages\.json$/.test(path) && method === 'POST') { const f = form(), t = Object.fromEntries(f); (/^[A-Z][\w .'-]{0,30}: (New call|URGENT call|Booked|Missed call|Upset caller|Live call) from /.test(t.Body || '') ? world.ownerTexts : world.texts).push(t); return json({ sid: 'SM' + world.id('', 32), status: 'queued' }, 201); }
       world.unmocked.push(method + ' ' + url); return json({ message: 'not faked' }, 404);

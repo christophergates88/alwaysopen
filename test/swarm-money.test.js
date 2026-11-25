@@ -328,12 +328,16 @@ test('M8: Stripe failing at checkout shows a plain message and alerts Chris', as
 
 // ---------- M10 ----------
 test('M10: the terms version and the time they were agreed to go into Stripe and into the billing row', async () => {
-  assert.equal(B.TERMS_VERSION, '2026-11-21');
+  assert.equal(B.TERMS_VERSION, '2026-11-24');
+  // the version is the date the terms page shows, so a change to the page and a change to the version go together
+  const { readFileSync } = await import('node:fs');
+  const shown = (readFileSync(new URL('../public/terms.html', import.meta.url), 'utf8').match(/Last updated ([A-Z][a-z]+ \d{1,2}, \d{4})/) || [])[1];
+  assert.equal(new Date(shown + ' 12:00 UTC').toISOString().slice(0, 10), B.TERMS_VERSION, 'terms page says ' + shown);
   const t0 = Date.now();
   const { s, b } = await signup({ business: 'Terms Kept Tile' });
-  assert.equal(s.metadata.terms_version, '2026-11-21');
+  assert.equal(s.metadata.terms_version, '2026-11-24');
   assert.ok(Date.parse(s.metadata.agreed_at) >= t0 - 1000, s.metadata.agreed_at);
-  assert.equal(b.terms_version, '2026-11-21');
+  assert.equal(b.terms_version, '2026-11-24');
   assert.equal(b.agreed_at, s.metadata.agreed_at);
 });
 
