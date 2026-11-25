@@ -180,10 +180,12 @@ for (const w of WIDTHS) {
         btn.click();
         if (document.documentElement.lang !== 'es') bad.push('did not switch');
         if (document.querySelector('header.hero h1').innerHTML === h1) bad.push('the headline stayed English');
+        if ([...document.querySelectorAll('.soon')].some(x => x.textContent.trim() === 'Coming soon')) bad.push('a Coming soon label stayed English');
         if (document.documentElement.scrollWidth > window.innerWidth) bad.push('scrolls sideways (' + document.documentElement.scrollWidth + ' px)');
         const t = btn.getBoundingClientRect(); if (t.width < 44 || t.height < 44) bad.push('the switch is smaller than 44 px');
         btn.click();
         if (document.querySelector('header.hero h1').innerHTML !== h1) bad.push('English did not come back');
+        if ([...document.querySelectorAll('.soon')].some(x => x.textContent.trim() === 'Próximamente')) bad.push('a label stayed Spanish after going back to English');
         try { localStorage.removeItem('ao_lang'); } catch (e) {}
         return bad;
       });

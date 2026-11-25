@@ -669,7 +669,7 @@ function esSwitch() {
   try { data = JSON.parse(d.getElementById('ao-es').textContent); } catch (e) { return; }
   var btn = d.querySelector('[data-lang-t]'); if (!btn) return;
   var keys = {}; Array.prototype.forEach.call(d.querySelectorAll('[data-launch]'), function (el) { keys[el.getAttribute('data-launch')] = 1; });
-  var saved = [], cur = 'en';
+  var saved = [], lbl = [], cur = 'en';
   function lead(el) { var out = ''; for (var n = el.firstChild; n; n = n.nextSibling) { if (n.nodeType === 1 && n.tagName.toLowerCase() === 'svg') out += n.outerHTML; else if (n.nodeType === 3 && !n.nodeValue.trim()) continue; else break; } return out; }
   function apply(lang) {
     if (lang === cur) return;
@@ -684,7 +684,10 @@ function esSwitch() {
         if (e.a) { o.a = {}; for (var k in e.a) { o.a[k] = el.getAttribute(k); el.setAttribute(k, e.a[k]); } }
         saved.push(o);
       });
+      // Nov 24, 2026: the small "Coming soon" labels the entries above do not cover (card titles on the trade pages) read "Próximamente" too
+      lbl = []; Array.prototype.forEach.call(d.querySelectorAll('.soon'), function (x) { if (x.textContent.trim() === 'Coming soon') { x.textContent = 'Próximamente'; lbl.push(x); } });
     } else {
+      lbl.forEach(function (x) { x.textContent = 'Coming soon'; }); lbl = [];
       saved.reverse().forEach(function (o) {
         var el = o.el;
         if (o.h != null) el.innerHTML = o.h;

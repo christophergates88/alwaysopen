@@ -86,7 +86,7 @@ export const ES_HOME = [
   { s: '#only p.sample', h: 'Ejemplos. Los suyos llevan el nombre de su negocio.' },
   { s: '#pricing .head .eyebrow', h: 'Precios' },
   { s: '#pricing .head h2', h: 'Pruébelo un mes. Si no vale la pena, no lo paga.' },
-  { s: '#pricing .head > p:not(.eyebrow)', h: 'Sin contrato y sin cargo de instalación. Starter cuesta unos $5 al día. Cancele desde la app y cambie de plan cualquier mes. <a href="#worth" style="color:inherit;text-underline-offset:3px">¿Vale la pena? Haga las cuentas.</a>' },
+  { s: '#pricing .head > p:not(.eyebrow)', h: 'Sin contrato y sin cargo de instalación. Starter cuesta unos $5 al día. Cancele cuando quiera desde “Your plan and card” en la app, o mande un mensaje de texto o un correo a Chris. Cambie de plan cualquier mes. <a href="#worth" style="color:inherit;text-underline-offset:3px">¿Vale la pena? Haga las cuentas.</a>' },
   ...PLANS.map((p, i) => ({ s: '#pricing .plans > .plan:nth-child(' + (i + 1) + ')', h: planHtml(p) })),
   { s: '#pricing .setup', h: '<b>Sin cargo de instalación</b><span>Su auditoría, su enlace de solicitudes, su enlace de reservas y su app funcionan desde el primer día. En cuanto nos invite a su perfil de Google, lo dejamos en orden. Incluido en todos los planes.</span>' },
   { s: '#pricing .guarantee', h: '<b>30 días, sin riesgo.</b><p>Si el primer mes no vale la pena, avísenos y se lo reembolsamos. Sin formularios ni discusiones. Y no hay cargo de instalación.</p>' },
@@ -99,12 +99,12 @@ export const ES_HOME = [
   { s: '#map-feature .mapgo', h: '<span>Vea quién está abierto cerca</span><b>Abrir el mapa</b>' },
   { s: '#map-feature .mapcap', h: 'Una búsqueda de ejemplo.' },
   { s: '#contact .callus', h: '¿Prefiere hablar? Llame al <a href="tel:+17064602226">(706) 460-2226</a>. Max, nuestra línea telefónica, contesta a cualquier hora y toma sus datos, y Chris le devuelve la llamada en un día hábil.' },
-  { s: '#contact .founding', h: '<b>Pruébelo un mes. Si no vale la pena, no lo paga.</b><p style="margin-top:4px">Sin contrato y sin cargo de instalación. Cancele desde la app.</p>' },
+  { s: '#contact .founding', h: '<b>Pruébelo un mes. Si no vale la pena, no lo paga.</b><p style="margin-top:4px">Sin contrato y sin cargo de instalación. Cancele cuando quiera desde “Your plan and card” en la app, o mande un mensaje de texto o un correo a Chris.</p>' },
   { s: 'label[for="f-name"]', t: 'Su nombre' }, { s: 'label[for="f-phone"]', t: 'Teléfono' }, { s: 'label[for="f-email"]', t: 'Correo electrónico' },
   { s: 'label[for="f-biz"]', t: 'Nombre del negocio' }, { s: 'label[for="f-town"]', t: 'Ciudad' }, { s: 'label[for="f-type"]', t: '¿Qué tipo de negocio?' },
   { s: 'label[for="f-plan"]', t: 'Plan' }, { s: 'label[for="f-link"]', t: 'Perfil de Google o sitio web (opcional)' }, { s: 'label[for="f-note"]', t: '¿Algo más?' },
   { s: '#f-link', p: 'Pegue un enlace si tiene uno' }, { s: '#f-note', p: 'Llamadas fuera de horario, Google Ads, un problema que quiera resolver primero' },
-  ...['Contratista u oficio', 'Muelles, marina o exteriores', 'Salón, spa o gimnasio', 'Restaurante o tienda', 'Consultorio médico, dental o veterinario', 'Agencia de seguros', 'Bienes raíces o alquileres', 'Otro']
+  ...['Contratista u oficio', 'Muelles, marina o exteriores', 'Salón, spa o gimnasio', 'Restaurante o tienda', 'Consultorio médico o dental', 'Agencia de seguros', 'Bienes raíces o alquileres', 'Otro']
     .map((o, i) => ({ s: '#f-type option:nth-child(' + (i + 1) + ')', o })),
   { s: '#f-plan option:nth-child(1)', o: 'Todavía no sé' },
   { s: '#lead .optin > span', h: 'Envíenme mensajes de texto de Always Open sobre mi solicitud. Pueden aplicar tarifas de mensajes y datos. La frecuencia de los mensajes varía. Responda STOP para no recibir más y HELP para ayuda. No hace falta aceptar para recibir su auditoría. <a href="privacy.html" target="_blank" rel="noopener">Política de privacidad</a> y <a href="terms.html" target="_blank" rel="noopener">Términos</a>.' },
@@ -142,7 +142,7 @@ const TRADE = {
     ph: 'Llamadas contestadas, reseñas respondidas, cotizaciones con seguimiento y semanas flojas llenadas, mientras usted está en el agua.' },
   salons: { plural: 'salones, spas, gimnasios y estéticas de mascotas', for: 'Para salones, spas, gimnasios y estéticas de mascotas',
     h1: 'Tiene las manos ocupadas. Suena el teléfono, llega una reseña, el jueves tiene sillas vacías. Nos encargamos.',
-    lede: 'Llevamos la parte de atrás de un salón o estudio mientras tiene las manos ocupadas: cada llamada contestada, cada reseña respondida, cotizaciones con seguimiento y días vacíos llenados con su propia lista de clientes. Al teléfono, Max contesta con el nombre de su negocio, da su horario y los precios que usted fija, toma el nombre de quien llama, el servicio y el día que quiere, y se lo manda a su teléfono en segundos. Las citas reciben confirmación el día que usted elija, y cada visita puede convertirse en una solicitud de reseña y una publicación. <b>Usted lo aprueba todo desde su teléfono.</b>',
+    lede: 'Llevamos la parte de atrás de un salón o estudio mientras tiene las manos ocupadas: cada llamada contestada, cada reseña respondida, recordatorios a clientes anteriores y días vacíos llenados con su propia lista de clientes. Al teléfono, Max contesta con el nombre de su negocio, da su horario y los precios que usted fija, toma el nombre de quien llama, el servicio y el día que quiere, y se lo manda a su teléfono en segundos. Las citas reciben confirmación el día que usted elija, y cada visita puede convertirse en una solicitud de reseña y una publicación. <b>Usted lo aprueba todo desde su teléfono.</b>',
     ph: 'Llamadas contestadas, reseñas respondidas y sillas vacías llenadas con sus propios clientes, mientras usted está a mitad de un corte.' },
   restaurants: { plural: 'restaurantes, cafés y tiendas', for: 'Para restaurantes, cafés y tiendas',
     h1: 'Viernes, 7 PM, todas las mesas llenas. ¿El teléfono, las reseñas, el martes flojo de la semana que viene? Nos encargamos.',
@@ -153,7 +153,7 @@ const TRADE = {
     lede: 'Llevamos la parte de atrás de un consultorio dental mientras usted está con un paciente: cada llamada contestada, cada reseña respondida, y su perfil de Google al día. Al teléfono, Max contesta con el nombre de su consultorio, da su horario y ubicación, y toma un recado con el nombre, el número y lo que necesita quien llama, nada más. Nunca habla de tarifas, tratamientos ni seguros. Cada reseña recibe una respuesta cuidadosa que Compliance Guard revisa antes de que usted la vea. <b>Usted lo aprueba todo desde su teléfono.</b>',
     ph: 'Llamadas contestadas cuando la recepción no puede, reseñas respondidas y su perfil de Google al día. Nada dice nunca quién es paciente.' },
   insurance: { plural: 'agencias de seguros', for: 'Para agencias de seguros', h1: 'Subieron las tarifas. <span>Las reseñas vinieron después.</span>',
-    lede: 'Always Open contesta cada reseña de su agencia con la redacción que aprobó su encargado de cumplimiento. Compliance Guard revisa cada respuesta antes de que usted la vea, y <b>nada se publica hasta que usted toque Aprobar</b>. Nunca vemos su lista de clientes.',
+    lede: 'Always Open contesta cada reseña de su agencia con una redacción cuidadosa, escrita de antemano, que su contacto de cumplimiento puede revisar antes de empezar. Compliance Guard revisa cada respuesta antes de que usted la vea, y <b>nada se publica hasta que usted toque Aprobar</b>. Nunca vemos su lista de clientes.',
     ph: 'Llamadas fuera de horario contestadas, reseñas respondidas y su perfil de Google al día. Compliance Guard revisa cada palabra que escribimos por usted.',
     ctas: [['a[href*="#start-insurance"]', 'Pedir mi auditoría gratis'], ['a[href="#guard"]', 'Probar Compliance Guard']], small: 'Sin cargo de instalación y sin contrato. Respuestas en inglés y en español.' }
 };
@@ -229,7 +229,7 @@ export function esDoesFor(key) {
     { s: '#does .pillar:nth-child(3) ul', h: '<li><b>Rate-Shock Radar</b><span>: un conteo semanal de reseñas sobre tarifas, en su pueblo</span></li><li><b>Publicaciones educativas</b><span>: del calendario de la agencia; enseñan, nunca venden</span></li><li><b>Kit para pedir reseñas</b><span>: para que cada cliente sepa a dónde ir</span></li>' },
     { s: '#does .pillar:nth-child(3) a', h: 'Vea Rate-Shock Radar' + AR },
     { s: '#does .pillar:nth-child(4) h3', h: 'Un registro para cumplimiento' },
-    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Cada palabra pública archivada</b><span>: cada reseña, respuesta y publicación, cada mes</span></li><li><b>Su redacción aprobada</b><span>: las respuestas salen de la biblioteca que aprobó su contacto de cumplimiento</span></li><li><b>Sin lista de clientes</b><span>: trabajamos solo con páginas públicas</span></li>' },
+    { s: '#does .pillar:nth-child(4) ul', h: '<li><b>Cada palabra pública archivada</b><span>: cada reseña, respuesta y publicación, cada mes</span></li><li><b>Redacción cuidadosa</b><span>: las respuestas salen de una biblioteca escrita de antemano que su contacto de cumplimiento puede revisar antes de empezar</span></li><li><b>Sin lista de clientes</b><span>: no se saca nada de sus propios archivos</span></li>' },
     { s: '#does .pillar:nth-child(4) a', h: 'Vea el registro' + AR },
     { s: '#does .pillar:nth-child(5) ul', h: MAP_STORM_ES }
   ];

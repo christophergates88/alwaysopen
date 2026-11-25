@@ -220,11 +220,11 @@ const css =
   '@media (max-width:760px){.yours{padding-block:52px}.yg{columns:1;margin-top:20px}.yg section{margin-bottom:12px}.yg li,.yg p.yn,.yfoot p{font-size:16px}.yfoot .btn{flex:1 1 auto}}';
 
 // Nov 24, 2026: marking you closed on Google needs Google's approval, so it wears the Coming soon label until that comes
-// (src/launch.js takes it off by itself). Only the English line matches.
-const li = t => { const m = /^(Pro|Growth): (.*)$/.exec(t); return '<li>' + (m ? '<i>' + m[1] + '</i>' + esc(m[2]) : esc(t)) + (/closed on Google\.$/.test(t) ? '<span class="soon" data-launch="google">Coming soon</span>' : '') + '</li>'; };
+// (src/launch.js takes it off by itself). The English line and its Spanish twin match; the Spanish one says Próximamente.
+const li = t => { const m = /^(Pro|Growth): (.*)$/.exec(t); return '<li>' + (m ? '<i>' + m[1] + '</i>' + esc(m[2]) : esc(t)) + (/closed on Google\.$/.test(t) ? '<span class="soon" data-launch="google">Coming soon</span>' : /cerrado en Google\.$/.test(t) ? '<span class="soon" data-launch="google">Próximamente</span>' : '') + '</li>'; };
 // Nov 24, 2026: no truck at a salon, a restaurant or an office, so those pages' QR card is for the counter only
 const COUNTER = ['insurance', 'salons', 'restaurants', 'dental'];
-const forPage = (key, g) => COUNTER.includes(key) ? [g[0], g[1].map(t => t.replace('a card to print for the counter or the truck.', 'a card to print for the counter.')), g[2]] : g;
+const forPage = (key, g) => COUNTER.includes(key) ? [g[0], g[1].map(t => t.replace('a card to print for the counter or the truck.', 'a card to print for the counter.').replace('poner en el mostrador o la camioneta.', 'poner en el mostrador.')), g[2]] : g;
 const groupHtml = g => '<section><h3>' + esc(g[0]) + '</h3><ul>' + g[1].map(li).join('') + '</ul>' + (g[2] ? '<p class="yn">' + esc(g[2]) + '</p>' : '') + '</section>';
 
 export function section(key) {
@@ -247,7 +247,7 @@ export function spanish(key) {
   const c = copyFor(key).es;
   return [
     { s: '#yours .eyebrow', h: esc(c.eyebrow) }, { s: '#yours-h', h: esc(c.h) }, { s: '#yours .lead', h: esc(c.lead) },
-    { s: '#yours .yg', h: c.groups.map(groupHtml).join('') }, { s: '#yours .yfoot p', h: esc(c.foot) }, { s: '#yours .yfoot a.primary', h: esc(c.go) }
+    { s: '#yours .yg', h: c.groups.map(g => groupHtml(forPage(key, g))).join('') }, { s: '#yours .yfoot p', h: esc(c.foot) }, { s: '#yours .yfoot a.primary', h: esc(c.go) }
   ].concat(OFFICE_PAGES.includes(key) ? [] : [{ s: '#yours .ydemo', h: esc(c.demo) }]);
 }
 
