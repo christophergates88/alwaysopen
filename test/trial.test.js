@@ -131,7 +131,9 @@ test('readied from /hear: the call is answered as their business, with Google\'s
   // Christopher: a hot lead
   const p = w.world.pushes.slice(before).find(x => /Sinclair Plumbing just heard Max as their business/.test(x.title));
   assert.ok(p, JSON.stringify(w.world.pushes.slice(before)));
-  assert.equal(p.priority, 'high');
+  // a hot lead: high priority, except at night, when every push to Christopher's phone is quiet (push.js isNight)
+  const { isNight } = await import('../src/push.js');
+  assert.equal(p.priority, isNight(Date.now()) ? 'low' : 'high');
   // nothing went to the caller, and nothing counts as a real call
   assert.ok(!w.world.calls.some(x => /Messages\.json$/.test(x.url) && x.method === 'POST'), 'no texts');
   // Google's details are gone once written up; the call's line still reads
