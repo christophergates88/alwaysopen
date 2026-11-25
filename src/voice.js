@@ -211,17 +211,18 @@ async function incoming(env, f) {
   // Numbers listed as testers on the line (the owner trying it out) skip the per-caller limit, and their calls are
   // marked as tests: no lead, no push, kept out of the counts.
   const tester = !!sample || String((parse(line.facts) || {}).testers || '').split(/[,\s]+/).filter(x => E164.test(x)).indexOf(from) > -1;
-  // The daily safety cap: 120 minutes in a day on one line is a robocall storm or abuse, not a busy day.
+  // The daily safety cap: 120 minutes in a day on one line is a robocall storm or abuse, not a busy day. Past it, as past
+  // the 80-call limit, callers get the voicemail (Nov 24, 2026: they used to hear "call back in an hour" and hang up, so a
+  // real customer on a real rush day could leave nothing).
   let capped = false;
   try { capped = !tester && await (await import('./minutes.js')).overDailyCap(env, to, now); } catch (e) { capped = false; }
   // Blocked caller IDs all share one From, so they are not one caller: no per-caller limit without a real number.
   const dayFull = n(b) >= PER_LINE_DAY;
   const limited = (!tester && E164.test(from) && n(a) >= PER_CALLER_HOUR) || dayFull || capped;
   if (dayFull && !capped) await opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had ' + PER_LINE_DAY + ' calls in a day. Callers now get the voicemail. If it is a real rush, raise the limit; if it is a storm, check the callers in the app.').catch(() => {});
-  if (capped) opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had over 120 minutes of calls in a day. Callers now hear a short message asking them to text or call back. If it is a real rush, raise the cap; if it is a storm, check the callers in the app.').catch(() => {});
+  if (capped) opsAlert(env, 'line-cap:' + line.client_id, line.client_id, (line.business || line.client_id) + ' has had over 120 minutes of calls in a day. Callers now get the voicemail, which reaches the owner like any other call. If it is a real rush, raise the cap; if it is a storm, check the callers in the app.').catch(() => {});
   await env.DB.prepare("INSERT OR IGNORE INTO app_calls (id, client_id, number, at, caller, caller_name, outcome, status, notified, hq_synced, test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', ?8, 0, ?9)")
     .bind(sid, line.client_id, sample ? line.number : to, new Date(now).toISOString(), from, oneLine(f.get('CallerName') || '').slice(0, 60), limited ? 'limited' : 'live', limited ? 1 : 0, f.get('AoTest') === '1' || tester ? 1 : 0).run();
-  if (capped) return twiml(say('Thanks for calling ' + biz + '. We are getting a lot of calls right now. Please text this number, or call back in an hour. Goodbye.') + '<Hangup/>');
   // A limited caller leaves a voicemail (voicemail.js), which reaches the owner like any other, instead of a hang-up
   // that promised "we have your number" and told nobody.
   if (limited) { const vm = await import('./voicemail.js'); return twiml(vm.voicemailInner(biz, vm.callbackUrl(env))); }

@@ -401,8 +401,11 @@ test('9. the check-in window holds for the customer\'s own zone too', async () =
 });
 
 // ---------- 10. and 11. the review ask ----------
-test('10. 11. every customer who answers the check-in gets the review link, whatever they say; a no still reaches the owner', async () => {
-  const w = await mk({ review: 'https://g.page/r/quillen' });
+test('10. 11. every customer who answers the check-in gets the review link, whatever they say; a no still reaches the owner', async (t) => {
+  // A weekday afternoon in Georgia, for the line and for the customers (478 numbers): the review text goes at once. Texts
+  // also wait for the customer's own 8 AM to 9 PM, so on the real clock this failed every night (Nov 24, 2026).
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-24T19:00:00Z') });
+  const w = await mk({ review: 'https://g.page/r/quillen', tz: 'America/New_York' });
   const add = async phone => (await w.DB.prepare("INSERT INTO checkins (client_id, phone, first, job, due_at, status, created) VALUES ('c1', ?1, 'Pat', 'water heater', ?2, 'pending', ?2)").bind(phone, new Date().toISOString()).run()).meta.last_row_id;
   const gather = (id, f, extra) => CI.checkinGather(w.env, new URL('https://x/voice/cig/k?id=' + id + (extra || '')), new URLSearchParams(f));
   const texts = to => w.world.texts.filter(t => t.To === to);

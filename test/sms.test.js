@@ -22,12 +22,18 @@ test('opted out numbers are skipped', async () => {
   assert.equal(r.why, 'opted out');
 });
 
-test('after-hours holds non-reply kinds', async () => {
+// Nov 24, 2026: on a fixed clock. It used to read the real one, so it failed every night once texts also waited for the
+// customer's own 8 AM to 9 PM (a 478 number is Georgia), and a deploy after 9 PM Eastern could not pass.
+test('after-hours holds non-reply kinds, by the business clock and by the customer\'s', async (t) => {
   const env = { DB: fakeDB(), TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' };
-  const r = await sendText(env, { clientId: 'c1', to: '4785550142', body: 'hi', kind: 'revive', tz: 'Etc/GMT+12' });
-  const h = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Etc/GMT+12' }).format(new Date());
-  if (h < 8 || h >= 21) { assert.equal(r.why, 'after hours'); assert.equal(r.retry, true); }
-  else assert.notEqual(r.why, 'after hours');
+  const send = tz => sendText(env, { clientId: 'c1', to: '4785550142', body: 'hi', kind: 'revive', tz });
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-24T17:00:00Z') });   // noon in Georgia, 5 AM at GMT-12
+  assert.notEqual((await send('America/New_York')).why, 'after hours', 'daytime for both');
+  const early = await send('Etc/GMT+12');
+  assert.equal(early.why, 'after hours', 'the business clock'); assert.equal(early.retry, true);
+  t.mock.timers.setTime(Date.parse('2026-11-25T03:00:00Z'));   // 10 PM in Georgia, 3 PM at GMT-12
+  const late = await send('Etc/GMT+12');
+  assert.equal(late.why, 'after hours', 'the customer\'s clock'); assert.equal(late.retry, true);
 });
 
 test('STOP records an opt-out and sends nothing back', async () => {

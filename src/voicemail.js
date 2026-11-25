@@ -260,6 +260,15 @@ async function takeAppended(env, row, now, h) {
   const words = kept && kept.id ? COULD_NOT : kept && kept.wait ? ON_ITS_WAY : said || (heard ? NO_WORDS : NO_PLAY);
   await env.DB.prepare("UPDATE app_calls SET summary = ?1, details = TRIM(COALESCE(details, '') || ' ' || ?2), hq_synced = 0 WHERE id = ?3")
     .bind((whole ? words : 'They left a voicemail: ' + words).slice(0, 600), ('Voicemail: ' + words).slice(0, 2000), row.id).run();
+  // A robocall that talks into the voicemail ("this is a recorded message, press 1") is filed as spam, with no push. Past
+  // a line's daily limits that is most of what calls (Nov 24, 2026), and a flood of them must not buzz the owner's phone.
+  let robo = false;
+  if (heard && said) { try { robo = (await import('./voice.js')).looksRobo(said); } catch (e) { robo = false; } }
+  if (robo) {
+    await env.DB.prepare("UPDATE app_calls SET outcome = 'spam', hq_synced = 0 WHERE id = ?1 AND outcome IN ('limited', 'failed', 'hangup')").bind(row.id).run();
+    await dropRecording(env, rec.sid, h, ctx);
+    return mark(env, row.id, 'done', 'voicemail was a robocall', rec.sid, tries);
+  }
   const app = h.app || await import('./app.js');
   const who = row.caller_name || row.caller || 'a caller';
   if (row.client_id === 'always-open') await app.opsPing(env, 'Always Open: voicemail from ' + who, words.slice(0, 600), 'default', 'telephone_receiver');

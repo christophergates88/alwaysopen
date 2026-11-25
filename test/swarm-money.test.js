@@ -139,8 +139,12 @@ test('M2: a welcome email that cannot be sent raises mail-send for Chris, withou
 });
 
 // ---------- M3 ----------
-test('M3: a cancel in the first 30 days says the first month is refunded, and Chris gets REFUND DUE at high priority', async () => {
+test('M3: a cancel in the first 30 days says the first month is refunded, and Chris gets REFUND DUE at high priority', async (t) => {
   const { b, base } = await signup({ business: 'Early Exit Electric', plan: 'Pro', max: '1' });
+  // the cancel comes at the next noon in Georgia: between 10 PM and 7 AM Christopher's pushes arrive quietly, by design,
+  // so on the real clock this failed every night (Nov 24, 2026)
+  const noon = new Date(); noon.setUTCHours(17, 0, 0, 0); if (+noon <= Date.now()) noon.setUTCDate(noon.getUTCDate() + 1);
+  t.mock.timers.enable({ apis: ['Date'], now: +noon });
   const screen = await site.call(base + '/billing?step=cancel');
   assert.match(screen.text, /first month is refundable/i);
   assert.match(screen.text, /Chris refunds it within one business day/);

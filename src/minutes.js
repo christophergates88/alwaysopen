@@ -3,7 +3,7 @@
 //   - at 80 percent the owner gets one push, at 100 percent one more; Max keeps answering either way.
 //     Christopher gets an alert at both marks too, so a heavy line is seen before it goes over
 //   - on the 2nd of the month, the overage from last month goes on the business's next Stripe invoice, once
-//   - a daily safety cap (120 minutes or 80 calls in one day on one line) switches that line to a short message and
+//   - a daily safety cap (120 minutes or 80 calls in one day on one line) switches that line to the voicemail and
 //     tells Christopher: that is a robocall storm or abuse, not a busy day
 const DAY = 864e5;
 export const INCLUDED_MIN = 300;

@@ -107,7 +107,7 @@ Scheduled tasks, turn on "Always Open check" (or tell Claude to).
 | `cron:missed-texts` | The sweep for texts that missed the site could not read Twilio | Twilio status; it tries again in 10 minutes |
 | `drill` | The 4 AM test call to Max failed twice | The call on the ops board (calls from the test number on Always Open's line); Claude's status; the voice log |
 | `max-backup` | Claude failed two checks in a row, so every call is on the backup model | console.anthropic.com (credits, status); it switches back by itself when Claude answers |
-| `line-cap:<client>` | 120 minutes or 80 calls in a day on one line | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
+| `line-cap:<client>` | 120 minutes or 80 calls in a day on one line (callers past it get the voicemail; robocall voicemails are filed as spam, no push) | The calls in the owner's app: storm or real rush? Raise `DAY_MINUTE_CAP` in `src/minutes.js` if real |
 | `quiet-line:<client>` | A busy line had no calls for a week | Twilio number webhook, then ask the owner about forwarding |
 | `quiet-profile:<client>` | A profile's reviews stopped | The owner's reconnect card, then the profile's managers in Google |
 | `deploy` | A deploy failed or rolled back | The Actions tab; the alert says which check failed |
