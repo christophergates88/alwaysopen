@@ -56,6 +56,9 @@ export { CallRoom };
 export { HqCallRoom } from './hqcalls.js';
 // Gates HQ's private brain reaches Claude through this entrypoint (a service binding, never the internet): hqclaude.js.
 export { HqClaude } from './hqclaude.js';
+// Gates HQ 2 hands the Mac's Gates HQ routes that need this worker (Claude's key, his calls line) on through this one
+// (hqmac.js, Nov 22, 2026): the Mac talks to Gates HQ's own server with Gates HQ's own key.
+export { HqMac } from './hqmac.js';
 
 const MAX_BODY = 12000;          // bytes
 const MIN_FILL_MS = 3000;        // faster than this is a bot
